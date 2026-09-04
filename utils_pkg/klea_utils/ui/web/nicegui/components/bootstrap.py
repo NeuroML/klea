@@ -8,8 +8,7 @@ identity and delegates the actual composition to a *page builder*
 supplied by the caller), and :func:`nicegui.ui.run`.
 
 The page layout itself is *not* defined here -- the caller passes the
-``page_builder`` callable so each app (or today,
-``klea_utils.ui.web.nicegui.runner``) composes the page from
+``page_builder`` callable so each app composes the page from
 ``klea_utils.ui.web.nicegui.components`` (ADR-0031).
 
 File: klea_utils/ui/web/nicegui/components/bootstrap.py

@@ -1,26 +1,24 @@
 #!/usr/bin/env python3
 """
-NiceGUI page assembly for Klea web interfaces.
+Agent NiceGUI page composition.
 
-This module *composes* the page from the shared
+This module *composes* the agent web page from the shared
 ``klea_utils.ui.web.nicegui.components`` (ADR-0031): it creates a
-:class:`PageContext`, attaches the components in the layout order, and
-delegates process setup (logging, storage, ``ui.run``) to
+:class:`PageContext` and attaches the components in the layout order.
+Process setup (logging, storage, ``ui.run``) is delegated to
 :func:`klea_utils.ui.web.nicegui.components.bootstrap.run_nicegui_server`.
 
-The composition is deliberately thin -- each app will provide its own
-page assembly (its own ``app.py``/``page.py``) so its API contract and
-UI elements can diverge without changing ``klea_utils``.
+Agent-specific UI elements (e.g. the operating-mode selector and
+assurance badge, ADR-0030) will be added here without touching
+``klea_utils``.
 
-File: klea_utils/ui/web/nicegui/runner.py
+File: klea_agent/ui/web/page.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-
-from nicegui import ui
 
 from klea_utils.ui.web.nicegui.components import (
     bootstrap,
@@ -35,6 +33,7 @@ from klea_utils.ui.web.nicegui.components import (
     theme,
 )
 from klea_utils.ui.web.nicegui.components.context import DEFAULT_FOOTER, PageContext
+from nicegui import ui
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ def setup_layout(
     disclaimer: str = "",
     footer_text: str = DEFAULT_FOOTER,
 ) -> None:
-    """Build the full page UI: header, drawers, chat area, and footer.
+    """Build the agent page UI: header, drawers, chat area, and footer.
 
     User messages appear as right-aligned bubbles (grey background);
     system / bot messages are left-aligned, full-width and transparent,
@@ -66,8 +65,7 @@ def setup_layout(
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
     :param title: Bold application title in the header bar.
-    :param subtitle: Optional smaller text shown next to *title*
-        in the header.
+    :param subtitle: Optional smaller text shown next to *title*.
     :param disclaimer: Optional text shown below the chat input.
     :param footer_text: HTML content for the footer bar.
     """
@@ -137,7 +135,7 @@ def setup_layout(
                 inspector.attach_inspector_panel(ctx)
 
     # ---- Background initialisation: health-check + hydrate ----
-    # Runs after the layout is delivered so ``main_page`` returns
+    # Runs after the layout is delivered so the page handler returns
     # within ``response_timeout`` even when the backend needs 30-60s
     # to become ready on HF (cold container).
     initial_load.attach_initial_load(ctx)
@@ -147,9 +145,10 @@ def setup_layout(
         ui.html(footer_text).classes("w-full text-center text-grey-6")
 
 
-def run_nicegui_app(
+def run_agent_web(
     title: str,
     server_url: str,
+    *,
     subtitle: str = "",
     disclaimer: str = "",
     footer_text: str = DEFAULT_FOOTER,
@@ -158,28 +157,22 @@ def run_nicegui_app(
     storage_secret: str = "klea-nicegui-secret-change-me",
     app_name: str = "klea-web",
 ) -> None:
-    """Start the NiceGUI web server with the shared Klea chat interface.
+    """Start the agent NiceGUI web server with :func:`setup_layout`.
 
     Thin wrapper around :func:`components.bootstrap.run_nicegui_server`
-    that supplies :func:`setup_layout` as the page builder.
+    that supplies this app's page composition.
 
     :param title: Application title (displayed in the header and
         browser tab).
-    :param server_url: Base URL of the backend API server
-        (e.g. ``http://127.0.0.1:8005``).
-    :param subtitle: Optional smaller text shown next to *title*
-        in the header.
+    :param server_url: Base URL of the backend API server.
+    :param subtitle: Optional smaller text shown next to *title*.
     :param disclaimer: Optional text shown below the chat input.
     :param footer_text: HTML content for the footer bar.
-    :param reload: When ``True``, enable NiceGUI's file-watch hot
-        reload (``reload=True``).  Set to ``False`` in production.
-    :param nicegui_url: ``host:port`` to bind the NiceGUI web server to
-        (default: ``"0.0.0.0:7860"``).
+    :param reload: When ``True``, enable NiceGUI's file-watch hot reload.
+    :param nicegui_url: ``host:port`` to bind the NiceGUI web server to.
     :param storage_secret: Secret used by NiceGUI for browser session
-        persistence (default: ``"klea-nicegui-secret-change-me"``).
-    :param app_name: Log identity for this frontend process, used as the
-        log file name so each app keeps its own logs (e.g.
-        ``"klea-rag-web"``).
+        persistence.
+    :param app_name: Log identity for this frontend process.
     """
     bootstrap.run_nicegui_server(
         title,

@@ -90,8 +90,9 @@ Chosen option: "C. Configurable per-request model via ``configurable_fields='any
   ``model_overrides_ctx`` (``contextvar`` ``dict``) is the per-request
   seam.
 * API: ``klea_utils/api/models.py`` per-session ``/models`` endpoints
-  (``api_key`` masked in logs via ``plogging.mask_sensitive``) and
-  ``klea_utils.ui.web.nicegui.runner`` gear-icon model picker per chat;
+  (``api_key`` masked in logs via ``plogging.mask_sensitive``) and the
+  NiceGUI gear-icon model picker per chat
+  (``klea_utils.ui.web.nicegui.components.model_dialog``);
   ``klea_utils/nodes/base.py:475`` reads ``overrides.get("api_key")``
   in ``_invoke_llm``.
 * Embedding role: ``LLMModel(instance=None, required=...)`` carries
