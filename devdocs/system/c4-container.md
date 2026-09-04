@@ -25,7 +25,7 @@ Level 1 is kept as a `C4Context` diagram.  Level 2 is rendered as a Mermaid
 has a fixed 2-column grid with straight `Rel` lines that obscure boxes at this
 density; `elk` orthogonally routes edges around nodes.  This is a
 documentation-notation choice, not a system architecture decision, so no ADR is
-created — see the note below.
+created  ---  see the note below.
 
 ## Container diagram -- Klea containers (flowchart, elk)
 
@@ -48,12 +48,12 @@ flowchart TB
     %% Klea boundary
     subgraph Klea [Klea]
         direction TB
-        ui["Client UI<br/>Python (klea_utils.ui)<br/>TUI / NiceGUI / Streamlit<br/>CLI auto-spawns server, connects over HTTP/SSE"]
-        agent["klea_agent<br/>Python / FastAPI / LangGraph<br/>General-purpose coding agent (KleaAgent)<br/>includes former code_pkg — WIP<br/>CLI: klea; serve: :8006"]
-        rag["klea_rag<br/>Python / FastAPI / LangGraph<br/>Domain-configurable RAG pipeline (RAG)<br/>CLI: klea-rag; serve: :8005 — mature"]
-        nmlmcp["nml-mcp (neuroml_mcp)<br/>Python / FastMCP<br/>NeuroML MCP server<br/>CLI: nml-mcp — streamable-http :8542"]
+        ui["Client UIs<br/>Python (klea_agent.ui / klea_rag.ui)<br/>Per-app NiceGUI pages + CLI wiring<br/>Compose klea_utils UI components; CLI auto-spawns server, connects over HTTP/SSE"]
+        agent["klea_agent<br/>Python / FastAPI / LangGraph<br/>General-purpose coding agent (KleaAgent)<br/>includes former code_pkg  ---  WIP<br/>CLI: klea; serve: :8006"]
+        rag["klea_rag<br/>Python / FastAPI / LangGraph<br/>Domain-configurable RAG pipeline (RAG)<br/>CLI: klea-rag; serve: :8005  ---  mature"]
+        nmlmcp["nml-mcp (neuroml_mcp)<br/>Python / FastMCP<br/>NeuroML MCP server<br/>CLI: nml-mcp  ---  streamable-http :8542"]
         bundled["bundled klea-mcp<br/>Python / FastMCP<br/>Shared tools (web_fetch, file read/list, download)<br/>stdio subprocess per app; standalone via klea-mcp"]
-        utils["klea_utils (shared library)<br/>Python<br/>BaseLangGraph, FastAPI app factory,<br/>vector-store + BM25, UIs, biblio/DOI"]
+        utils["klea_utils (components/helpers library)<br/>Python<br/>BaseLangGraph + shared nodes, FastAPI helpers,<br/>vector-store + BM25, UI components, biblio/DOI"]
         vstores["Vector / BM25 Stores<br/>Chroma, Qdrant, pgvector + BM25<br/>URI paths: chroma:/, qdrant:http://, pgvector:postgresql://"]
         sqlite["Session / Checkpoint Stores<br/>SQLite<br/>sessions.db, checkpoints.db"]
     end
@@ -101,31 +101,34 @@ flowchart TB
     nmlmcp --> hf
 ```
 
-*Notes:* `flowchart` with `layout: elk` is used here because Mermaid's `C4Container` has a fixed 2-column grid and straight `Rel` lines that obscure boxes at this density. `elk` provides orthogonal edge routing around nodes. Level 1 remains `C4Context` (less dense, renders fine). Dashed edges (`-.->`) denote to-be / optional integrations (`BioFAIR`, `agent->rag`, `extagent->rag`). GitHub's Mermaid renderer may fall back from `elk` to `dagre` if `@mermaid-js/layout-elk` is not bundled — the diagram remains readable, just with dagre routing.
+*Notes:* `flowchart` with `layout: elk` is used here because Mermaid's `C4Container` has a fixed 2-column grid and straight `Rel` lines that obscure boxes at this density. `elk` provides orthogonal edge routing around nodes. Level 1 remains `C4Context` (less dense, renders fine). Dashed edges (`-.->`) denote to-be / optional integrations (`BioFAIR`, `agent->rag`, `extagent->rag`). GitHub's Mermaid renderer may fall back from `elk` to `dagre` if `@mermaid-js/layout-elk` is not bundled  ---  the diagram remains readable, just with dagre routing.
 
 ## Containers
 
 | Container | Package | Role | Key entry points |
 |-----------|---------|------|------------------|
-| Client UI | `klea_utils.ui` | TUI / NiceGUI / Streamlit interface; CLI auto-spawns the server and connects over HTTP/SSE | `klea`, `klea-rag` CLIs |
+| Client UIs | `klea_agent.ui` / `klea_rag.ui` | Per-app NiceGUI pages and CLI wiring composed from `klea_utils` UI components; CLI auto-spawns the server and connects over HTTP/SSE | `klea`, `klea-rag` CLIs |
 | `klea_agent` | `agent_pkg` | General-purpose coding agent (`KleaAgent` over `BaseLangGraph`); **WIP** | `klea`, `klea-serve` (HTTP `:8006`) |
 | `klea_rag` | `rag_pkg` | Domain-configurable RAG pipeline (`RAG` over `BaseLangGraph`); mature path | `klea-rag`, `klea-rag-serve` (HTTP `:8005`) |
 | `nml-mcp` | `mcp_pkg` | NeuroML MCP server: model gen, NeuroML-DB/OSB search, sandboxed code exec, web/doc tools | `nml-mcp` (streamable-http `:8542`) |
 | bundled `klea-mcp` | `klea_utils.mcp.server.bundled` | Shared tools server (web_fetch, file read/list, download); launched as a stdio subprocess by each app | `klea-mcp` (standalone) |
-| `klea_utils` | `utils_pkg` | Shared library: `BaseLangGraph`, FastAPI app factory, vector-store + BM25 managers, UIs, biblio/DOI | (imported by all apps) |
+| `klea_utils` | `utils_pkg` | Components/helpers library: `BaseLangGraph`, shared graph nodes, FastAPI helpers + generic routers, vector-store + BM25 managers, UI components, biblio/DOI | (imported by all apps) |
 | Vector / BM25 Stores | -- | Retrieval stores (URI-style paths: `chroma:`, `qdrant:`, `pgvector:`, BM25 `.pkl`) | -- |
 | Session / Checkpoint Stores | -- | SQLite `sessions.db`, `checkpoints.db` | -- |
 
 ## How the containers interact
 
 - Every app (`klea_agent`, `klea_rag`) subclasses `BaseLangGraph`
-  (`klea_utils.graph.base`) and is served as a FastAPI app (`klea_utils.api`).
+  (`klea_utils.graph.base`) and is served as a FastAPI app assembled from the
+  generic `klea_utils.api` helpers (`make_app` + the generic routers), with
+  each app defining its own chat router (API contract, see ADR-0031).
 - Each app launches the **bundled `klea-mcp`** server as a **stdio subprocess**
   and connects to it (plus any configured MCP servers) at runtime via the
   `MCPConfig` mechanism.
 - All three apps also call the **`nml-mcp`** NeuroML server over HTTP/MCP.
-- Researchers reach the apps through the **Client UI** (CLI spawns the server,
-  then a TUI/Web UI connects over HTTP/SSE).
+- Researchers reach the apps through the **Client UIs** (each app's CLI spawns
+  the server, then that app's TUI/Web page connects over HTTP/SSE; per-app
+  pages compose shared `klea_utils` UI components, ADR-0031).
 - Datastores: apps read/write the **Vector / BM25 Stores** (backed by the
   Chroma/Qdrant/pgvector engines) and persist conversation/checkpoint state in
   **SQLite**.
