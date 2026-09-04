@@ -15,7 +15,7 @@ Core app & server
 Chat endpoints
 --------------
 
-.. automodule:: klea_utils.api.chat
+.. automodule:: klea_utils.api.chat_core
    :members:
    :show-inheritance:
 

@@ -9,12 +9,12 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from klea_utils.api.app import make_app
-from klea_utils.api.chat import create_chat_router
 from klea_utils.api.health import create_health_router
 from klea_utils.api.messages import create_messages_router
 from klea_utils.api.models import create_models_router
 from klea_utils.api.sessions import create_sessions_router
 
+from klea_rag.api.chat import create_chat_router
 from klea_rag.rag import RAG
 
 
