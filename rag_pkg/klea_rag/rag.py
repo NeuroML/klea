@@ -14,6 +14,7 @@ from typing import final, override
 
 from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
 from klea_utils.nodes.answer_general import AnswerGeneral, FallbackConfig
 from klea_utils.nodes.fixed_answer import FixedAnswer
@@ -190,7 +191,7 @@ class RAG(BaseLangGraph):
     @override
     async def _create_graph(self):
         """Create the LangGraph"""
-        self.workflow = StateGraph(RAGState)
+        self.workflow = StateGraph(RAGState, context_schema=KleaRunContext)
 
         # Guard nodes
         self._guard_node = GuardNode(

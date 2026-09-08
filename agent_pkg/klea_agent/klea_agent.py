@@ -15,6 +15,7 @@ from typing import Any, final, override
 from fastmcp.client.client import CallToolResult
 from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
@@ -225,7 +226,7 @@ class KleaAgent(BaseLangGraph):
 
     async def _create_graph(self):
         """Create the LangGraph"""
-        self.workflow = StateGraph(KleaAgentState)
+        self.workflow = StateGraph(KleaAgentState, context_schema=KleaRunContext)
 
         self._init_graph_state_node = InitGraphState(
             logger=self.logger, label="Initializing"

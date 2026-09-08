@@ -12,6 +12,7 @@ import logging
 from unittest import mock
 
 import pytest
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel
 from klea_utils.models_catalog import ModelLimits
 from klea_utils.nodes.base import (
@@ -23,9 +24,21 @@ from klea_utils.nodes.base import (
 )
 from langchain_core.messages import AIMessage
 from langchain_core.prompt_values import StringPromptValue
+from langgraph.runtime import Runtime
 from pydantic import BaseModel
 
 logger = logging.getLogger("test")
+
+
+def _runtime_context(model_overrides: dict | None = None):
+    """Harness: run a block inside a LangGraph Runtime context (ADR-0033).
+
+    ``_build_invoke_config`` reads ``get_runtime().context`` ambiently; a
+    direct call outside a graph run would raise, so unit tests stub the
+    ambient accessor with a ``Runtime`` carrying the given overrides.
+    """
+    runtime = Runtime(context=KleaRunContext(model_overrides=model_overrides or {}))
+    return mock.patch("klea_utils.nodes.base.get_runtime", return_value=runtime)
 
 
 class _OutputSchema(BaseModel):
@@ -82,7 +95,10 @@ class TestBuildInvokeConfigNoModel:
             output_schema=None,
         )
 
-        with pytest.raises(RuntimeError, match="No model configured for role 'chat'"):
+        with (
+            _runtime_context(),
+            pytest.raises(RuntimeError, match="No model configured for role 'chat'"),
+        ):
             node._build_invoke_config()
 
     def test_set_model_builds_config(self):
@@ -99,8 +115,28 @@ class TestBuildInvokeConfigNoModel:
         )
         node._last_prompt = StringPromptValue(text="hi")
 
-        config = node._build_invoke_config()
+        with _runtime_context():
+            config = node._build_invoke_config()
         assert config["configurable"]["model"] == "gpt-4o"
+
+    def test_context_overrides_reach_merge(self):
+        """Per-run overrides (ADR-0033 Runtime context) win in the merge."""
+        node = _MinimalLLMNode(
+            logger=logger,
+            label="test",
+            llm_models={
+                "chat": LLMModel(
+                    instance=mock.Mock(), model_name="openai:gpt-4o", required=True
+                )
+            },
+            output_schema=None,
+        )
+        node._last_prompt = StringPromptValue(text="hi")
+
+        with _runtime_context({"chat": {"model": "ollama:qwen3", "temperature": 0.5}}):
+            config = node._build_invoke_config()
+        assert config["configurable"]["model"] == "qwen3"
+        assert config["configurable"]["temperature"] == 0.5
 
 
 class TestInvokeWithRetries:

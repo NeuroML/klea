@@ -24,9 +24,10 @@ from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.utils.function_calling import convert_to_json_schema
+from langgraph.runtime import get_runtime
 from pydantic import BaseModel
 
-from klea_utils.graph.base import model_overrides_ctx
+from klea_utils.graph.context import model_overrides_from_context
 from klea_utils.plogging import mask_sensitive
 
 from ..errors import LLMInvocationErrorCategory, PromptTemplateError
@@ -257,10 +258,16 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         limits) before applying provider field filtering to strip fields
         invalid for the resolved provider.
         """
-        ctx_val = model_overrides_ctx.get()
-        role_overrides = (ctx_val or {}).get(self.model_type, {})  # type: ignore[union-attr]
+        # Per-run model overrides come from the LangGraph Runtime context
+        # (get_runtime().context, ADR-0033), not an ad-hoc contextvar.
+        # Ambient access: no node signature takes a ``runtime`` parameter;
+        # the value is static for the whole run.  Outside a graph run
+        # (unit tests) get_runtime() raises, so tests drive the merge via
+        # a Runtime-context harness instead of calling this directly.
+        ctx_val = model_overrides_from_context(get_runtime().context)
+        role_overrides = ctx_val.get(self.model_type, {})
         self.logger.debug(
-            f"{mask_sensitive(ctx_val or {}) = }\n"
+            f"{mask_sensitive(ctx_val) = }\n"
             f"{self.model_type = }\n"
             f"{mask_sensitive(role_overrides) = }\n"
             f"{self.model_defaults = }"

@@ -39,6 +39,12 @@ async def test_graph_has_mode_decision_branch(monkeypatch):
 
     await agent._create_graph()
     assert agent.graph is not None
+    # The graph is built with the shared ADR-0033 runtime context schema so
+    # per-run model overrides reach the nodes via ``get_runtime()``.
+    from klea_utils.graph.context import KleaRunContext
+
+    assert agent.workflow.context_schema is KleaRunContext
+    assert agent.graph.context_schema is KleaRunContext
     graph = agent.graph.get_graph()
     node_names = {n.name for n in graph.nodes.values()}
     logger.debug("nodes: %s", node_names)
