@@ -15,6 +15,8 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from typing import Literal
+
 from fastapi import APIRouter, Request
 from klea_utils.api import chat_core
 from pydantic import BaseModel, Field
@@ -24,6 +26,23 @@ class ChatPayload(BaseModel):
     query: str = Field(..., min_length=1)
     chat_id: str = Field(..., pattern=r"^[^:]+$")
     user_id: str = Field(default="", pattern=r"^[^:]*$")
+    # Operating-mode request passed into the graph's initial state
+    # (ADR-0030); the resolved mode/assurance comes back as a ``context``
+    # event on the stream.
+    mode: Literal["general", "scientific"] = Field(
+        default="general",
+        description="Requested operating mode (scientific requires a curated source)",
+    )
+
+
+def _extra_state(payload: ChatPayload) -> dict[str, dict[str, str]]:
+    """Build the graph's initial-state extras from the payload.
+
+    :param payload: The validated chat payload.
+    :returns: Extra state fields passed to :class:`~klea_utils.graph.base.BaseLangGraph`
+        invocation methods (``mode.requested``).
+    """
+    return {"mode": {"requested": payload.mode}}
 
 
 def create_chat_router() -> APIRouter:
@@ -43,6 +62,7 @@ def create_chat_router() -> APIRouter:
             query=payload.query,
             user_id=payload.user_id,
             chat_id=payload.chat_id,
+            extra_state=_extra_state(payload),
         )
         return {"result": message}
 
@@ -53,6 +73,7 @@ def create_chat_router() -> APIRouter:
             query=payload.query,
             user_id=payload.user_id,
             chat_id=payload.chat_id,
+            extra_state=_extra_state(payload),
         )
 
     return router

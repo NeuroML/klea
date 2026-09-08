@@ -29,6 +29,7 @@ from klea_agent.nodes.evaluator import Evaluator
 from klea_agent.nodes.explore_planner import ExplorePlanner
 from klea_agent.nodes.goal_setter import GoalSetter
 from klea_agent.nodes.init_graph import InitGraphState
+from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.tools_router import ToolsRouter
 
@@ -39,6 +40,7 @@ from .schemas import (
     Discovery,
     GoalSchema,
     KleaAgentState,
+    Mode,
     PlanSchema,
     StepSchema,
 )
@@ -112,6 +114,7 @@ class KleaAgent(BaseLangGraph):
             GoalSchema,
             ArtefactSchema,
             Discovery,
+            Mode,
         ]
 
     @override
@@ -153,6 +156,38 @@ class KleaAgent(BaseLangGraph):
         """Return ``plan.status`` for conditional routing."""
         return state.plan.status
 
+    async def _mode_router_node(self, state: KleaAgentState) -> str:
+        """Route mode decision: proceed normally or inform (ADR-0030).
+
+        ``mode.note`` is only set when a requested mode cannot run (e.g.
+        Scientific mode without a curated knowledge source), so returning
+        ``"inform"`` routes to the terminal ModeInformer node instead of
+        silently downgrading to an unverified answer.
+        """
+        return "inform" if state.mode.note else "proceed"
+
+    @override
+    def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        """Surface the operating mode as a ``context`` event.
+
+        The session context is a projection of the checkpointed state
+        written by :class:`ModeDecision` at task entry (ADR-0032): the
+        graph streamer publishes it (change-deduped) on the ``values``
+        channel, so the frontend can render the active mode and any
+        explanation note.  Verification/assurance tracking is deferred to
+        the ADR-0029 verification phase.
+
+        :param state: The per-superstep state snapshot (a dict).
+        :returns: ``{"mode", "note"}`` for the frontend.
+        """
+        mode_data = state.get("mode", {})
+        if not isinstance(mode_data, dict):
+            mode_data = getattr(mode_data, "model_dump", dict)()
+        return {
+            "mode": mode_data.get("resolved", "general"),
+            "note": mode_data.get("note", ""),
+        }
+
     def _update_plan_step_status(
         self, state: KleaAgentState, results: list[CallToolResult]
     ) -> dict[str, Any]:
@@ -188,6 +223,29 @@ class KleaAgent(BaseLangGraph):
         )
         self.workflow.add_node(
             self._init_graph_state_node.label, self._init_graph_state_node.execute
+        )
+
+        # Operating mode (ADR-0030): decide at task entry, before any work.
+        # Scientific mode requires an approved curated knowledge source; the
+        # agent has none configured yet (``retriever_config``/``stores`` are
+        # deferred until the ADR-0029 retrieval phase), so a scientific
+        # request routes to the informing node instead of silently downgrading
+        # to an unverified answer.
+        self._mode_decision_node = ModeDecision(
+            logger=self.logger,
+            label="Determining mode",
+            source_available=(
+                self.retriever_config is not None and self.stores is not None
+            ),
+        )
+        self.workflow.add_node(
+            self._mode_decision_node.label, self._mode_decision_node.execute
+        )
+        self._mode_informer_node = ModeInformer(
+            logger=self.logger, label="Informing about mode"
+        )
+        self.workflow.add_node(
+            self._mode_informer_node.label, self._mode_informer_node.execute
         )
 
         # Guard nodes
@@ -301,7 +359,17 @@ class KleaAgent(BaseLangGraph):
 
         self.workflow.add_edge(START, self._init_graph_state_node.label)
         self.workflow.add_edge(
-            self._init_graph_state_node.label, self._guard_node.label
+            self._init_graph_state_node.label, self._mode_decision_node.label
+        )
+        # ADR-0030: a mode that cannot run (e.g. Scientific without a curated
+        # source) is informed, not silently downgraded; proceed otherwise.
+        self.workflow.add_conditional_edges(
+            self._mode_decision_node.label,
+            self._mode_router_node,
+            {
+                "proceed": self._guard_node.label,
+                "inform": self._mode_informer_node.label,
+            },
         )
         self.workflow.add_conditional_edges(
             self._guard_node.label,
@@ -360,6 +428,7 @@ class KleaAgent(BaseLangGraph):
         else:
             self.workflow.add_edge(self._answer_user_node.label, END)
         self.workflow.add_edge(self._decline_to_answer_node.label, END)
+        self.workflow.add_edge(self._mode_informer_node.label, END)
 
         if self.checkpointer:
             self.graph = self.workflow.compile(checkpointer=self.checkpointer)

@@ -8,8 +8,8 @@ This module *composes* the agent web page from the shared
 Process setup (logging, storage, ``ui.run``) is delegated to
 :func:`klea_utils.ui.web.nicegui.components.bootstrap.run_nicegui_server`.
 
-Agent-specific UI elements (e.g. the operating-mode selector and
-assurance badge, ADR-0030) will be added here without touching
+Agent-specific UI elements (e.g. an operating-mode selector and a
+mode/note badge, ADR-0030) will be added here without touching
 ``klea_utils``.
 
 File: klea_agent/ui/web/page.py

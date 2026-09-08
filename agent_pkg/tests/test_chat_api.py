@@ -36,8 +36,13 @@ def app(tmp_path):
     mock_graph = AsyncMock()
     mock_graph.run_graph_invoke.return_value = "mock answer"
 
-    async def _astream_events(query, thread_id):
+    async def _astream_events(query, thread_id, *, extra_state=None):
         yield {"type": "progress", "node": "Mocking"}
+        # Emit the same session-context event the real graph's streamer
+        # produces from state (ADR-0032), so the endpoint plumbing
+        # passthrough is exercised end-to-end.
+        requested = (extra_state or {}).get("mode", {}).get("requested", "general")
+        yield {"type": "context", "data": {"mode": requested}}
         yield {"type": "complete", "message_for_user": "mock answer"}
 
     mock_graph.run_graph_astream_events = _astream_events
@@ -74,7 +79,9 @@ class TestChat:
         assert response.status_code == 200
         assert response.json() == {"result": "mock answer"}
         app.state.graph.run_graph_invoke.assert_awaited_once_with(
-            "hello", "user_test-user:chat_test-chat"
+            "hello",
+            "user_test-user:chat_test-chat",
+            extra_state={"mode": {"requested": "general"}},
         )
         self.logger.info("Verified run_graph_invoke was called with correct args")
 
@@ -145,11 +152,49 @@ class TestChat:
         assert events[-1] == {"type": "complete", "message_for_user": "mock answer"}
         self.logger.info("Streaming events match expected structure")
 
+    async def test_query_passes_requested_mode(self, client, app):
+        """POST /query forwards the payload mode as graph initial state."""
+        await client.post(
+            "/query",
+            json={
+                "query": "hello",
+                "chat_id": "c-mode",
+                "user_id": "u",
+                "mode": "scientific",
+            },
+        )
+        app.state.graph.run_graph_invoke.assert_called_once_with(
+            "hello",
+            "user_u:chat_c-mode",
+            extra_state={"mode": {"requested": "scientific"}},
+        )
+
+    async def test_query_stream_emits_context_event(self, client):
+        """POST /query/stream surfaces the graph's ``context`` event."""
+        async with client.stream(
+            "POST",
+            "/query/stream",
+            json={
+                "query": "hello",
+                "chat_id": "c-ctx",
+                "user_id": "u",
+                "mode": "scientific",
+            },
+        ) as response:
+            lines = []
+            async for line in response.aiter_lines():
+                lines.append(line)
+
+        events = [json.loads(f[6:]) for f in lines if f.startswith("data: ")]
+        context_events = [e for e in events if e.get("type") == "context"]
+        assert context_events, "expected at least one context event"
+        assert context_events[0]["data"]["mode"] == "scientific"
+
     async def test_query_stream_error_yields_error_event(self, app, client):
         """Graph error during streaming yields an error SSE event."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id):
+        async def _broken_stream(query, thread_id, *, extra_state=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 
@@ -180,7 +225,7 @@ class TestChat:
         """Graph error during streaming yields an error event but nothing is persisted."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id):
+        async def _broken_stream(query, thread_id, *, extra_state=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 

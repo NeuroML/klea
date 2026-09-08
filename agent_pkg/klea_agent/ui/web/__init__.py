@@ -4,7 +4,7 @@ Klea Agent NiceGUI web frontend.
 The agent app composes its page from the shared
 ``klea_utils.ui.web.nicegui.components`` (ADR-0031): ``page.py`` is the
 composition, ``app.py`` is the process entry point.  Agent-specific UI
-(mode selector, assurance badge) will be added here.
+(mode selector, mode/note badge) will be added here.
 
 File: klea_agent/ui/web/__init__.py
 
