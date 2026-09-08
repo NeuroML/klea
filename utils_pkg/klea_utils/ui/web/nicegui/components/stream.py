@@ -42,6 +42,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     ``"usage"``    token usage totals were incremented
     ``"state"``    a status-pane section was stored
     ``"debug"``    an inspector entry was buffered
+    ``"context"``  session context (e.g. mode / assurance) was stored
     ``"complete"`` the final assistant message was appended
     ``"error"``    the backend signalled an error
     ``None``       no state change (progress / info / token events)
@@ -56,6 +57,14 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     :returns: Action string described above, or ``None``.
     """
     t = event.get("type")
+
+    if t == "context":
+        # App-defined session context (e.g. the agent's operating mode and
+        # its assurance, ADR-0030), carried verbatim into the chat dict so
+        # the page can render it (badges / status) without app-specific
+        # knowledge of every event type.
+        chat.setdefault("context", {}).update(event.get("data", {}))
+        return "context"
 
     if t == "debug":
         data = event.get("data", {})
@@ -139,7 +148,7 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
                 pg_label.set_text(f"{event.get('node', '')}")
                 continue
             action = apply_stream_event(current_chat, event)
-            if action in ("usage", "state"):
+            if action in ("usage", "state", "context"):
                 ctx.refresh_status_pane()
             elif action == "complete":
                 pg_row.delete()
