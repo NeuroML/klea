@@ -69,3 +69,32 @@ async def test_scientific_without_source_produces_inform_plan():
     agent = KleaAgent(checkpoint="inmemory")
     route = await agent._mode_router_node(state)
     assert route == "inform"
+
+
+def test_context_snapshot_projects_requested():
+    """The agent's context projection carries requested/resolved/note.
+
+    ``requested`` is projected so the frontend can restore the
+    re-request after a page reload (ADR-0032): ``Mode`` is a
+    whole-object state field (no reducer), so an empty re-request would
+    otherwise silently reset the checkpointed mode on the next query.
+    """
+    from klea_agent.schemas import Mode
+
+    agent = KleaAgent(checkpoint="inmemory")
+    state = {
+        "mode": {"requested": "scientific", "resolved": "general", "note": "no source"}
+    }
+    assert agent.context_snapshot(state) == {
+        "mode": "general",
+        "requested": "scientific",
+        "note": "no source",
+    }
+    # A pydantic ``Mode`` instance in the state snapshot is handled too
+    # (the checkpoint may render nested models as-is or as dicts).
+    state = {"mode": Mode(requested="general", resolved="scientific")}
+    assert agent.context_snapshot(state) == {
+        "mode": "scientific",
+        "requested": "general",
+        "note": "",
+    }
