@@ -45,8 +45,9 @@ pytest -v
 ### Package Structure
 ```
 klea_rag/
-├── api/             # FastAPI server (thin wrappers around klea_utils routers)
+├── api/             # RAG API contract (own payload + routers; ADR-0031)
 │   ├── main.py      # FastAPI app creation
+│   ├── chat.py      # RagPayload + /query[/stream] (via klea_utils chat_core)
 │   └── server.py    # Typer serve command
 ├── config.py        # Configuration loading (env file + JSON)
 ├── nodes/           # LangGraph nodes for RAG pipeline
@@ -65,7 +66,10 @@ klea_rag/
 ├── rag.py           # Main RAG orchestrator (extends BaseLangGraph)
 ├── schemas.py       # Pydantic schemas
 └── ui/
-    └── cli.py       # Typer CLI entry point (klea-rag, klea-rag-serve)
+    ├── cli.py       # Typer CLI entry point (klea-rag, klea-rag-serve)
+    └── web/         # NiceGUI page composition over klea_utils components (ADR-0031)
+        ├── app.py   # process entry point
+        └── page.py  # setup_layout -- composes the shared components
 ```
 
 ### Key Technologies

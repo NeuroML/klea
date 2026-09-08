@@ -44,9 +44,10 @@ pytest -v
 ### Package Structure
 ```
 klea_utils/
-├── api/            # FastAPI app factory and endpoint routers
+├── api/            # FastAPI base layer: shared routers + chat plumbing
 │   ├── app.py      # make_app() -- FastAPI factory with lifespan (graph + session store)
-│   ├── chat.py     # /query/stream SSE endpoint for streaming graph execution
+│   ├── chat_core.py # Shared chat plumbing (run_query, stream_response).  Apps own
+│   │                 # their chat contract (own ChatPayload/router) via this (ADR-0031)
 │   ├── health.py   # /health endpoint for readiness probes
 │   ├── messages.py # message history CRUD per chat session
 │   ├── models.py   # per-session runtime model switching endpoints
@@ -57,7 +58,9 @@ klea_utils/
 │   └── utils.py    # URL validation, API readiness check
 ├── errors.py       # Custom exception classes
 ├── graph/          # LangGraph orchestrator base
-│   └── base.py     # BaseLangGraph abstract class (setup, run, compile template)
+│   └── base.py     # BaseLangGraph abstract class (setup, run, compile template);
+│                   #   context_snapshot hook -> graph-level ``context`` stream
+│                   #   events (ADR-0032)
 ├── llm.py          # LLM utilities: configurable models, provider introspection,
 │                   #   model name parsing, three-layer config merge, HuggingFace
 │                   #   auto-derivation, structured output fallback
@@ -82,11 +85,22 @@ klea_utils/
 │   └── utils.py    # Shared store helpers
 ├── tools.py        # MCP CallToolResult helpers (textualize content blocks)
 ├── ui/             # User interface frontends
-│   ├── tui/        # Textual/TUI chat client (repl.py)
 │   ├── stores_create.py # CLI for store creation (klea-stores-create)
+│   ├── tui/        # Textual/TUI chat client (repl.py)
 │   └── web/        # Web frontends
-│       ├── nicegui/ # NiceGUI web UI (3-column layout, inspector, model config;
-│       │             #   parser.py -- argparse for the app.py entry point)
+│       ├── nicegui/   # NiceGUI shared components + process entry (ADR-0031)
+│       │   ├── components/  # Reusable page pieces coordinated via PageContext:
+│       │   │   ├── context.py   # PageContext (config, mutable state, element refs,
+│       │   │   │                 #   callbacks; query_extra / status_extra slots)
+│       │   │   ├── bootstrap.py # run_nicegui_server(page_builder=...) -- ui.run entry
+│       │   │   ├── stream.py    # apply_stream_event (pure) + run_stream (SSE -> UI)
+│       │   │   ├── status_pane.py # right drawer; app content slot (ctx.status_extra)
+│       │   │   └── ... chat_bubble, chat_area, chat_list, header, inspector,
+│       │   │         input_area, initial_load, model_dialog, storage, theme
+│       │   ├── client.py  # server API client (sessions, models, chat)
+│       │   ├── entry.py   # default_storage_env, app_name_from_argv
+│       │   ├── parser.py  # argparse for the app entry point
+│       │   └── state.py   # frontend chat/session state store
 │       └── streamlit/ # Streamlit web UI
 ```
 

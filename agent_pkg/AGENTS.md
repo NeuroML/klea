@@ -42,23 +42,31 @@ pytest -v
 ### Package Structure
 ```
 klea_agent/
-├── api/             # FastAPI server (thin wrappers around klea_utils routers)
+├── api/             # Agent API contract (own payload + routers; ADR-0031)
 │   ├── main.py      # FastAPI app creation
-│   └── server.py    # Typer serve command
+│   ├── chat.py      # ChatPayload (incl. operating-mode request) + /query[/stream]
+│   ├── server.py    # Typer serve command
 ├── config.py        # Configuration loading (env file + JSON)
-├── klea_agent.py    # Main Agent orchestrator (extends BaseLangGraph)
+├── klea_agent.py    # Main Agent orchestrator (extends BaseLangGraph); wires the
+│                    #   mode branch (ADR-0030), overrides context_snapshot for the
+│                    #   graph-level ``context`` event (ADR-0032)
 ├── nodes/           # LangGraph nodes for agent workflows
 │   ├── answer_user.py
 │   ├── evaluator.py
 │   ├── explore_planner.py
 │   ├── goal_setter.py
 │   ├── init_graph.py
+│   ├── mode_router.py  # ModeDecision (resolves requested -> resolved mode) + ModeInformer
 │   ├── planner.py
 │   └── tools_router.py
 │   └── prompts/     # Prompt markdown templates per node
-├── schemas.py       # Pydantic schemas
+├── schemas.py       # Pydantic schemas (incl. Mode: requested / resolved / note)
 └── ui/
-    └── cli.py       # Typer CLI entry point (klea, klea-serve)
+    ├── cli.py       # Typer CLI entry point (klea, klea-serve)
+    └── web/         # NiceGUI page composition over klea_utils components (ADR-0031)
+        ├── app.py   # process entry point
+        ├── mode_ui.py # operating-mode selector + resolved-mode badge (status-pane slot)
+        └── page.py  # setup_layout -- composes the shared components
 ```
 
 The bundled tools server is shared: it lives in `klea_utils.mcp.server`
