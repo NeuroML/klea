@@ -112,7 +112,14 @@ These hold regardless of how the LangGraph is wired. They are the mode-level inv
 ### Confirmation
 
 * Architectural confirmation is structural: the compiled `klea_agent` graph exhibits a mode-routing branch at task entry (scientific vs general). In Scientific mode there is no path from `TASK` to a user-visible completed result that bypasses the ADR-0029 stages (`RETRIEVE`/`INSPECTION`/`PLAN`/`HUMAN REVIEW`/`VERIFY`/provenance). This is confirmed via `graph.get_graph().draw_mermaid()` and node wiring review. In General mode that bypass is explicit and the result carries `assurance=unverified`.
-* Implementation confirmation checks that the assurance status is a checkpointed field on `KleaAgentState` (e.g. `assurance`/`mode`) distinct from `messages`, included in `get_allowed_msgpack_modules` (ADR-0023), rendered via `NodeStreamData` (ADR-0013), and never derived from text search for a warning. Tool-augmented baseline C and General mode are distinguishable by this field alone.
+* Implementation confirmation checks that the operating mode is a checkpointed field on
+  ``KleaAgentState`` (``mode``: a ``Mode`` model carrying the ``requested`` mode, the
+  ``resolved`` mode and an explanatory ``note``) distinct from ``messages``, included in the
+  checkpoint (ADR-0023), surfaced to the frontend via the graph-level ``context`` event
+  projected from state by ``context_snapshot`` (ADR-0032, not node ``NodeStreamData``), and
+  never derived from generated text.  Assurance/verification state (invariants 3-4) is
+  deferred to the ADR-0029 verification phase; General vs Scientific mode is distinguishable
+  by ``mode`` alone.
 * Lint/type/docs gates remain: `ruff check`, `ty`, and `docs: make html` render the ADR.
 
 ## Pros and Cons of the Options
