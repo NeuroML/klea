@@ -8,9 +8,9 @@ This module *composes* the agent web page from the shared
 Process setup (logging, storage, ``ui.run``) is delegated to
 :func:`klea_utils.ui.web.nicegui.components.bootstrap.run_nicegui_server`.
 
-Agent-specific UI elements (e.g. an operating-mode selector and a
-mode/note badge, ADR-0030) will be added here without touching
-``klea_utils``.
+Agent-specific UI elements (the ADR-0030 operating-mode selector and
+resolved-mode badge, see :mod:`klea_agent.ui.web.mode_ui`) slot into the
+shared status pane here without touching ``klea_utils``.
 
 File: klea_agent/ui/web/page.py
 
@@ -34,6 +34,8 @@ from klea_utils.ui.web.nicegui.components import (
 )
 from klea_utils.ui.web.nicegui.components.context import DEFAULT_FOOTER, PageContext
 from nicegui import ui
+
+from klea_agent.ui.web import mode_ui
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,7 @@ def setup_layout(
     # --- Drawers ---
     chat_list.attach_chat_list(ctx)  # left drawer (sessions)
     model_dialog.attach_model_info(ctx)
+    mode_ui.attach_mode_ui(ctx)  # status-pane slot: mode selector + badge
     status_pane.attach_status_pane(ctx)  # right drawer (state); needs model dialog
 
     # ---- Center: chat messages + input (pinned to bottom) ----

@@ -27,7 +27,7 @@ class ChatPayload(BaseModel):
     chat_id: str = Field(..., pattern=r"^[^:]+$")
     user_id: str = Field(default="", pattern=r"^[^:]*$")
     # Operating-mode request passed into the graph's initial state
-    # (ADR-0030); the resolved mode/assurance comes back as a ``context``
+    # (ADR-0030); the resolved mode comes back as a ``context``
     # event on the stream.
     mode: Literal["general", "scientific"] = Field(
         default="general",
