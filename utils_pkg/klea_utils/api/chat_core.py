@@ -21,7 +21,6 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-import copy
 import json
 import logging
 import traceback
@@ -68,20 +67,30 @@ async def run_query(
     user_id: str,
     chat_id: str,
     extra_state: dict[str, Any] | None = None,
+    context_fields: dict[str, Any] | None = None,
 ) -> str:
     """Run the graph via ``run_graph_invoke`` and persist the exchange.
 
     Applies the stored per-chat model overrides for the duration of the
-    call (``model_overrides_ctx``), maps graph errors onto HTTP status
-    codes, and writes the user query + assistant answer to the session
-    store.
+    call (via the LangGraph Runtime context, ADR-0033), maps graph errors
+    onto HTTP status codes, and writes the user query + assistant answer
+    to the session store.
 
     :param request: Request carrying ``app.state.graph`` / ``chat_sessions``
     :param query: User query text
     :param user_id: Persistent user identifier
     :param chat_id: Chat conversation identifier
     :param extra_state: Optional app-specific initial state fields passed
-        to the graph invocation (e.g. the agent's ``requested_mode``).
+        to the graph invocation (e.g. the agent's operating ``mode``
+        request).
+    :param context_fields: Optional app-defined per-run context fields that
+        the plumbing forwards together with the framework-provided
+        ``model_overrides`` slice (ADR-0033).  The assembled dict is
+        coerced/validated against the app's registered ``context_schema``
+        at the graph boundary; ``KleaRunContext`` is ``extra="allow"`` (or
+        the app subclasses it for typed fields).  Apps wire frontend
+        payload fields through this generic hook instead of forking
+        ``chat_core``.
     :returns: The assistant's answer text
 
     :note: ``POST /query`` returns only the answer string; the session
@@ -93,7 +102,7 @@ async def run_query(
         500 on any other failure
     """
     # Lazy: BaseLangGraph is the base class for all graphs.
-    from klea_utils.graph.base import BaseLangGraph, model_overrides_ctx
+    from klea_utils.graph.base import BaseLangGraph
 
     graph: BaseLangGraph
     store: SessionStore
@@ -101,10 +110,22 @@ async def run_query(
     thread_id = thread_id_for(user_id, chat_id)
 
     store.create_chat(user_id, chat_id)
+    # Per-run runtime context (ADR-0033): the framework provides the stored
+    # per-chat ``model_overrides`` slice; apps may add their own fields via
+    # ``context_fields``.  The plain dict is coerced/validated against the
+    # app's ``context_schema`` at the graph boundary (passing a model
+    # *instance* here would skip that coercion, so chat_core stays
+    # agnostic -- apps that diverge override the node layer, not the
+    # runner).
     overrides = store.get_overrides(user_id, chat_id)
-    token = model_overrides_ctx.set(copy.deepcopy(overrides or {}))
+    context: dict[str, Any] = {
+        **(context_fields or {}),
+        "model_overrides": overrides or {},
+    }
     try:
-        result = await graph.run_graph_invoke(query, thread_id, extra_state=extra_state)
+        result = await graph.run_graph_invoke(
+            query, thread_id, extra_state=extra_state, context=context
+        )
         message = result if isinstance(result, str) else str(result)
         store.add_message(user_id, chat_id, "user", query)
         store.add_message(user_id, chat_id, "assistant", message)
@@ -117,8 +138,6 @@ async def run_query(
     except Exception as e:  # noqa: BLE001
         logger.error(f"{e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        model_overrides_ctx.reset(token)
 
     return message
 
@@ -131,6 +150,7 @@ def stream_response(
     chat_id: str,
     enrich: Callable[[AsyncIterator[dict]], AsyncIterator[dict]] | None = None,
     extra_state: dict[str, Any] | None = None,
+    context_fields: dict[str, Any] | None = None,
 ) -> StreamingResponse:
     """Return a ``/query/stream`` SSE response for the graph's events.
 
@@ -146,14 +166,23 @@ def stream_response(
     :param enrich: Optional async-generator wrapper applied to the raw
         ``run_graph_astream_events`` event stream before framing.  Apps
         use it to inject app-specific events (e.g. a ``context`` event
-        with operating mode / assurance) or filter events.  When
+        with the operating mode) or filter events.  When
         ``None``, every graph event is emitted unchanged.
     :param extra_state: Optional app-specific initial state fields passed
-        to the graph invocation (e.g. the agent's ``requested_mode``).
+        to the graph invocation (e.g. the agent's operating ``mode``
+        request).
+    :param context_fields: Optional app-defined per-run context fields that
+        the plumbing forwards together with the framework-provided
+        ``model_overrides`` slice (ADR-0033).  The assembled dict is
+        coerced/validated against the app's registered ``context_schema``
+        at the graph boundary; ``KleaRunContext`` is ``extra="allow"`` (or
+        the app subclasses it for typed fields).  Apps wire frontend
+        payload fields through this generic hook instead of forking
+        ``chat_core``.
     :returns: A :class:`fastapi.responses.StreamingResponse` SSE stream
     """
     # Lazy: BaseLangGraph is the base class for all graphs.
-    from klea_utils.graph.base import BaseLangGraph, model_overrides_ctx
+    from klea_utils.graph.base import BaseLangGraph
 
     graph: BaseLangGraph
     store: SessionStore
@@ -161,13 +190,19 @@ def stream_response(
     thread_id = thread_id_for(user_id, chat_id)
 
     store.create_chat(user_id, chat_id)
+    # Per-run runtime context (ADR-0033): same assembly as run_query -- the
+    # framework's ``model_overrides`` slice plus any app ``context_fields``,
+    # forwarded as a plain dict for boundary coercion/validation.
     overrides = store.get_overrides(user_id, chat_id)
+    context: dict[str, Any] = {
+        **(context_fields or {}),
+        "model_overrides": overrides or {},
+    }
 
     async def event_stream():
-        token = model_overrides_ctx.set(copy.deepcopy(overrides or {}))
         try:
             raw_events = graph.run_graph_astream_events(
-                query, thread_id, extra_state=extra_state
+                query, thread_id, extra_state=extra_state, context=context
             )
             events = raw_events if enrich is None else enrich(raw_events)
             async for event in events:
@@ -192,8 +227,6 @@ def stream_response(
                 }
             )
             yield f"data: {error_event}\n\n"
-        finally:
-            model_overrides_ctx.reset(token)
 
     return StreamingResponse(
         event_stream(),
