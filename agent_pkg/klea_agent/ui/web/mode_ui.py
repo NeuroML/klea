@@ -60,12 +60,38 @@ def attach_mode_ui(ctx: PageContext) -> None:
         logger.debug("user=%s requested mode=%s", ctx.user_id, mode)
 
     def _render() -> None:
-        """Render the selector row and the resolved-mode badge."""
+        """Render the selector row and the resolved-mode badge.
+
+        The selector tracks the *request* (next query will carry it,
+        restored across reloads from the hydrated ``context``); the badge
+        mirrors the *resolved* mode from checkpointed state.  Before the
+        first stream both are absent, so the request falls back to the
+        general default.
+        """
         current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
         if not current_chat:
             return
         context = current_chat.get("context", {})
-        requested = current_chat.get("mode_pref", "general")
+        # A live mode_pref (this session's selection) wins over the
+        # hydrated context; the latter restores the last request across a
+        # page reload, when mode_pref is gone.
+        requested = (
+            current_chat.get("mode_pref") or context.get("requested") or "general"
+        )
+
+        # Keep the request sent with the next query aligned with this chat.
+        # Needed because ``Mode`` is a whole-object state field (no reducer):
+        # an empty query_extra after a reload would send the server default
+        # and silently reset the checkpointed mode on the next query.
+        if requested in MODES and ctx.query_extra.get("mode") != requested:
+            ctx.query_extra["mode"] = requested
+            logger.debug(
+                "user=%s chat=%s sync query_extra mode=%s",
+                ctx.user_id,
+                ctx.chat_id,
+                requested,
+            )
+
         resolved = context.get("mode")
         note = context.get("note", "")
 
