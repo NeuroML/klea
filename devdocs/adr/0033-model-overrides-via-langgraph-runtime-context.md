@@ -22,6 +22,18 @@ per-run *Runtime context* -- ``StateGraph(context_schema=...)``, a
 The LangGraph documentation uses configuring the LLM at runtime as its
 canonical example for this feature.
 
+LangGraph distinguishes two run channels: ``config["configurable"]``
+(read via ``get_config``) is for *static, read-only* configuration --
+identifiers (``user_id``, ``thread_id``), feature flags, or
+runtime-configurable model choices -- flowing downward with the
+invocation config; the ``Runtime`` (read via ``get_runtime``) is the
+framework's dependency-injection and *application payload* container
+for the run, wrapping the schema-typed ``context`` together with the
+long-term store (``BaseStore``), stream writers, and server/retry
+metadata.  Per-request model overrides are a per-run application
+payload, so they belong in the typed ``Runtime`` context, not in the
+generic ``configurable`` bag.
+
 Why replace the contextvar?  It duplicates framework machinery, is
 invisible to the framework (no typing, no validation at the boundary, no
 discovery in docs/tooling), requires a manual set/reset lifecycle per
@@ -54,7 +66,12 @@ parameter an app may want) reach the nodes without an ad-hoc global?
 
 * **A. Keep the ad-hoc contextvar (status quo)** -- ``model_overrides_ctx``.
 * **B. Raw ``config["configurable"]`` at graph invoke** -- put the
-  override slice into the run config.
+  override slice into the run config.  *Rejected:* ``configurable`` is
+  the channel for static read-only parameters (identifiers, feature
+  flags, runtime-choosable model names) and is untyped/unvalidated at
+  the boundary; its public keys mix with checkpointer/thread plumbing
+  (``thread_id``, ...).  Application payloads are delivered via the
+  typed ``Runtime`` context, which is what this decision uses.
 * **C. LangGraph Runtime context with a pydantic ``context_schema``**
   (chosen).
 
@@ -140,4 +157,7 @@ Chosen option: "C. LangGraph Runtime context with a pydantic
   governing and are incorporated by reference.
 * References: LangGraph docs "Use the graph API -> Add runtime
   configuration" (``context_schema``, ``Runtime``, ambient
-  ``get_runtime``); installed langgraph ``_coerce_context``.
+  ``get_runtime``); the docs' configuration-vs-runtime distinction
+  (``config["configurable"]`` = static read-only parameters;
+  ``Runtime`` = dependency-injection/application-payload container);
+  installed langgraph ``_coerce_context``.
