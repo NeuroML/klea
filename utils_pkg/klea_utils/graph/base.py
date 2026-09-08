@@ -47,6 +47,24 @@ model_overrides_ctx: contextvars.ContextVar[dict[str, Any] | None] = (
 )
 
 
+def _normalise_state_snapshot(state: Any) -> dict[str, Any]:
+    """Normalize a checkpoint ``values`` snapshot into a plain dict.
+
+    LangGraph state snapshots arrive either as a dict (TypedDict state)
+    or as the pydantic state instance.  ``context_snapshot`` and the
+    hydration endpoint (``klea_utils.api.context``) both need a plain
+    dict, so the normalization lives here: one code path shared by the
+    stream loop and the direct checkpoint read, guaranteeing the hook
+    sees identical input wherever it is called.
+
+    :param state: A checkpoint/superstep ``values`` snapshot.
+    :returns: A plain dict view of *state*.
+    """
+    if not isinstance(state, dict) and hasattr(state, "model_dump"):
+        return state.model_dump()
+    return state
+
+
 class _CustomChannelEnabler(StreamTransformer):
     """Enables the ``custom`` channel in LangGraph v3 event streams.
 
@@ -950,14 +968,11 @@ class BaseLangGraph(ABC):
             elif method == "values":
                 last_values = event["params"]["data"]
                 # ``values`` snapshots arrive as a dict (TypedDict state) or
-                # as the pydantic state instance; normalize so the
-                # ``context_snapshot`` hook always receives a dict.
-                snapshot = (
-                    last_values.model_dump()
-                    if not isinstance(last_values, dict)
-                    and hasattr(last_values, "model_dump")
-                    else last_values
-                )
+                # as the pydantic state instance; ``_normalise_state_snapshot``
+                # gives ``context_snapshot`` a plain dict in the stream path --
+                # the same normalization the hydration endpoint applies on a
+                # direct checkpoint read (see ``klea_utils.api.context``).
+                snapshot = _normalise_state_snapshot(last_values)
                 # Graph-level session context is a *projection of state*: it is
                 # derived here from the per-superstep ``values`` snapshot via
                 # ``context_snapshot`` (default None), never written by a node.
