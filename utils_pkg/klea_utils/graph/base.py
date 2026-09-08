@@ -29,6 +29,7 @@ from mcp.types import Tool
 from platformdirs import PlatformDirs
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.paths import get_config_dir, init_dir, resolve_app_config_path
@@ -174,7 +175,7 @@ class BaseLangGraph(ABC):
 
         self.config_dict: dict[str, Any]
 
-        self.graph: CompiledStateGraph | None = None
+        self.graph: CompiledStateGraph[Any, Any, Any, Any] | None = None
 
         self.mcp_config: MCPConfig | None = None
         self.mcp_client: Client | None = None
@@ -760,6 +761,7 @@ class BaseLangGraph(ABC):
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
+        context: KleaRunContext | None = None,
     ) -> str:
         """Run the graph with a simple string query.
 
@@ -769,6 +771,11 @@ class BaseLangGraph(ABC):
             invocation (e.g. an app-specific ``mode`` request).  These are
             passed to ``graph.ainvoke`` alongside ``query`` and validated
             against the graph's state schema.
+        :param context: Per-run runtime context (ADR-0033), forwarded
+            verbatim to the graph run.  Apps populate
+            ``KleaRunContext.model_overrides`` and/or add their own keys;
+            this is the framework-native transport replacing the
+            ``model_overrides_ctx`` contextvar.
         :returns: The ``message_for_user`` field from the final state
 
         :note: This is a bare ``ainvoke`` with no ``values``-event loop, so
@@ -786,7 +793,9 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
-        final_state = await self.graph.ainvoke(input_state, config=config)
+        final_state = await self.graph.ainvoke(
+            input_state, config=config, context=context
+        )
 
         self.logger.debug(f"{final_state =}")
         if message := final_state.get("message_for_user", None):
@@ -800,6 +809,7 @@ class BaseLangGraph(ABC):
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
+        context: KleaRunContext | None = None,
     ):
         """Run the graph and yield intermediate ``message_for_user`` values.
 
@@ -808,6 +818,8 @@ class BaseLangGraph(ABC):
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
             request).
+        :param context: Per-run runtime context (ADR-0033), forwarded
+            verbatim to the graph run (see :meth:`run_graph_invoke`).
         :yields: ``message_for_user`` strings from each node
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -818,7 +830,9 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
-        async for chunk in self.graph.astream(input_state, config=config):
+        async for chunk in self.graph.astream(
+            input_state, config=config, context=context
+        ):
             for node, state in chunk.items():
                 self.logger.debug(f"{node}: {state!r}")
                 if message := state.get("message_for_user", None):
@@ -833,6 +847,7 @@ class BaseLangGraph(ABC):
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
+        context: KleaRunContext | None = None,
     ) -> Any:
         """Run the graph and return the raw astream result.
 
@@ -841,6 +856,8 @@ class BaseLangGraph(ABC):
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
             request).
+        :param context: Per-run runtime context (ADR-0033), forwarded
+            verbatim to the graph run (see :meth:`run_graph_invoke`).
         :returns: Raw async generator from ``graph.astream()``
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -851,7 +868,7 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
-        res = self.graph.astream(input_state, config=config)
+        res = self.graph.astream(input_state, config=config, context=context)
         return res
 
     async def run_graph_astream_events(
@@ -860,6 +877,7 @@ class BaseLangGraph(ABC):
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
+        context: KleaRunContext | None = None,
     ):
         """Run the graph and yield structured streaming events.
 
@@ -894,6 +912,8 @@ class BaseLangGraph(ABC):
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
             request).
+        :param context: Per-run runtime context (ADR-0033), forwarded
+            verbatim to the graph run (see :meth:`run_graph_invoke`).
         :yields: Structured event dicts
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -909,6 +929,7 @@ class BaseLangGraph(ABC):
             config=config,
             version="v3",
             transformers=[_CustomChannelEnabler],
+            context=context,
         )
 
         current_node = ""
@@ -985,10 +1006,12 @@ class BaseLangGraph(ABC):
                 # ``context_snapshot`` (default None), never written by a node.
                 # This keeps the event structural -- nodes cannot author a
                 # ``context`` event -- while the app defines what context means.
-                context = self.context_snapshot(snapshot)
-                if context is not None and context != last_context:
-                    last_context = context
-                    yield {"type": "context", "data": context}
+                # (Local named context_data: the method's ``context`` parameter
+                # is the ADR-0033 per-run runtime context.)
+                context_data = self.context_snapshot(snapshot)
+                if context_data is not None and context_data != last_context:
+                    last_context = context_data
+                    yield {"type": "context", "data": context_data}
 
         total_elapsed = time.monotonic() - total_start
         if current_node:
