@@ -8,7 +8,11 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
+
 from fastapi import APIRouter, Request, Response, status
+
+logger = logging.getLogger(__name__)
 
 
 def create_health_router() -> APIRouter:
@@ -17,11 +21,13 @@ def create_health_router() -> APIRouter:
 
     @router.get("/health/live")
     async def liveness():
+        logger.debug("/health/live -> alive")
         return {"status": "alive"}
 
     @router.get("/health/ready")
     async def readiness(request: Request):
         is_ready = getattr(request.app.state, "is_ready", False)
+        logger.debug("/health/ready -> %s", "ready" if is_ready else "not ready")
 
         if is_ready:
             return {"status": "ready"}

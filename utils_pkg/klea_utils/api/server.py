@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -22,6 +23,8 @@ import httpx
 import typer
 
 from klea_utils.paths import resolve_app_config_path
+
+logger = logging.getLogger(__name__)
 
 
 def configure_profile(
@@ -55,6 +58,8 @@ def configure_profile(
     """
     if profile is None:
         return
+
+    logger.debug("configure_profile(profile=%s)", profile)
 
     if profile == "template":
         if template_writer is None:
@@ -224,6 +229,13 @@ def spawn_server(
     # Lazy: asyncio/httpx and the api utils pull in heavy deps; keep --help fast.
 
     health_url = f"http://{host}:{port}/health/ready"
+    logger.debug(
+        "spawn_server(app_module=%s host=%s port=%s profile=%s)",
+        app_module,
+        host,
+        port,
+        profile,
+    )
 
     def _probe_once() -> bool:
         try:
@@ -236,6 +248,7 @@ def spawn_server(
             return False
 
     if _probe_once():
+        logger.debug("Reusing already-running server at %s", health_url)
         if profile:
             print(
                 f"Warning: a server is already running at {health_url} -- "
@@ -259,6 +272,7 @@ def spawn_server(
         ],
         start_new_session=True,
     )
+    logger.debug("Spawned server for %s (pid=%s)", app_module, proc.pid)
 
     try:
         # A short fast-fail window catches an instantly-crashed server
@@ -297,6 +311,7 @@ def spawn_server(
                     "to see the error."
                 )
 
+        logger.info("Server ready at %s (pid=%s)", health_url, proc.pid)
         yield proc
     finally:
         if proc.poll() is None:
