@@ -128,10 +128,14 @@ Chosen option: "C. LangGraph Runtime context with a pydantic
   context: unit tests that call ``_build_invoke_config`` directly
   outside a graph run need a runtime harness (or a mini compiled
   graph).
-* Bad, because per-run context does not cross non-asyncio boundaries: a
-  *sync* node executed via ``run_in_executor`` would not inherit it.
-  All current Klea nodes are ``async``; this is documented so that a
-  future sync node does not silently lose overrides.
+* Neutral, because per-run context *is* visible to sync nodes: a
+  plain-``def`` node runs via LangChain's ``run_in_executor`` with
+  ``copy_context()``, so it inherits the runtime context (Stage 0c
+  probe: ambient ``get_runtime()`` and the injected ``Runtime`` param
+  both see it, on ``ainvoke`` and ``astream_events`` v3).  The
+  limitation is only *arbitrary* executor threads launched without a
+  context copy (e.g. an app's own thread pool); all Klea nodes are
+  ``async`` today, so this is moot but documented.
 
 ## Confirmation
 
@@ -141,6 +145,11 @@ Chosen option: "C. LangGraph Runtime context with a pydantic
   ``astream_events(version="v3", context=...)``; a dict ``context`` is
   coerced to the pydantic schema; ``extra="allow"`` keys ride through
   as ``model_extra``; no-context yields ``Runtime.context is None``.
+* Probe 0c (2026-09-08): the same holds for a *sync* node -- ambient
+  ``get_runtime()`` and the injected ``Runtime`` param both see the
+  coerced context on ``ainvoke`` and ``astream_events`` v3 (LangGraph
+  runs sync nodes via LangChain ``run_in_executor`` + ``copy_context()``,
+  so the context is inherited), overturning an earlier probe artifact.
 * To land with implementation: an ambient-runtime integration test
   (mini ``StateGraph`` with pydantic ``context_schema`` driven via
   ``ainvoke`` and ``astream_events`` v3), run-method ``context=``
