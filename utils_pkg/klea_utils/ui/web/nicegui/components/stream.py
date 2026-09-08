@@ -36,17 +36,17 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     buffer, and, on completion, the final message) and returns the
     action the UI layer reacts to:
 
-    =============  =====================================================
-    return value   meaning
-    =============  =====================================================
-    ``"usage"``    token usage totals were incremented
-    ``"state"``    a status-pane section was stored
-    ``"debug"``    an inspector entry was buffered
-    ``"context"``  session context (e.g. the operating mode) was stored
-    ``"complete"`` the final assistant message was appended
-    ``"error"``    the backend signalled an error
-    ``None``       no state change (progress / info / token events)
-    =============  =====================================================
+    ==============  =====================================================
+    return value    meaning
+    ==============  =====================================================
+    ``"usage"``     token usage totals were incremented
+    ``"state"``     a status-pane section was stored
+    ``"debug"``     an inspector entry was buffered
+    ``"context"``   session context (e.g. the operating mode) was stored
+    ``"complete"``  the final assistant message was appended
+    ``"error"``     the backend signalled an error
+    ``None``        no state change (progress / info / token events)
+    ==============  =====================================================
 
     Inspector entries are buffered under :data:`INSPECTOR_BUFFER_KEY`;
     the caller clears the buffer at stream start and commits it to
