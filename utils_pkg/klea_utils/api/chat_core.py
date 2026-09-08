@@ -31,6 +31,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,13 @@ async def run_query(
     store: SessionStore
     graph, store = _graph_and_store(request)
     thread_id = thread_id_for(user_id, chat_id)
+    logger.debug(
+        "run_query(user_id=%s chat_id=%s) thread=%s context_fields=%s",
+        user_id,
+        chat_id,
+        thread_id,
+        list((context_fields or {}).keys()),
+    )
 
     store.create_chat(user_id, chat_id)
     # Per-run runtime context (ADR-0033): the framework provides the stored
@@ -122,6 +130,7 @@ async def run_query(
         **(context_fields or {}),
         "model_overrides": overrides or {},
     }
+    logger.debug("run_query: assembled runtime context=%s", mask_sensitive(context))
     try:
         result = await graph.run_graph_invoke(
             query, thread_id, extra_state=extra_state, context=context
@@ -129,6 +138,12 @@ async def run_query(
         message = result if isinstance(result, str) else str(result)
         store.add_message(user_id, chat_id, "user", query)
         store.add_message(user_id, chat_id, "assistant", message)
+        logger.info(
+            "run_query(user_id=%s chat_id=%s): answer %d chars",
+            user_id,
+            chat_id,
+            len(message),
+        )
     except ValueError as e:
         logger.warning(f"Bad request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -188,6 +203,13 @@ def stream_response(
     store: SessionStore
     graph, store = _graph_and_store(request)
     thread_id = thread_id_for(user_id, chat_id)
+    logger.debug(
+        "stream_response(user_id=%s chat_id=%s) thread=%s context_fields=%s",
+        user_id,
+        chat_id,
+        thread_id,
+        list((context_fields or {}).keys()),
+    )
 
     store.create_chat(user_id, chat_id)
     # Per-run runtime context (ADR-0033): same assembly as run_query -- the
@@ -198,8 +220,12 @@ def stream_response(
         **(context_fields or {}),
         "model_overrides": overrides or {},
     }
+    logger.debug(
+        "stream_response: assembled runtime context=%s", mask_sensitive(context)
+    )
 
     async def event_stream():
+        logger.debug("stream_response: starting event stream for thread=%s", thread_id)
         try:
             raw_events = graph.run_graph_astream_events(
                 query, thread_id, extra_state=extra_state, context=context
@@ -214,6 +240,11 @@ def stream_response(
                         chat_id,
                         "assistant",
                         event.get("message_for_user", ""),
+                    )
+                    logger.info(
+                        "stream_response(user_id=%s chat_id=%s): complete",
+                        user_id,
+                        chat_id,
                     )
                 yield f"data: {json.dumps(event)}\n\n"
         except Exception as e:  # noqa: BLE001
