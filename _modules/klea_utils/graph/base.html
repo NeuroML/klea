@@ -296,7 +296,6 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">contextvars</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
@@ -317,6 +316,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">platformdirs</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlatformDirs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">create_model</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">KleaRunContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.paths</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_config_dir</span><span class="p">,</span> <span class="n">init_dir</span><span class="p">,</span> <span class="n">resolve_app_config_path</span>
@@ -325,14 +325,29 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.retrieval.vs</span><span class="w"> </span><span class="kn">import</span> <span class="n">VSRetriever</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_tool_description</span><span class="p">,</span> <span class="n">clean_tool_meta</span>
 
-<span class="c1"># Per-request context variable carrying per-session model overrides (api_key,</span>
-<span class="c1"># model, provider, etc.).  Set by the API layer before graph.ainvoke() and</span>
-<span class="c1"># read by _invoke_llm() so that nodes don't need to thread overrides through</span>
-<span class="c1"># their signatures.  Falls back to ``None`` (treated as empty dict) if not</span>
-<span class="c1"># set, avoiding a mutable default.</span>
-<span class="n">model_overrides_ctx</span><span class="p">:</span> <span class="n">contextvars</span><span class="o">.</span><span class="n">ContextVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-    <span class="n">contextvars</span><span class="o">.</span><span class="n">ContextVar</span><span class="p">(</span><span class="s2">"model_overrides"</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-<span class="p">)</span>
+<span class="c1"># Per-request model overrides are carried by the LangGraph Runtime context</span>
+<span class="c1"># (KleaRunContext, ADR-0033), not a contextvar: the API layer builds the</span>
+<span class="c1"># context from the sessions DB per invocation and the nodes read it via</span>
+<span class="c1"># ambient ``get_runtime()``.  The old ``model_overrides_ctx`` contextvar</span>
+<span class="c1"># is gone -- see ``klea_utils.graph.context``.</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalise_state_snapshot</span><span class="p">(</span><span class="n">state</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Normalize a checkpoint ``values`` snapshot into a plain dict.</span>
+
+<span class="sd">    LangGraph state snapshots arrive either as a dict (TypedDict state)</span>
+<span class="sd">    or as the pydantic state instance.  ``context_snapshot`` and the</span>
+<span class="sd">    hydration endpoint (``klea_utils.api.context``) both need a plain</span>
+<span class="sd">    dict, so the normalization lives here: one code path shared by the</span>
+<span class="sd">    stream loop and the direct checkpoint read, guaranteeing the hook</span>
+<span class="sd">    sees identical input wherever it is called.</span>
+
+<span class="sd">    :param state: A checkpoint/superstep ``values`` snapshot.</span>
+<span class="sd">    :returns: A plain dict view of *state*.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"model_dump"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">state</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">_CustomChannelEnabler</span><span class="p">(</span><span class="n">StreamTransformer</span><span class="p">):</span>
@@ -432,8 +447,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">app_env</span><span class="p">:</span> <span class="n">BaseModel</span>
 
         <span class="c1"># Graph-level default models per role.  Per-request model</span>
-        <span class="c1"># overrides are merged at invoke time via ``model_overrides_ctx``</span>
-        <span class="c1"># and do NOT change this dict.</span>
+        <span class="c1"># overrides arrive via the LangGraph Runtime context (KleaRunContext,</span>
+        <span class="c1"># ADR-0033) and do NOT change this dict.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">llm_models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">LLMModel</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">tools_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
@@ -446,7 +461,7 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">:</span> <span class="n">CompiledStateGraph</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">:</span> <span class="n">CompiledStateGraph</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">mcp_config</span><span class="p">:</span> <span class="n">MCPConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">mcp_client</span><span class="p">:</span> <span class="n">Client</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -721,8 +736,8 @@
 <span class="sd">        so the roles declared here define the env schema generated by</span>
 <span class="sd">        :meth:`_build_env_class`.  ``model_name`` is populated from the env</span>
 <span class="sd">        by :meth:`_apply_model_names` after the env is loaded.  These are</span>
-<span class="sd">        graph-wide defaults; per-request overrides are applied at runtime</span>
-<span class="sd">        via ``model_overrides_ctx``.</span>
+<span class="sd">        graph-wide defaults; per-request overrides arrive via the LangGraph</span>
+<span class="sd">        Runtime context (KleaRunContext, ADR-0033).</span>
 <span class="sd">        """</span>
         <span class="o">...</span>
 
@@ -882,6 +897,29 @@
         <span class="k">return</span> <span class="n">modules</span></div>
 
 
+<div class="viewcode-block" id="BaseLangGraph.context_snapshot">
+<a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.context_snapshot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">context_snapshot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the session context to surface as a graph-level event.</span>
+
+<span class="sd">        Called by :meth:`run_graph_astream_events` on every per-superstep</span>
+<span class="sd">        ``values`` state snapshot.  Returning a dict publishes a</span>
+<span class="sd">        ``context`` stream event (change-deduped); returning ``None``</span>
+<span class="sd">        (the default) publishes nothing.</span>
+
+<span class="sd">        Session context is a *projection of state*, not a node-authored</span>
+<span class="sd">        message: the app defines what the snapshot is by overriding this</span>
+<span class="sd">        hook (e.g. the agent's operating mode), while the emission itself</span>
+<span class="sd">        is structural -- nodes cannot write a ``context`` event through</span>
+<span class="sd">        the ``custom`` channel.</span>
+
+<span class="sd">        :param state: The current graph state snapshot (a dict).</span>
+<span class="sd">        :returns: A JSON-serializable dict for the ``context`` event, or</span>
+<span class="sd">            ``None`` if there is no session context to surface.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_pre_setup</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Hook called before the standard setup sequence.</span>
 
@@ -1015,25 +1053,51 @@
         <span class="k">return</span> <span class="n">final_state</span></div>
 
 
-    <span class="c1"># TODO: fields to be extracted from the final state to be returned should</span>
-    <span class="c1"># be configurable with a schema</span>
 <div class="viewcode-block" id="BaseLangGraph.run_graph_invoke">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_invoke">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_invoke</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">KleaRunContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run the graph with a simple string query.</span>
 
 <span class="sd">        :param query: User query string</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
+<span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
+<span class="sd">            invocation (e.g. an app-specific ``mode`` request).  These are</span>
+<span class="sd">            passed to ``graph.ainvoke`` alongside ``query`` and validated</span>
+<span class="sd">            against the graph's state schema.</span>
+<span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
+<span class="sd">            verbatim to the graph run.  Accepts a ``KleaRunContext`` (or</span>
+<span class="sd">            app subclass) instance or a plain dict -- dicts are</span>
+<span class="sd">            coerced/validated against the graph's ``context_schema`` at</span>
+<span class="sd">            the run boundary.  The base contract is generic:</span>
+<span class="sd">            ``model_overrides`` is a framework-provided convention (apps</span>
+<span class="sd">            may diverge at the node layer) and apps add their own keys.</span>
 <span class="sd">        :returns: The ``message_for_user`` field from the final state</span>
+
+<span class="sd">        :note: This is a bare ``ainvoke`` with no ``values``-event loop, so</span>
+<span class="sd">            ``context_snapshot`` is never invoked here and the session</span>
+<span class="sd">            context projection is not produced on this path.  Callers that</span>
+<span class="sd">            need it should use :meth:`run_graph_astream_events` (``context``</span>
+<span class="sd">            stream events) or the hydration endpoint</span>
+<span class="sd">            ``GET /chat/{user_id}/{chat_id}/context`` (ADR-0032).</span>
 <span class="sd">        """</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">final_state</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">({</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">},</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">final_state</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span>
+            <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
+        <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">final_state</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">message</span> <span class="o">:=</span> <span class="n">final_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
@@ -1044,11 +1108,23 @@
 
 <div class="viewcode-block" id="BaseLangGraph.run_graph_stream">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_stream">[docs]</a>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">):</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_stream</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">KleaRunContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Run the graph and yield intermediate ``message_for_user`` values.</span>
 
 <span class="sd">        :param query: User query string</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
+<span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
+<span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
+<span class="sd">            request).</span>
+<span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
+<span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :yields: ``message_for_user`` strings from each node</span>
 <span class="sd">        """</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
@@ -1056,7 +1132,12 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">({</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">},</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">):</span>
+        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+        <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span>
+            <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
+        <span class="p">):</span>
             <span class="k">for</span> <span class="n">node</span><span class="p">,</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">chunk</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">state</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">message</span> <span class="o">:=</span> <span class="n">state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
@@ -1068,11 +1149,23 @@
 
 <div class="viewcode-block" id="BaseLangGraph.graph_stream">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.graph_stream">[docs]</a>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">graph_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">graph_stream</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">KleaRunContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run the graph and return the raw astream result.</span>
 
 <span class="sd">        :param query: User query string</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
+<span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
+<span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
+<span class="sd">            request).</span>
+<span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
+<span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :returns: Raw async generator from ``graph.astream()``</span>
 <span class="sd">        """</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
@@ -1080,14 +1173,22 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">({</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">},</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">res</span></div>
 
 
 <div class="viewcode-block" id="BaseLangGraph.run_graph_astream_events">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_astream_events">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_astream_events</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">KleaRunContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Run the graph and yield structured streaming events.</span>
 
@@ -1103,6 +1204,9 @@
 <span class="sd">            LLM token chunk from the current node</span>
 <span class="sd">        ``{"type": "usage", "node": "&lt;label&gt;", "data": {...}}``</span>
 <span class="sd">            Per-node token usage (input / output / total tokens)</span>
+<span class="sd">        ``{"type": "context", "data": {...}}``</span>
+<span class="sd">            Session-level context (app-defined, e.g. an operating mode and</span>
+<span class="sd">            its assurance), emitted by a node via a ``context`` custom event</span>
 <span class="sd">        ``{"type": "complete", "message_for_user": "&lt;answer&gt;"}``</span>
 <span class="sd">            Final answer from the completed graph</span>
 
@@ -1116,6 +1220,11 @@
 
 <span class="sd">        :param query: User query string</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
+<span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
+<span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
+<span class="sd">            request).</span>
+<span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
+<span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :yields: Structured event dicts</span>
 <span class="sd">        """</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
@@ -1123,30 +1232,38 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
+        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
         <span class="n">stream</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream_events</span><span class="p">(</span>
-            <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">},</span>
+            <span class="n">input_state</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
             <span class="n">version</span><span class="o">=</span><span class="s2">"v3"</span><span class="p">,</span>
             <span class="n">transformers</span><span class="o">=</span><span class="p">[</span><span class="n">_CustomChannelEnabler</span><span class="p">],</span>
+            <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
         <span class="p">)</span>
 
         <span class="n">current_node</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="n">node_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
         <span class="n">total_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
         <span class="n">last_values</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># Last emitted session-context snapshot, for change-dedup.</span>
+        <span class="n">last_context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream</span><span class="p">:</span>
             <span class="n">method</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"method"</span><span class="p">]</span>
 
             <span class="k">if</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">"custom"</span><span class="p">:</span>
                 <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"params"</span><span class="p">][</span><span class="s2">"data"</span><span class="p">]</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
                     <span class="k">continue</span>
 
                 <span class="n">event_type</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">event_type</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
-                    <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"node"</span><span class="p">]</span>
+                    <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                        <span class="k">continue</span>
                     <span class="k">if</span> <span class="n">node</span> <span class="o">!=</span> <span class="n">current_node</span><span class="p">:</span>
                         <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
                         <span class="k">if</span> <span class="n">current_node</span><span class="p">:</span>
@@ -1161,11 +1278,14 @@
                         <span class="k">yield</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="n">current_node</span><span class="p">}</span>
 
                 <span class="k">elif</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"info"</span><span class="p">,</span> <span class="s2">"debug"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">):</span>
+                    <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
+                        <span class="k">continue</span>
                     <span class="n">data_out</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
                     <span class="n">data_out</span><span class="p">[</span><span class="s2">"timing_seconds"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">node_start</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
                     <span class="k">yield</span> <span class="p">{</span>
                         <span class="s2">"type"</span><span class="p">:</span> <span class="n">event_type</span><span class="p">,</span>
-                        <span class="s2">"node"</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">"node"</span><span class="p">],</span>
+                        <span class="s2">"node"</span><span class="p">:</span> <span class="n">node</span><span class="p">,</span>
                         <span class="s2">"data"</span><span class="p">:</span> <span class="n">data_out</span><span class="p">,</span>
                     <span class="p">}</span>
 
@@ -1186,6 +1306,23 @@
 
             <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">"values"</span><span class="p">:</span>
                 <span class="n">last_values</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"params"</span><span class="p">][</span><span class="s2">"data"</span><span class="p">]</span>
+                <span class="c1"># ``values`` snapshots arrive as a dict (TypedDict state) or</span>
+                <span class="c1"># as the pydantic state instance; ``_normalise_state_snapshot``</span>
+                <span class="c1"># gives ``context_snapshot`` a plain dict in the stream path --</span>
+                <span class="c1"># the same normalization the hydration endpoint applies on a</span>
+                <span class="c1"># direct checkpoint read (see ``klea_utils.api.context``).</span>
+                <span class="n">snapshot</span> <span class="o">=</span> <span class="n">_normalise_state_snapshot</span><span class="p">(</span><span class="n">last_values</span><span class="p">)</span>
+                <span class="c1"># Graph-level session context is a *projection of state*: it is</span>
+                <span class="c1"># derived here from the per-superstep ``values`` snapshot via</span>
+                <span class="c1"># ``context_snapshot`` (default None), never written by a node.</span>
+                <span class="c1"># This keeps the event structural -- nodes cannot author a</span>
+                <span class="c1"># ``context`` event -- while the app defines what context means.</span>
+                <span class="c1"># (Local named context_data: the method's ``context`` parameter</span>
+                <span class="c1"># is the ADR-0033 per-run runtime context.)</span>
+                <span class="n">context_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">context_snapshot</span><span class="p">(</span><span class="n">snapshot</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">context_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">context_data</span> <span class="o">!=</span> <span class="n">last_context</span><span class="p">:</span>
+                    <span class="n">last_context</span> <span class="o">=</span> <span class="n">context_data</span>
+                    <span class="k">yield</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"context"</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="n">context_data</span><span class="p">}</span>
 
         <span class="n">total_elapsed</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">total_start</span>
         <span class="k">if</span> <span class="n">current_node</span><span class="p">:</span>

@@ -312,9 +312,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompts</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.runnables</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.utils.function_calling</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_json_schema</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_runtime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">model_overrides_ctx</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">model_overrides_from_context</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMInvocationErrorCategory</span><span class="p">,</span> <span class="n">PromptTemplateError</span>
@@ -547,10 +548,16 @@
 <span class="sd">        limits) before applying provider field filtering to strip fields</span>
 <span class="sd">        invalid for the resolved provider.</span>
 <span class="sd">        """</span>
-        <span class="n">ctx_val</span> <span class="o">=</span> <span class="n">model_overrides_ctx</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
-        <span class="n">role_overrides</span> <span class="o">=</span> <span class="p">(</span><span class="n">ctx_val</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="p">,</span> <span class="p">{})</span>  <span class="c1"># type: ignore[union-attr]</span>
+        <span class="c1"># Per-run model overrides come from the LangGraph Runtime context</span>
+        <span class="c1"># (get_runtime().context, ADR-0033), not an ad-hoc contextvar.</span>
+        <span class="c1"># Ambient access: no node signature takes a ``runtime`` parameter;</span>
+        <span class="c1"># the value is static for the whole run.  Outside a graph run</span>
+        <span class="c1"># (unit tests) get_runtime() raises, so tests drive the merge via</span>
+        <span class="c1"># a Runtime-context harness instead of calling this directly.</span>
+        <span class="n">ctx_val</span> <span class="o">=</span> <span class="n">model_overrides_from_context</span><span class="p">(</span><span class="n">get_runtime</span><span class="p">()</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
+        <span class="n">role_overrides</span> <span class="o">=</span> <span class="n">ctx_val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="p">,</span> <span class="p">{})</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">ctx_val</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="p">{})</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">ctx_val</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">role_overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_defaults</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>

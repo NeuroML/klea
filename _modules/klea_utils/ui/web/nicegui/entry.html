@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../search.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>klea_utils.ui.web.nicegui.widgets - Klea</title>
+        <title>klea_utils.ui.web.nicegui.entry - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/sphinxcontrib_typer.css" />
@@ -285,103 +285,70 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for klea_utils.ui.web.nicegui.widgets</h1><div class="highlight"><pre>
-<span></span><span class="sd">"""</span>
-<span class="sd">Reusable custom NiceGUI widgets for Klea web interfaces.</span>
+          <h1>Source code for klea_utils.ui.web.nicegui.entry</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Shared NiceGUI web-entry helpers for Klea apps.</span>
 
-<span class="sd">File: klea_utils/ui/web/nicegui/widgets.py</span>
+<span class="sd">These helpers are intentionally free of any ``nicegui`` import so an</span>
+<span class="sd">app's ``ui/web/app.py`` can call them *before* the NiceGUI machinery is</span>
+<span class="sd">imported (NiceGUI reads ``NICEGUI_STORAGE_PATH`` at import time).</span>
+
+<span class="sd">File: klea_utils/ui/web/nicegui/entry.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="ChatBubble">
-<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.widgets.ChatBubble">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ChatBubble</span><span class="p">(</span><span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""A custom chat message bubble with built-in actions.</span>
+<div class="viewcode-block" id="app_name_from_argv">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.entry.app_name_from_argv">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">app_name_from_argv</span><span class="p">(</span><span class="n">default</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the ``--app-name`` flag value from ``sys.argv``, else *default*.</span>
 
-<span class="sd">    Replaces ``ui.chat_message`` with full control over the layout.</span>
-<span class="sd">    Each bubble has collapsible text content, a timestamp, a copy</span>
-<span class="sd">    button, and an expand / collapse toggle -- all flowing naturally</span>
-<span class="sd">    inside the bubble (no CSS hacks).</span>
-
-<span class="sd">    Usage inside a ``@ui.refreshable``::</span>
-
-<span class="sd">        ChatBubble(</span>
-<span class="sd">            text="Hello", stamp="12:00", is_user=True,</span>
-<span class="sd">            collapsed=False, idx=0,</span>
-<span class="sd">            on_expand=lambda: print("toggle"),</span>
-<span class="sd">            on_copy=lambda: print("copy"),</span>
-<span class="sd">        )</span>
+<span class="sd">    :param default: App name to fall back to.</span>
+<span class="sd">    :returns: The parsed ``--app-name`` value, or *default*.</span>
 <span class="sd">    """</span>
+    <span class="k">if</span> <span class="s2">"--app-name"</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s2">"--app-name"</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">IndexError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">default</span>
+    <span class="k">return</span> <span class="n">default</span></div>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">is_user</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
-        <span class="n">collapsed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
-        <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-        <span class="n">on_expand</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="n">on_copy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Build the bubble.</span>
 
-<span class="sd">        :param text: Message text (rendered as HTML).</span>
-<span class="sd">        :param stamp: Timestamp string.</span>
-<span class="sd">        :param is_user: ``True`` for user messages, ``False`` for bot.</span>
-<span class="sd">        :param collapsed: ``True`` if the text is collapsed to 4 lines.</span>
-<span class="sd">        :param idx: Message index (used for expand/collapse tracking).</span>
-<span class="sd">        :param on_expand: Callable with no args, fired on expand/collapse click.</span>
-<span class="sd">        :param on_copy: Callable with no args, fired on copy click.</span>
-<span class="sd">        """</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span>
 
-        <span class="n">bg</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="s2">"bg-green-50 dark:bg-green-900"</span>
-            <span class="k">if</span> <span class="n">is_user</span>
-            <span class="k">else</span> <span class="s2">"bg-blue-50 dark:bg-blue-900"</span>
-        <span class="p">)</span>
-        <span class="n">corner</span> <span class="o">=</span> <span class="s2">"rounded-br-sm"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"rounded-bl-sm"</span>
-        <span class="n">align</span> <span class="o">=</span> <span class="s2">"items-end"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"items-start"</span>
-        <span class="n">text_align</span> <span class="o">=</span> <span class="s2">"text-right"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"text-left"</span>
-        <span class="n">bubble_w</span> <span class="o">=</span> <span class="s2">"max-w-[85%]"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"w-full"</span>
-        <span class="n">bottom_align</span> <span class="o">=</span> <span class="s2">"justify-end"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"justify-start"</span>
+<div class="viewcode-block" id="default_storage_env">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.entry.default_storage_env">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_storage_env</span><span class="p">(</span><span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Point ``NICEGUI_STORAGE_PATH`` at the per-app data dir when unset.</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"w-full flex flex-col </span><span class="si">{</span><span class="n">align</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="sd">    Called at the very top of each app's ``ui/web/app.py``, before</span>
+<span class="sd">    anything imports NiceGUI: ``nicegui/storage.py`` honours</span>
+<span class="sd">    ``NICEGUI_STORAGE_PATH`` at import time, so setting it early gives</span>
+<span class="sd">    the storage subsystem the correct per-app directory from the start.</span>
 
-        <span class="k">with</span> <span class="p">(</span>
-            <span class="bp">self</span><span class="p">,</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"flex flex-col rounded-2xl </span><span class="si">{</span><span class="n">bg</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">corner</span><span class="si">}</span><span class="s2"> p-3 gap-1 </span><span class="si">{</span><span class="n">bubble_w</span><span class="si">}</span><span class="s2">"</span>
-            <span class="p">),</span>
-        <span class="p">):</span>
-            <span class="n">text_cls</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_align</span><span class="si">}</span><span class="s2"> msg-collapsed"</span>
-                <span class="k">if</span> <span class="n">collapsed</span>
-                <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_align</span><span class="si">}</span><span class="s2"> msg-expanded"</span>
-            <span class="p">)</span>
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">text_cls</span><span class="p">):</span>
-                <span class="c1"># 'alerts' extra renders GitHub-style ``&gt; [!WARNING]`` blocks</span>
-                <span class="c1"># (used for the fallback / best-effort warnings) as callouts.</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
+<span class="sd">    :param app_name: App name (overridable via ``--app-name``) used for</span>
+<span class="sd">        the platformdirs data directory.</span>
+<span class="sd">    :returns: The resolved ``NICEGUI_STORAGE_PATH`` value.</span>
+<span class="sd">    """</span>
+    <span class="n">app_name</span> <span class="o">=</span> <span class="n">app_name_from_argv</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s2">"NICEGUI_STORAGE_PATH"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">platformdirs</span>
 
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"flex flex-row </span><span class="si">{</span><span class="n">bottom_align</span><span class="si">}</span><span class="s2"> items-center gap-1"</span><span class="p">):</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">stamp</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
-
-                <span class="k">if</span> <span class="n">on_copy</span><span class="p">:</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"content_copy"</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round size=sm"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span>
-                        <span class="s2">"click"</span><span class="p">,</span> <span class="n">on_copy</span>
-                    <span class="p">)</span>
-
-                <span class="k">if</span> <span class="n">on_expand</span><span class="p">:</span>
-                    <span class="n">icon</span> <span class="o">=</span> <span class="s2">"expand_less"</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"expand_more"</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round size=sm"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span>
-                        <span class="s2">"click"</span><span class="p">,</span> <span class="n">on_expand</span>
-                    <span class="p">)</span></div>
+        <span class="n">env_path</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">Path</span><span class="p">(</span><span class="n">platformdirs</span><span class="o">.</span><span class="n">PlatformDirs</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"nicegui"</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"NICEGUI_STORAGE_PATH"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">env_path</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"set default NICEGUI_STORAGE_PATH=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">env_path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"NICEGUI_STORAGE_PATH"</span><span class="p">]</span></div>
 
 </pre></div>
         </article>
