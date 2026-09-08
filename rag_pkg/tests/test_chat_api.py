@@ -36,7 +36,7 @@ def app(tmp_path):
     mock_graph = AsyncMock()
     mock_graph.run_graph_invoke.return_value = "mock answer"
 
-    async def _astream_events(query, thread_id):
+    async def _astream_events(query, thread_id, *, extra_state=None):
         yield {"type": "progress", "node": "Mocking"}
         yield {"type": "complete", "message_for_user": "mock answer"}
 
@@ -74,7 +74,7 @@ class TestChat:
         assert response.status_code == 200
         assert response.json() == {"result": "mock answer"}
         app.state.graph.run_graph_invoke.assert_awaited_once_with(
-            "hello", "user_test-user:chat_test-chat"
+            "hello", "user_test-user:chat_test-chat", extra_state=None
         )
         self.logger.info("Verified run_graph_invoke was called with correct args")
 
@@ -149,7 +149,7 @@ class TestChat:
         """Graph error during streaming yields an error SSE event."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id):
+        async def _broken_stream(query, thread_id, *, extra_state=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 
@@ -180,7 +180,7 @@ class TestChat:
         """Graph error during streaming yields an error event but nothing is persisted."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id):
+        async def _broken_stream(query, thread_id, *, extra_state=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 

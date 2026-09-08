@@ -135,6 +135,19 @@ class TestApplyStreamEvent:
             "details": {},
         }
 
+    def test_context_event_stored(self, chat):
+        """context events store session context (e.g. mode / assurance)."""
+        result = apply_stream_event(
+            chat,
+            {"type": "context", "data": {"mode": "scientific", "assurance": "unknown"}},
+        )
+        assert result == "context"
+        assert chat["context"] == {"mode": "scientific", "assurance": "unknown"}
+        # Subsequent events merge, not replace.
+        apply_stream_event(chat, {"type": "context", "data": {"note": "no source"}})
+        assert chat["context"]["mode"] == "scientific"
+        assert chat["context"]["note"] == "no source"
+
     def test_complete_appends_message(self, chat):
         """complete events append the final assistant message."""
         result = apply_stream_event(
