@@ -92,8 +92,12 @@ layer, not by nodes.
   separation is structural on the emission side -- a node cannot produce
   a ``context`` event through any supported path.
 * Each app overrides the hook to define its context: ``KleaAgent``
-  returns ``{"mode", "note"}`` projected from its ``KleaAgentState.mode``
-  model.  RAG returns ``None`` today, so no behaviour change.
+  returns ``{"mode", "requested", "note"}`` projected from its
+  ``KleaAgentState.mode`` model.  ``requested`` is projected so the
+  frontend can restore the re-request after a page reload: ``Mode`` is a
+  whole-object field (no reducer), so an empty re-request would otherwise
+  silently reset the checkpointed mode on the next query.  RAG returns
+  ``None`` today, so no behaviour change.
 * The mode lives in state as a single ``mode`` field holding a ``Mode``
   model: ``requested`` (the per-call ``extra_state`` ask at invoke),
   ``resolved`` (set by the ``ModeDecision`` node at task entry), and
@@ -126,11 +130,17 @@ layer, not by nodes.
 * Bad, because the ``context`` event is emitted a superstep-boundary
   later than a node-authored event would be (irrelevant for a badge).
 * Bad, because ``context`` is stream-only: callers that use
-  ``run_graph_invoke`` (``POST /query``) never see it.  Accepted.
+  ``run_graph_invoke`` (``POST /query``) never see it.  Partially
+  addressed by the hydration endpoint below (a direct checkpoint read);
+  ``POST /query`` responses still carry no context.
 * Bad, because the frontend keeps ``chat["context"]`` in memory only:
   after a page reload the badge is empty until the next query streams.
-  Follow-up: surface the checkpointed context on hydration (e.g. a
-  ``GET /session/context`` or inclusion in the hydrate call).
+  **Implemented** with a generic ``GET /chat/{user_id}/{chat_id}/context``
+  endpoint (mounts in both apps): it reads the checkpointed projection
+  through the same ``context_snapshot`` hook + ``_normalise_state_snapshot``
+  used by the stream path, and returns ``{"context": null}`` while a
+  thread has no checkpoint (expectation is 200 + null -- the chat exists,
+  only its projection is unset).
 * Bad, because who may write the mode fields is a behavioural contract
   (LangGraph offers no per-node write restriction).  Documented, and the
   rejected registry (C) is the cautionary alternative.
@@ -142,8 +152,8 @@ layer, not by nodes.
   to ``write_custom_stream({"type": "context", ...})`` gets it dropped
   (asserted by ``ContextGraph`` in ``utils_pkg/tests/test_graph_base.py``).
 * ``ModeDecision.execute`` returns state updates only; ``KleaAgent``
-  overrides ``context_snapshot`` to project ``mode``/``note`` from its
-  ``mode`` field.
+  overrides ``context_snapshot`` to project ``mode``/``requested``/
+  ``note`` from its ``mode`` field.
 * Lint/type/docs gates remain: ``ruff check``, ``ty``, ``docs: make html``.
 
 ## Pros and Cons of the Options
