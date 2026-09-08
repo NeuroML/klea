@@ -736,15 +736,21 @@ class BaseLangGraph(ABC):
         self.logger.debug(final_state)
         return final_state
 
-    # TODO: fields to be extracted from the final state to be returned should
-    # be configurable with a schema
     async def run_graph_invoke(
-        self, query: str, thread_id: str = "default_thread"
+        self,
+        query: str,
+        thread_id: str = "default_thread",
+        *,
+        extra_state: dict[str, Any] | None = None,
     ) -> str:
         """Run the graph with a simple string query.
 
         :param query: User query string
         :param thread_id: Session/thread identifier for checkpointing
+        :param extra_state: Optional initial state fields merged into the
+            invocation (e.g. an app-specific ``mode`` request).  These are
+            passed to ``graph.ainvoke`` alongside ``query`` and validated
+            against the graph's state schema.
         :returns: The ``message_for_user`` field from the final state
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -752,7 +758,10 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        final_state = await self.graph.ainvoke({"query": query}, config=config)
+        input_state = {"query": query}
+        if extra_state:
+            input_state.update(extra_state)
+        final_state = await self.graph.ainvoke(input_state, config=config)
 
         self.logger.debug(f"{final_state =}")
         if message := final_state.get("message_for_user", None):
@@ -760,11 +769,20 @@ class BaseLangGraph(ABC):
         else:
             return "I was unable to answer"
 
-    async def run_graph_stream(self, query: str, thread_id: str = "default_thread"):
+    async def run_graph_stream(
+        self,
+        query: str,
+        thread_id: str = "default_thread",
+        *,
+        extra_state: dict[str, Any] | None = None,
+    ):
         """Run the graph and yield intermediate ``message_for_user`` values.
 
         :param query: User query string
         :param thread_id: Session/thread identifier for checkpointing
+        :param extra_state: Optional initial state fields merged into the
+            invocation alongside ``query`` (e.g. an app-specific ``mode``
+            request).
         :yields: ``message_for_user`` strings from each node
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -772,7 +790,10 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        async for chunk in self.graph.astream({"query": query}, config=config):
+        input_state = {"query": query}
+        if extra_state:
+            input_state.update(extra_state)
+        async for chunk in self.graph.astream(input_state, config=config):
             for node, state in chunk.items():
                 self.logger.debug(f"{node}: {state!r}")
                 if message := state.get("message_for_user", None):
@@ -781,11 +802,20 @@ class BaseLangGraph(ABC):
                 else:
                     self.logger.debug(f"Working in node: {node}")
 
-    async def graph_stream(self, query: str, thread_id: str = "default_thread") -> Any:
+    async def graph_stream(
+        self,
+        query: str,
+        thread_id: str = "default_thread",
+        *,
+        extra_state: dict[str, Any] | None = None,
+    ) -> Any:
         """Run the graph and return the raw astream result.
 
         :param query: User query string
         :param thread_id: Session/thread identifier for checkpointing
+        :param extra_state: Optional initial state fields merged into the
+            invocation alongside ``query`` (e.g. an app-specific ``mode``
+            request).
         :returns: Raw async generator from ``graph.astream()``
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -793,11 +823,18 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        res = self.graph.astream({"query": query}, config=config)
+        input_state = {"query": query}
+        if extra_state:
+            input_state.update(extra_state)
+        res = self.graph.astream(input_state, config=config)
         return res
 
     async def run_graph_astream_events(
-        self, query: str, thread_id: str = "default_thread"
+        self,
+        query: str,
+        thread_id: str = "default_thread",
+        *,
+        extra_state: dict[str, Any] | None = None,
     ):
         """Run the graph and yield structured streaming events.
 
@@ -813,6 +850,9 @@ class BaseLangGraph(ABC):
             LLM token chunk from the current node
         ``{"type": "usage", "node": "<label>", "data": {...}}``
             Per-node token usage (input / output / total tokens)
+        ``{"type": "context", "data": {...}}``
+            Session-level context (app-defined, e.g. an operating mode and
+            its assurance), emitted by a node via a ``context`` custom event
         ``{"type": "complete", "message_for_user": "<answer>"}``
             Final answer from the completed graph
 
@@ -826,6 +866,9 @@ class BaseLangGraph(ABC):
 
         :param query: User query string
         :param thread_id: Session/thread identifier for checkpointing
+        :param extra_state: Optional initial state fields merged into the
+            invocation alongside ``query`` (e.g. an app-specific ``mode``
+            request).
         :yields: Structured event dicts
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
@@ -833,8 +876,11 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
+        input_state = {"query": query}
+        if extra_state:
+            input_state.update(extra_state)
         stream = await self.graph.astream_events(
-            {"query": query},
+            input_state,
             config=config,
             version="v3",
             transformers=[_CustomChannelEnabler],
@@ -844,19 +890,23 @@ class BaseLangGraph(ABC):
         node_start = time.monotonic()
         total_start = time.monotonic()
         last_values: dict = {}
+        # Last emitted session-context snapshot, for change-dedup.
+        last_context: dict[str, Any] | None = None
 
         async for event in stream:
             method = event["method"]
 
             if method == "custom":
                 data = event["params"]["data"]
-                if not isinstance(data, dict) or not data.get("node"):
+                if not isinstance(data, dict):
                     continue
 
                 event_type = data.get("type")
 
                 if event_type == "progress":
-                    node = data["node"]
+                    node = data.get("node")
+                    if not node:
+                        continue
                     if node != current_node:
                         now = time.monotonic()
                         if current_node:
@@ -871,11 +921,14 @@ class BaseLangGraph(ABC):
                         yield {"type": "progress", "node": current_node}
 
                 elif event_type in ("info", "debug", "state", "usage"):
+                    node = data.get("node")
+                    if not node:
+                        continue
                     data_out = data.get("data", {}).copy()
                     data_out["timing_seconds"] = round(time.monotonic() - node_start, 2)
                     yield {
                         "type": event_type,
-                        "node": data["node"],
+                        "node": node,
                         "data": data_out,
                     }
 
@@ -896,6 +949,24 @@ class BaseLangGraph(ABC):
 
             elif method == "values":
                 last_values = event["params"]["data"]
+                # ``values`` snapshots arrive as a dict (TypedDict state) or
+                # as the pydantic state instance; normalize so the
+                # ``context_snapshot`` hook always receives a dict.
+                snapshot = (
+                    last_values.model_dump()
+                    if not isinstance(last_values, dict)
+                    and hasattr(last_values, "model_dump")
+                    else last_values
+                )
+                # Graph-level session context is a *projection of state*: it is
+                # derived here from the per-superstep ``values`` snapshot via
+                # ``context_snapshot`` (default None), never written by a node.
+                # This keeps the event structural -- nodes cannot author a
+                # ``context`` event -- while the app defines what context means.
+                context = self.context_snapshot(snapshot)
+                if context is not None and context != last_context:
+                    last_context = context
+                    yield {"type": "context", "data": context}
 
         total_elapsed = time.monotonic() - total_start
         if current_node:
