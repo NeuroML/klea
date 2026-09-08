@@ -38,6 +38,7 @@ async def stream_events(
         debug       {"type": "debug", "node": "<label>", "data": {...}}
         token       {"type": "token", "content": "<chunk>", "node": "<label>"}
         usage       {"type": "usage", "node": "<label>", "data": {...}}
+        context     {"type": "context", "data": {...}}  (graph-level session context)
         complete    {"type": "complete", "message_for_user": "<text>"}
         error       {"type": "error", "message": "<text>", "error_type": "<class>", "node": "<label>"}
 

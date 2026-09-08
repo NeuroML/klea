@@ -67,18 +67,21 @@ async def run_query(
     query: str,
     user_id: str,
     chat_id: str,
+    extra_state: dict[str, Any] | None = None,
 ) -> str:
     """Run the graph via ``run_graph_invoke`` and persist the exchange.
 
     Applies the stored per-chat model overrides for the duration of the
     call (``model_overrides_ctx``), maps graph errors onto HTTP status
     codes, and writes the user query + assistant answer to the session
-    store as in the preceding example.
+    store.
 
     :param request: Request carrying ``app.state.graph`` / ``chat_sessions``
     :param query: User query text
     :param user_id: Persistent user identifier
     :param chat_id: Chat conversation identifier
+    :param extra_state: Optional app-specific initial state fields passed
+        to the graph invocation (e.g. the agent's ``requested_mode``).
     :returns: The assistant's answer text
     :raises HTTPException: 400 on ``ValueError``, 503 on ``RuntimeError``,
         500 on any other failure
@@ -95,7 +98,7 @@ async def run_query(
     overrides = store.get_overrides(user_id, chat_id)
     token = model_overrides_ctx.set(copy.deepcopy(overrides or {}))
     try:
-        result = await graph.run_graph_invoke(query, thread_id)
+        result = await graph.run_graph_invoke(query, thread_id, extra_state=extra_state)
         message = result if isinstance(result, str) else str(result)
         store.add_message(user_id, chat_id, "user", query)
         store.add_message(user_id, chat_id, "assistant", message)
@@ -121,6 +124,7 @@ def stream_response(
     user_id: str,
     chat_id: str,
     enrich: Callable[[AsyncIterator[dict]], AsyncIterator[dict]] | None = None,
+    extra_state: dict[str, Any] | None = None,
 ) -> StreamingResponse:
     """Return a ``/query/stream`` SSE response for the graph's events.
 
@@ -138,6 +142,8 @@ def stream_response(
         use it to inject app-specific events (e.g. a ``context`` event
         with operating mode / assurance) or filter events.  When
         ``None``, every graph event is emitted unchanged.
+    :param extra_state: Optional app-specific initial state fields passed
+        to the graph invocation (e.g. the agent's ``requested_mode``).
     :returns: A :class:`fastapi.responses.StreamingResponse` SSE stream
     """
     # Lazy: BaseLangGraph is the base class for all graphs.
@@ -154,7 +160,9 @@ def stream_response(
     async def event_stream():
         token = model_overrides_ctx.set(copy.deepcopy(overrides or {}))
         try:
-            raw_events = graph.run_graph_astream_events(query, thread_id)
+            raw_events = graph.run_graph_astream_events(
+                query, thread_id, extra_state=extra_state
+            )
             events = raw_events if enrich is None else enrich(raw_events)
             async for event in events:
                 t = event.get("type")
