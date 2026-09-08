@@ -589,6 +589,26 @@ class BaseLangGraph(ABC):
             pass
         return modules
 
+    def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        """Return the session context to surface as a graph-level event.
+
+        Called by :meth:`run_graph_astream_events` on every per-superstep
+        ``values`` state snapshot.  Returning a dict publishes a
+        ``context`` stream event (change-deduped); returning ``None``
+        (the default) publishes nothing.
+
+        Session context is a *projection of state*, not a node-authored
+        message: the app defines what the snapshot is by overriding this
+        hook (e.g. the agent's operating mode), while the emission itself
+        is structural -- nodes cannot write a ``context`` event through
+        the ``custom`` channel.
+
+        :param state: The current graph state snapshot (a dict).
+        :returns: A JSON-serializable dict for the ``context`` event, or
+            ``None`` if there is no session context to surface.
+        """
+        return None
+
     def _pre_setup(self) -> None:
         """Hook called before the standard setup sequence.
 
