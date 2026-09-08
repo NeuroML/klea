@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>klea_utils.api.app - Klea</title>
+        <title>klea_utils.graph.context - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
@@ -285,128 +285,76 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for klea_utils.api.app</h1><div class="highlight"><pre>
+          <h1>Source code for klea_utils.graph.context</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Shared FastAPI app factory for Klea packages.</span>
+<span class="sd">Per-run runtime context for Klea graphs.</span>
 
-<span class="sd">File: klea_utils/api/app.py</span>
+<span class="sd">Carried by LangGraph's Runtime context mechanism (ADR-0033): the run</span>
+<span class="sd">methods accept a ``context=`` value forwarded to ``ainvoke``/``astream``/</span>
+<span class="sd">``astream_events``, and nodes read it inside execution via ambient</span>
+<span class="sd">``get_runtime()``.  This is the framework-native replacement for the</span>
+<span class="sd">hand-rolled ``model_overrides_ctx`` contextvar removed in ADR-0033; the</span>
+<span class="sd">LLM's per-invocation ``RunnableConfig`` merge is unchanged (ADR-0014).</span>
+
+<span class="sd">File: klea_utils/graph/context.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">FastAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.paths</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_dir</span>
 
+<div class="viewcode-block" id="KleaRunContext">
+<a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.context.KleaRunContext">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">KleaRunContext</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Per-run runtime context for one graph invocation.</span>
 
-<div class="viewcode-block" id="make_app">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.app.make_app">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">make_app</span><span class="p">(</span>
-    <span class="n">graph_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">BaseLangGraph</span><span class="p">],</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Klea API"</span><span class="p">,</span>
-    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
-    <span class="n">routers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">APIRouter</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Create a FastAPI instance with a standard lifespan.</span>
-
-<span class="sd">    The lifespan:</span>
-
-<span class="sd">    1. Instantiates and sets up the graph via *graph_factory*</span>
-<span class="sd">    2. Opens a persistent :class:`SessionStore` at</span>
-<span class="sd">       ``{graph.paths.user_data_dir}/sessions.db`` alongside the</span>
-<span class="sd">       graph's checkpoints.</span>
-<span class="sd">    3. Stores the graph and session store on ``app.state``</span>
-
-<span class="sd">    :param graph_factory: Callable that returns a configured</span>
-<span class="sd">        :class:`~klea_utils.graph.base.BaseLangGraph` instance</span>
-<span class="sd">    :param title: API title (appears in OpenAPI docs)</span>
-<span class="sd">    :param version: API version (appears in OpenAPI docs)</span>
-<span class="sd">    :param routers: List of APIRouters to include on the app</span>
-<span class="sd">    :returns: Configured FastAPI app</span>
+<span class="sd">    ``model_overrides`` is the conventional key the shared nodes in</span>
+<span class="sd">    ``klea_utils.nodes`` consume (``chat_core`` populates it from the</span>
+<span class="sd">    sessions database).  ``extra="allow"`` keeps the schema generic</span>
+<span class="sd">    (ADR-0031): an app that wants its own keys validated at the run</span>
+<span class="sd">    boundary subclasses this model and registers the subclass as its</span>
+<span class="sd">    ``context_schema`` (LangGraph coerces the ``context`` dict via</span>
+<span class="sd">    ``context_schema(**context)``); an app that prefers to validate</span>
+<span class="sd">    custom keys itself reads them from ``model_extra``.</span>
 <span class="sd">    """</span>
 
-    <span class="nd">@asynccontextmanager</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">):</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API (</span><span class="si">%s</span><span class="s2">) starting lifespan"</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+    <span class="n">model_config</span> <span class="o">=</span> <span class="n">ConfigDict</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="s2">"allow"</span><span class="p">)</span>
 
-        <span class="n">graph</span> <span class="o">=</span> <span class="n">graph_factory</span><span class="p">()</span>
-        <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">graph</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Graph setup complete (</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+    <span class="c1">#: Per-role model/API overrides; populated by ``chat_core`` from the</span>
+    <span class="c1">#: sessions database (ADR-0014 decisions on sourcing, merge and key</span>
+    <span class="c1">#: masking remain governing; ADR-0033 only changed the transport).</span>
+    <span class="n">model_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span></div>
 
-        <span class="n">db_path</span> <span class="o">=</span> <span class="n">init_dir</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">paths</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"sessions.db"</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span> <span class="o">=</span> <span class="n">SessionStore</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Session store ready at </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">db_path</span><span class="p">)</span>
 
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API ready"</span><span class="p">)</span>
 
-        <span class="k">yield</span>
+<div class="viewcode-block" id="model_overrides_from_context">
+<a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.context.model_overrides_from_context">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_overrides_from_context</span><span class="p">(</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">KleaRunContext</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Return the ``model_overrides`` slice from a run context, or ``{}``.</span>
 
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API shutting down"</span><span class="p">)</span>
-        <span class="c1"># Clean up checkpointer and MCP client to avoid fd leaks / DB locks</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">checkpointer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"checkpointer"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">checkpointer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># AsyncSqliteSaver holds an aiosqlite Connection</span>
-                <span class="n">conn</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">checkpointer</span><span class="p">,</span> <span class="s2">"conn"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span>
-                    <span class="n">graph</span><span class="p">,</span> <span class="s2">"_checkpointer_conn"</span><span class="p">,</span> <span class="kc">None</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="n">conn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close checkpointer conn: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-                <span class="c1"># Some checkpointer implementations expose aclose</span>
-                <span class="n">aclose</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">checkpointer</span><span class="p">,</span> <span class="s2">"aclose"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">aclose</span><span class="p">):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="k">await</span> <span class="n">aclose</span><span class="p">()</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to aclose checkpointer: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error during checkpointer cleanup: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="sd">    Tolerates a :class:`KleaRunContext` (attribute access), a plain dict</span>
+<span class="sd">    (``context["model_overrides"]``), or ``None`` -- ``Runtime.context``</span>
+<span class="sd">    *is* ``None`` when no ``context=`` was passed (ADR-0033,</span>
+<span class="sd">    probe-verified), so the shared nodes must never see ``None``.</span>
 
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">mcp_client</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"mcp_client"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">mcp_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># FastMCP Client may have async close</span>
-                <span class="n">closer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mcp_client</span><span class="p">,</span> <span class="s2">"aclose"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span>
-                    <span class="n">mcp_client</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="kc">None</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">closer</span><span class="p">):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">res</span> <span class="o">=</span> <span class="n">closer</span><span class="p">()</span>
-                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="s2">"__await__"</span><span class="p">):</span>
-                            <span class="k">await</span> <span class="n">res</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close MCP client: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error during MCP client cleanup: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close SessionStore: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-
-    <span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">router</span> <span class="ow">in</span> <span class="n">routers</span> <span class="ow">or</span> <span class="p">[]:</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">router</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">app</span></div>
+<span class="sd">    :param context: The run context, e.g. ``get_runtime().context``.</span>
+<span class="sd">    :returns: The overrides dict (never ``None``).</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">context</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">context</span><span class="p">,</span> <span class="n">KleaRunContext</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">context</span><span class="o">.</span><span class="n">model_overrides</span>
+    <span class="k">return</span> <span class="n">context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_overrides"</span><span class="p">,</span> <span class="p">{})</span></div>
 
 </pre></div>
         </article>

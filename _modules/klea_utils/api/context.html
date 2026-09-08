@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>klea_utils.api.app - Klea</title>
+        <title>klea_utils.api.context - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
@@ -285,128 +285,99 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for klea_utils.api.app</h1><div class="highlight"><pre>
+          <h1>Source code for klea_utils.api.context</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Shared FastAPI app factory for Klea packages.</span>
+<span class="sd">Session-context projection endpoint.</span>
 
-<span class="sd">File: klea_utils/api/app.py</span>
+<span class="sd">Returns the session context for a chat -- the app-defined projection of</span>
+<span class="sd">*checkpointed graph state* via :meth:`BaseLangGraph.context_snapshot`</span>
+<span class="sd">(ADR-0032) -- so frontends can restore the mode badge / selector on</span>
+<span class="sd">hydration without waiting for the next streamed query.</span>
+
+<span class="sd">Design: the mode lives in checkpointed graph state, which is the single</span>
+<span class="sd">source of truth (ADR-0030 / ADR-0032).  This endpoint reads it from the</span>
+<span class="sd">checkpoint directly (``graph.checkpointer`` / ``graph.graph``); nothing</span>
+<span class="sd">is duplicated into the sessions database.  An unsent query is not a chat</span>
+<span class="sd">yet, so a thread with no checkpoint simply reports ``null`` context --</span>
+<span class="sd">the chat entity exists, only its projection is unset, so ``200`` with</span>
+<span class="sd">``null`` is returned rather than a 404.</span>
+
+<span class="sd">File: klea_utils/api/context.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">FastAPI</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">Request</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.chat_core</span><span class="w"> </span><span class="kn">import</span> <span class="n">_graph_and_store</span><span class="p">,</span> <span class="n">thread_id_for</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span><span class="p">,</span> <span class="n">_normalise_state_snapshot</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.paths</span><span class="w"> </span><span class="kn">import</span> <span class="n">init_dir</span>
 
+<div class="viewcode-block" id="create_context_router">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.context.create_context_router">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_context_router</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">APIRouter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Create an APIRouter exposing the graph-level ``context`` projection.</span>
 
-<div class="viewcode-block" id="make_app">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.app.make_app">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">make_app</span><span class="p">(</span>
-    <span class="n">graph_factory</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">BaseLangGraph</span><span class="p">],</span>
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"Klea API"</span><span class="p">,</span>
-    <span class="n">version</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"0.1.0"</span><span class="p">,</span>
-    <span class="n">routers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">APIRouter</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FastAPI</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Create a FastAPI instance with a standard lifespan.</span>
-
-<span class="sd">    The lifespan:</span>
-
-<span class="sd">    1. Instantiates and sets up the graph via *graph_factory*</span>
-<span class="sd">    2. Opens a persistent :class:`SessionStore` at</span>
-<span class="sd">       ``{graph.paths.user_data_dir}/sessions.db`` alongside the</span>
-<span class="sd">       graph's checkpoints.</span>
-<span class="sd">    3. Stores the graph and session store on ``app.state``</span>
-
-<span class="sd">    :param graph_factory: Callable that returns a configured</span>
-<span class="sd">        :class:`~klea_utils.graph.base.BaseLangGraph` instance</span>
-<span class="sd">    :param title: API title (appears in OpenAPI docs)</span>
-<span class="sd">    :param version: API version (appears in OpenAPI docs)</span>
-<span class="sd">    :param routers: List of APIRouters to include on the app</span>
-<span class="sd">    :returns: Configured FastAPI app</span>
+<span class="sd">    ``GET /chat/{user_id}/{chat_id}/context``</span>
+<span class="sd">        Return ``{"context": {...}}`` -- the checkpointed session context</span>
+<span class="sd">        projected by the app's ``context_snapshot`` hook -- or</span>
+<span class="sd">        ``{"context": null}`` when the thread has no checkpoint yet (a</span>
+<span class="sd">        chat that never ran a query) or the graph uses no checkpointer.</span>
 <span class="sd">    """</span>
+    <span class="n">router</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">"/chat"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"context"</span><span class="p">])</span>
 
-    <span class="nd">@asynccontextmanager</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">):</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API (</span><span class="si">%s</span><span class="s2">) starting lifespan"</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+    <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/</span><span class="si">{chat_id}</span><span class="s2">/context"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_chat_context</span><span class="p">(</span>
+        <span class="n">user_id</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"^[^:]*$"</span><span class="p">)],</span>
+        <span class="n">chat_id</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">pattern</span><span class="o">=</span><span class="sa">r</span><span class="s2">"^[^:]+$"</span><span class="p">)],</span>
+        <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># ``_graph_and_store`` also enforces service readiness (503).</span>
+        <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="n">thread_id</span> <span class="o">=</span> <span class="n">thread_id_for</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): thread=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
 
-        <span class="n">graph</span> <span class="o">=</span> <span class="n">graph_factory</span><span class="p">()</span>
-        <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span> <span class="o">=</span> <span class="n">graph</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Graph setup complete (</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">graph</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+        <span class="c1"># No checkpointer (e.g. checkpoint="none") means there is no</span>
+        <span class="c1"># checkpointed context to project -- fall through to null.</span>
+        <span class="k">if</span> <span class="n">graph</span><span class="o">.</span><span class="n">checkpointer</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): graph has no checkpointer"</span><span class="p">,</span>
+                <span class="n">user_id</span><span class="p">,</span>
+                <span class="n">chat_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
 
-        <span class="n">db_path</span> <span class="o">=</span> <span class="n">init_dir</span><span class="p">(</span><span class="n">graph</span><span class="o">.</span><span class="n">paths</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"sessions.db"</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span> <span class="o">=</span> <span class="n">SessionStore</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">db_path</span><span class="p">))</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Session store ready at </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">db_path</span><span class="p">)</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
+        <span class="c1"># ``aget_tuple`` returns None for a thread that never ran.  That is</span>
+        <span class="c1"># the "no context yet" case (an unsent query is not a chat yet), so</span>
+        <span class="c1"># we surface null instead of projecting the state-schema defaults.</span>
+        <span class="n">checkpoint</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">checkpointer</span><span class="o">.</span><span class="n">aget_tuple</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">checkpoint</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): no checkpoint yet"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
 
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API ready"</span><span class="p">)</span>
+        <span class="n">snapshot</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">aget_state</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+        <span class="c1"># ``_normalise_state_snapshot`` keeps this identical to the stream</span>
+        <span class="c1"># path (``run_graph_astream_events``), so the app hook always sees</span>
+        <span class="c1"># a plain dict whatever the state backend renders.</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">_normalise_state_snapshot</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">context_snapshot</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): context=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="n">context</span><span class="p">}</span>
 
-        <span class="k">yield</span>
-
-        <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API shutting down"</span><span class="p">)</span>
-        <span class="c1"># Clean up checkpointer and MCP client to avoid fd leaks / DB locks</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">checkpointer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"checkpointer"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">checkpointer</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># AsyncSqliteSaver holds an aiosqlite Connection</span>
-                <span class="n">conn</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">checkpointer</span><span class="p">,</span> <span class="s2">"conn"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span>
-                    <span class="n">graph</span><span class="p">,</span> <span class="s2">"_checkpointer_conn"</span><span class="p">,</span> <span class="kc">None</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="n">conn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="k">await</span> <span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close checkpointer conn: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-                <span class="c1"># Some checkpointer implementations expose aclose</span>
-                <span class="n">aclose</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">checkpointer</span><span class="p">,</span> <span class="s2">"aclose"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">aclose</span><span class="p">):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="k">await</span> <span class="n">aclose</span><span class="p">()</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to aclose checkpointer: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error during checkpointer cleanup: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">mcp_client</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"mcp_client"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">mcp_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="c1"># FastMCP Client may have async close</span>
-                <span class="n">closer</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mcp_client</span><span class="p">,</span> <span class="s2">"aclose"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span>
-                    <span class="n">mcp_client</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="kc">None</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">closer</span><span class="p">):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">res</span> <span class="o">=</span> <span class="n">closer</span><span class="p">()</span>
-                        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="s2">"__await__"</span><span class="p">):</span>
-                            <span class="k">await</span> <span class="n">res</span>
-                    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close MCP client: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Error during MCP client cleanup: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to close SessionStore: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-
-    <span class="n">app</span> <span class="o">=</span> <span class="n">FastAPI</span><span class="p">(</span><span class="n">lifespan</span><span class="o">=</span><span class="n">lifespan</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
-
-    <span class="k">for</span> <span class="n">router</span> <span class="ow">in</span> <span class="n">routers</span> <span class="ow">or</span> <span class="p">[]:</span>
-        <span class="n">app</span><span class="o">.</span><span class="n">include_router</span><span class="p">(</span><span class="n">router</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">app</span></div>
+    <span class="k">return</span> <span class="n">router</span></div>
 
 </pre></div>
         </article>

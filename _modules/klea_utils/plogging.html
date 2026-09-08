@@ -514,19 +514,25 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Return a copy with sensitive values masked for logging.</span>
 
-<span class="sd">    Shows only the last 4 characters of each value to prevent secrets</span>
-<span class="sd">    (API keys, tokens) from appearing in plaintext in log output.</span>
+<span class="sd">    Shows only the last 4 characters of each matching value to prevent</span>
+<span class="sd">    secrets (API keys, tokens) from appearing in plaintext in log output.</span>
+<span class="sd">    Recurses into nested dicts, so e.g. ``{"model_overrides":</span>
+<span class="sd">    {"chat": {"api_key": ...}}}`` is sanitized too.</span>
 
 <span class="sd">    :param data: The dict to sanitize.</span>
 <span class="sd">    :param sensitive_keys: Keys whose values should be masked.</span>
 <span class="sd">        Defaults to ``{"api_key"}``.</span>
 <span class="sd">    :returns: New dict with masked values.</span>
 <span class="sd">    """</span>
-    <span class="n">safe</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">sensitive_keys</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"api_key"</span><span class="p">}:</span>
-        <span class="k">if</span> <span class="n">safe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
-            <span class="n">val</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">safe</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
-            <span class="n">safe</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"...</span><span class="si">{</span><span class="n">val</span><span class="p">[</span><span class="o">-</span><span class="mi">4</span><span class="p">:]</span><span class="si">}</span><span class="s2">"</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">sensitive_keys</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"api_key"</span><span class="p">}</span>
+    <span class="n">safe</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">safe</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask_sensitive</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">sensitive_keys</span><span class="o">=</span><span class="n">keys</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span> <span class="ow">and</span> <span class="n">val</span><span class="p">:</span>
+            <span class="n">safe</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"...</span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)[</span><span class="o">-</span><span class="mi">4</span><span class="p">:]</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">safe</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
     <span class="k">return</span> <span class="n">safe</span></div>
 
 </pre></div>

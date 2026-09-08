@@ -780,6 +780,37 @@ an optional <code class="docutils literal notranslate"><span class="pre">metadat
 </dd></dl>
 
 </section>
+<section id="module-klea_utils.api.context">
+<span id="session-context"></span><h2>Session context<a class="headerlink" href="#module-klea_utils.api.context" title="Link to this heading">¶</a></h2>
+<p>Session-context projection endpoint.</p>
+<p>Returns the session context for a chat – the app-defined projection of
+<em>checkpointed graph state</em> via <code class="xref py py-meth docutils literal notranslate"><span class="pre">BaseLangGraph.context_snapshot()</span></code>
+(ADR-0032) – so frontends can restore the mode badge / selector on
+hydration without waiting for the next streamed query.</p>
+<p>Design: the mode lives in checkpointed graph state, which is the single
+source of truth (ADR-0030 / ADR-0032).  This endpoint reads it from the
+checkpoint directly (<code class="docutils literal notranslate"><span class="pre">graph.checkpointer</span></code> / <code class="docutils literal notranslate"><span class="pre">graph.graph</span></code>); nothing
+is duplicated into the sessions database.  An unsent query is not a chat
+yet, so a thread with no checkpoint simply reports <code class="docutils literal notranslate"><span class="pre">null</span></code> context –
+the chat entity exists, only its projection is unset, so <code class="docutils literal notranslate"><span class="pre">200</span></code> with
+<code class="docutils literal notranslate"><span class="pre">null</span></code> is returned rather than a 404.</p>
+<p>File: klea_utils/api/context.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.context.create_context_router">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.context.</span></span><span class="sig-name descname"><span class="pre">create_context_router</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">APIRouter</span></span></span><a class="reference internal" href="../../_modules/klea_utils/api/context.html#create_context_router"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.context.create_context_router" title="Link to this definition">¶</a></dt>
+<dd><p>Create an APIRouter exposing the graph-level <code class="docutils literal notranslate"><span class="pre">context</span></code> projection.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/chat/{user_id}/{chat_id}/context</span></code></dt><dd><p>Return <code class="docutils literal notranslate"><span class="pre">{&quot;context&quot;:</span> <span class="pre">{...}}</span></code> – the checkpointed session context
+projected by the app’s <code class="docutils literal notranslate"><span class="pre">context_snapshot</span></code> hook – or
+<code class="docutils literal notranslate"><span class="pre">{&quot;context&quot;:</span> <span class="pre">null}</span></code> when the thread has no checkpoint yet (a
+chat that never ran a query) or the graph uses no checkpointer.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 <section id="module-klea_utils.api.models">
 <span id="model-configuration"></span><h2>Model configuration<a class="headerlink" href="#module-klea_utils.api.models" title="Link to this heading">¶</a></h2>
 <p>Per-session model configuration endpoints for runtime model switching.</p>
@@ -1060,6 +1091,10 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 <li><a class="reference internal" href="#klea_utils.api.sessions_db.SessionStore.touch_chat"><code class="docutils literal notranslate"><span class="pre">SessionStore.touch_chat()</span></code></a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.api.context">Session context</a><ul>
+<li><a class="reference internal" href="#klea_utils.api.context.create_context_router"><code class="docutils literal notranslate"><span class="pre">create_context_router()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.api.models">Model configuration</a><ul>

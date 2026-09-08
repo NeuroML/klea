@@ -38,6 +38,13 @@ Session management
    :members:
    :show-inheritance:
 
+Session context
+---------------
+
+.. automodule:: klea_utils.api.context
+   :members:
+   :show-inheritance:
+
 Model configuration
 -------------------
 
