@@ -342,6 +342,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
             if messages and messages[0].type == "system":
                 # SystemMessage is a BaseMessage with additional_kwargs
                 messages[0].additional_kwargs["cache_control"] = {"type": "ephemeral"}
+                self.logger.debug("Added cache_control for Anthropic call")
                 # Rebuild PromptValue from modified messages
                 from langchain_core.prompt_values import ChatPromptValue
 
@@ -365,6 +366,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         retries on context overflow / truncated output.
         """
         prompt = self._add_cache_control(prompt, config)
+        self.logger.debug(f"{prompt = }")
         inst = self._llm_entry.instance
         if self.output_schema:
             llm_wrapped = inst.with_structured_output(
