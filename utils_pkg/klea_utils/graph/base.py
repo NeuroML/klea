@@ -770,6 +770,13 @@ class BaseLangGraph(ABC):
             passed to ``graph.ainvoke`` alongside ``query`` and validated
             against the graph's state schema.
         :returns: The ``message_for_user`` field from the final state
+
+        :note: This is a bare ``ainvoke`` with no ``values``-event loop, so
+            ``context_snapshot`` is never invoked here and the session
+            context projection is not produced on this path.  Callers that
+            need it should use :meth:`run_graph_astream_events` (``context``
+            stream events) or the hydration endpoint
+            ``GET /chat/{user_id}/{chat_id}/context`` (ADR-0032).
         """
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
 

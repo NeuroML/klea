@@ -132,7 +132,10 @@ layer, not by nodes.
 * Bad, because ``context`` is stream-only: callers that use
   ``run_graph_invoke`` (``POST /query``) never see it.  Partially
   addressed by the hydration endpoint below (a direct checkpoint read);
-  ``POST /query`` responses still carry no context.
+  ``POST /query`` responses still carry no context -- why: a bare
+  ``ainvoke`` emits no ``values`` events, so ``context_snapshot`` only
+  runs on the streaming path and the hydration GET (see the
+  ``run_graph_invoke`` docstring).
 * Bad, because the frontend keeps ``chat["context"]`` in memory only:
   after a page reload the badge is empty until the next query streams.
   **Implemented** with a generic ``GET /chat/{user_id}/{chat_id}/context``

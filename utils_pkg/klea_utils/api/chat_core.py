@@ -83,6 +83,12 @@ async def run_query(
     :param extra_state: Optional app-specific initial state fields passed
         to the graph invocation (e.g. the agent's ``requested_mode``).
     :returns: The assistant's answer text
+
+    :note: ``POST /query`` returns only the answer string; the session
+        context (operating mode etc., ADR-0032) is not included.  It is
+        not produced on the bare ``ainvoke`` path (``run_graph_invoke``)
+        -- fetch it via ``/query/stream`` ``context`` events or the
+        hydration endpoint ``GET /chat/{user_id}/{chat_id}/context``.
     :raises HTTPException: 400 on ``ValueError``, 503 on ``RuntimeError``,
         500 on any other failure
     """
