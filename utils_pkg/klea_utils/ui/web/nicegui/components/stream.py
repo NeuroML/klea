@@ -42,7 +42,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     ``"usage"``    token usage totals were incremented
     ``"state"``    a status-pane section was stored
     ``"debug"``    an inspector entry was buffered
-    ``"context"``  session context (e.g. mode / assurance) was stored
+    ``"context"``  session context (e.g. the operating mode) was stored
     ``"complete"`` the final assistant message was appended
     ``"error"``    the backend signalled an error
     ``None``       no state change (progress / info / token events)
@@ -59,8 +59,8 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     t = event.get("type")
 
     if t == "context":
-        # App-defined session context (e.g. the agent's operating mode and
-        # its assurance, ADR-0030), carried verbatim into the chat dict so
+        # App-defined session context (e.g. the agent's operating mode,
+        # ADR-0030), carried verbatim into the chat dict so
         # the page can render it (badges / status) without app-specific
         # knowledge of every event type.
         chat.setdefault("context", {}).update(event.get("data", {}))
@@ -140,7 +140,11 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
 
     try:
         async for event in stream_events(
-            query, chat_id, ctx.server_url, user_id=ctx.user_id
+            query,
+            chat_id,
+            ctx.server_url,
+            user_id=ctx.user_id,
+            extra=ctx.query_extra or None,
         ):
             t = event.get("type", "?")
             logger.debug("chat=%s stream event type=%s", chat_id, t)

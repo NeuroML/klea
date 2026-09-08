@@ -73,6 +73,13 @@ def attach_status_pane(ctx: PageContext) -> None:
                         .classes("text-sm")
                     ):
                         ui.tooltip("Choose models")
+
+                # App-defined content slot (e.g. an operating-mode
+                # selector/badge, ADR-0030).  Rendered inside the
+                # refreshable pane, so it updates on pane refresh.
+                if ctx.status_extra is not None:
+                    ctx.status_extra()
+
                 model_info = current_chat.get("model_info", {})
                 if model_info:
                     tooltip_parts: list[str] = []

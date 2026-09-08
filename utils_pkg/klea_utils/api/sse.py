@@ -28,6 +28,7 @@ async def stream_events(
     chat_id: str,
     server_url: str,
     user_id: str = "",
+    extra: dict | None = None,
 ) -> AsyncGenerator[dict, None]:
     """POST to ``/query/stream`` and yield parsed SSE event dicts.
 
@@ -48,14 +49,19 @@ async def stream_events(
     :param chat_id: Chat conversation identifier.
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
+    :param extra: Optional extra request fields merged into the POST body
+        (e.g. an app-specific ``mode`` request, ADR-0030).
     """
     url = f"{server_url}/query/stream"
+    payload: dict = {"query": query, "chat_id": chat_id, "user_id": user_id}
+    if extra:
+        payload.update(extra)
     async with (
         httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(
             "POST",
             url,
-            json={"query": query, "chat_id": chat_id, "user_id": user_id},
+            json=payload,
         ) as response,
     ):
         response.raise_for_status()
@@ -179,6 +185,7 @@ def stream_events_sync(
     chat_id: str,
     server_url: str,
     user_id: str = "",
+    extra: dict | None = None,
 ) -> Generator[dict, None, None]:
     """Synchronous counterpart of :func:`stream_events`.
 
@@ -189,14 +196,19 @@ def stream_events_sync(
     :param chat_id: Chat conversation identifier.
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
+    :param extra: Optional extra request fields merged into the POST body
+        (e.g. an app-specific ``mode`` request, ADR-0030).
     """
     url = f"{server_url}/query/stream"
+    payload: dict = {"query": query, "chat_id": chat_id, "user_id": user_id}
+    if extra:
+        payload.update(extra)
     with (
         httpx.Client(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(
             "POST",
             url,
-            json={"query": query, "chat_id": chat_id, "user_id": user_id},
+            json=payload,
         ) as response,
     ):
         response.raise_for_status()

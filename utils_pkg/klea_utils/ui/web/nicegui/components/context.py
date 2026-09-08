@@ -65,6 +65,11 @@ class PageContext:
     is_streaming: bool = False
     mini_state: bool = True
 
+    # Extra request fields merged into the ``/query/stream`` POST body
+    # (e.g. an app-specific operating ``mode`` request, ADR-0030).  The
+    # app UI writes it; the shared stream driver forwards it.
+    query_extra: dict[str, Any] = field(default_factory=dict)
+
     # Element references (filled by components at attach time)
     dark: Any = None
     left_drawer: Any = None
@@ -86,4 +91,7 @@ class PageContext:
     reset_center_tab: Callable[[], None] = field(default=_noop)
     fetch_model_info: Callable[[], Any] | None = None
     model_config_dialog: Callable[[], Any] | None = None
+    # App-defined content rendered inside the (refreshable) status pane,
+    # e.g. an operating-mode selector/badge (ADR-0030).
+    status_extra: Callable[[], Any] | None = None
     switch_chat: Callable[[str], None] = field(default=_noop_arg)

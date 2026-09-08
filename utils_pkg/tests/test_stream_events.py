@@ -11,9 +11,12 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import json
 import logging
 
+import httpx
 import pytest
+from klea_utils.api.sse import stream_events, stream_events_sync
 from klea_utils.ui.web.nicegui.components.stream import (
     INSPECTOR_BUFFER_KEY,
     apply_stream_event,
@@ -136,7 +139,7 @@ class TestApplyStreamEvent:
         }
 
     def test_context_event_stored(self, chat):
-        """context events store session context (e.g. mode / assurance)."""
+        """context events store session context (e.g. the operating mode)."""
         result = apply_stream_event(
             chat,
             {"type": "context", "data": {"mode": "scientific", "assurance": "unknown"}},
@@ -168,3 +171,77 @@ class TestApplyStreamEvent:
         """error events map to the error action without mutation."""
         assert apply_stream_event(chat, {"type": "error", "message": "boom"}) == "error"
         assert chat["messages"] == []
+
+
+def _sse_response() -> httpx.Response:
+    """A one-event SSE response body."""
+    return httpx.Response(
+        200,
+        text='data: {"type": "complete", "message_for_user": "ok"}\n\n',
+    )
+
+
+def _sse_transport(requests: list[httpx.Request]) -> httpx.MockTransport:
+    """A MockTransport that records requests and serves :func:`_sse_response`."""
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return _sse_response()
+
+    return httpx.MockTransport(_handler)
+
+
+@pytest.fixture
+def sse_transport(monkeypatch):
+    """Patch the sse module's httpx clients with a recording MockTransport."""
+
+    captured: list[httpx.Request] = []
+
+    def _patch(client_cls: type):
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = _sse_transport(captured)
+            return client_cls(*args, **kwargs)
+
+        return _factory
+
+    monkeypatch.setattr(
+        "klea_utils.api.sse.httpx.AsyncClient", _patch(httpx.AsyncClient)
+    )
+    monkeypatch.setattr("klea_utils.api.sse.httpx.Client", _patch(httpx.Client))
+    return captured
+
+
+class TestStreamEventsClient:
+    """Unit tests for the SSE client (:func:`stream_events` / ``_sync``)."""
+
+    async def test_extra_merged_into_body(self, sse_transport):
+        """``extra`` fields are merged into the /query/stream POST body."""
+        events = [
+            e
+            async for e in stream_events(
+                "question", "chat-1", "http://backend", extra={"mode": "scientific"}
+            )
+        ]
+        body = json.loads(sse_transport[0].content)
+        assert body["query"] == "question"
+        assert body["chat_id"] == "chat-1"
+        assert body["user_id"] == ""
+        assert body["mode"] == "scientific"
+        assert events == [{"type": "complete", "message_for_user": "ok"}]
+
+    async def test_no_extra_leaves_body_unchanged(self, sse_transport):
+        """Without ``extra`` the body has only the base fields."""
+        await stream_events("q", "c", "http://backend").__anext__()
+        body = json.loads(sse_transport[0].content)
+        assert body == {"query": "q", "chat_id": "c", "user_id": ""}
+
+    def test_extra_merged_sync(self, sse_transport):
+        """The synchronous variant merges ``extra`` the same way."""
+        events = list(
+            stream_events_sync(
+                "question", "chat-1", "http://backend", extra={"mode": "scientific"}
+            )
+        )
+        body = json.loads(sse_transport[0].content)
+        assert body["mode"] == "scientific"
+        assert events == [{"type": "complete", "message_for_user": "ok"}]
