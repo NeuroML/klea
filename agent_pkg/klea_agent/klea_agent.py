@@ -177,14 +177,23 @@ class KleaAgent(BaseLangGraph):
         explanation note.  Verification/assurance tracking is deferred to
         the ADR-0029 verification phase.
 
+        ``requested`` is included because ``Mode`` is a whole-object
+        field (no reducer): after a page reload the web UI's
+        ``query_extra`` is empty, so the next query would send
+        ``requested=general`` and silently overwrite/ reset the
+        checkpointed mode back to general.  Hydration restores
+        ``requested`` into the selector, keeping the re-request aligned
+        with the user's last intent.
+
         :param state: The per-superstep state snapshot (a dict).
-        :returns: ``{"mode", "note"}`` for the frontend.
+        :returns: ``{"mode", "requested", "note"}`` for the frontend.
         """
         mode_data = state.get("mode", {})
         if not isinstance(mode_data, dict):
             mode_data = getattr(mode_data, "model_dump", dict)()
         return {
             "mode": mode_data.get("resolved", "general"),
+            "requested": mode_data.get("requested", "general"),
             "note": mode_data.get("note", ""),
         }
 
