@@ -1,5 +1,5 @@
 ---
-status: "accepted"
+status: "superseded by ADR-0033 (transport seam only)"
 date: 2026-08-28
 decision-makers: Ankur Sinha
 consulted: ""
@@ -7,6 +7,12 @@ informed: ""
 ---
 
 # Runtime per-request model switching with user-supplied API keys
+
+*Status: the *transport* decision in this ADR (the ``model_overrides_ctx``
+contextvar seam, ADR-0033) is superseded.  The remaining decisions --
+the ``configurable_fields="any"`` model, sessions-db per-chat override
+sourcing, the three-layer merge, and key masking -- remain governing.
+This file is retained for that record.*
 
 ## Context and Problem Statement
 
