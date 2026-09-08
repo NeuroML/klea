@@ -36,7 +36,7 @@ def app(tmp_path):
     mock_graph = AsyncMock()
     mock_graph.run_graph_invoke.return_value = "mock answer"
 
-    async def _astream_events(query, thread_id, *, extra_state=None):
+    async def _astream_events(query, thread_id, *, extra_state=None, context=None):
         yield {"type": "progress", "node": "Mocking"}
         # Emit the same session-context event the real graph's streamer
         # produces from state (ADR-0032), so the endpoint plumbing
@@ -82,6 +82,7 @@ class TestChat:
             "hello",
             "user_test-user:chat_test-chat",
             extra_state={"mode": {"requested": "general"}},
+            context={"model_overrides": {}},
         )
         self.logger.info("Verified run_graph_invoke was called with correct args")
 
@@ -167,6 +168,33 @@ class TestChat:
             "hello",
             "user_u:chat_c-mode",
             extra_state={"mode": {"requested": "scientific"}},
+            context={"model_overrides": {}},
+        )
+
+    async def test_query_passes_stored_model_overrides(self, client, app):
+        """Stored per-chat model overrides ride the Runtime context (ADR-0033)."""
+        store: SessionStore = app.state.chat_sessions
+        store.create_chat("test-user", "ov-chat")
+        store.set_override(
+            "test-user",
+            "ov-chat",
+            "chat",
+            {"model": "ollama:qwen3", "temperature": 0.5},
+        )
+
+        await client.post(
+            "/query",
+            json={"query": "hello", "chat_id": "ov-chat", "user_id": "test-user"},
+        )
+        app.state.graph.run_graph_invoke.assert_called_once_with(
+            "hello",
+            "user_test-user:chat_ov-chat",
+            extra_state={"mode": {"requested": "general"}},
+            context={
+                "model_overrides": {
+                    "chat": {"model": "ollama:qwen3", "temperature": 0.5}
+                }
+            },
         )
 
     async def test_query_stream_emits_context_event(self, client):
@@ -194,7 +222,7 @@ class TestChat:
         """Graph error during streaming yields an error SSE event."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id, *, extra_state=None):
+        async def _broken_stream(query, thread_id, *, extra_state=None, context=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 
@@ -225,7 +253,7 @@ class TestChat:
         """Graph error during streaming yields an error event but nothing is persisted."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
-        async def _broken_stream(query, thread_id, *, extra_state=None):
+        async def _broken_stream(query, thread_id, *, extra_state=None, context=None):
             raise RuntimeError("stream broken")
             yield  # pragma: no cover
 
