@@ -13,7 +13,7 @@ expose whichever fields the app contract needs (e.g. the agent's
 
 The ``enrich`` hook lets an app inject app-level events into the SSE
 stream (for example a ``context`` event carrying the agent operating
-mode / assurance), while the shared framing stays here.
+mode), while the shared framing stays here.
 
 File: klea_utils/api/chat_core.py
 
