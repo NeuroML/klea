@@ -618,20 +618,57 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PromptValue</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Add Anthropic cache_control to the system message if applicable.</span>
 
-<span class="sd">        Only Anthropic supports `cache_control: ephemeral` on system blocks,</span>
-<span class="sd">        and it requires the `model_provider` to be known (resolved at</span>
+<span class="sd">        Only Anthropic supports ``cache_control: ephemeral`` on system blocks,</span>
+<span class="sd">        and it requires the ``model_provider`` to be known (resolved at</span>
 <span class="sd">        invoke time, not at prompt creation). Other providers ignore it, so</span>
-<span class="sd">        we only set it for `anthropic`.</span>
+<span class="sd">        we only set it for ``anthropic``.</span>
+
+<span class="sd">        Anthropic prompt caching needs ``cache_control`` *inside* the</span>
+<span class="sd">        structured system content block.  langchain-anthropic serialises a</span>
+<span class="sd">        plain-string ``SystemMessage`` as the bare ``system`` field and drops</span>
+<span class="sd">        ``additional_kwargs``, so tagging there is a silent no-op  ---  the</span>
+<span class="sd">        string content must be wrapped in a text block carrying the flag.</span>
 <span class="sd">        """</span>
         <span class="n">provider</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">provider</span> <span class="o">!=</span> <span class="s2">"anthropic"</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">prompt</span>
-        <span class="c1"># PromptValue -&gt; messages -&gt; add cache_control to first SystemMessage</span>
+        <span class="c1"># PromptValue -&gt; messages -&gt; move cache_control into the first</span>
+        <span class="c1"># SystemMessage's structured content block</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">messages</span> <span class="o">=</span> <span class="n">prompt</span><span class="o">.</span><span class="n">to_messages</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">messages</span> <span class="ow">and</span> <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">type</span> <span class="o">==</span> <span class="s2">"system"</span><span class="p">:</span>
-                <span class="c1"># SystemMessage is a BaseMessage with additional_kwargs</span>
-                <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">additional_kwargs</span><span class="p">[</span><span class="s2">"cache_control"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"ephemeral"</span><span class="p">}</span>
+                <span class="n">system</span> <span class="o">=</span> <span class="n">messages</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">content</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">content</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                    <span class="n">system</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="p">[</span>
+                        <span class="p">{</span>
+                            <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span>
+                            <span class="s2">"text"</span><span class="p">:</span> <span class="n">content</span><span class="p">,</span>
+                            <span class="s2">"cache_control"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"ephemeral"</span><span class="p">},</span>
+                        <span class="p">}</span>
+                    <span class="p">]</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">content</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                        <span class="n">block</span> <span class="o">=</span> <span class="n">content</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                            <span class="n">content</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                                <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"text"</span><span class="p">,</span>
+                                <span class="s2">"text"</span><span class="p">:</span> <span class="n">block</span><span class="p">,</span>
+                                <span class="s2">"cache_control"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"ephemeral"</span><span class="p">},</span>
+                            <span class="p">}</span>
+                            <span class="k">break</span>
+                        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">block</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"text"</span><span class="p">:</span>
+                            <span class="n">content</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                                <span class="o">**</span><span class="n">block</span><span class="p">,</span>
+                                <span class="s2">"cache_control"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"ephemeral"</span><span class="p">},</span>
+                            <span class="p">}</span>
+                            <span class="k">break</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">prompt</span>
+                    <span class="n">system</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="n">content</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">prompt</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Added cache_control for Anthropic call"</span><span class="p">)</span>
                 <span class="c1"># Rebuild PromptValue from modified messages</span>
                 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatPromptValue</span>
 
@@ -655,6 +692,7 @@
 <span class="sd">        retries on context overflow / truncated output.</span>
 <span class="sd">        """</span>
         <span class="n">prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_cache_control</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
             <span class="n">llm_wrapped</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
