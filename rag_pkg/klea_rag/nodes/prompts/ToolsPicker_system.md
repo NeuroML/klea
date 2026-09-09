@@ -23,10 +23,10 @@ Your job is to select tools that can provide information to answer the user's qu
 
 ---
 
-## User query
-
-{query}
-
 ## Available tools
 
 {tools_description}
+
+## User query
+
+{query}

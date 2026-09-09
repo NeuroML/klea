@@ -28,12 +28,6 @@ Your job is to pick the right tools to carry out a step in a larger plan.
 
 ---
 
-
-## Current step
-
-{current_step}
-
----
 ## Available tools
 
 {tools_description}
@@ -51,5 +45,11 @@ Your job is to pick the right tools to carry out a step in a larger plan.
 ## Observations
 
 {observations}
+
+---
+
+## Current step
+
+{current_step}
 
 ---
