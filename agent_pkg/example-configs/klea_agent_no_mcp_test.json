@@ -1,0 +1,40 @@
+{
+    "general":
+    {
+        "default_k": 10,
+        "k_max": 15,
+        "non_domain_chat": true,
+        "pre_prompt": "",
+        "fallback_to_training_data": true,
+        "fallback_warning": "Note: information on the query could not be found in the vector stores; this answer is generated from the LLM's training data and should be verified."
+    },
+    "domains": {
+        "NeuroML": {
+            "description": "The NeuroML standard for computational modelling in neuroscience and the associated software ecosystem",
+            "vector_stores": [
+                {
+                    "name": "nml-elife",
+                    "path": "chroma:../../deployments/huggingface/store/nml-elife"
+                }
+            ],
+            "bm25_stores": [
+                {
+                    "name": "nml-elife",
+                    "path": "../../deployments/huggingface/store/nml-elife/nml-elife-bm25.pkl"
+                }
+            ],
+            "filter_fields": [
+                {
+                    "name": "journal",
+                    "description": "the journal a paper was published in; use the full journal name",
+                    "value_type": "string"
+                },
+                {
+                    "name": "authors",
+                    "description": "an author of the paper; surname or full name (partial names match)",
+                    "value_type": "list"
+                }
+            ]
+        }
+    }
+}

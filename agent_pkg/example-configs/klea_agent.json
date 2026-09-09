@@ -1,0 +1,83 @@
+{
+    "general":
+    {
+        "default_k": 10,
+        "k_max": 15,
+        "non_domain_chat": true,
+        "pre_prompt": "",
+        "fallback_to_training_data": true,
+        "fallback_warning": "Note: information on the query could not be found in the vector stores; this answer is generated from the LLM's training data and should be verified."
+    },
+    "domains": {
+        "NeuroML": {
+            "description": "The NeuroML standard for computational modelling in neuroscience and the associated software ecosystem",
+            "vector_stores": [
+                {
+                    "name": "nml-docs",
+                    "path": "chroma:../../deployments/huggingface/store/nml-docs",
+                    "default_k": 10,
+                    "k_max": 20,
+                    "k_inc": 5
+                },
+                {
+                    "name": "nml-elife",
+                    "path": "chroma:../../deployments/huggingface/store/nml-elife"
+                },
+                {
+                    "name": "nml-schema-docs",
+                    "path": "chroma:../../deployments/huggingface/store/nml-schema-docs"
+                }
+            ],
+            "bm25_stores": [
+                {
+                    "name": "nml-docs",
+                    "path": "../../deployments/huggingface/store/nml-docs/nml-docs-bm25.pkl"
+                },
+                {
+                    "name": "nml-elife",
+                    "path": "../../deployments/huggingface/store/nml-elife/nml-elife-bm25.pkl"
+                },
+                {
+                    "name": "nml-schema-docs",
+                    "path": "../../deployments/huggingface/store/nml-schema-docs/nml-schema-docs-bm25.pkl"
+                }
+            ],
+            "filter_fields": [
+                {
+                    "name": "journal",
+                    "description": "the journal a paper was published in; use the full journal name",
+                    "value_type": "string"
+                },
+                {
+                    "name": "authors",
+                    "description": "an author of the paper; surname or full name (partial names match)",
+                    "value_type": "list"
+                },
+                {
+                    "name": "year",
+                    "description": "the publication year; a single year or a range",
+                    "value_type": "int"
+                }
+            ],
+            "mcp_servers": {
+                "NeuroML":
+                {
+                    "url": "http://127.0.0.1:8542/mcp",
+                    "include_tags": ["web", "neuroml"],
+                    "exclude_tags": ["code"]
+                }
+            }
+        },
+        "OpenSourceBrain": {
+            "description": "The Open Source Brain web platform for neuroscience provides an index of data and models. These are from well known community archives such as DANDI, FigShare, ModelDB, and also GitHub. These data and models are generally standardised in NeuroML or NeuroData Without Borders (NWB). The models are neuroscience models often implemented in NeuroML, Neuron, NetPyNE, Arbor, Brian, and other similar simulators.",
+            "vector_stores": [],
+            "bm25_stores": [],
+            "mcp_servers": {
+                "OpenSourceBrain":
+                {
+                    "url": "http://127.0.0.1:8542/mcp"
+                }
+            }
+        }
+    }
+}

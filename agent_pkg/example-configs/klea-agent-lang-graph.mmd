@@ -1,0 +1,44 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	Initializing(Initializing)
+	Determining\20mode(Determining mode)
+	Informing\20about\20mode(Informing about mode)
+	Checking\20safety(Checking safety)
+	Declining\20query(Declining query)
+	Setting\20goal(Setting goal)
+	Exploring(Exploring)
+	Planning(Planning)
+	Selecting\20tools(Selecting tools)
+	Running\20tools(Running tools)
+	Evaluating(Evaluating)
+	Preparing\20response(Preparing response)
+	Summarizing\20history(Summarizing history)
+	__end__([<p>__end__</p>]):::last
+	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
+	Checking\20safety -. &nbsp;safe&nbsp; .-> Setting\20goal;
+	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
+	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
+	Evaluating -. &nbsp;failed&nbsp; .-> Planning;
+	Evaluating -. &nbsp;aborted&nbsp; .-> Preparing\20response;
+	Evaluating -. &nbsp;in_progress&nbsp; .-> Selecting\20tools;
+	Exploring --> Selecting\20tools;
+	Initializing --> Determining\20mode;
+	Planning --> Selecting\20tools;
+	Preparing\20response --> Summarizing\20history;
+	Running\20tools -. &nbsp;continue&nbsp; .-> Evaluating;
+	Running\20tools -. &nbsp;explored&nbsp; .-> Planning;
+	Running\20tools -. &nbsp;failed&nbsp; .-> Selecting\20tools;
+	Selecting\20tools --> Running\20tools;
+	Setting\20goal --> Exploring;
+	__start__ --> Initializing;
+	Declining\20query --> __end__;
+	Informing\20about\20mode --> __end__;
+	Summarizing\20history --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
