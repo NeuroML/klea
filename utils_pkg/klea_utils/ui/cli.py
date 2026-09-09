@@ -138,12 +138,29 @@ def _run_web(
     debug: bool,
     web_app_name: str,
     app_module: str,
+    web_entry: str,
     profile: str | None = None,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
 ) -> None:
-    """Run the NiceGUI web client."""
+    """Run the NiceGUI web client.
+
+    Launches the app's own NiceGUI entry module (``web_entry``, e.g.
+    ``"klea_rag.ui.web.app"``) as a subprocess from its directory, so
+    each app's page composition lives in the app (ADR-0031).
+    """
+    # Guard: nicegui is an optional extra (utils_pkg/setup.cfg: [nicegui]).
+    # Keep this at function entry so ``web --help`` still works but
+    # ``web`` without the extra fails fast with an actionable hint.
+    try:
+        # Lazy: require_extra uses only find_spec (stdlib).
+        from klea_utils.imports import require_extra
+
+        require_extra("nicegui", "nicegui")
+    except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
     if debug:
         # Make debug visible to the spawned server and web app processes.
         from klea_utils.plogging import enable_debug_logging
@@ -157,8 +174,8 @@ def _run_web(
         config_dir=config_dir,
         template_writer=template_writer,
     ):
-        spec = importlib.util.find_spec("klea_utils.ui.web.nicegui.app")
-        assert spec and spec.origin, "Could not locate nicegui app entry point"
+        spec = importlib.util.find_spec(web_entry)
+        assert spec and spec.origin, f"Could not locate NiceGUI web entry {web_entry}"
         cwd = Path(spec.origin).parent
         # Forward NICEGUI_STORAGE_PATH for reload subprocess and per-app
         # default.  If not set, derive from PlatformDirs(web_app_name) so
@@ -195,6 +212,7 @@ def make_client_app(
     app_module: str,
     tui_app_name: str,
     web_app_name: str,
+    web_entry: str,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
@@ -225,6 +243,9 @@ def make_client_app(
         ``"klea-rag-tui"``)
     :param web_app_name: Log identity for the web client (e.g.
         ``"klea-rag-web"``)
+    :param web_entry: Module string of the app's NiceGUI entry point
+        (the ``app.py`` launched by the ``web`` subcommand, e.g.
+        ``"klea_rag.ui.web.app"``)
     :param config_env_var: Environment variable that carries the config
         file name into the spawned server (e.g. ``"KLEA_RAG_APP_CONFIG_FILE"``)
     :param config_dir: Config directory searched after the working
@@ -344,6 +365,7 @@ def make_client_app(
             debug=debug,
             web_app_name=web_app_name,
             app_module=app_module,
+            web_entry=web_entry,
             profile=profile,
             config_env_var=config_env_var,
             config_dir=config_dir,

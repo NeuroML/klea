@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import asyncio
+import logging
 
 from pydantic import HttpUrl
 from pydantic import ValidationError as PydanticValidationError
@@ -19,6 +20,8 @@ from tenacity import (
     stop_after_delay,
     wait_random_exponential,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def validate_url(value: str) -> str:
@@ -96,4 +99,11 @@ async def check_api_is_ready(
         *attempts* is unset
     """
     retryer = _make_retryer_httpx(attempts, timeout)
-    return await retryer(_get_ready, url)
+    logger.debug("Probing API readiness at %s (attempts=%s)", url, attempts)
+    try:
+        result = await retryer(_get_ready, url)
+    except Exception as e:
+        logger.warning("API not ready at %s after probes: %s", url, e)
+        raise
+    logger.debug("API ready at %s", url)
+    return result

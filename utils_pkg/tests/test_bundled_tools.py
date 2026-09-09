@@ -371,7 +371,7 @@ def test_honest_user_agent_uses_package_version():
     assert ua.startswith("klea-web-fetch/")
     # Version tag resolves to the installed klea_utils version or 'dev'.
     tag = ua.split("/", 1)[1]
-    assert tag in ("dev", "0.4.0")
+    assert tag in ("dev", "0.5.0")
 
 
 def test_honest_user_agent_fallback_when_no_metadata(monkeypatch):

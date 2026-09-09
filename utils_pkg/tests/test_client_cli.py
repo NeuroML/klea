@@ -27,6 +27,7 @@ def _make_app(label="RAG", port=8005):
         app_module=f"klea_{label.lower()}.api.main:app",
         tui_app_name=f"klea-{label.lower()}-tui",
         web_app_name=f"klea-{label.lower()}-web",
+        web_entry=f"klea_{label.lower()}.ui.web.app",
     )
 
 
@@ -188,6 +189,7 @@ class TestRunWeb(unittest.TestCase):
                 debug=False,
                 web_app_name="klea-rag-web",
                 app_module="klea_rag.api.main:app",
+                web_entry="klea_rag.ui.web.app",
             )
 
         # The command is already shlex-split, so quotes are gone.
@@ -225,6 +227,7 @@ class TestRunWeb(unittest.TestCase):
                 debug=False,
                 web_app_name="klea-rag-web",
                 app_module="klea_rag.api.main:app",
+                web_entry="klea_rag.ui.web.app",
             )
 
         subprocess_run.assert_called_once()

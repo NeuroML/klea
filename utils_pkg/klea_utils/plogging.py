@@ -203,17 +203,23 @@ def mask_sensitive(
 ) -> dict[str, Any]:
     """Return a copy with sensitive values masked for logging.
 
-    Shows only the last 4 characters of each value to prevent secrets
-    (API keys, tokens) from appearing in plaintext in log output.
+    Shows only the last 4 characters of each matching value to prevent
+    secrets (API keys, tokens) from appearing in plaintext in log output.
+    Recurses into nested dicts, so e.g. ``{"model_overrides":
+    {"chat": {"api_key": ...}}}`` is sanitized too.
 
     :param data: The dict to sanitize.
     :param sensitive_keys: Keys whose values should be masked.
         Defaults to ``{"api_key"}``.
     :returns: New dict with masked values.
     """
-    safe = dict(data)
-    for key in sensitive_keys or {"api_key"}:
-        if safe.get(key):
-            val = str(safe[key])
-            safe[key] = f"...{val[-4:]}"
+    keys = sensitive_keys or {"api_key"}
+    safe: dict[str, Any] = {}
+    for key, val in data.items():
+        if isinstance(val, dict):
+            safe[key] = mask_sensitive(val, sensitive_keys=keys)
+        elif key in keys and val:
+            safe[key] = f"...{str(val)[-4:]}"
+        else:
+            safe[key] = val
     return safe

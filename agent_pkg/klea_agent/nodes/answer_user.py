@@ -11,7 +11,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Any, override
 
-from klea_utils.nodes.abstract import AbstractLangGraphNode
+from klea_utils.nodes.abstract import (
+    AbstractLangGraphNode,
+    NodeStreamData,
+    NodeStreamEvent,
+)
 
 from klea_agent.schemas import KleaAgentState
 
@@ -39,5 +43,14 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
 
         answer = state.message_for_user
         self.logger.info(f"Returning final answer to user: {answer}")
+
+        info = NodeStreamData(
+            heading="Response",
+            summary=f"Answer ready ({len(answer)} chars)",
+            details={"char_count": len(answer)},
+        )
+        self.write_custom_stream(
+            NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
+        )
 
         return {"message_for_user": answer}

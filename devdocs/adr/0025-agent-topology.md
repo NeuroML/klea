@@ -1,9 +1,9 @@
 ---
-status: "proposed"
-date: 2026-08-28
+status: "superseded by ADR-0029"
+date: 2026-09-02
 decision-makers: Ankur Sinha
 consulted: ""
-informed: ""
+informed: klea contributors
 ---
 
 # Agent loop topology: plan -> explore -> toolpick -> observe -> evaluate
@@ -72,7 +72,9 @@ needs a preceding observer, and what happens on repeated failure.
 
 ## Decision Outcome
 
-*Status: ``proposed``* -- the agent graph wiring for this topology is
+*Status: ``superseded by ADR-0029`` -- retained for history. Governing invariants are now in ADR-0029 (Agent correctness architecture: evidence, provenance and verification as architectural objects). Future topology refinements are derived from that ADR, not this one.*
+
+*Previous status ``proposed`` -- the agent graph wiring for this topology was
 not yet cemented/accepted.  The current ``devdocs/system/c4-container.md``
 shows the ``klea_agent`` container and the ``BaseLangGraph`` family
 (``ADR-0016``/``ADR-0019``) as the locus, but the ``plan->explore->
@@ -152,6 +154,7 @@ proposed topology vs the industry flat ReAct alternative.
 * Related: ``ADR-0016``/``ADR-0019`` (Template Method at graph + node),
   ``ADR-0013`` (inspection), ``ADR-0020`` (picker/caller), ``ADR-0006``
   (monorepo that keeps the agent graph in-repo).
-* Status ``proposed``; will be ``accepted`` when the agent loop
-  wiring is cemented and the ``c4-container.md:143`` forward ref is
-  renumbered from ``0003-agent-rag-integration``.
+* Superseded: governing decision now ADR-0029; this file retained for the flat-ReAct vs structured-loop evaluation. The `c4-container.md:143` forward ref is now `0029`.
+* Former status ``proposed``; would have been ``accepted`` when the agent loop
+   wiring was cemented and the ``c4-container.md:143`` forward ref was
+   renumbered from ``0003-agent-rag-integration``.

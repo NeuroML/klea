@@ -71,6 +71,25 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                                 )
                                 for msg in msg_resp.json()
                             ]
+                    # Session context (the agent's operating mode etc.,
+                    # ADR-0032) is a projection of checkpointed graph state.
+                    # Restore it so the badge/selector render correctly before
+                    # the first streamed query, without app-specific knowledge.
+                    logger.debug("GET /chat/%s/%s/context", user_id, chat_id)
+                    ctx_resp = await client.get(
+                        f"{server_url}/chat/{user_id}/{chat_id}/context"
+                    )
+                    if ctx_resp.status_code == 200:
+                        context = ctx_resp.json().get("context")
+                        if context:
+                            current_chat = chats.get(key)
+                            if current_chat:
+                                # setdefault + update mirrors apply_stream_event,
+                                # so streamed updates merge over hydrated data.
+                                current_chat.setdefault("context", {}).update(context)
+                                logger.debug(
+                                    "hydrated context for %s: %s", key, context
+                                )
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to hydrate chats from server: %s", e)
 

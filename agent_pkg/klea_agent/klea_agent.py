@@ -15,6 +15,7 @@ from typing import Any, final, override
 from fastmcp.client.client import CallToolResult
 from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
@@ -29,6 +30,7 @@ from klea_agent.nodes.evaluator import Evaluator
 from klea_agent.nodes.explore_planner import ExplorePlanner
 from klea_agent.nodes.goal_setter import GoalSetter
 from klea_agent.nodes.init_graph import InitGraphState
+from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.tools_router import ToolsRouter
 
@@ -39,6 +41,7 @@ from .schemas import (
     Discovery,
     GoalSchema,
     KleaAgentState,
+    Mode,
     PlanSchema,
     StepSchema,
 )
@@ -95,8 +98,15 @@ class KleaAgent(BaseLangGraph):
             ),
         }
 
+    @override
     def get_allowed_msgpack_modules(self) -> list[type | tuple[str, ...]]:
-        """Extend base allowlist with Agent-specific checkpointed schemas."""
+        """Extend base allowlist with Agent-specific checkpointed schemas.
+
+        Mirrors ``rag_pkg/klea_rag/rag.py:get_allowed_msgpack_modules``  ---  the
+        base list (``TokenUsage``, ``ToolCallSchema``, ``CallToolResult``, ...)
+        is extended with schemas that are stored in the checkpoint.  The base
+        already probes for ``AudioContent``/``McpCallToolResult``.
+        """
         base = super().get_allowed_msgpack_modules()
         return base + [
             CodeSchema,
@@ -105,6 +115,7 @@ class KleaAgent(BaseLangGraph):
             GoalSchema,
             ArtefactSchema,
             Discovery,
+            Mode,
         ]
 
     @override
@@ -112,8 +123,12 @@ class KleaAgent(BaseLangGraph):
         """Configure MCP servers and a default domain.
 
         Merges the external MCP server (if any) with the bundled tools server
-        into a single MCPConfig, and sets up a single domain that includes
-        both so tool descriptions are built correctly.
+        into a single ``MCPConfig``, and sets up a single domain that includes
+        both so tool descriptions are built correctly.  This mirrors the
+        per-domain merging in ``rag_pkg/klea_rag/rag.py:_configure_resources``
+        but with the agent's single ``code`` domain.  Retrieval
+        (``RetrieverConfig``/``default_k``/``k_max``) remains deferred
+        until the ADR-0029 retrieval phase.
         """
         all_servers: dict[str, Any] = dict(self.app_config.mcp_servers)
         if bundled := self._bundled_server_config():
@@ -124,33 +139,123 @@ class KleaAgent(BaseLangGraph):
         self.mcp_config = MCPConfig(mcpServers=all_servers)
         self.domain_mcp_configs = {"code": MCPConfig(mcpServers=all_servers)}
 
-    # TODO: replace with class
+    @override
+    async def _pre_graph(self) -> None:
+        """Hook before graph compilation  ---  parity with RAG.
+
+        Currently a no-op; reserved for wiring that depends on the MCP client
+        but must happen before ``_create_graph`` (e.g. future retrieval setup).
+        """
+
+    async def get_graph(self):
+        """Setup and return the compiled graph (helper for tests/docs)."""
+        await self.setup()
+        return self.graph
+
+    # TODO: replace with dedicated router node (see ``RouteEvaluator`` in RAG)
     async def _step_router_node(self, state: KleaAgentState) -> str:
+        """Return ``plan.status`` for conditional routing."""
         return state.plan.status
+
+    async def _mode_router_node(self, state: KleaAgentState) -> str:
+        """Route mode decision: proceed normally or inform (ADR-0030).
+
+        ``mode.note`` is only set when a requested mode cannot run (e.g.
+        Scientific mode without a curated knowledge source), so returning
+        ``"inform"`` routes to the terminal ModeInformer node instead of
+        silently downgrading to an unverified answer.
+        """
+        return "inform" if state.mode.note else "proceed"
+
+    @override
+    def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        """Surface the operating mode as a ``context`` event.
+
+        The session context is a projection of the checkpointed state
+        written by :class:`ModeDecision` at task entry (ADR-0032): the
+        graph streamer publishes it (change-deduped) on the ``values``
+        channel, so the frontend can render the active mode and any
+        explanation note.  Verification/assurance tracking is deferred to
+        the ADR-0029 verification phase.
+
+        ``requested`` is included because ``Mode`` is a whole-object
+        field (no reducer): after a page reload the web UI's
+        ``query_extra`` is empty, so the next query would send
+        ``requested=general`` and silently overwrite/ reset the
+        checkpointed mode back to general.  Hydration restores
+        ``requested`` into the selector, keeping the re-request aligned
+        with the user's last intent.
+
+        :param state: The per-superstep state snapshot (a dict).
+        :returns: ``{"mode", "requested", "note"}`` for the frontend.
+        """
+        mode_data = state.get("mode", {})
+        if not isinstance(mode_data, dict):
+            mode_data = getattr(mode_data, "model_dump", dict)()
+        return {
+            "mode": mode_data.get("resolved", "general"),
+            "requested": mode_data.get("requested", "general"),
+            "note": mode_data.get("note", ""),
+        }
 
     def _update_plan_step_status(
         self, state: KleaAgentState, results: list[CallToolResult]
     ) -> dict[str, Any]:
         """Mark the current plan step done/failed from the tool results.
 
+        Any ``is_error`` result marks the step ``failed``  ---  this mirrors the
+        permission + ``isError`` handling in
+        ``klea_utils/mcp/dispatch.py:dispatch_tool_calls`` and
+        ``klea_utils/nodes/tools_caller.py:ToolsCallerNode``.  Guards against
+        empty plans and missing steps.
+
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
         :returns: State updates carrying the updated plan.
         """
+        if not state.plan.step_list:
+            self.logger.warning("No plan steps to update")
+            return {}
+        if state.plan.current_step_index >= len(state.plan.step_list):
+            self.logger.warning("Plan step index out of range")
+            return {"plan": state.plan}
         current_step = state.plan.step_list[state.plan.current_step_index]
-        current_step.status = "failed" if results[0].is_error else "done"
+        current_step.status = "failed" if any(r.is_error for r in results) else "done"
         state.plan.current_step_index += 1
         return {"plan": state.plan}
 
     async def _create_graph(self):
         """Create the LangGraph"""
-        self.workflow = StateGraph(KleaAgentState)
+        self.workflow = StateGraph(KleaAgentState, context_schema=KleaRunContext)
 
         self._init_graph_state_node = InitGraphState(
             logger=self.logger, label="Initializing"
         )
         self.workflow.add_node(
             self._init_graph_state_node.label, self._init_graph_state_node.execute
+        )
+
+        # Operating mode (ADR-0030): decide at task entry, before any work.
+        # Scientific mode requires an approved curated knowledge source; the
+        # agent has none configured yet (``retriever_config``/``stores`` are
+        # deferred until the ADR-0029 retrieval phase), so a scientific
+        # request routes to the informing node instead of silently downgrading
+        # to an unverified answer.
+        self._mode_decision_node = ModeDecision(
+            logger=self.logger,
+            label="Determining mode",
+            source_available=(
+                self.retriever_config is not None and self.stores is not None
+            ),
+        )
+        self.workflow.add_node(
+            self._mode_decision_node.label, self._mode_decision_node.execute
+        )
+        self._mode_informer_node = ModeInformer(
+            logger=self.logger, label="Informing about mode"
+        )
+        self.workflow.add_node(
+            self._mode_informer_node.label, self._mode_informer_node.execute
         )
 
         # Guard nodes
@@ -202,12 +307,19 @@ class KleaAgent(BaseLangGraph):
             llm_models=self.llm_models,
         )
         self._planner_node.set_tools_info(self.tools_info)
+        # ToolsPicker/Caller are the shared nodes from ``klea_utils`` (ADR-0020).
+        # ``tools_info`` is the per-domain description map built by
+        # ``BaseLangGraph._build_tools_info`` before ``_create_graph``; the
+        # explicit ``prompt_registry_location`` is required  ---  the shared
+        # class would otherwise resolve ``prompts/`` relative to
+        # ``klea_utils``.  ``model_type="chat"`` per review (may become a
+        # dedicated "reasoning" role later).
         self._tools_picker_node = ToolsPicker(
             logger=self.logger,
             label="Selecting tools",
             llm_models=self.llm_models,
             tools_info=self.tools_info,
-            model_type="plan",
+            model_type="chat",
             prompt_registry_location=Path(__file__).parent / "nodes" / "prompts",
         )
         self._tools_caller_node = ToolsCallerNode(
@@ -222,18 +334,18 @@ class KleaAgent(BaseLangGraph):
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
+        # Wire nodes  ---  order mirrors ``rag_pkg/klea_rag/rag.py:_create_graph``
+        # (guard -> goal -> explore -> picker/caller -> evaluate -> answer).
+        # Parallel tool calls are already handled by
+        # ``klea_utils/mcp/dispatch.py:dispatch_tool_calls`` via
+        # ``asyncio.gather``; the older ToolOrchestrator TODO is kept for
+        # context on multi-tool prompt/schema evolution.
         self.workflow.add_node(self._planner_node.label, self._planner_node.execute)
-        # TODO: modify to use a ToolOrchestrator that can call multiple tools
-        # in parallel asynchronously
-        # Note that this depends on how the agent is setup---if it's setup to
-        # run one call at a time, this isn't required, but ideally, it should
-        # be able to call multiple tools---but the prompts/state schema will
-        # need to updated for that
-        self.workflow.add_node(
-            self._tools_caller_node.label, self._tools_caller_node.execute
-        )
         self.workflow.add_node(
             self._tools_picker_node.label, self._tools_picker_node.execute
+        )
+        self.workflow.add_node(
+            self._tools_caller_node.label, self._tools_caller_node.execute
         )
         # Evaluator: needs to handle failed tool calls and ask the planner to
         # update the plan if required
@@ -257,7 +369,17 @@ class KleaAgent(BaseLangGraph):
 
         self.workflow.add_edge(START, self._init_graph_state_node.label)
         self.workflow.add_edge(
-            self._init_graph_state_node.label, self._guard_node.label
+            self._init_graph_state_node.label, self._mode_decision_node.label
+        )
+        # ADR-0030: a mode that cannot run (e.g. Scientific without a curated
+        # source) is informed, not silently downgraded; proceed otherwise.
+        self.workflow.add_conditional_edges(
+            self._mode_decision_node.label,
+            self._mode_router_node,
+            {
+                "proceed": self._guard_node.label,
+                "inform": self._mode_informer_node.label,
+            },
         )
         self.workflow.add_conditional_edges(
             self._guard_node.label,
@@ -316,6 +438,7 @@ class KleaAgent(BaseLangGraph):
         else:
             self.workflow.add_edge(self._answer_user_node.label, END)
         self.workflow.add_edge(self._decline_to_answer_node.label, END)
+        self.workflow.add_edge(self._mode_informer_node.label, END)
 
         if self.checkpointer:
             self.graph = self.workflow.compile(checkpointer=self.checkpointer)

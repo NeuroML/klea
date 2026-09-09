@@ -65,6 +65,36 @@ class Discovery(BaseModel):
     pass
 
 
+class Mode(BaseModel):
+    """Operating mode of the agent (ADR-0030).
+
+    :attr:`requested` is the caller's ask (injected at invoke via
+    ``extra_state``, e.g. ``{"mode": {"requested": "scientific"}}``); the
+    :attr:`resolved` mode is decided by :class:`ModeDecision` at task
+    entry and is the checkpointed session-mode.  :attr:`note` carries a
+    human-readable explanation when a request cannot be honoured as asked
+    (e.g. Scientific mode without a curated knowledge source); a
+    non-empty ``note`` routes the run to the informing node instead of
+    silently downgrading (ADR-0030 no-silent-downgrade).
+
+    Verification/assurance tracking is intentionally deferred to the
+    ADR-0029 verification phase; this model only records the mode.
+    """
+
+    requested: Literal["general", "scientific"] = Field(
+        default="general",
+        description="Explicit operating-mode request from the caller",
+    )
+    resolved: Literal["general", "scientific"] = Field(
+        default="general",
+        description="Resolved operating mode at task entry",
+    )
+    note: str = Field(
+        default="",
+        description="Explanation when a requested mode cannot run",
+    )
+
+
 class KleaAgentState(BaseModel):
     """The state of the graph"""
 
@@ -74,6 +104,7 @@ class KleaAgentState(BaseModel):
     usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
         default_factory=TokenUsage
     )
+    mode: Mode = Mode()
 
     # code string if any
     code: CodeSchema = CodeSchema()

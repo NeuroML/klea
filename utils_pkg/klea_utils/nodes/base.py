@@ -24,9 +24,10 @@ from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.utils.function_calling import convert_to_json_schema
+from langgraph.runtime import get_runtime
 from pydantic import BaseModel
 
-from klea_utils.graph.base import model_overrides_ctx
+from klea_utils.graph.context import model_overrides_from_context
 from klea_utils.plogging import mask_sensitive
 
 from ..errors import LLMInvocationErrorCategory, PromptTemplateError
@@ -257,10 +258,16 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         limits) before applying provider field filtering to strip fields
         invalid for the resolved provider.
         """
-        ctx_val = model_overrides_ctx.get()
-        role_overrides = (ctx_val or {}).get(self.model_type, {})  # type: ignore[union-attr]
+        # Per-run model overrides come from the LangGraph Runtime context
+        # (get_runtime().context, ADR-0033), not an ad-hoc contextvar.
+        # Ambient access: no node signature takes a ``runtime`` parameter;
+        # the value is static for the whole run.  Outside a graph run
+        # (unit tests) get_runtime() raises, so tests drive the merge via
+        # a Runtime-context harness instead of calling this directly.
+        ctx_val = model_overrides_from_context(get_runtime().context)
+        role_overrides = ctx_val.get(self.model_type, {})
         self.logger.debug(
-            f"{mask_sensitive(ctx_val or {}) = }\n"
+            f"{mask_sensitive(ctx_val) = }\n"
             f"{self.model_type = }\n"
             f"{mask_sensitive(role_overrides) = }\n"
             f"{self.model_defaults = }"
@@ -321,20 +328,57 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
     ) -> PromptValue:
         """Add Anthropic cache_control to the system message if applicable.
 
-        Only Anthropic supports `cache_control: ephemeral` on system blocks,
-        and it requires the `model_provider` to be known (resolved at
+        Only Anthropic supports ``cache_control: ephemeral`` on system blocks,
+        and it requires the ``model_provider`` to be known (resolved at
         invoke time, not at prompt creation). Other providers ignore it, so
-        we only set it for `anthropic`.
+        we only set it for ``anthropic``.
+
+        Anthropic prompt caching needs ``cache_control`` *inside* the
+        structured system content block.  langchain-anthropic serialises a
+        plain-string ``SystemMessage`` as the bare ``system`` field and drops
+        ``additional_kwargs``, so tagging there is a silent no-op  ---  the
+        string content must be wrapped in a text block carrying the flag.
         """
         provider = config.get("configurable", {}).get("model_provider")
         if provider != "anthropic":
             return prompt
-        # PromptValue -> messages -> add cache_control to first SystemMessage
+        # PromptValue -> messages -> move cache_control into the first
+        # SystemMessage's structured content block
         try:
             messages = prompt.to_messages()
             if messages and messages[0].type == "system":
-                # SystemMessage is a BaseMessage with additional_kwargs
-                messages[0].additional_kwargs["cache_control"] = {"type": "ephemeral"}
+                system = messages[0]
+                content = system.content
+                if isinstance(content, str):
+                    system.content = [
+                        {
+                            "type": "text",
+                            "text": content,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ]
+                elif isinstance(content, list):
+                    for i in range(len(content) - 1, -1, -1):
+                        block = content[i]
+                        if isinstance(block, str):
+                            content[i] = {
+                                "type": "text",
+                                "text": block,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                            break
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            content[i] = {
+                                **block,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                            break
+                    else:
+                        return prompt
+                    system.content = content
+                else:
+                    return prompt
+                self.logger.debug("Added cache_control for Anthropic call")
                 # Rebuild PromptValue from modified messages
                 from langchain_core.prompt_values import ChatPromptValue
 
@@ -358,6 +402,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         retries on context overflow / truncated output.
         """
         prompt = self._add_cache_control(prompt, config)
+        self.logger.debug(f"{prompt = }")
         inst = self._llm_entry.instance
         if self.output_schema:
             llm_wrapped = inst.with_structured_output(
@@ -713,13 +758,13 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
 
             {json.dumps(schema).replace("{", "{{").replace("}", "}}")}
 
-            The response must be a JSON object like this example (replace
-            the placeholder values with real content):
+            The response must be a raw, valid JSON object like this example
+            (replace the placeholder values with real content):
 
             {json.dumps(example).replace("{", "{{").replace("}", "}}")}
 
-            Do not output the schema definition itself, or the
-            'title'/'type'/'properties' keys.
+            Do not output the schema definition itself, or notes/comments, or
+            the 'title'/'type'/'properties' keys.
             """
         )
 

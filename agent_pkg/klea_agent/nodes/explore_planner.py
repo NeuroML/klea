@@ -13,16 +13,22 @@ from typing import Any, override
 from pydantic import BaseModel
 
 from klea_agent.nodes.planner import Planner
-from klea_agent.schemas import KleaAgentState, PlanSchema
+from klea_agent.schemas import PlanSchema
 
 
 class ExplorePlanner(Planner):
-    model_type = "plan"
     """Node that plans exploration steps for a codebase.
 
-    Subclasses Planner with:
-    - Updates state.exploration_plan instead of state.task_plan
+    Subclasses ``Planner`` (so it inherits ``BaseLLMNode`` handling of
+    ``tools_info``/prompt plumbing) but overrides the prompt variables to
+    focus on discovery.  This node is intentionally kept as a separate
+    stage for now; a future architectural decision may replace it with
+    direct tool calls / sub-agents or fold it into ``Planner``.  Until
+    that ADR, it stays as exploration-planning only and does not itself
+    execute tools.
     """
+
+    model_type = "plan"
 
     @override
     def __init__(self, logger, label: str, llm_models: dict[str, Any]):
@@ -36,17 +42,19 @@ class ExplorePlanner(Planner):
         self.prompt_prefix = "ExplorePlanner"
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: BaseModel) -> dict:
         """Format prompt with current state."""
         # TODO: limit to required state field
         return {
-            "query": state.query,
-            "goal": state.goal,
-            "step_list": state.plan.step_list,
-            "current_step_index": state.plan.current_step_index,
-            "discovery": state.discovery_persistent,
-            "discovery_last_step": state.discovery_per_step,
-            "observations": state.step_outputs,
+            "query": getattr(state, "query", ""),
+            "goal": getattr(state, "goal", ""),
+            "step_list": getattr(getattr(state, "plan", None), "step_list", []),
+            "current_step_index": getattr(
+                getattr(state, "plan", None), "current_step_index", 0
+            ),
+            "discovery": getattr(state, "discovery_persistent", {}),
+            "discovery_last_step": getattr(state, "discovery_per_step", {}),
+            "observations": getattr(state, "step_outputs", {}),
         }
 
     @override

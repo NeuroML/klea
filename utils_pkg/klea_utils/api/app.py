@@ -48,19 +48,24 @@ def make_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.is_ready = False
+        logger.info("Klea API (%s) starting lifespan", title)
 
         graph = graph_factory()
         await graph.setup()
         app.state.graph = graph
+        logger.info("Graph setup complete (%s)", type(graph).__name__)
 
         db_path = init_dir(graph.paths.user_data_dir) / "sessions.db"
         app.state.chat_sessions = SessionStore(str(db_path))
+        logger.debug("Session store ready at %s", db_path)
 
         app.state.is_ready = True
+        logger.info("Klea API ready")
 
         yield
 
         app.state.is_ready = False
+        logger.info("Klea API shutting down")
         # Clean up checkpointer and MCP client to avoid fd leaks / DB locks
         try:
             checkpointer = getattr(graph, "checkpointer", None)

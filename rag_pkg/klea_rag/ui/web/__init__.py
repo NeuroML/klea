@@ -1,0 +1,12 @@
+"""
+Klea RAG NiceGUI web frontend.
+
+The RAG app composes its page from the shared
+``klea_utils.ui.web.nicegui.components`` (ADR-0031): ``page.py`` is the
+composition, ``app.py`` is the process entry point.
+
+File: klea_rag/ui/web/__init__.py
+
+Copyright 2026 Ankur Sinha
+Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
+"""

@@ -9,10 +9,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from typing import override
+from typing import Any, cast, override
 
 import pytest
 from klea_utils.graph.base import BaseLangGraph
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, create_configurable_model
 from klea_utils.nodes.answer_general import AnswerGeneral
 from klea_utils.nodes.fixed_answer import FixedAnswer
@@ -377,6 +378,226 @@ class TestGraphBase:
             assert isinstance(te["content"], str)
 
         self.logger.info("run_graph_astream_events test passed")
+
+
+class ContextToyState(BaseModel):
+    """Minimal state for the context-event forwarding graph."""
+
+    query: str = ""
+    message_for_user: str = ""
+    mode: str = ""
+    assurance: str = ""
+
+
+class ContextGraph(BaseLangGraph):
+    """Graph whose context event is *derived from state* (ADR-0032).
+
+    ``context_snapshot`` projects state into a ``context`` event; one node
+    writes the state fields and another tries to author a ``custom``
+    ``context`` event -- the latter must NOT be forwarded, proving the
+    separation is structural.
+    """
+
+    env_class: type[BaseModel] = BaseModel
+    config_class: type[BaseModel] = BaseModel
+    env_var: str = "CTX_ENV_FILE"
+    env_file_default: str = "ctx.env"
+    graph_name: str = "ContextGraph"
+
+    def __init__(self):
+        super().__init__(logging_level=logging.INFO, checkpoint="none", log_file=False)
+        from platformdirs import PlatformDirs
+
+        self.paths = PlatformDirs(self.graph_name.lower())
+        self.logger = logging.getLogger(self.graph_name)
+
+    @override
+    def _load_env(self) -> None:
+        from types import SimpleNamespace
+        from typing import cast
+
+        self.app_env = cast(BaseModel, SimpleNamespace(chat_model="dummy"))
+        self.app_config = cast(BaseModel, SimpleNamespace(providers={}))
+
+    @override
+    def _configure_resources(self) -> None:
+        pass
+
+    @override
+    def _setup_models(self) -> None:
+        self.llm_models = {}
+
+    @override
+    def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        """Project the state fields into the session context."""
+        if not state.get("mode"):
+            return None
+        return {"mode": state.get("mode"), "assurance": state.get("assurance")}
+
+    @override
+    async def _create_graph(self) -> None:
+        from langgraph.config import get_stream_writer
+        from langgraph.graph import END, START, StateGraph
+
+        workflow = StateGraph(ContextToyState)
+
+        async def _set_mode(state):
+            # Normal node behaviour: write the context fields as state.
+            return {"mode": "general", "assurance": "unverified"}
+
+        async def _hack_context(state):
+            # Attempt to author a context event from a node.  Under ADR-0032
+            # this custom-channel event must NOT be forwarded.
+            get_stream_writer()({"type": "context", "data": {"hacked": True}})
+            return {"message_for_user": "done"}
+
+        workflow.add_node("Set mode", _set_mode)
+        workflow.add_node("Hack context", _hack_context)
+        workflow.add_edge(START, "Set mode")
+        workflow.add_edge("Set mode", "Hack context")
+        workflow.add_edge("Hack context", END)
+        self.graph = workflow.compile()
+
+
+class TestContextEventForwarding:
+    """Graph-level ``context`` events are derived from state, not nodes."""
+
+    def setup_method(self):
+        self.logger = logging.getLogger("test_graph_base.context")
+
+    async def test_context_event_derived_from_state(self):
+        graph = ContextGraph()
+        await graph.setup()
+
+        events = []
+        async for event in graph.run_graph_astream_events("hello"):
+            self.logger.debug(f"event: {event}")
+            events.append(event)
+
+        context_events = [e for e in events if e.get("type") == "context"]
+        assert context_events, "expected the context event to be forwarded"
+        # Exactly the state projection, change-deduped; the node-authored
+        # "hacked" custom event is structurally dropped.
+        assert context_events == [
+            {"type": "context", "data": {"mode": "general", "assurance": "unverified"}}
+        ]
+        assert all("hacked" not in e.get("data", {}) for e in context_events)
+        assert [e for e in events if e.get("type") == "complete"], "expected complete"
+
+
+class _CaptureCompiled:
+    """Fake compiled graph that records the ``context`` kwarg per run call."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
+
+    async def ainvoke(self, *args, **kwargs):
+        self.calls.append(("ainvoke", kwargs))
+        return {"message_for_user": "ok"}
+
+    async def astream(self, *args, **kwargs):
+        self.calls.append(("astream", kwargs))
+        yield {"node": {"message_for_user": "ok"}}
+
+    async def astream_events(self, *args, **kwargs):
+        self.calls.append(("astream_events", kwargs))
+        return self._empty()
+
+    async def _empty(self):
+        if False:  # pragma: no cover
+            yield
+
+
+class _ContextCaptureGraph(BaseLangGraph):
+    """Minimal graph wrapping a ``_CaptureCompiled`` (no setup / no LLM)."""
+
+    env_class: type[BaseModel] = BaseModel
+    config_class: type[BaseModel] = BaseModel
+    env_var: str = "TOY_ENV_FILE"
+    env_file_default: str = "toy.env"
+    graph_name: str = "ContextCaptureGraph"
+
+    def __init__(self, compiled: _CaptureCompiled):
+        super().__init__(logging_level=logging.INFO, checkpoint="none", log_file=False)
+        self.logger = logging.getLogger(self.graph_name)
+        self.graph = cast(Any, compiled)
+
+    @override
+    def _configure_resources(self) -> None:
+        pass
+
+    @override
+    def _setup_models(self) -> None:
+        self.llm_models = {}
+
+    @override
+    async def _create_graph(self) -> None:
+        pass
+
+
+class TestRunContextForwarding:
+    """The four query run methods forward the ADR-0033 context verbatim."""
+
+    def setup_method(self):
+        self.logger = logging.getLogger("test_graph_base.context-forwarding")
+
+    async def test_run_graph_invoke_forwards_context(self):
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        ctx = KleaRunContext(model_overrides={"chat": {"model": "x"}})
+
+        result = await graph.run_graph_invoke("q", "t", context=ctx)
+        assert result == "ok"
+        method, kwargs = compiled.calls[-1]
+        assert method == "ainvoke"
+        assert kwargs["context"] is ctx
+
+    async def test_run_graph_invoke_default_context_none(self):
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+
+        await graph.run_graph_invoke("q", "t")
+        method, kwargs = compiled.calls[-1]
+        assert method == "ainvoke"
+        assert kwargs["context"] is None
+
+    async def test_run_graph_stream_forwards_context(self):
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        ctx = KleaRunContext(model_overrides={"chat": {"model": "x"}})
+
+        msgs = [m async for m in graph.run_graph_stream("q", "t", context=ctx)]
+        assert msgs == ["ok"]
+        method, kwargs = compiled.calls[-1]
+        assert method == "astream"
+        assert kwargs["context"] is ctx
+
+    async def test_graph_stream_forwards_context(self):
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        ctx = KleaRunContext(model_overrides={"chat": {"model": "x"}})
+
+        gen = await graph.graph_stream("q", "t", context=ctx)
+        chunks = [c async for c in gen]
+        assert chunks == [{"node": {"message_for_user": "ok"}}]
+        method, kwargs = compiled.calls[-1]
+        assert method == "astream"
+        assert kwargs["context"] is ctx
+
+    async def test_run_graph_astream_events_forwards_context(self):
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        ctx = KleaRunContext(model_overrides={"chat": {"model": "x"}})
+
+        events = [
+            e async for e in graph.run_graph_astream_events("q", "t", context=ctx)
+        ]
+        # The empty fake event stream still produces the terminal event.
+        assert [e for e in events if e.get("type") == "complete"]
+        method, kwargs = compiled.calls[-1]
+        assert method == "astream_events"
+        assert kwargs["context"] is ctx
+        assert kwargs["version"] == "v3"
 
 
 if __name__ == "__main__":

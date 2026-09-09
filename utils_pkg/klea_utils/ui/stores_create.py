@@ -184,6 +184,16 @@ def chunk(
     setup_root_logger("klea-stores-create", stderr_level=resolve_log_level(debug))
     logger = logging.getLogger("klea-stores-create")
 
+    # Guard: chunking needs the [ingest] extra (docling etc.).
+    # Lazy: require_extra uses only find_spec (stdlib) so --help stays fast.
+    try:
+        from klea_utils.imports import require_extra
+
+        require_extra("docling", "ingest")
+    except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
+
     logger.info(
         f"Chunking documents in {source_dir}"
         f"\n  Max tokens: {max_tokens}"
@@ -429,6 +439,16 @@ def store(
     """
     setup_root_logger("klea-stores-create", stderr_level=resolve_log_level(debug))
     logger = logging.getLogger("klea-stores-create")
+
+    # Guard: storing reuses the ingest cache (docling) and vector-store
+    # backends. The ingest check is cheap and keeps --help fast.
+    try:
+        from klea_utils.imports import require_extra
+
+        require_extra("docling", "ingest")
+    except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
 
     logger.info(
         f"Storing cached chunks to '{collection_name}' at {store_path}"
@@ -733,6 +753,15 @@ def build(
     """
     setup_root_logger("klea-stores-create", stderr_level=resolve_log_level(debug))
     logger = logging.getLogger("klea-stores-create")
+
+    # Guard: full pipeline needs [ingest] (docling). Lazy so --help stays fast.
+    try:
+        from klea_utils.imports import require_extra
+
+        require_extra("docling", "ingest")
+    except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
 
     logger.info(
         f"Building vector store '{collection_name}' at {store_path}"

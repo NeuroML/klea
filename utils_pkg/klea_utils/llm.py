@@ -20,6 +20,8 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, NamedTuple, cast
 
+from json_repair import repair_json
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langgraph.types import RunnableConfig
@@ -134,7 +136,12 @@ def parse_output_with_thought[TSchema: BaseModel](
 
         parser = JsonOutputParser()
         parser.pydantic_object = schema()
-        result = parser.parse(answer)
+        try:
+            result = parser.parse(answer)
+        except OutputParserException:
+            cleaned = repair_json(answer)
+            result = parser.parse(cleaned)
+
     else:
         message.content = content_to_str(message.content)
         # Now a string -- re-run the string parsing above.
@@ -147,7 +154,11 @@ def parse_output_with_thought[TSchema: BaseModel](
 
         parser = JsonOutputParser()
         parser.pydantic_object = schema()
-        result = parser.parse(answer)
+        try:
+            result = parser.parse(answer)
+        except OutputParserException:
+            cleaned = repair_json(answer)
+            result = parser.parse(cleaned)
 
     logger.debug(f"{thought = }")
     logger.debug(f"{answer = }")
