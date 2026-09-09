@@ -1,6 +1,40 @@
 # Changelog
 
-## v0.4.0 (wip)
+> **Note:** `klea_agent` (`klea` / `klea-serve`) and `neuroml_mcp` (`nml-mcp`) are WIP and unreleased  ---  no PyPI releases. Tagged releases below are `klea_utils` and `klea_rag` only (`klea_utils-v*`, `klea_rag-v*`).
+
+## Unreleased  ---  `klea_agent` (WIP, unreleased)
+
+### Added
+
+- Agent operating modes (Scientific / General) with `Mode{requested,resolved,note}`, mode router, CLI `--mode` and web selector/badge (ADR-0030).
+- App-owned web mode UI (`ui/web/mode_ui.py`, `page.py`, `app.py`) and `GET /chat/{user}/{chat}/context` hydration on the agent side.
+
+### Changed
+
+- `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
+
+## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`
+
+### Added
+
+- Graph-level context events: `context_snapshot` projection, `extra_state` on runners, generic `GET /chat/{user}/{chat}/context` with checkpoint hydration and streamed `context` events (ADR-0032).
+- Per-request model overrides via LangGraph Runtime `KleaRunContext` (`context_schema`) replacing hand-rolled contextvar (ADR-0033).
+- App-owned API/UI composition: each app mounts its own chat/context/web pages; utils provides `chat_core`, `context` router and reusable NiceGUI components (ADR-0031).
+- JSON-repair fallback for LLM structured-output parsing and import checker for optional dependencies.
+- `localonly` live test for Anthropic prompt caching.
+
+### Changed
+
+- Chat streaming split into `chat_core` + `context` router; `stream_events`/`run_graph_stream` carry generic `context_fields`/`extra_state`.
+- `mask_sensitive` now recursive so nested `model_overrides.*.api_key` is redacted in logs.
+- API/server emit structured INFO logging for `/query`, `/query/stream`, lifespan and readiness.
+
+### Fixed
+
+- Anthropic `cache_control` now placed on structured system content blocks rather than `additional_kwargs` which `langchain-anthropic` drops.
+- Docs API pages updated for new `chat_core` and `context`/`graph.context` modules.
+
+## v0.4.0 (2026-09-02)  ---  `klea_utils` / `klea_rag`
 
 ### Breaking changes
 
@@ -88,7 +122,7 @@
   checks) plus `--samples` evenly-spaced windows of contiguous chunks;
   auto-printed at the end of `store`.
 - `klea_agent` is now the main application (general-purpose agent with
-  coding capabilities); `klea_rag` is consumed by it.
+  coding capabilities, WIP/unreleased); `klea_rag` is consumed by it.
 - Configurable model system (per-node `model_defaults`, dynamic provider
   field filtering, HuggingFace auto-derivation); optional guard node
   (skipped when `guard_model` unset, `guard_decision` now defaults to
