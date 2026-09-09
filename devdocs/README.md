@@ -62,5 +62,12 @@ Structure:
 | `adr/0025-agent-topology.md` | ADR-0025: Agent loop topology: plan->explore->toolpick->observe->evaluate vs flat ReAct |
 | `adr/0026-client-server.md` | ADR-0026: Client-server architecture over monolithic app |
 | `adr/0027-doi-bibliographic-resolver.md` | ADR-0027: DOI/Bibliographic resolver: round-robin tiered cascade with disk cache |
+| `adr/0028-prompt-cache.md` | ADR-0028: Prompt caching via stable system prefix and forward-stable conversation history |
+| `adr/0029-agent-correctness-architecture.md` | ADR-0029: Agent correctness architecture: evidence, provenance and verification as architectural objects |
+| `adr/0030-agent-operating-modes-and-assurance-levels.md` | ADR-0030: Agent operating modes and assurance levels |
+| `adr/0031-apps-own-api-and-ui-composition.md` | ADR-0031: Apps own API contracts and UI composition; klea_utils is a components/helpers library |
+| `adr/0032-graph-context-events-and-state-ownership.md` | ADR-0032: Graph-level context events and state ownership |
+| `adr/0033-model-overrides-via-langgraph-runtime-context.md` | ADR-0033: Per-request model overrides via LangGraph Runtime context |
+| `adr/0034-tool-calling-mechanism.md` | ADR-0034: Tool calling mechanism: prompt injection with structured emission (bind_tools rejected) |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |
