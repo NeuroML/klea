@@ -10,11 +10,16 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import json
 import logging
+import os
+from collections.abc import Mapping
 from typing import Any, Literal, cast
 
+import pytest
 from klea_utils.graph.schemas import TokenUsage
+from klea_utils.llm import LLMModel, create_configurable_model
 from klea_utils.nodes.base import BaseLLMNode, _is_empty_result, _schema_to_example
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -221,3 +226,157 @@ def test_llm_post_exec_stream_emits_usage_event():
     event_types = [e["type"] for e in events]
     assert event_types == ["usage"]
     assert events[0]["data"]["details"]["input_tokens"] == 10
+
+
+def _system_prompt_value():
+    """Build a ChatPromptValue with a plain-string system message."""
+    tpl = ChatPromptTemplate([("system", "Base system prompt."), ("human", "{query}")])
+    return tpl.invoke({"query": "q"})
+
+
+def test_add_cache_control_anthropic_tags_system_content_block():
+    """cache_control lands inside the SystemMessage content block.
+
+    langchain-anthropic serialises a plain-string SystemMessage as the bare
+    ``system`` field and drops ``additional_kwargs``, so the breakpoint must
+    be embedded in a structured text block wrapping the string.
+    """
+    node = _node(None)
+    prompt = _system_prompt_value()
+
+    result = node._add_cache_control(
+        prompt, {"configurable": {"model_provider": "anthropic"}}
+    )
+
+    messages = result.to_messages()
+    assert messages[0].type == "system"
+    assert messages[0].content == [
+        {
+            "type": "text",
+            "text": "Base system prompt.",
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+    assert "cache_control" not in messages[0].additional_kwargs
+
+
+def test_add_cache_control_ignored_for_non_anthropic():
+    """Non-Anthropic providers leave the string system message untouched."""
+    node = _node(None)
+    prompt = _system_prompt_value()
+
+    result = node._add_cache_control(
+        prompt, {"configurable": {"model_provider": "openai"}}
+    )
+
+    assert result is prompt
+    messages = prompt.to_messages()
+    assert messages[0].content == "Base system prompt."
+
+
+def _anthropic_cache_details(
+    meta: Mapping[str, Any] | None,
+) -> dict[str, int]:
+    """Extract Anthropic cache fields from a message's ``usage_metadata``.
+
+    langchain-anthropic nests the raw Anthropic usage fields under
+    ``input_token_details`` (``cache_read`` / ``cache_creation`` /
+    ``ephemeral_5m_input_tokens``) and reports the pre-cache ``input_tokens``
+    at the top level, so both must be read together.  When an
+    ``ephemeral_5m_input_tokens`` count is present, langchain-anthropic zeroes
+    the generic ``cache_creation`` to avoid double counting, so the ephemeral
+    field is the source of truth for cache creation.
+    """
+    details: dict[str, Any] = {}
+    if meta:
+        details.update(meta.get("input_token_details") or {})
+        details["input_tokens"] = meta.get("input_tokens", 0)
+    # Normalise cache creation: prefer the specific ephemeral count.
+    details["cache_creation"] = details.get(
+        "ephemeral_5m_input_tokens", details.get("cache_creation", 0)
+    )
+    return cast(dict[str, int], details)  # type: ignore[misc]
+
+
+@pytest.mark.localonly
+async def test_anthropic_cache_control_real_call():
+    """Real Anthropic call caches a >4096-token system prefix (skipped w/o key).
+
+    Requires ``ANTHROPIC_API_KEY`` in the environment.  Makes a node invoke
+    (exercising ``_add_cache_control``) with a long system prompt, calls it
+    twice, and asserts the second call reads the cache created by the first
+    via the Anthropic response usage fields.
+    """
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("ANTHROPIC_API_KEY not set; cannot make a real Anthropic call")
+
+    # A configurable model that materialises the Anthropic client per invoke.
+    # The provider/model/max_tokens are all supplied in the per-invoke config;
+    # ChatAnthropic picks up ANTHROPIC_API_KEY from the environment.
+    inst = create_configurable_model(logging.getLogger("test_anthropic_cache"))
+
+    node = DummyNode(
+        logger=logging.getLogger("test_anthropic_cache"),
+        label="anthropic-cache",
+        llm_models={
+            "chat": LLMModel(
+                instance=inst, model_name="anthropic:claude-haiku-4-5-20251001"
+            )
+        },
+        output_schema=None,
+    )
+
+    # System prefix must clear Claude Haiku 4.5's 4096-token cache minimum
+    # for a breakpoint to actually create/read a cache.  Repeated plain ASCII
+    # tokenises at roughly 3-4 chars/token, so pad well beyond 4096 to leave
+    # unambiguous margin before spending API quota.
+    block = (
+        "The NeuroML community maintains a rich set of tools for describing and "
+        "simulating neuronal models, with a focus on standardisation and "
+        "interoperability across simulator backends. "
+    )
+    repetitions = 4096 * 8 // max(len(block), 1) + 1
+    system_text = block * repetitions
+    # Under a pessimistic ~4 chars/token this is still far above the 4096
+    # minimum; the char count (not the lossy token estimate) is the guarantee.
+    assert len(system_text) > 4096 * 4
+
+    config = cast(
+        Any,
+        {
+            "configurable": {
+                "model": "claude-haiku-4-5-20251001",
+                "model_provider": "anthropic",
+                "max_tokens": 256,
+            }
+        },
+    )
+    prompt = ChatPromptValue(
+        messages=[
+            SystemMessage(content=system_text),
+            HumanMessage(content="Repeat the first sentence."),
+        ]
+    )
+
+    first = cast(AIMessage, await node._invoke_llm(inst, prompt, config))
+    second = cast(AIMessage, await node._invoke_llm(inst, prompt, config))
+
+    first_details = _anthropic_cache_details(first.usage_metadata)
+    second_details = _anthropic_cache_details(second.usage_metadata)
+
+    node.logger.info(
+        "First call: %s\nSecond call: %s",
+        first_details,
+        second_details,
+    )
+
+    first_cache = first_details.get("cache_creation", 0) or first_details.get(
+        "cache_read", 0
+    )
+    assert first_cache > 0, (
+        "First call should create or read a cache entry for the system "
+        f"prefix; usage={first_details}"
+    )
+    assert second_details.get("cache_read", 0) > 0, (
+        f"Second call should read the cached prefix; usage={second_details}"
+    )

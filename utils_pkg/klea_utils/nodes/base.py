@@ -328,20 +328,56 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
     ) -> PromptValue:
         """Add Anthropic cache_control to the system message if applicable.
 
-        Only Anthropic supports `cache_control: ephemeral` on system blocks,
-        and it requires the `model_provider` to be known (resolved at
+        Only Anthropic supports ``cache_control: ephemeral`` on system blocks,
+        and it requires the ``model_provider`` to be known (resolved at
         invoke time, not at prompt creation). Other providers ignore it, so
-        we only set it for `anthropic`.
+        we only set it for ``anthropic``.
+
+        Anthropic prompt caching needs ``cache_control`` *inside* the
+        structured system content block.  langchain-anthropic serialises a
+        plain-string ``SystemMessage`` as the bare ``system`` field and drops
+        ``additional_kwargs``, so tagging there is a silent no-op  ---  the
+        string content must be wrapped in a text block carrying the flag.
         """
         provider = config.get("configurable", {}).get("model_provider")
         if provider != "anthropic":
             return prompt
-        # PromptValue -> messages -> add cache_control to first SystemMessage
+        # PromptValue -> messages -> move cache_control into the first
+        # SystemMessage's structured content block
         try:
             messages = prompt.to_messages()
             if messages and messages[0].type == "system":
-                # SystemMessage is a BaseMessage with additional_kwargs
-                messages[0].additional_kwargs["cache_control"] = {"type": "ephemeral"}
+                system = messages[0]
+                content = system.content
+                if isinstance(content, str):
+                    system.content = [
+                        {
+                            "type": "text",
+                            "text": content,
+                            "cache_control": {"type": "ephemeral"},
+                        }
+                    ]
+                elif isinstance(content, list):
+                    for i in range(len(content) - 1, -1, -1):
+                        block = content[i]
+                        if isinstance(block, str):
+                            content[i] = {
+                                "type": "text",
+                                "text": block,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                            break
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            content[i] = {
+                                **block,
+                                "cache_control": {"type": "ephemeral"},
+                            }
+                            break
+                    else:
+                        return prompt
+                    system.content = content
+                else:
+                    return prompt
                 self.logger.debug("Added cache_control for Anthropic call")
                 # Rebuild PromptValue from modified messages
                 from langchain_core.prompt_values import ChatPromptValue
