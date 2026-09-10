@@ -63,5 +63,6 @@ class TestModeDecisionNode:
         mode = result["mode"]
         assert mode.requested == "scientific"
         assert mode.resolved == "general"
+        assert mode.assurance == "unverified"
         assert mode.note
         assert emitted == []

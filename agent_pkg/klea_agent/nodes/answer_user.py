@@ -46,8 +46,13 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
 
         info = NodeStreamData(
             heading="Response",
-            summary=f"Answer ready ({len(answer)} chars)",
-            details={"char_count": len(answer)},
+            summary=(
+                f"Answer ready ({len(answer)} chars; assurance={state.mode.assurance})"
+            ),
+            details={
+                "char_count": len(answer),
+                "assurance": state.mode.assurance,
+            },
         )
         self.write_custom_stream(
             NodeStreamEvent(type="info", node=self.label, data=info).model_dump()

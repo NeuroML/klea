@@ -94,6 +94,7 @@ def test_context_snapshot_projects_requested():
     assert agent.context_snapshot(state) == {
         "mode": "general",
         "requested": "scientific",
+        "assurance": "unverified",
         "note": "no source",
     }
     # A pydantic ``Mode`` instance in the state snapshot is handled too
@@ -102,5 +103,6 @@ def test_context_snapshot_projects_requested():
     assert agent.context_snapshot(state) == {
         "mode": "scientific",
         "requested": "general",
+        "assurance": "unverified",
         "note": "",
     }

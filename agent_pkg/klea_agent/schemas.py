@@ -139,8 +139,11 @@ class Mode(BaseModel):
     non-empty ``note`` routes the run to the informing node instead of
     silently downgrading (ADR-0030 no-silent-downgrade).
 
-    Verification/assurance tracking is intentionally deferred to the
-    ADR-0029 verification phase; this model only records the mode.
+    :attr:`assurance` is the structured result-assurance label (ADR-0030
+    invariant 4).  General mode is always ``unverified``; Scientific mode
+    becomes ``verified`` only once the ADR-0029 verification workflow is
+    enforced, so until then it is also ``unverified`` -- an unverified
+    answer is never presented as verified.
     """
 
     requested: Literal["general", "scientific"] = Field(
@@ -150,6 +153,10 @@ class Mode(BaseModel):
     resolved: Literal["general", "scientific"] = Field(
         default="general",
         description="Resolved operating mode at task entry",
+    )
+    assurance: Literal["unverified", "verified"] = Field(
+        default="unverified",
+        description="Result assurance level (ADR-0030 invariant 4)",
     )
     note: str = Field(
         default="",

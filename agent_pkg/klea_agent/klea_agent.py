@@ -178,9 +178,10 @@ class KleaAgent(BaseLangGraph):
         The session context is a projection of the checkpointed state
         written by :class:`ModeDecision` at task entry (ADR-0032): the
         graph streamer publishes it (change-deduped) on the ``values``
-        channel, so the frontend can render the active mode and any
-        explanation note.  Verification/assurance tracking is deferred to
-        the ADR-0029 verification phase.
+        channel, so the frontend can render the active mode, its assurance
+        label, and any explanation note.  Full verification/assurance
+        enforcement is deferred to the ADR-0029 phase; the label is always
+        ``unverified`` until then.
 
         ``requested`` is included because ``Mode`` is a whole-object
         field (no reducer): after a page reload the web UI's
@@ -191,7 +192,8 @@ class KleaAgent(BaseLangGraph):
         with the user's last intent.
 
         :param state: The per-superstep state snapshot (a dict).
-        :returns: ``{"mode", "requested", "note"}`` for the frontend.
+        :returns: ``{"mode", "requested", "assurance", "note"}`` for the
+            frontend.
         """
         mode_data = state.get("mode", {})
         if not isinstance(mode_data, dict):
@@ -199,6 +201,7 @@ class KleaAgent(BaseLangGraph):
         return {
             "mode": mode_data.get("resolved", "general"),
             "requested": mode_data.get("requested", "general"),
+            "assurance": mode_data.get("assurance", "unverified"),
             "note": mode_data.get("note", ""),
         }
 

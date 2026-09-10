@@ -98,8 +98,18 @@ class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         self.logger.debug(
             f"mode decision: requested={state.mode.requested} -> {resolved}"
         )
+        # Result assurance is structured state (ADR-0030 invariant 4).  Every
+        # result is unverified until the ADR-0029 verification workflow is
+        # enforced; Scientific mode will be labelled verified only then, so an
+        # unverified answer is never presented as verified.
+        assurance: Literal["unverified", "verified"] = "unverified"
         return {
-            "mode": Mode(requested=state.mode.requested, resolved=resolved, note=note)
+            "mode": Mode(
+                requested=state.mode.requested,
+                resolved=resolved,
+                assurance=assurance,
+                note=note,
+            )
         }
 
 
