@@ -50,6 +50,20 @@ class StepSchema(BaseModel):
             return "[FAILED]"
         return "[CURRENT]" if current else "[PENDING]"
 
+    def render(self, *, current: bool = False, markdown: bool = False) -> str:
+        """Render this step as one line with its status marker.
+
+        :param current: Whether this is the plan's current step.
+        :param markdown: Prefix the line with ``- `` for a markdown list.
+        :returns: ``[STATUS] N. description (success criteria: ...)``.
+        """
+        criteria = self.success_criteria or "(none)"
+        line = (
+            f"{self.status_label(current=current)} {self.step_number}. "
+            f"{self.description} (success criteria: {criteria})"
+        )
+        return f"- {line}" if markdown else line
+
 
 class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
@@ -74,13 +88,21 @@ class PlanSchema(BaseModel):
         lines: list[str] = []
         for index, step in enumerate(self.step_list):
             current = index == self.current_step_index and step.status == "pending"
-            criteria = step.success_criteria or "(none)"
-            line = (
-                f"{step.status_label(current=current)} {step.step_number}. "
-                f"{step.description} (success criteria: {criteria})"
-            )
-            lines.append(f"- {line}" if markdown else line)
+            lines.append(step.render(current=current, markdown=markdown))
         return "\n".join(lines)
+
+    def current_step(self) -> StepSchema | None:
+        """Return the plan's current step, or ``None`` when there is none.
+
+        :returns: The step at :attr:`current_step_index`, or ``None`` when the
+            plan is empty or the index is out of range.
+        """
+        if not self.step_list:
+            return None
+        index = self.current_step_index
+        if 0 <= index < len(self.step_list):
+            return self.step_list[index]
+        return None
 
 
 class GoalSchema(BaseModel):

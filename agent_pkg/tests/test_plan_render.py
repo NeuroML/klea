@@ -46,6 +46,35 @@ class TestPlanRender(unittest.TestCase):
         plan = PlanSchema(step_list=[StepSchema(description="x")])
         self.assertTrue(plan.render(markdown=True).startswith("- [CURRENT] 1. x"))
 
+    def test_step_render(self):
+        step = StepSchema(
+            step_number=2,
+            description="edit the file",
+            success_criteria="tests pass",
+        )
+        self.assertEqual(
+            step.render(current=True),
+            "[CURRENT] 2. edit the file (success criteria: tests pass)",
+        )
+        self.assertTrue(step.render(current=True, markdown=True).startswith("- "))
+
+    def test_step_render_done_marker(self):
+        step = StepSchema(description="x", status="done")
+        self.assertTrue(step.render().startswith("[DONE]"))
+
+    def test_current_step_helper(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, description="a", status="done"),
+                StepSchema(step_number=2, description="b"),
+            ],
+            current_step_index=1,
+        )
+        current = plan.current_step()
+        assert current is not None
+        self.assertEqual(current.description, "b")
+        self.assertIsNone(PlanSchema().current_step())
+
 
 if __name__ == "__main__":
     unittest.main()
