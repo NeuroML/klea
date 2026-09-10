@@ -18,6 +18,8 @@
   * The success criteria for achieving the goal
 * Produce a single, stable goal description
 * Produce a single, clear success criteria
+* The goal and success criteria become the fixed reference used to judge
+  completion; they cannot be changed later, so make them precise
 * Do not invent requirements not implied by the query
 * Do not plan steps or reference tools
 * Output all reasoning, justifications, and text strictly in English.

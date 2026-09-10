@@ -20,11 +20,13 @@ from klea_agent.schemas import GoalSchema
 
 
 class GoalSetter(BaseLLMNode[GoalSchema]):
-    """Goal setter node — derives a static session goal from the user query.
+    """Goal setter node -- derives the immutable task goal from the user query.
 
-    ``memory=False`` by design: the goal is set once per session and the
-    plan may evolve, but the goal itself stays static.  This mirrors the
-    discussion that each session has one goal.
+    ``memory=False`` by design.  Per ADR-0035 the goal and its task-level
+    success criteria are written once per task/run and are the fixed reference
+    the Evaluator checks against; the Planner may evolve the plan but never the
+    goal.  ``_pre_exec`` skips this node when the goal is already set, so it
+    runs only on entering the plan path (initial plan or escalation).
     """
 
     model_type = "plan"
@@ -58,6 +60,21 @@ class GoalSetter(BaseLLMNode[GoalSchema]):
         )
 
     @override
+    def _pre_exec(self, state: BaseModel) -> bool:
+        """Skip once the goal is set (ADR-0035: the goal is immutable).
+
+        The goal is written once per task/run; on replan/escalation it already
+        exists, so this node is skipped and the Planner proceeds against the
+        frozen goal.
+
+        :param state: The current graph state.
+        :returns: ``True`` when the goal still needs to be set.
+        """
+        already_set = bool(getattr(getattr(state, "goal", None), "goal", ""))
+        self.logger.debug(f"{already_set = }")
+        return not already_set
+
+    @override
     def _get_prompt_variables(self, state: BaseModel) -> dict:
         """Format prompt with state-specific parameters"""
         variables = {"query": getattr(state, "query", "")}
@@ -66,9 +83,14 @@ class GoalSetter(BaseLLMNode[GoalSchema]):
 
     @override
     def _update_state(self, result: GoalSchema, state: BaseModel) -> dict[str, Any]:
-        """Update and return state dictionary"""
-        state_update = {"goal": result, "message_for_user": result.goal}
-        self.logger.debug(f"{state_update =}")
+        """Write the goal -- GoalSetter is its sole writer.
+
+        Only ``goal`` is written; the goal is not the user-facing answer, so
+        ``message_for_user`` is left to the Evaluator/answer step.  The Planner
+        reads the goal but never writes it (ADR-0035).
+        """
+        state_update = {"goal": result}
+        self.logger.debug(f"{state_update = }")
         return state_update
 
     @override
