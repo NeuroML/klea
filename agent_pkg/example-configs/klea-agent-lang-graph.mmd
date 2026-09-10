@@ -11,7 +11,7 @@ graph TD;
 	Checking\20safety(Checking safety)
 	Declining\20query(Declining query)
 	Setting\20goal(Setting goal)
-	Exploring(Exploring)
+	Deciding\20route(Deciding route)
 	Planning(Planning)
 	Selecting\20tools(Selecting tools)
 	Running\20tools(Running tools)
@@ -19,22 +19,24 @@ graph TD;
 	Preparing\20response(Preparing response)
 	Summarizing\20history(Summarizing history)
 	__end__([<p>__end__</p>]):::last
+	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
-	Checking\20safety -. &nbsp;safe&nbsp; .-> Setting\20goal;
+	Deciding\20route -. &nbsp;answer&nbsp; .-> Preparing\20response;
+	Deciding\20route -. &nbsp;act&nbsp; .-> Selecting\20tools;
+	Deciding\20route -. &nbsp;plan&nbsp; .-> Setting\20goal;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;failed&nbsp; .-> Planning;
-	Evaluating -. &nbsp;aborted&nbsp; .-> Preparing\20response;
-	Evaluating -. &nbsp;in_progress&nbsp; .-> Selecting\20tools;
-	Exploring --> Selecting\20tools;
+	Evaluating -. &nbsp;plan_done&nbsp; .-> Preparing\20response;
+	Evaluating -. &nbsp;step_done&nbsp; .-> Selecting\20tools;
+	Evaluating -. &nbsp;need_replan&nbsp; .-> Setting\20goal;
 	Initializing --> Determining\20mode;
 	Planning --> Selecting\20tools;
 	Preparing\20response --> Summarizing\20history;
-	Running\20tools -. &nbsp;continue&nbsp; .-> Evaluating;
-	Running\20tools -. &nbsp;explored&nbsp; .-> Planning;
-	Running\20tools -. &nbsp;failed&nbsp; .-> Selecting\20tools;
+	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
+	Running\20tools -. &nbsp;retry&nbsp; .-> Selecting\20tools;
+	Running\20tools -. &nbsp;replan&nbsp; .-> Setting\20goal;
 	Selecting\20tools --> Running\20tools;
-	Setting\20goal --> Exploring;
+	Setting\20goal --> Planning;
 	__start__ --> Initializing;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
