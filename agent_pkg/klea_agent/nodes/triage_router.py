@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import logging
 from typing import override
 
+from fastmcp.client.client import CallToolResult
 from klea_utils.nodes.abstract import (
     AbstractRouterNode,
     NodeStreamData,
@@ -30,7 +31,9 @@ def current_step_key(state: KleaAgentState) -> int:
     return int(getattr(plan, "current_step_index", 0) or 0)
 
 
-def update_step_retry_counts(state: KleaAgentState) -> dict[int, int]:
+def update_step_retry_counts(
+    state: KleaAgentState, results: list[CallToolResult] | None = None
+) -> dict[int, int]:
     """Return the updated per-step consecutive-failure counter (ADaPT).
 
     A conditional-edge router cannot update state, so the tool caller's
@@ -39,11 +42,15 @@ def update_step_retry_counts(state: KleaAgentState) -> dict[int, int]:
     result, and cleared when the batch had no errors (progress resets the
     budget).  ``TriageRouter.decide`` then compares the count against
     ``max_retries``.
+
+    :param state: Current graph state.
+    :param results: The batch's tool results; defaults to ``state.tool_results``
+        when not supplied (e.g. in tests).
     """
     counts = dict(getattr(state, "step_retry_counts", None) or {})
     step = current_step_key(state)
-    results = getattr(state, "tool_results", None) or []
-    if any(getattr(r, "is_error", False) for r in results):
+    batch = results if results is not None else (state.tool_results or [])
+    if any(getattr(r, "is_error", False) for r in batch):
         counts[step] = counts.get(step, 0) + 1
     else:
         counts.pop(step, None)
