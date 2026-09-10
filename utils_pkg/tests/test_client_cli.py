@@ -26,6 +26,7 @@ def _make_app(label="RAG", port=8005):
         server_url_default=f"http://127.0.0.1:{port}",
         app_module=f"klea_{label.lower()}.api.main:app",
         tui_app_name=f"klea-{label.lower()}-tui",
+        tui_prefix=f"klea-{label.lower()}",
         web_app_name=f"klea-{label.lower()}-web",
         web_entry=f"klea_{label.lower()}.ui.web.app",
     )
@@ -58,6 +59,7 @@ class TestMakeClientApp(unittest.TestCase):
                 title="KLEA RAG",
                 single_query="hello",
                 tui_app_name="klea-rag-tui",
+                tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
                 debug=False,
                 profile=None,
@@ -78,6 +80,7 @@ class TestMakeClientApp(unittest.TestCase):
                 title="T1",
                 single_query="q",
                 tui_app_name="klea-rag-tui",
+                tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
                 debug=False,
                 profile=None,

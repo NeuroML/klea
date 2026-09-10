@@ -18,6 +18,6 @@ serve_app = make_serve_app(
     "klea_agent.api.main:app",
     default_port=8006,
     config_env_var="KLEA_AGENT_APP_CONFIG_FILE",
-    config_dir=get_config_dir(PlatformDirs("klea")),
+    config_dir=get_config_dir(PlatformDirs("klea-agent")),
     template_writer=write_config_template,
 )

@@ -19,6 +19,7 @@ rag_app = make_client_app(
     server_url_default="http://127.0.0.1:8005",
     app_module="klea_rag.api.main:app",
     tui_app_name="klea-rag-tui",
+    tui_prefix="klea-rag",
     web_app_name="klea-rag-web",
     web_entry="klea_rag.ui.web.app",
     config_env_var="KLEA_RAG_APP_CONFIG_FILE",

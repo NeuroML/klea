@@ -89,6 +89,7 @@ def _run_cli(
     title: str,
     single_query: str,
     tui_app_name: str,
+    tui_prefix: str,
     app_module: str,
     debug: bool = False,
     profile: str | None = None,
@@ -118,7 +119,7 @@ def _run_cli(
                     url=server_url,
                     title=title,
                     single_query=single_query,
-                    app_prefix="klea",
+                    app_prefix=tui_prefix,
                     app_name=tui_app_name,
                 )
             )
@@ -211,6 +212,7 @@ def make_client_app(
     server_url_default: str,
     app_module: str,
     tui_app_name: str,
+    tui_prefix: str,
     web_app_name: str,
     web_entry: str,
     config_env_var: str | None = None,
@@ -241,6 +243,8 @@ def make_client_app(
         talks to (e.g. ``"klea_rag.api.main:app"``)
     :param tui_app_name: Log identity for the terminal client (e.g.
         ``"klea-rag-tui"``)
+    :param tui_prefix: Prompt label prefix for the terminal client (e.g.
+        ``"klea-rag"``)
     :param web_app_name: Log identity for the web client (e.g.
         ``"klea-rag-web"``)
     :param web_entry: Module string of the app's NiceGUI entry point
@@ -306,6 +310,7 @@ def make_client_app(
             title=title,
             single_query=single_query or "",
             tui_app_name=tui_app_name,
+            tui_prefix=tui_prefix,
             app_module=app_module,
             debug=debug,
             profile=profile,

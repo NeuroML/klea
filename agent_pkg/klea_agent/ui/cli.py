@@ -19,9 +19,10 @@ agent_app = make_client_app(
     server_url_default="http://127.0.0.1:8006",
     app_module="klea_agent.api.main:app",
     tui_app_name="klea-tui",
+    tui_prefix="klea-agent",
     web_app_name="klea-web",
     web_entry="klea_agent.ui.web.app",
     config_env_var="KLEA_AGENT_APP_CONFIG_FILE",
-    config_dir=get_config_dir(PlatformDirs("klea")),
+    config_dir=get_config_dir(PlatformDirs("klea-agent")),
     template_writer=write_config_template,
 )

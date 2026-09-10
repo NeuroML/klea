@@ -58,7 +58,7 @@ class KleaAgent(BaseLangGraph):
     env_file_default = "klea_agent.env"
     config_class = AppConfig
     config_file_default = "klea_agent.json"
-    graph_name = "klea"
+    graph_name = "klea-agent"
 
     # type hints
     app_config: AppConfig
