@@ -26,13 +26,13 @@ from klea_utils.nodes.tools_picker import ToolsPicker
 from langgraph.graph import END, START, StateGraph
 
 from klea_agent.nodes.answer_user import AnswerUser
-from klea_agent.nodes.evaluator import Evaluator
-from klea_agent.nodes.explore_planner import ExplorePlanner
 from klea_agent.nodes.goal_setter import GoalSetter
 from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
+from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
-from klea_agent.nodes.tools_router import ToolsRouter
+from klea_agent.nodes.route_decision import RouteDecision
+from klea_agent.nodes.triage_router import TriageRouter, update_step_retry_counts
 
 from .config import AppConfig
 from .schemas import (
@@ -156,10 +156,18 @@ class KleaAgent(BaseLangGraph):
         await self.setup()
         return self.graph
 
-    # TODO: replace with dedicated router node (see ``RouteEvaluator`` in RAG)
-    async def _step_router_node(self, state: KleaAgentState) -> str:
-        """Return ``plan.status`` for conditional routing."""
-        return state.plan.status
+    async def _route_decision_router(self, state: KleaAgentState) -> str:
+        """Return the RouteDecision label (``answer`` | ``act`` | ``plan``)."""
+        return state.route.route
+
+    async def _evaluation_router(self, state: KleaAgentState) -> str:
+        """Return the OperationalEvaluator verdict (ADR-0035).
+
+        ``step_incomplete`` / ``step_done`` continue the work loop through the
+        picker; ``need_replan`` escalates to the Planner (through GoalSetter);
+        ``plan_done`` ends at the answer.
+        """
+        return state.evaluation.next_step
 
     async def _mode_router_node(self, state: KleaAgentState) -> str:
         """Route mode decision: proceed normally or inform (ADR-0030).
@@ -205,31 +213,24 @@ class KleaAgent(BaseLangGraph):
             "note": mode_data.get("note", ""),
         }
 
-    def _update_plan_step_status(
+    def _record_tool_retries(
         self, state: KleaAgentState, results: list[CallToolResult]
     ) -> dict[str, Any]:
-        """Mark the current plan step done/failed from the tool results.
+        """Update the ADaPT per-step retry counter from the tool results.
 
-        Any ``is_error`` result marks the step ``failed``  ---  this mirrors the
-        permission + ``isError`` handling in
-        ``klea_utils/mcp/dispatch.py:dispatch_tool_calls`` and
-        ``klea_utils/nodes/tools_caller.py:ToolsCallerNode``.  Guards against
-        empty plans and missing steps.
+        Passed as the tool caller's ``post_dispatch`` callback.  A conditional
+        -edge router cannot update state, so the counter is maintained here and
+        :class:`TriageRouter` reads it to decide retry vs replan.  The current
+        step's counter is incremented on any ``is_error`` result and cleared
+        when the batch made progress (ADR-0035).
 
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
-        :returns: State updates carrying the updated plan.
+        :returns: State updates carrying the updated retry counts.
         """
-        if not state.plan.step_list:
-            self.logger.warning("No plan steps to update")
-            return {}
-        if state.plan.current_step_index >= len(state.plan.step_list):
-            self.logger.warning("Plan step index out of range")
-            return {"plan": state.plan}
-        current_step = state.plan.step_list[state.plan.current_step_index]
-        current_step.status = "failed" if any(r.is_error for r in results) else "done"
-        state.plan.current_step_index += 1
-        return {"plan": state.plan}
+        counts = update_step_retry_counts(state, results)
+        self.logger.debug(f"{counts = }")
+        return {"step_retry_counts": counts}
 
     async def _create_graph(self):
         """Create the LangGraph"""
@@ -299,13 +300,13 @@ class KleaAgent(BaseLangGraph):
             self._goal_setter_node.label, self._goal_setter_node.execute
         )
 
-        self._explore_planner_node = ExplorePlanner(
+        self._route_decision_node = RouteDecision(
             logger=self.logger,
-            label="Exploring",
+            label="Deciding route",
             llm_models=self.llm_models,
         )
         self.workflow.add_node(
-            self._explore_planner_node.label, self._explore_planner_node.execute
+            self._route_decision_node.label, self._route_decision_node.execute
         )
 
         self._planner_node = Planner(
@@ -334,19 +335,22 @@ class KleaAgent(BaseLangGraph):
             label="Running tools",
             mcp_client=self.mcp_client,
             tools_meta={t.name: t.meta for t in (self.mcp_tools or []) if t.meta},
-            post_dispatch=self._update_plan_step_status,
+            post_dispatch=self._record_tool_retries,
         )
-        self._tools_router_node = ToolsRouter(logger=self.logger, label="Routing tools")
-        self._evaluator_node = Evaluator(logger=self.logger, label="Evaluating")
+        self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
+        self._op_evaluator_node = OperationalEvaluator(
+            logger=self.logger,
+            label="Evaluating",
+            llm_models=self.llm_models,
+        )
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
-        # Wire nodes  ---  order mirrors ``rag_pkg/klea_rag/rag.py:_create_graph``
-        # (guard -> goal -> explore -> picker/caller -> evaluate -> answer).
-        # Parallel tool calls are already handled by
+        # Work-loop nodes: the shared picker/caller (ADR-0020) plus the
+        # deterministic TriageRouter and the operational OperationalEvaluator
+        # (ADR-0035).  Parallel tool calls are handled by
         # ``klea_utils/mcp/dispatch.py:dispatch_tool_calls`` via
-        # ``asyncio.gather``; the older ToolOrchestrator TODO is kept for
-        # context on multi-tool prompt/schema evolution.
+        # ``asyncio.gather``.
         self.workflow.add_node(self._planner_node.label, self._planner_node.execute)
         self.workflow.add_node(
             self._tools_picker_node.label, self._tools_picker_node.execute
@@ -354,9 +358,9 @@ class KleaAgent(BaseLangGraph):
         self.workflow.add_node(
             self._tools_caller_node.label, self._tools_caller_node.execute
         )
-        # Evaluator: needs to handle failed tool calls and ask the planner to
-        # update the plan if required
-        self.workflow.add_node(self._evaluator_node.label, self._evaluator_node.execute)
+        self.workflow.add_node(
+            self._op_evaluator_node.label, self._op_evaluator_node.execute
+        )
         self.workflow.add_node(
             self._answer_user_node.label, self._answer_user_node.execute
         )
@@ -392,48 +396,44 @@ class KleaAgent(BaseLangGraph):
             self._guard_node.label,
             self._guard_router_node.execute,
             {
-                "safe": self._goal_setter_node.label,
+                "safe": self._route_decision_node.label,
                 "unsafe": self._decline_to_answer_node.label,
             },
         )
-        self.workflow.add_edge(
-            self._goal_setter_node.label, self._explore_planner_node.label
+        # Entry routing (ADR-0035): answer inline, single act, or plan.
+        self.workflow.add_conditional_edges(
+            self._route_decision_node.label,
+            self._route_decision_router,
+            {
+                "answer": self._answer_user_node.label,
+                "act": self._tools_picker_node.label,
+                "plan": self._goal_setter_node.label,
+            },
         )
-        self.workflow.add_edge(
-            self._explore_planner_node.label, self._tools_picker_node.label
-        )
+        # Work loop: GoalSetter gates every Planner entry and is skipped when
+        # the goal is already set (ADR-0035: the goal is immutable).
+        self.workflow.add_edge(self._goal_setter_node.label, self._planner_node.label)
         self.workflow.add_edge(self._planner_node.label, self._tools_picker_node.label)
         self.workflow.add_edge(
             self._tools_picker_node.label, self._tools_caller_node.label
         )
-        # TODO: we probably need a node here that takes tools output from
-        # picker and puts them in the right state field for exploration
-        # TODO: we also need some flag that decides whether the next step here
-        # should be planning or evaluation. If it's coming off exploration, it
-        # needs to go to planning. If it's in the plan, it needs to go to
-        # evaluation
         self.workflow.add_conditional_edges(
             self._tools_caller_node.label,
-            self._tools_router_node.execute,
+            self._triage_router_node.execute,
             {
-                "failed": self._tools_picker_node.label,
-                "explored": self._planner_node.label,
-                "continue": self._evaluator_node.label,
+                "retry": self._tools_picker_node.label,
+                "evaluate": self._op_evaluator_node.label,
+                "replan": self._goal_setter_node.label,
             },
         )
-
         self.workflow.add_conditional_edges(
-            self._evaluator_node.label,
-            self._step_router_node,
+            self._op_evaluator_node.label,
+            self._evaluation_router,
             {
-                # should never be here
-                "not_started": self._planner_node.label,
-                # next step
-                "in_progress": self._tools_picker_node.label,
-                # plan isn't working
-                "failed": self._planner_node.label,
-                "aborted": self._answer_user_node.label,
-                "completed": self._answer_user_node.label,
+                "step_incomplete": self._tools_picker_node.label,
+                "step_done": self._tools_picker_node.label,
+                "need_replan": self._goal_setter_node.label,
+                "plan_done": self._answer_user_node.label,
             },
         )
         if self.memory:
