@@ -39,10 +39,12 @@ from .schemas import (
     ArtefactSchema,
     CodeSchema,
     Discovery,
+    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     Mode,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 
@@ -116,6 +118,8 @@ class KleaAgent(BaseLangGraph):
             ArtefactSchema,
             Discovery,
             Mode,
+            RouteSchema,
+            EvaluationSchema,
         ]
 
     @override

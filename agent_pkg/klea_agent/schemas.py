@@ -28,6 +28,7 @@ class CodeSchema(BaseModel):
 class StepSchema(BaseModel):
     step_number: int = 1
     description: str = ""
+    success_criteria: str = ""
     suggested_tools: list[str] = Field(default_factory=list)
     depends_on: list[int] = []
     status: Literal["pending", "done", "failed"] = Field(
@@ -95,6 +96,42 @@ class Mode(BaseModel):
     )
 
 
+class RouteSchema(BaseModel):
+    """Upfront routing decision made by ``RouteDecision`` (ADR-0035).
+
+    ``answer`` is populated only for the ``answer`` route (the node answers
+    inline); ``rationale`` is a short justification kept for inspection.
+    """
+
+    route: Literal["answer", "act", "plan"] = Field(
+        default="answer",
+        description="Answer directly, handle with a single act, or plan",
+    )
+    answer: str = Field(default="", description="Inline answer when route is 'answer'")
+    rationale: str = Field(default="", description="Short justification for the route")
+
+
+class EvaluationSchema(BaseModel):
+    """Operational verdict produced by the general Evaluator (ADR-0035).
+
+    ``next_step`` is the explicit routing outcome; ``reason`` is a short
+    justification for inspection.  ``answer`` carries the user-facing answer
+    when the Evaluator doubles as answer synthesis (general mode).
+    """
+
+    next_step: Literal[
+        "step_incomplete",
+        "step_done",
+        "plan_done",
+        "need_replan",
+    ] = Field(
+        default="plan_done",
+        description="Operational routing outcome for the current step/task",
+    )
+    reason: str = Field(default="", description="Short justification for the verdict")
+    answer: str = Field(default="", description="User-facing answer when done")
+
+
 class KleaAgentState(BaseModel):
     """The state of the graph"""
 
@@ -105,6 +142,8 @@ class KleaAgentState(BaseModel):
         default_factory=TokenUsage
     )
     mode: Mode = Mode()
+    route: RouteSchema = RouteSchema()
+    evaluation: EvaluationSchema = EvaluationSchema()
 
     # code string if any
     code: CodeSchema = CodeSchema()
@@ -113,6 +152,8 @@ class KleaAgentState(BaseModel):
     goal: GoalSchema = GoalSchema()
     plan: PlanSchema = PlanSchema()
     step_outputs: dict[int, list[CallToolResult]] = Field(default_factory=dict)
+    # per-step re-pick counter for the ADaPT escalation policy
+    step_retry_counts: dict[int, int] = Field(default_factory=dict)
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()
