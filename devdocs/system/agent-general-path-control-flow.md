@@ -159,6 +159,10 @@ the goal is unset and the Evaluator judges against the query; the goal is
 frozen as soon as planning begins.  Every Planner entry (initial plan,
 escalation, replan) passes through GoalSetter for this reason.
 
+Immutability is per task/run, not per session: ``InitGraphState`` resets
+``goal`` (and ``plan``) at the start of every turn, so a new multi-step request
+simply gets a fresh goal and no new session is required.
+
 ## Evaluator verdicts and routing
 
 The Evaluator runs after every Act batch.  In general mode it also writes

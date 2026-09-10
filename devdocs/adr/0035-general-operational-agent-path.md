@@ -138,7 +138,9 @@ Act.
   a replan cannot move the success reference (which would otherwise let a model
   declare success by weakening the criterion).  On the ``act`` path the goal is
   initially unset and the Evaluator judges against the query; the goal is frozen
-  as soon as planning begins.
+  as soon as planning begins.  Immutability is per task/run, not per session:
+  ``InitGraphState`` resets the goal each turn, so a new request gets a fresh
+  goal without a new session.
 * **Failure signals are tiered and deterministic-first** (see the control-flow
   note): (0) structural/deterministic (emission validation, tool ``is_error``,
   artifact predicates, budget exhaustion); (1) observable-against-criterion;
