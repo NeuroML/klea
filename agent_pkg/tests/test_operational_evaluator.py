@@ -11,7 +11,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import logging
 import unittest
 
-from fastmcp.client.client import CallToolResult
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.schemas import (
     EvaluationSchema,
@@ -23,7 +22,7 @@ from klea_agent.schemas import (
 
 
 class TestOperationalEvaluator(unittest.TestCase):
-    """Verdict handling: plan advancement and answer synthesis."""
+    """Verdict handling: plan advancement only (judge, never generate)."""
 
     def _evaluator(self) -> OperationalEvaluator:
         return OperationalEvaluator(
@@ -55,12 +54,12 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertEqual(plan.step_list[0].status, "done")
         self.assertEqual(plan.status, "in_progress")
 
-    def test_plan_done_completes_plan_and_answers(self):
+    def test_plan_done_completes_plan_without_answering(self):
+        """The Evaluator never writes ``message_for_user`` (that is AnswerFromResults)."""
         update = self._evaluator()._update_state(
-            EvaluationSchema(next_step="plan_done", answer="all done"),
-            self._state(),
+            EvaluationSchema(next_step="plan_done"), self._state()
         )
-        self.assertEqual(update["message_for_user"], "all done")
+        self.assertNotIn("message_for_user", update)
         plan = update["plan"]
         self.assertEqual(plan.status, "completed")
         self.assertEqual(plan.current_step_index, len(plan.step_list))
@@ -79,16 +78,16 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertNotIn("plan", update)
         self.assertEqual(update["evaluation"].next_step, "step_incomplete")
 
-    def test_act_path_plan_done_answers_without_plan(self):
+    def test_plan_done_without_plan(self):
         update = self._evaluator()._update_state(
-            EvaluationSchema(next_step="plan_done", answer="hi"),
+            EvaluationSchema(next_step="plan_done"),
             self._state(with_plan=False),
         )
-        self.assertEqual(update["message_for_user"], "hi")
+        self.assertNotIn("message_for_user", update)
         self.assertNotIn("plan", update)
 
     def test_step_done_on_final_step_coerces_to_plan_done(self):
-        """A final-step ``step_done`` is treated as completion, with an answer."""
+        """A final-step ``step_done`` is treated as completion."""
         evaluator = self._evaluator()
         state = KleaAgentState()
         state.plan = PlanSchema(
@@ -100,23 +99,6 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertEqual(update["evaluation"].next_step, "plan_done")
         self.assertEqual(update["plan"].status, "completed")
-        self.assertTrue(update["message_for_user"])
-
-    def test_final_step_fallback_uses_tool_results(self):
-        """The fallback answer prefers the latest tool outputs."""
-        evaluator = self._evaluator()
-        state = KleaAgentState()
-        state.plan = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="run pwd")],
-            current_step_index=0,
-        )
-        state.tool_results = [
-            CallToolResult(
-                content=[], structured_content=None, meta=None, is_error=False
-            )
-        ]
-        update = evaluator._update_state(EvaluationSchema(next_step="step_done"), state)
-        self.assertTrue(update["message_for_user"])
 
     def test_default_error_result_replans(self):
         self.assertEqual(

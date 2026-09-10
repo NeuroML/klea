@@ -23,10 +23,12 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     """General-mode evaluator: operational, not epistemic (ADR-0035).
 
     Runs after every Act batch and judges the goal and the current step (or,
-    on the planless ``act`` path, the request directly) against its success
-    criteria.  It emits an explicit ``next_step`` verdict and, when the task is
-    done (``plan_done``), also writes the user-facing answer, so it doubles as
-    answer synthesis and is not an extra call over a separate answer node.
+    with no plan, the request directly) against its success criteria.  It emits
+    an explicit ``next_step`` verdict and advances the plan -- but it is
+    **judge-only**: it never generates the user-facing answer, which is a
+    separate synthesis stage (``AnswerFromResults``).  Keeping judgement and
+    generation apart lets the same judge contract serve as the independent
+    scientific verifier (ADR-0029 invariant 7).
 
     It advances the plan on ``step_done`` / ``plan_done`` and marks the current
     step ``failed`` on ``need_replan``.  Scientific mode uses a separate,
@@ -95,11 +97,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     def _update_state(
         self, result: EvaluationSchema, state: KleaAgentState
     ) -> dict[str, Any]:
-        """Store the verdict, advance the plan, and answer when done.
+        """Store the verdict and advance the plan (judge only).
 
-        ``step_done`` advances to the next step; ``plan_done`` completes the
-        plan and writes ``message_for_user``; ``need_replan`` marks the current
-        step failed; ``step_incomplete`` leaves the plan unchanged.
+        The Evaluator never generates the user-facing answer -- that is a
+        separate synthesis stage (``AnswerFromResults``).  ``step_done``
+        advances to the next step; ``plan_done`` completes the plan;
+        ``need_replan`` marks the current step failed; ``step_incomplete``
+        leaves the plan unchanged.
         """
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
@@ -108,7 +112,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         # Robustness: a model may report the *final* step as ``step_done``
         # ("criterion met, more steps remain") even though no steps remain.
         # Coerce to completion so the graph does not route back to the picker
-        # past the end of the plan, and ensure a non-empty answer.
+        # past the end of the plan.
         if (
             next_step == "step_done"
             and plan.step_list
@@ -117,8 +121,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             self.logger.debug("step_done on the final step; coercing to plan_done")
             result.next_step = "plan_done"
             next_step = "plan_done"
-            if not result.answer:
-                result.answer = self._fallback_answer(state)
 
         if plan.step_list:
             index = plan.current_step_index
@@ -137,24 +139,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 plan.step_list[index].status = "failed"
                 update["plan"] = plan
 
-        if next_step == "plan_done":
-            update["message_for_user"] = result.answer
         self.logger.debug(f"{update = }")
         return update
-
-    def _fallback_answer(self, state: KleaAgentState) -> str:
-        """Return a non-empty fallback answer when none was produced.
-
-        Only used when the model reports the final step done without an answer;
-        prefers the latest tool outputs (which often *are* the answer, e.g. a
-        command's output), then the step description.
-        """
-        if state.tool_results:
-            return textualize_tool_results(state.tool_results)
-        current = state.plan.current_step()
-        if current and current.description:
-            return f"Completed: {current.description}"
-        return "Done."
 
     @override
     def _get_info(self) -> NodeStreamData:
@@ -167,8 +153,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 "next_step": result.next_step,
                 "reason": result.reason,
             }
-            if result.next_step == "plan_done":
-                details["answer_chars"] = len(result.answer)
         else:
             summary = "Evaluation"
             details = {}

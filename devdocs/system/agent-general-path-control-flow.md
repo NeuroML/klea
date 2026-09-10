@@ -35,7 +35,7 @@ Work loop:
                                       +-- step_incomplete -> Act
                                       +-- step_done       -> Act (next step)
                                       +-- need_replan     -> GoalSetter -> Planner -> Act
-                                      +-- plan_done       -> AnswerUser -> END
+                                      +-- plan_done       -> AnswerFromResults -> AnswerUser -> END
 ```
 
 Trivial chat: Guard plus one RouteDecision call (the route node answers
@@ -53,9 +53,10 @@ operational check.
 | GoalSetter | sole writer of the immutable goal + task success criteria; skipped if already set | yes (plan role) |
 | Act (ToolsPicker + ToolsCaller) | emit ``ToolCallsSchema`` or an inline answer; dispatch parallel tool calls (ADR-0020/0034) | picker yes, caller no |
 | TriageRouter | deterministic: error present? retries left? | no |
-| Evaluator | operational: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
+| Evaluator | operational judge only: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
 | Planner | create and revise the evolvable plan | yes (plan role) |
-| AnswerUser | final user-facing message | no |
+| AnswerFromResults | synthesise the final user answer from goal + plan + observations | yes (chat role) |
+| AnswerUser | deliver the final user-facing message | no |
 
 ## Route classification
 
@@ -155,8 +156,9 @@ kept, failed calls are re-picked.
 success criteria) and runs only when entering the plan path; ``_pre_exec``
 skips it if the goal is already set.  The Planner reads the goal but never
 writes it, so a replan cannot move the success reference.  On the ``act`` path
-the goal is unset and the Evaluator judges against the query; the goal is
-frozen as soon as planning begins.  Every Planner entry (initial plan,
+the goal is unset and the Evaluator judges the single step seeded by
+RouteDecision; the goal is frozen as soon as planning begins.  Every Planner
+entry (initial plan,
 escalation, replan) passes through GoalSetter for this reason.
 
 Immutability is per task/run, not per session: ``InitGraphState`` resets
@@ -165,21 +167,32 @@ simply gets a fresh goal and no new session is required.
 
 ## Evaluator verdicts and routing
 
-The Evaluator runs after every Act batch.  In general mode it also writes
-``message_for_user`` when the task is done (it doubles as answer synthesis), so
-it is not an extra call over a separate answer node.  Its verdict is a pydantic
-model whose next-step is a ``Literal``:
+The Evaluator judges only and runs after every Act batch.  Its verdict is a
+pydantic model whose next-step is a ``Literal``:
 
 * ``step_incomplete`` -> Act (more calls for the current step)
 * ``step_done`` -> Act (next step) if steps remain
-* ``plan_done`` -> AnswerUser
+* ``plan_done`` -> AnswerFromResults -> AnswerUser
 * ``need_replan`` -> GoalSetter -> Planner
 
-On the ``act`` (planless) path only ``plan_done`` (answer written) and
-``need_replan`` occur.  The Evaluator judges the goal (or the query when no
-goal is set) and the current step's criterion, not merely whether tools
-succeeded.  Scientific mode uses a separate, independent, epistemic verifier
-instead of this operational Evaluator.
+It judges the goal (or the query when no goal is set) and the current step's
+criterion, not merely whether tools succeeded.  It never writes
+``message_for_user``.  A final-step ``step_done`` is coerced to ``plan_done`` so
+the graph does not route back to the picker past the end of the plan.
+Scientific mode uses a separate, independent, epistemic verifier with the same
+judge-only contract.
+
+## Answer synthesis
+
+``AnswerFromResults`` runs once when the verdict is ``plan_done`` and writes
+``message_for_user`` from the goal, the completed plan and the observations; it
+judges nothing.  Its prompt carries the output-formatting rules (verbatim
+command/list output in fenced code blocks, identifiers in backticks, a blank
+line before lists, no raw JSON dumps) and answers the actual question (for
+example the largest or newest item when metadata is requested).  A deterministic
+fallback (latest tool output, then the step description) covers an empty or
+failed synthesis.  Scientific mode will use a grounded, citation-carrying
+variant; the Evaluator contract is unchanged.
 
 ## Escalation
 

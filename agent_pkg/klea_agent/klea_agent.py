@@ -25,6 +25,7 @@ from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import ToolsPicker
 from langgraph.graph import END, START, StateGraph
 
+from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
 from klea_agent.nodes.goal_setter import GoalSetter
 from klea_agent.nodes.init_graph import InitGraphState
@@ -343,6 +344,11 @@ class KleaAgent(BaseLangGraph):
             label="Evaluating",
             llm_models=self.llm_models,
         )
+        self._answer_from_results_node = AnswerFromResults(
+            logger=self.logger,
+            label="Composing answer",
+            llm_models=self.llm_models,
+        )
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
@@ -360,6 +366,10 @@ class KleaAgent(BaseLangGraph):
         )
         self.workflow.add_node(
             self._op_evaluator_node.label, self._op_evaluator_node.execute
+        )
+        self.workflow.add_node(
+            self._answer_from_results_node.label,
+            self._answer_from_results_node.execute,
         )
         self.workflow.add_node(
             self._answer_user_node.label, self._answer_user_node.execute
@@ -433,8 +443,13 @@ class KleaAgent(BaseLangGraph):
                 "step_incomplete": self._tools_picker_node.label,
                 "step_done": self._tools_picker_node.label,
                 "need_replan": self._goal_setter_node.label,
-                "plan_done": self._answer_user_node.label,
+                "plan_done": self._answer_from_results_node.label,
             },
+        )
+        # Answer synthesis is separate from evaluation: the Evaluator judges,
+        # AnswerFromResults generates the reply, AnswerUser delivers it.
+        self.workflow.add_edge(
+            self._answer_from_results_node.label, self._answer_user_node.label
         )
         if self.memory:
             self.workflow.add_edge(

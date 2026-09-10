@@ -16,17 +16,19 @@ graph TD;
 	Selecting\20tools(Selecting tools)
 	Running\20tools(Running tools)
 	Evaluating(Evaluating)
+	Composing\20answer(Composing answer)
 	Preparing\20response(Preparing response)
 	Summarizing\20history(Summarizing history)
 	__end__([<p>__end__</p>]):::last
 	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
+	Composing\20answer --> Preparing\20response;
 	Deciding\20route -. &nbsp;answer&nbsp; .-> Preparing\20response;
 	Deciding\20route -. &nbsp;act&nbsp; .-> Selecting\20tools;
 	Deciding\20route -. &nbsp;plan&nbsp; .-> Setting\20goal;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;plan_done&nbsp; .-> Preparing\20response;
+	Evaluating -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;step_done&nbsp; .-> Selecting\20tools;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Setting\20goal;
 	Initializing --> Determining\20mode;

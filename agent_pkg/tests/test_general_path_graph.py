@@ -49,6 +49,7 @@ async def test_general_path_work_loop(monkeypatch):
         "Selecting tools",
         "Running tools",
         "Evaluating",
+        "Composing answer",
         "Preparing response",
     ):
         assert expected in node_names
@@ -68,7 +69,8 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Running tools", "Setting goal") in edges  # replan
     assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done
     assert ("Evaluating", "Setting goal") in edges  # need_replan
-    assert ("Evaluating", "Preparing response") in edges  # plan_done
+    assert ("Evaluating", "Composing answer") in edges  # plan_done
+    assert ("Composing answer", "Preparing response") in edges
 
 
 @pytest.mark.asyncio

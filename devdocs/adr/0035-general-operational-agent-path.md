@@ -88,14 +88,17 @@ Act (shared ToolsPicker + ToolsCaller; parallel calls within a step)
        +-- retries exhausted   -> GoalSetter -> Planner (revise plan)
        +-- no error            -> Evaluator (operational)
 
-Evaluator (runs after every Act batch)
+Evaluator (runs after every Act batch; judge only)
   +-- step_incomplete -> Act
   +-- step_done       -> Act (next step)
   +-- need_replan     -> GoalSetter -> Planner
-  +-- plan_done       -> Answer
+  +-- plan_done       -> AnswerFromResults -> Answer
 ```
 
-Act, TriageRouter, Evaluator and Planner form the work loop.  Every entry to
+When the verdict is ``plan_done``, ``AnswerFromResults`` synthesises the final
+user answer from the goal, the completed plan and the observations; the
+Evaluator never generates text.  Act, TriageRouter, Evaluator and Planner form
+the work loop.  Every entry to
 the Planner passes through GoalSetter, which sets the goal once and is skipped
 if the goal is already set.  The Planner is re-entered from three places: the
 initial `plan` route, the TriageRouter (ADaPT policy, repeated failure of the
@@ -137,8 +140,9 @@ Act.
   task-level success criteria, and the Planner reads but never writes them, so
   a replan cannot move the success reference (which would otherwise let a model
   declare success by weakening the criterion).  On the ``act`` path the goal is
-  initially unset and the Evaluator judges against the query; the goal is frozen
-  as soon as planning begins.  Immutability is per task/run, not per session:
+  unset and the Evaluator judges the single step seeded by RouteDecision; the
+  goal is frozen as soon as planning begins.  Immutability is per task/run, not
+  per session:
   ``InitGraphState`` resets the goal each turn, so a new request gets a fresh
   goal without a new session.
 * **Failure signals are tiered and deterministic-first** (see the control-flow
@@ -153,15 +157,18 @@ Act.
   to the **planner**.  The ADaPT policy applies: re-pick with the error for a
   bounded number of attempts of the same step, then escalate to the planner.
   Failure is attributed per call, not per batch.
-* **Evaluator** runs after every Act batch and judges the goal and the current
-  step against its criterion.  Its verdict is an explicit enum with literal
-  next steps: ``step_incomplete`` -> picker; ``step_done`` -> picker for the
-  next step, or ``plan_done`` -> answer; ``need_replan`` -> planner.  In general
-  mode the Evaluator also writes the user answer when the task is done, so it
-  is not an extra call over a separate answer node; on the ``act`` path it uses
-  the short outcomes ``done`` (answer written) or ``need_replan``, and there is
-  no independent judge beyond the deterministic triage.  Scientific mode keeps
-  a separate, independent, epistemic verifier.
+* **Evaluator judges only** and runs after every Act batch, checking the goal
+  and the current step against its criterion.  Its verdict is an explicit enum
+  with literal next steps: ``step_incomplete`` -> picker; ``step_done`` ->
+  picker for the next step; ``plan_done`` -> ``AnswerFromResults``;
+  ``need_replan`` -> planner.  It never generates the user-facing answer: a
+  separate synthesis stage (``AnswerFromResults``) does that on ``plan_done``,
+  from the goal, completed plan and observations.  Keeping judgement and
+  generation separate keeps each LLM call single-responsibility (robust for
+  small models) and lets the same evaluator contract serve as the independent
+  scientific verifier (ADR-0029 invariant 7).  The cost is one extra LLM call
+  when a task completes; trivial chat is unaffected (RouteDecision answers
+  inline).
 * **Escalation has two axes**: structural escalation (same model, more process:
   planning, decomposition, retrieval, retries) is always available; model
   escalation (a stronger model) is optional and requires more than one
@@ -192,6 +199,11 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
   ``klea_utils`` nodes and remain inspectable (ADR-0013).
 * Good, because the plan is evolvable state, so multi-step tasks adapt to step
   feedback without a DAG scheduler.
+* Good, because evaluation and answer generation are separate stages, so the
+  evaluator stays an independent judge that can be reused as the scientific
+  verifier (ADR-0029 invariant 7).
+* Bad, because a completed task costs one extra LLM call (the answer synthesis
+  stage); trivial chat is unaffected.
 * Good, because the goal and task-level success criteria are set once and
   cannot be rewritten by replanning, so the Evaluator's success reference is
   not under the control of the generator.

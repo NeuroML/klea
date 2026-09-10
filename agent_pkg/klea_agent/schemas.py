@@ -182,9 +182,10 @@ class RouteSchema(BaseModel):
 class EvaluationSchema(BaseModel):
     """Operational verdict produced by the general Evaluator (ADR-0035).
 
-    ``next_step`` is the explicit routing outcome; ``reason`` is a short
-    justification for inspection.  ``answer`` carries the user-facing answer
-    when the Evaluator doubles as answer synthesis (general mode).
+    The Evaluator judges only: ``next_step`` is the explicit routing outcome
+    and ``reason`` a short justification for inspection.  It never generates
+    the user-facing answer -- that is a separate synthesis stage
+    (``AnswerFromResults``), keeping evaluation independent of generation.
     """
 
     next_step: Literal[
@@ -197,7 +198,6 @@ class EvaluationSchema(BaseModel):
         description="Operational routing outcome for the current step/task",
     )
     reason: str = Field(default="", description="Short justification for the verdict")
-    answer: str = Field(default="", description="User-facing answer when done")
 
 
 class KleaAgentState(BaseModel):
