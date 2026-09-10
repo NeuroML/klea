@@ -16,9 +16,11 @@ from klea_utils.nodes.abstract import AbstractLangGraphNode
 from klea_agent.schemas import (
     CodeSchema,
     Discovery,
+    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlanSchema,
+    RouteSchema,
 )
 
 
@@ -27,10 +29,11 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
 
     Mirrors ``rag_pkg/klea_rag/nodes/init_rag.py``: resets per-turn
     ephemeral fields while preserving ``messages``,
-    ``context_summary``/``summarised_till``, and ``discovery_persistent``
-    (project-wide discovery that only changes when files change).
-    ``usage_metrics`` is intentionally not reset — it uses the
-    ``add_token_usage`` reducer and accumulates across turns.
+    ``context_summary``/``summarised_till``, ``discovery_persistent``
+    (project-wide discovery that only changes when files change), and
+    ``mode`` (session-scoped, ADR-0030).  ``usage_metrics`` is intentionally
+    not reset -- it uses the ``add_token_usage`` reducer and accumulates
+    across turns.
     """
 
     def __init__(self, logger: logging.Logger, label: str):
@@ -46,6 +49,9 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "message_for_user": "",
             "plan": PlanSchema(),
             "goal": GoalSchema(),
+            "route": RouteSchema(),
+            "evaluation": EvaluationSchema(),
+            "step_retry_counts": {},
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},
