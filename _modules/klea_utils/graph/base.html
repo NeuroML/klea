@@ -621,9 +621,11 @@
                 <span class="c1"># convention (summary + Use when / Do not use for bullets +</span>
                 <span class="c1"># one example; params via Args:), see build_tool_description</span>
                 <span class="c1"># and docs/concepts/mcp.rst.</span>
+                <span class="n">full_description</span><span class="p">,</span> <span class="n">short_description</span> <span class="o">=</span> <span class="n">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
                 <span class="n">domain_tools_info</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">ToolInfo</span><span class="p">(</span>
                     <span class="n">title</span><span class="o">=</span><span class="n">t</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>
-                    <span class="n">description</span><span class="o">=</span><span class="n">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">),</span>
+                    <span class="n">description</span><span class="o">=</span><span class="n">full_description</span><span class="p">,</span>
+                    <span class="n">short_description</span><span class="o">=</span><span class="n">short_description</span><span class="p">,</span>
                     <span class="n">meta</span><span class="o">=</span><span class="n">clean_tool_meta</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">meta</span><span class="p">),</span>
                 <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">tools_info</span><span class="p">[</span><span class="n">domain</span><span class="p">]</span> <span class="o">=</span> <span class="n">domain_tools_info</span>
