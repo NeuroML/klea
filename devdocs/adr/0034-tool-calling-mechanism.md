@@ -222,6 +222,8 @@ new dependency or converter.
   (isError compliance), ADR-0016/0019 (graph and node templates),
   ADR-0017 (LLM invoke retry), ADR-0028 (prompt cache), ADR-0013
   (inspection).
+* The general-path Act node follows this emission mechanism; its topology and
+  control flow are in ADR-0035.
 * The edit-format strategy (whole-file vs search/replace editing
   tools, model-guided selection) is recorded separately as a system
   note (``devdocs/system/edit-format-strategy.md``); it depends on

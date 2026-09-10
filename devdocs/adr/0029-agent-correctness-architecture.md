@@ -165,5 +165,6 @@ The cost of the architecture must therefore be evaluated alongside its benefits,
 
 * Supersedes: ADR-0025 (proposed agent topology) and the `c4-container.md:139` forward reference (agent->RAG mechanism undecided -- this ADR governs the loop, not the RAG transport).
 * Related: ADR-0016 BaseLangGraph template, ADR-0019 shared abstract nodes, ADR-0020 unified picker/caller, ADR-0013 inspection, ADR-0003 isError, ADR-0007 permissions, ADR-0004 bundled tools, ADR-0005 httpx, ADR-0023 checkpoint, ADR-0026 client-server, ADR-0024 file-gateway.
+* General mode: these invariants apply in Scientific mode (ADR-0030). The general (non-scientific) path is governed by ADR-0035 (operational topology) and ADR-0036 (grounding enforcement: general MAY ground, scientific MUST).
 * Code loci (current, to be aligned): `agent_pkg/klea_agent/klea_agent.py:146` graph, `klea_agent/schemas.py:68` state, `klea_agent/nodes/{goal_setter,planner,explore_planner,evaluator,tools_router}.py`, `klea_utils/nodes/{abstract,tools_picker,tools_caller}.py`, `rag_pkg/klea_rag/rag.py:191` mature RAG pipeline to be composed.
 * Status `accepted` 2026-09-02; loop invariants govern `klea_agent` implementation. `c4-container.md` and `c4-component-agent.md` to be aligned to reflect the architecture.

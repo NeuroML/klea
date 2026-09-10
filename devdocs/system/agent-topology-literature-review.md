@@ -1,10 +1,13 @@
 # Agent topology for cost and correctness: a literature review
 
 Status: literature review, not an ADR.  Input to the general-path topology
-decision (a future ADR) and to the agent evaluation harness design (see
+decision (ADR-0035) and to the agent evaluation harness design (see
 `agent-evaluation-harness.md`).  Written 2026-09-10 by opencode (model:
 deepseek-flash); revised same day to add the operational/epistemic boundary,
 mode tags, and the single-model constraint on escalation.
+
+Decision outcome: ADR-0035 (general operational topology) and ADR-0036
+(grounding enforcement boundary).
 
 ## Purpose
 

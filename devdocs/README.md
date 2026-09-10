@@ -38,6 +38,7 @@ Structure:
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
+| `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; future C4 diagram) |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
 | `adr/0003-mcp-iserror-compliance.md` | ADR-0003: Strictly require MCP isError for tool execution failures |
@@ -72,5 +73,7 @@ Structure:
 | `adr/0032-graph-context-events-and-state-ownership.md` | ADR-0032: Graph-level context events and state ownership |
 | `adr/0033-model-overrides-via-langgraph-runtime-context.md` | ADR-0033: Per-request model overrides via LangGraph Runtime context |
 | `adr/0034-tool-calling-mechanism.md` | ADR-0034: Tool calling mechanism: prompt injection with structured emission (bind_tools rejected) |
+| `adr/0035-general-operational-agent-path.md` | ADR-0035: General (operational) agent path: topology, plan evolution, failure signals and escalation |
+| `adr/0036-grounding-enforcement-general-vs-scientific.md` | ADR-0036: Grounding enforcement: optional in general mode, mandatory in scientific mode |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |
