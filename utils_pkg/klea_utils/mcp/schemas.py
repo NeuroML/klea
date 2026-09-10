@@ -28,6 +28,9 @@ class ToolInfo(BaseModel):
 
     # Detailed tool documentation for the LLM; falls back to the function docstring.
     description: str | None = None
+    # Docstring-only form (no parameter list), for planner-style nodes that
+    # reason about available tools without argument detail.
+    short_description: str | None = None
     # Short human-facing label for UI and MCP clients.
     title: str | None = None
     # Categories used to group and filter tools.

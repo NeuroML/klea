@@ -331,9 +331,11 @@ class BaseLangGraph(ABC):
                 # convention (summary + Use when / Do not use for bullets +
                 # one example; params via Args:), see build_tool_description
                 # and docs/concepts/mcp.rst.
+                full_description, short_description = build_tool_description(t)
                 domain_tools_info[t.name] = ToolInfo(
                     title=t.title,
-                    description=build_tool_description(t),
+                    description=full_description,
+                    short_description=short_description,
                     meta=clean_tool_meta(t.meta),
                 )
             self.tools_info[domain] = domain_tools_info

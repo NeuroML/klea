@@ -111,11 +111,14 @@ def _format_tool_parameters(input_schema: dict[str, Any] | None) -> str:
     return "Parameters:\n" + "\n".join(lines)
 
 
-def build_tool_description(t: Tool) -> str:
-    """Build the compact LLM-facing description for an MCP tool.
+def build_tool_description(t: Tool) -> tuple[str, str]:
+    """Build the full and compact LLM-facing descriptions for an MCP tool.
 
-    Used to populate :class:`klea_utils.mcp.schemas.ToolInfo.description`
-    so the tool picker's prompt stays small as more tools are added.
+    Returns a ``(full, short)`` tuple.  :class:`klea_utils.mcp.schemas.ToolInfo`
+    stores both: the **full** form (heading + docstring + compact parameter
+    list) is what the tool picker needs to emit calls, while the **short** form
+    (heading + docstring only) is for planner-style nodes that reason about
+    which tools exist without the argument detail (tiered disclosure).
 
     Klea expects MCP tool descriptions to follow the *docstring-first*
     convention (see ``docs/concepts/mcp.rst``, "Tool description length and
@@ -137,10 +140,14 @@ def build_tool_description(t: Tool) -> str:
     parts = [f"## {t.name}"]
     if t.description:
         parts.append(t.description)
+    short = "\n\n".join(parts)
+
+    full_parts = list(parts)
     params = _format_tool_parameters(t.inputSchema)
     if params:
-        parts.append(params)
-    return "\n\n".join(parts)
+        full_parts.append(params)
+    full = "\n\n".join(full_parts)
+    return full, short
 
 
 def clean_tool_meta(meta: dict[str, Any] | None) -> dict[str, Any] | None:

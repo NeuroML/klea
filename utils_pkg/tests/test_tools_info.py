@@ -108,28 +108,41 @@ class TestFormatToolParameters(unittest.TestCase):
 
 
 class TestBuildToolDescription(unittest.TestCase):
-    """Tests for build_tool_description."""
+    """Tests for build_tool_description (full and short forms)."""
 
-    def test_heading_description_and_parameters(self):
+    def test_full_has_heading_description_and_parameters(self):
         schema = {
             "type": "object",
             "properties": {"path": {"type": "string"}},
         }
-        desc = build_tool_description(_make_tool(input_schema=schema))
-        self.assertIn("## test_tool", desc)
-        self.assertIn("Does useful things.", desc)
-        self.assertIn("Parameters:", desc)
-        self.assertIn("- path (string):", desc)
+        full, _short = build_tool_description(_make_tool(input_schema=schema))
+        self.assertIn("## test_tool", full)
+        self.assertIn("Does useful things.", full)
+        self.assertIn("Parameters:", full)
+        self.assertIn("- path (string):", full)
 
-    def test_no_parameters_section_when_schema_missing(self):
-        desc = build_tool_description(_make_tool(input_schema=None))
-        self.assertIn("## test_tool", desc)
-        self.assertIn("Does useful things.", desc)
-        self.assertNotIn("Parameters:", desc)
+    def test_short_omits_parameters(self):
+        schema = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+        }
+        _full, short = build_tool_description(_make_tool(input_schema=schema))
+        self.assertIn("## test_tool", short)
+        self.assertIn("Does useful things.", short)
+        self.assertNotIn("Parameters:", short)
+        self.assertNotIn("- path (string):", short)
+
+    def test_full_equals_short_when_no_parameters(self):
+        full, short = build_tool_description(_make_tool(input_schema=None))
+        self.assertEqual(full, short)
+        self.assertIn("## test_tool", short)
+        self.assertIn("Does useful things.", short)
+        self.assertNotIn("Parameters:", short)
 
     def test_no_description(self):
-        desc = build_tool_description(_make_tool(description=""))
-        self.assertEqual(desc, "## test_tool")
+        full, short = build_tool_description(_make_tool(description=""))
+        self.assertEqual(full, "## test_tool")
+        self.assertEqual(short, "## test_tool")
 
 
 class TestCleanToolMeta(unittest.TestCase):
