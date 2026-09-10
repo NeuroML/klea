@@ -15,7 +15,7 @@ from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 
-from klea_agent.schemas import KleaAgentState, RouteSchema
+from klea_agent.schemas import KleaAgentState, PlanSchema, RouteSchema, StepSchema
 
 
 class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
@@ -70,14 +70,30 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     def _update_state(
         self, result: RouteSchema, state: KleaAgentState
     ) -> dict[str, Any]:
-        """Store the route and answer inline when the route is ``answer``.
+        """Store the route; answer inline or seed a one-step plan.
 
-        For ``act``/``plan`` no ``message_for_user`` is written; the answer is
-        left to the Evaluator/answer step.
+        * ``answer``: write ``message_for_user`` directly.
+        * ``act``: model the action as a **one-step plan** so the shared
+          ``ToolsPicker`` always receives a concrete step to pick tools for
+          (ADR-0035).  This is a clean separation of concerns -- the picker
+          only ever picks tools for a step -- and involves no Planner call.
+        * ``plan``: leave the plan to :class:`GoalSetter`/:class:`Planner`.
         """
         state_update: dict[str, Any] = {"route": result}
         if result.route == "answer":
             state_update["message_for_user"] = result.answer
+        elif result.route == "act":
+            state_update["plan"] = PlanSchema(
+                step_list=[
+                    StepSchema(
+                        step_number=1,
+                        description=state.query,
+                        success_criteria="the user's request is satisfied",
+                    )
+                ],
+                status="in_progress",
+                current_step_index=0,
+            )
         self.logger.debug(f"{state_update = }")
         return state_update
 

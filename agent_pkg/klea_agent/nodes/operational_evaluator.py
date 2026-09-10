@@ -105,6 +105,21 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         plan = state.plan
         next_step = result.next_step
 
+        # Robustness: a model may report the *final* step as ``step_done``
+        # ("criterion met, more steps remain") even though no steps remain.
+        # Coerce to completion so the graph does not route back to the picker
+        # past the end of the plan, and ensure a non-empty answer.
+        if (
+            next_step == "step_done"
+            and plan.step_list
+            and plan.current_step_index >= len(plan.step_list) - 1
+        ):
+            self.logger.debug("step_done on the final step; coercing to plan_done")
+            result.next_step = "plan_done"
+            next_step = "plan_done"
+            if not result.answer:
+                result.answer = self._fallback_answer(state)
+
         if plan.step_list:
             index = plan.current_step_index
             if next_step == "step_done" and 0 <= index < len(plan.step_list):
@@ -126,6 +141,20 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             update["message_for_user"] = result.answer
         self.logger.debug(f"{update = }")
         return update
+
+    def _fallback_answer(self, state: KleaAgentState) -> str:
+        """Return a non-empty fallback answer when none was produced.
+
+        Only used when the model reports the final step done without an answer;
+        prefers the latest tool outputs (which often *are* the answer, e.g. a
+        command's output), then the step description.
+        """
+        if state.tool_results:
+            return textualize_tool_results(state.tool_results)
+        current = state.plan.current_step()
+        if current and current.description:
+            return f"Completed: {current.description}"
+        return "Done."
 
     @override
     def _get_info(self) -> NodeStreamData:

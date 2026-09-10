@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import logging
 import unittest
 
+from fastmcp.client.client import CallToolResult
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.schemas import (
     EvaluationSchema,
@@ -85,6 +86,37 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertEqual(update["message_for_user"], "hi")
         self.assertNotIn("plan", update)
+
+    def test_step_done_on_final_step_coerces_to_plan_done(self):
+        """A final-step ``step_done`` is treated as completion, with an answer."""
+        evaluator = self._evaluator()
+        state = KleaAgentState()
+        state.plan = PlanSchema(
+            step_list=[StepSchema(step_number=1, description="only step")],
+            current_step_index=0,
+        )
+        update = evaluator._update_state(
+            EvaluationSchema(next_step="step_done", reason="looks done"), state
+        )
+        self.assertEqual(update["evaluation"].next_step, "plan_done")
+        self.assertEqual(update["plan"].status, "completed")
+        self.assertTrue(update["message_for_user"])
+
+    def test_final_step_fallback_uses_tool_results(self):
+        """The fallback answer prefers the latest tool outputs."""
+        evaluator = self._evaluator()
+        state = KleaAgentState()
+        state.plan = PlanSchema(
+            step_list=[StepSchema(step_number=1, description="run pwd")],
+            current_step_index=0,
+        )
+        state.tool_results = [
+            CallToolResult(
+                content=[], structured_content=None, meta=None, is_error=False
+            )
+        ]
+        update = evaluator._update_state(EvaluationSchema(next_step="step_done"), state)
+        self.assertTrue(update["message_for_user"])
 
     def test_default_error_result_replans(self):
         self.assertEqual(
