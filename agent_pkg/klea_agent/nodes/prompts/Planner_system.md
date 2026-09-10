@@ -37,6 +37,13 @@
 * If execution **cannot proceed**:
   * Produce a list with a single step explaining why.
 
+* The `goal` and its success criteria are **fixed** and must not be changed;
+  plan the steps that satisfy them.
+* For **every** step, provide a concise `success_criteria`: the observable
+  outcome that shows the step is done (for example "file X exists and
+  validates", "the command exits 0").  The Evaluator checks each step against
+  its success criteria.
+
 ---
 
 ## Planning rules (important)
