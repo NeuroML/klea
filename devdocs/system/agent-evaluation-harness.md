@@ -2,7 +2,9 @@
 
 Status: draft plan, not an ADR.  To be refined before implementation.
 Companion to `agent-topology-literature-review.md`.  Written 2026-09-10 by
-opencode (model: deepseek-flash).
+opencode (model: deepseek-flash).  The concrete `eval_pkg` implementation
+plan is captured at the end of this document; it is deferred until the
+general path stabilises.
 
 ## Why
 
@@ -110,6 +112,87 @@ from silently absorbing scientific complexity.
 
 - Which tasks best represent the target academic general use?
 - Which models should be the standard set?
-- In-repo (pytest/scripts) or a standalone harness package?
+- In-repo (pytest/scripts) or a standalone harness package?  (Resolved below:
+  a new in-repo `eval_pkg`.)
 - First iteration scope: the full taxonomy, or a minimal end-to-end slice?
 - How to cost local models: wall-clock/energy, or a notional price table?
+
+---
+
+# eval_pkg implementation plan (deferred)
+
+Status: deferred.  Do not implement until the general agent path has
+stabilised (see `agent-general-path-control-flow.md`).  Recorded here so
+the design is not lost.  Also needs a general `run_command` tool before
+taxonomy items 2 and 3 (single-tool action, multi-step coding) can run.
+
+## Decision
+
+A new dev-only package `eval_pkg/` (import name `klea_eval`), living in the
+monorepo alongside the runtime packages, rather than a `scripts/` entry
+point or a standalone repository.  Rationale: the harness must import the
+orchestrators and subclass them, be unit-testable without an LLM, and share
+the existing `ty`/`ruff`/pytest conventions.
+
+Direction of dependency: `eval_pkg` depends on `agent_pkg` and `rag_pkg`
+(never the reverse).  It consumes them as installed packages, exactly as the
+apps consume `klea_utils`.
+
+## Layout
+
+```
+eval_pkg/
+├── pyproject.toml / setup.cfg     # package klea_eval; no runtime deps beyond the apps
+├── AGENTS.md                      # package-specific commands/conventions
+├── klea_eval/
+│   ├── common/                    # app-agnostic harness core
+│   │   ├── schemas.py             # TaskSpec, FixtureWorkspace, TaskResult, RunConfig
+│   │   ├── fixtures.py            # scratch-workspace creation/copy, teardown
+│   │   ├── metrics.py             # calls, tokens, cache hits, wall-clock, tool errors
+│   │   ├── scoring.py             # deterministic checks + LLM-judge rubric hook
+│   │   ├── cost.py                # per-model notional price table
+│   │   ├── runner.py              # N-repetition loop, pass@1 / pass^k
+│   │   └── report.py              # raw JSON out + generated summary table
+│   ├── agent/
+│   │   ├── tasks/                 # task set mirroring the taxonomy, with fixtures
+│   │   ├── variants.py            # topology variants (see below)
+│   │   └── run.py                 # agent-specific entry point
+│   └── rag/
+│       ├── tasks/
+│       └── run.py
+└── tests/                         # harness unit tests (no LLM), marker `eval` for full runs
+```
+
+## Topology variants
+
+Variants subclass the real orchestrator and override `_create_graph` only, so
+prompts, tools and models are shared and the sole independent variable is the
+topology:
+
+- variant A: flat ReAct (experimental baseline);
+- variant B: plan-first;
+- variant E/F: the chosen escalation ladder, and a variant with/without a
+  feature under test (for example reasoning steps, or the budgets).
+
+A boundary guardrail test asserts the general-mode graph contains no
+mandatory retrieval / evidence-inspection / gating / verification /
+provenance nodes, and runs retrieval-available tasks without requiring
+grounding (see the guardrail section above).
+
+## Conventions and CI
+
+- `ty.toml`: add `eval_pkg` to `extra-paths` so cross-package imports resolve.
+- Tests: `cd eval_pkg && pytest -v` for the unit tests (no LLM); full eval
+  runs are marked `eval` and require an explicit opt-in, never blocking CI.
+- `scripts/run_tests.sh`: include the harness unit tests; do not run the full
+  evaluation matrix.
+- Results: JSON per run (pinned model/prompt versions, seeds, N repetitions)
+  plus a generated Markdown summary table for the write-up.
+
+## Deferred sub-items
+
+- Public-benchmark subsets (GAIA/tau-bench/SWE-bench) after the Klea-specific
+  suite is stable.
+- Model-escalation condition (optional multi-model), clearly separated from
+  the required single-model condition.
+- Human spot-checks and rubric calibration for the LLM judge.
