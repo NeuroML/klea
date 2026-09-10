@@ -36,6 +36,8 @@ Structure:
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
 | `system/mcp-permissions.md` | Filesystem permissions for MCP tools: the current in-tool check, why it cannot cover third-party servers, and what opencode does instead |
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
+| `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
+| `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
 | `adr/0003-mcp-iserror-compliance.md` | ADR-0003: Strictly require MCP isError for tool execution failures |
