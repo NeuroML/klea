@@ -53,6 +53,25 @@ from .abstract import AbstractLLMNode
 #: time shrinking the reserved output window to free headroom.
 MAX_CONTEXT_OVERFLOW_RETRIES = 3
 
+
+def _current_session_id() -> str | None:
+    """Return the current LangGraph ``thread_id``, or ``None`` outside a run.
+
+    The thread id is Klea's stable per-conversation session id.  It is sent as
+    the opencode ``x-opencode-session`` request header so the backend can
+    optimise routing and prompt caching (see
+    :func:`klea_utils.llm.apply_provider_overrides`).
+    """
+    try:
+        from langgraph.config import get_config
+
+        config = get_config()
+    except Exception:  # noqa: BLE001 - no run context (e.g. unit tests)
+        return None
+    thread_id = (config or {}).get("configurable", {}).get("thread_id")
+    return thread_id or None
+
+
 #: Max times to retry an invoke whose output was truncated (``finish_reason
 #: == "length"``), each time growing the reserved output window.  The
 #: budget covers the full climb from the smallest node window to the
@@ -279,6 +298,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         config = self._llm_entry.build_config(
             context_overrides=role_overrides,
             node_defaults=self.model_defaults,
+            session_id=_current_session_id(),
         )
 
         # Get the merged configurable dict for provider field filtering.

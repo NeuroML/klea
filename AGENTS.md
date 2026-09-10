@@ -211,6 +211,13 @@ Git log has the step-by-step edits. Omit routine work.
 - Use the shared session helpers in `klea_utils` (`klea_utils/api/utils.py`
   `_make_retryer_httpx`, `klea_utils/mcp/lifespan.py`) rather than rolling
   per-module retry/backoff logic.
+- Chat calls to OpenAI-compatible endpoints identify Klea with a
+  `User-Agent: <app>/<version>` header (`klea-agent/...` / `klea-rag/...` via
+  `klea_utils.llm.resolve_user_agent`) and send
+  `x-opencode-session: <thread_id>` to opencode-hosted endpoints (routing and
+  prompt-cache affinity). Provider specifics live behind
+  `klea_utils.llm.apply_provider_overrides`; add a builder to
+  `_PROVIDER_HEADER_BUILDERS` rather than branching in `build_config`.
 - Shared MCP tool implementations live in `klea_utils/mcp/tool_impls/`; apps wrap
   them into FastMCP tools and pass their httpx session via the lifespan
   context (key `http_session`, see `klea_utils.mcp.lifespan`). Tool tests use

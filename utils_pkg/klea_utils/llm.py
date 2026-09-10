@@ -15,6 +15,7 @@ import math
 import re
 import sys
 import time
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
@@ -851,6 +852,97 @@ def create_configurable_model(logger: logging.Logger):
     return model_var
 
 
+# ---------------------------------------------------------------------------
+# Provider request headers
+# ---------------------------------------------------------------------------
+# Klea identifies itself to OpenAI-compatible inference endpoints with its own
+# User-Agent, and sends a stable per-conversation session header to
+# opencode-hosted endpoints so the backend can optimise routing and prompt
+# caching.  Provider specifics live behind one hook so call sites stay clean.
+
+#: Host suffix for opencode-hosted OpenAI-compatible endpoints.  These accept
+#: an ``x-opencode-session`` header carrying the conversation/session id.
+_OPENCODE_HOST_SUFFIX = "opencode.ai"
+
+
+def resolve_user_agent(prefix: str) -> str:
+    """Return ``<prefix>/<version>`` for the running application.
+
+    Mirrors ``web_fetch._honest_user_agent``: the version is read from the
+    installed distribution named *prefix* (``importlib.metadata`` normalises
+    separators, so the graph name doubles as the distribution name --
+    ``klea-agent`` -> ``klea_agent``) and falls back to ``dev`` when metadata
+    is unavailable (e.g. an uninstalled checkout).
+
+    :param prefix: Application name, e.g. ``"klea-agent"``.
+    :returns: The User-Agent string, e.g. ``"klea-agent/0.0.1"``.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        version_str = version(prefix)
+    except PackageNotFoundError:
+        version_str = ""
+    return f"{prefix}/{version_str or 'dev'}"
+
+
+def _is_opencode_endpoint(base_url: str | None) -> bool:
+    """Return ``True`` when *base_url* points at an opencode-hosted endpoint."""
+    if not base_url:
+        return False
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url).hostname or "").lower()
+    return host == _OPENCODE_HOST_SUFFIX or host.endswith("." + _OPENCODE_HOST_SUFFIX)
+
+
+def _openai_request_headers(
+    base_url: str | None, session_id: str | None, user_agent: str
+) -> dict[str, str]:
+    """Default request headers for OpenAI-compatible providers."""
+    headers: dict[str, str] = {}
+    if user_agent:
+        headers["User-Agent"] = user_agent
+    if session_id and _is_opencode_endpoint(base_url):
+        headers["x-opencode-session"] = session_id
+    return headers
+
+
+#: Per-provider request-header builders.  ``custom`` endpoints are mapped to
+#: the ``openai`` provider by ``build_config``, so they share this entry.  Add
+#: a provider here (rather than branching in ``build_config``) if another
+#: integration needs its own headers.
+_PROVIDER_HEADER_BUILDERS: dict[str, Callable[..., dict[str, str]]] = {
+    "openai": _openai_request_headers,
+}
+
+
+def apply_provider_overrides(
+    overrides: dict[str, Any],
+    *,
+    session_id: str | None = None,
+    user_agent: str = "",
+) -> None:
+    """Add provider-specific request headers to a configurable dict (in place).
+
+    Called once at the end of :meth:`LLMModel.build_config`.  Only providers
+    with a registered builder are affected; any ``default_headers`` already in
+    *overrides* win over ours.
+
+    :param overrides: The merged ``config["configurable"]`` dict.
+    :param session_id: Per-conversation session id (LangGraph ``thread_id``).
+    :param user_agent: Klea User-Agent (see :func:`resolve_user_agent`).
+    """
+    builder = _PROVIDER_HEADER_BUILDERS.get(overrides.get("model_provider") or "openai")
+    if builder is None:
+        return
+    headers = builder(overrides.get("base_url"), session_id, user_agent)
+    if not headers:
+        return
+    existing = overrides.get("default_headers") or {}
+    overrides["default_headers"] = {**headers, **existing}
+
+
 #: Base URL attribute names on the concrete chat model classes returned by
 #: ``_ConfigurableModel._model()``.  Each provider exposes its resolved
 #: endpoint under a different attribute (e.g. ``ChatOpenAI.openai_api_base``,
@@ -951,11 +1043,14 @@ class LLMModel(BaseModel):
     provider_defaults: dict[str, dict[str, Any]] = {}
     modifiable: bool = True
     required: bool = True
+    #: Klea User-Agent sent to OpenAI-compatible endpoints (``klea-agent/<v>``).
+    user_agent: str = ""
 
     def build_config(
         self,
         context_overrides: dict[str, Any] | None = None,
         node_defaults: dict[str, Any] | None = None,
+        session_id: str | None = None,
     ) -> RunnableConfig:
         """Merge up to five layers of model configuration into a ``RunnableConfig``.
 
@@ -973,6 +1068,8 @@ class LLMModel(BaseModel):
             present in ``node_defaults``.
         :param node_defaults: Frozen per-node defaults (e.g.
             ``{"temperature": 0.3}``).  Always win.
+        :param session_id: Per-conversation session id (LangGraph ``thread_id``)
+            used for the opencode ``x-opencode-session`` header.
         :returns: A ``RunnableConfig`` with the ``configurable`` key
             populated.
         """
@@ -1055,6 +1152,12 @@ class LLMModel(BaseModel):
         if "api_key" in overrides:
             overrides.setdefault("huggingfacehub_api_token", overrides["api_key"])
             logger.debug(f"After api_key mapping:\n{mask_sensitive(overrides) = }")
+
+        # Provider-specific request headers (Klea User-Agent; opencode session
+        # header on opencode-hosted endpoints).
+        apply_provider_overrides(
+            overrides, session_id=session_id, user_agent=self.user_agent
+        )
 
         # Wrap in the "configurable" key expected by _ConfigurableModel.
         return cast(RunnableConfig, {"configurable": overrides})

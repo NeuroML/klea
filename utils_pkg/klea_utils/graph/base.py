@@ -29,7 +29,7 @@ from platformdirs import PlatformDirs
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from klea_utils.graph.context import KleaRunContext
-from klea_utils.llm import LLMModel
+from klea_utils.llm import LLMModel, resolve_user_agent
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.paths import get_config_dir, init_dir, resolve_app_config_path
 from klea_utils.stores.config import RetrieverConfig
@@ -168,6 +168,8 @@ class BaseLangGraph(ABC):
         self.checkpointer: None | AsyncSqliteSaver | InMemorySaver = None
 
         self.paths = PlatformDirs(self.graph_name.lower())
+        #: Klea identity sent to OpenAI-compatible endpoints (User-Agent).
+        self.user_agent = resolve_user_agent(self.graph_name)
 
         self.config_dict: dict[str, Any]
 
@@ -475,6 +477,15 @@ class BaseLangGraph(ABC):
         for role, entry in self.llm_models.items():
             entry.provider_defaults = self._provider_defaults_for_role(role)
 
+    def _apply_user_agent(self) -> None:
+        """Set the resolved Klea User-Agent on each ``LLMModel``.
+
+        Gives every role the app identity sent to OpenAI-compatible endpoints
+        (``klea-agent/<version>`` / ``klea-rag/<version>``).
+        """
+        for entry in self.llm_models.values():
+            entry.user_agent = self.user_agent
+
     def _check_required_models(self) -> None:
         """Warn at startup when required model roles have no default model.
 
@@ -708,6 +719,7 @@ class BaseLangGraph(ABC):
         self._load_env()
         self._apply_model_names()
         self._apply_provider_defaults()
+        self._apply_user_agent()
         # ``llm_models`` is now fully populated (roles, model names, required
         # flags, provider defaults) -- log the resolved config once.
         self.logger.debug(
