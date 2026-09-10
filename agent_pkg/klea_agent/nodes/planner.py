@@ -86,13 +86,12 @@ class Planner(BaseLLMNode[PlanSchema]):
     @override
     def _get_prompt_variables(self, state: BaseModel) -> dict:
         """Format prompt with current plan state."""
+        plan = getattr(state, "plan", None)
+        plan_text = plan.render() if isinstance(plan, PlanSchema) else "(no plan)"
         return {
             "query": getattr(state, "query", ""),
             "goal": getattr(state, "goal", ""),
-            "step_list": getattr(getattr(state, "plan", None), "step_list", []),
-            "current_step_index": getattr(
-                getattr(state, "plan", None), "current_step_index", 0
-            ),
+            "plan": plan_text,
             "artefacts": getattr(state, "artefacts", {}),
             "discovery": getattr(state, "discovery_persistent", {}),
             "observations": getattr(state, "step_outputs", {}),

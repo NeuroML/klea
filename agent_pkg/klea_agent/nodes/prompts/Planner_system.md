@@ -12,8 +12,7 @@
 ## Inputs you will receive
 
 * `query`: the original user request
-* `step_list` (optional): the current list of steps, if one already exists
-* `current_step_index` (optional): the index of the last completed step
+* `plan` (optional): the current plan rendered with per-step status markers, if one already exists
 * `discovery`: general information about the project
 * `artefacts`: durable results produced so far
 * `observations`: recent tool outputs or errors

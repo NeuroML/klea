@@ -35,6 +35,21 @@ class StepSchema(BaseModel):
         default="pending", validate_default=True
     )
 
+    def status_label(self, *, current: bool = False) -> str:
+        """Return the step status as a bracketed text marker.
+
+        Plain-word markers (rather than symbols) are used so every model can
+        read the per-step status unambiguously in prompts.
+
+        :param current: Whether this is the plan's current step.
+        :returns: ``[DONE]``, ``[FAILED]``, ``[CURRENT]`` or ``[PENDING]``.
+        """
+        if self.status == "done":
+            return "[DONE]"
+        if self.status == "failed":
+            return "[FAILED]"
+        return "[CURRENT]" if current else "[PENDING]"
+
 
 class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
@@ -42,6 +57,30 @@ class PlanSchema(BaseModel):
         Field(default="not_started", validate_default=True)
     )
     current_step_index: int = 0
+
+    def render(self, *, markdown: bool = False) -> str:
+        """Render the plan as text (or a markdown list) with status markers.
+
+        Each step renders as ``[STATUS] N. description (success criteria: ...)``
+        where ``STATUS`` is :meth:`StepSchema.status_label`; the current step is
+        marked ``[CURRENT]``.  Used in node prompts and in the status pane, so
+        the same rendering is shown to the model and to the user.
+
+        :param markdown: Prefix each line with ``- `` for a markdown list.
+        :returns: The rendered plan, or ``"(no plan)"`` when there are no steps.
+        """
+        if not self.step_list:
+            return "(no plan)"
+        lines: list[str] = []
+        for index, step in enumerate(self.step_list):
+            current = index == self.current_step_index and step.status == "pending"
+            criteria = step.success_criteria or "(none)"
+            line = (
+                f"{step.status_label(current=current)} {step.step_number}. "
+                f"{step.description} (success criteria: {criteria})"
+            )
+            lines.append(f"- {line}" if markdown else line)
+        return "\n".join(lines)
 
 
 class GoalSchema(BaseModel):

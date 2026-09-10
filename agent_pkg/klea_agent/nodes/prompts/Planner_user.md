@@ -6,13 +6,9 @@
 
 ## Current state
 
-### Current list of steps
+### Current plan
 
-{step_list}
-
-### Current step index
-
-{current_step_index}
+{plan}
 
 ---
 
