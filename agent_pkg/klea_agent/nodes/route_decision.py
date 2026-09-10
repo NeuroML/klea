@@ -14,12 +14,11 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
-from pydantic import BaseModel
 
-from klea_agent.schemas import RouteSchema
+from klea_agent.schemas import KleaAgentState, RouteSchema
 
 
-class RouteDecision(BaseLLMNode[RouteSchema]):
+class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     """Upfront routing node: ``answer | act | plan`` (ADR-0035).
 
     Cheap first hop.  The route is judged from the request and the recent
@@ -61,14 +60,16 @@ class RouteDecision(BaseLLMNode[RouteSchema]):
         )
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
         """Format prompt with the user query."""
-        variables = {"query": getattr(state, "query", "")}
+        variables = {"query": state.query}
         self.logger.debug(f"{variables = }")
         return variables
 
     @override
-    def _update_state(self, result: RouteSchema, state: BaseModel) -> dict[str, Any]:
+    def _update_state(
+        self, result: RouteSchema, state: KleaAgentState
+    ) -> dict[str, Any]:
         """Store the route and answer inline when the route is ``answer``.
 
         For ``act``/``plan`` no ``message_for_user`` is written; the answer is

@@ -23,13 +23,15 @@ from klea_utils.tools import textualize_tool_results
 from langchain.messages import AIMessage
 from pydantic import BaseModel, Field
 
+from klea_rag.schemas import RAGState
+
 
 class AnswerSchema(BaseModel):
     answer: str = ""
     references: list[str] = Field(default_factory=list)
 
 
-class AnswerFromContext(BaseLLMNode[AnswerSchema]):
+class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
     """Generate an answer from the provided context"""
 
     model_type = "chat"
@@ -61,27 +63,27 @@ class AnswerFromContext(BaseLLMNode[AnswerSchema]):
         )
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: RAGState) -> dict:
         """Format prompt with question and serialized reference material."""
-        reference_material = state.reference_material  # type: ignore
+        reference_material = state.reference_material
         reference_material_text = serialize_reference_material(reference_material)
 
         # Add tool results to the reference material (per-tool capped to avoid
         # starvation; no total cap — per-tool 2500 is the bound)
-        if hasattr(state, "tool_results") and state.tool_results:  # type: ignore
+        if state.tool_results:
             tool_text = textualize_tool_results(
                 state.tool_results,
-                max_len_per_tool=2500,  # type: ignore
+                max_len_per_tool=2500,
             )
             reference_material_text += "\n" + tool_text
 
         return {
-            "query": state.query,  # type: ignore
+            "query": state.query,
             "reference_material": reference_material_text,
         }
 
     @override
-    def _update_state(self, result: AnswerSchema, state: BaseModel) -> dict[str, Any]:
+    def _update_state(self, result: AnswerSchema, state: RAGState) -> dict[str, Any]:
         """Update state with the generated answer and formatted references."""
         _thought, answer = split_output_by_section(result.answer, "<think>", "</think>")
         refs = result.references
@@ -90,15 +92,15 @@ class AnswerFromContext(BaseLLMNode[AnswerSchema]):
         res_message = AIMessage(content=full_answer)
         self.logger.debug(res_message.pretty_repr())
 
-        messages = [*state.messages, res_message]  # type: ignore[attr-defined]
+        messages = [*state.messages, res_message]
 
-        is_rewrite = state.text_response_eval.next_step == "rewrite_answer"  # type: ignore
+        is_rewrite = state.text_response_eval.next_step == "rewrite_answer"
         return {
             "messages": messages,
-            "reference_material": state.reference_material,  # type: ignore
-            "rewrite_attempts": state.rewrite_attempts + 1  # type: ignore
+            "reference_material": state.reference_material,
+            "rewrite_attempts": state.rewrite_attempts + 1
             if is_rewrite
-            else state.rewrite_attempts,  # type: ignore
+            else state.rewrite_attempts,
         }
 
     def _update_reference_list(self, answer: str, references: list[str]) -> str:

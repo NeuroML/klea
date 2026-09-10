@@ -30,7 +30,7 @@ class FallbackConfig(BaseModel):
     warning: str = ""
 
 
-class AnswerGeneral(BaseLLMNode):
+class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,

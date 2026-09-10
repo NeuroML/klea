@@ -10,7 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 from textwrap import dedent
-from typing import Any, ClassVar, cast, override
+from typing import Any, ClassVar, override
 
 from klea_utils.llm import (
     extract_llm_output_content,
@@ -25,7 +25,7 @@ from langchain_core.messages import AIMessage
 from klea_rag.schemas import RAGState, RetrievalQueryOutput
 
 
-class GenerateRetrievalQuery(BaseLLMNode[RetrievalQueryOutput]):
+class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
     """Node that generates a concise retrieval query from the user's question.
 
     Uses structured output (:class:`RetrievalQueryOutput`) so the search
@@ -192,7 +192,7 @@ class GenerateRetrievalQuery(BaseLLMNode[RetrievalQueryOutput]):
         # Display-only: this node does not bump the counter (the retrieval
         # node does). Here it holds the number of prior retrieval passes, so
         # the current query generation is labelled as the next attempt.
-        state = cast(RAGState, self._last_state)
+        state = self._last_state
         attempt = state.retrieval_attempts + 1
         action = "Regenerated" if state.retrieval_attempts > 0 else "Generated"
         return NodeStreamData(

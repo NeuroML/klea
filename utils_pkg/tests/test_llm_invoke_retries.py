@@ -45,7 +45,7 @@ class _OutputSchema(BaseModel):
     answer: str
 
 
-class _MinimalLLMNode(BaseLLMNode[BaseModel]):
+class _MinimalLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     """Concrete LLM node implementing the remaining abstract methods."""
 
     model_type = "chat"

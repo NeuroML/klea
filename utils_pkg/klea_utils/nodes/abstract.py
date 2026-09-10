@@ -58,11 +58,12 @@ class NodeStreamEvent(BaseModel):
     data: NodeStreamData = Field(description="Event payload")
 
 
-class AbstractLangGraphNode[TSchema: BaseModel, TReturn](ABC):
+class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
     """Abstract base class for all LangGraph nodes.
 
-    Generic over TReturn to support both state-updating nodes (Dict[str, Any])
-    and other nodes, e.g., router nodes (str) and tool caller nodes.
+    Generic over ``TState`` (the graph state the node operates on) and
+    ``TReturn`` (state-updating nodes return ``dict[str, Any]``; router nodes
+    return ``str``).
 
     Provides a consistent interface: all nodes have a logger and an
     execute(state) method.
@@ -102,7 +103,7 @@ class AbstractLangGraphNode[TSchema: BaseModel, TReturn](ABC):
         get_stream_writer()(event)
 
     @abstractmethod
-    async def execute(self, state: TSchema) -> TReturn:
+    async def execute(self, state: TState) -> TReturn:
         """Execute this node and return the result.
 
         :param state: Current graph state
@@ -127,7 +128,7 @@ class AbstractLangGraphNode[TSchema: BaseModel, TReturn](ABC):
     # and additionally emits a token-usage event (LLM-specific).
     # ------------------------------------------------------------------
 
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: TState) -> bool:
         """Pre-execution check. Override to conditionally skip execution.
 
         Return False to skip execution (``execute`` returns an empty dict).
@@ -215,10 +216,13 @@ class AbstractLangGraphNode[TSchema: BaseModel, TReturn](ABC):
         return None
 
 
-class AbstractLLMNode[TSchema: BaseModel](
-    AbstractLangGraphNode[TSchema, dict[str, Any]]
+class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
+    AbstractLangGraphNode[TState, dict[str, Any]]
 ):
     """Abstract base class for LangGraph nodes that use LLMs.
+
+    Generic over ``TState`` (the graph state) and ``TOutput`` (the structured
+    output schema; use ``BaseModel`` for nodes without one).
 
     Subclasses **must** set :attr:`model_type` to a key present in the
     ``llm_models`` dict (e.g. ``"chat"``, ``"plan"``, ``"guard"``).
@@ -250,12 +254,18 @@ class AbstractLLMNode[TSchema: BaseModel](
     ``self.model_defaults`` in ``__init__``.
     """
 
+    _last_state: TState | None = None
+    """The state passed to the most recent :meth:`execute` call."""
+
+    _last_result: TOutput | None = None
+    """The processed output of the most recent LLM invocation."""
+
     def __init__(
         self,
         logger: logging.Logger,
         label: str,
         llm_models: dict[str, Any],
-        output_schema: type[TSchema] | None = None,
+        output_schema: type[TOutput] | None = None,
     ):
         """Initialize with logger and model.
 
@@ -276,7 +286,7 @@ class AbstractLLMNode[TSchema: BaseModel](
         self._output_schema = output_schema
 
     @final
-    async def execute(self, state: BaseModel) -> dict[str, Any]:
+    async def execute(self, state: TState) -> dict[str, Any]:
         """Template method defining standard execution flow"""
         # Clear previous execution context to prevent stale data.
         # These are instance variables (not locals) so that streaming hooks
@@ -501,12 +511,12 @@ class AbstractLLMNode[TSchema: BaseModel](
         ...
 
     @abstractmethod
-    def _get_human_prompt(self, state: BaseModel) -> str:
+    def _get_human_prompt(self, state: TState) -> str:
         """Return human prompt for this node"""
         ...
 
     @abstractmethod
-    def _get_system_prompt(self, state: BaseModel) -> str | list[Any]:
+    def _get_system_prompt(self, state: TState) -> str | list[Any]:
         """Return system prompt for this node.
 
         May return a list of ``("system", text)`` plus recent history
@@ -524,12 +534,12 @@ class AbstractLLMNode[TSchema: BaseModel](
         ...
 
     @abstractmethod
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: TState) -> dict:
         """Format prompt with state-specific parameters"""
         ...
 
     @abstractmethod
-    def _update_state(self, result: Any, state: BaseModel) -> dict[str, Any]:
+    def _update_state(self, result: Any, state: TState) -> dict[str, Any]:
         """Update and return state dictionary"""
         ...
 
@@ -539,7 +549,7 @@ class AbstractLLMNode[TSchema: BaseModel](
         ...
 
 
-class AbstractRouterNode[TSchema: BaseModel](AbstractLangGraphNode[TSchema, str]):
+class AbstractRouterNode[TState: BaseModel](AbstractLangGraphNode[TState, str]):
     """Abstract class for LangGraph router nodes.
 
     Router nodes inspect the state and return a string label that determines
@@ -547,6 +557,6 @@ class AbstractRouterNode[TSchema: BaseModel](AbstractLangGraphNode[TSchema, str]
     """
 
     @abstractmethod
-    async def execute(self, state: TSchema) -> str:
+    async def execute(self, state: TState) -> str:
         """Return the routing label (edge name) based on state."""
         ...

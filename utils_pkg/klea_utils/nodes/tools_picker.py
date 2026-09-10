@@ -21,7 +21,7 @@ from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 
 
-class ToolsPicker(BaseLLMNode[BaseModel]):
+class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     """Node that selects MCP tools for the current step or query.
 
     Shared by Klea Agent and Klea RAG.  The two applications differ only in

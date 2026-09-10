@@ -14,12 +14,11 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
-from pydantic import BaseModel
 
-from klea_agent.schemas import GoalSchema
+from klea_agent.schemas import GoalSchema, KleaAgentState
 
 
-class GoalSetter(BaseLLMNode[GoalSchema]):
+class GoalSetter(BaseLLMNode[KleaAgentState, GoalSchema]):
     """Goal setter node -- derives the immutable task goal from the user query.
 
     ``memory=False`` by design.  Per ADR-0035 the goal and its task-level
@@ -60,7 +59,7 @@ class GoalSetter(BaseLLMNode[GoalSchema]):
         )
 
     @override
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: KleaAgentState) -> bool:
         """Skip once the goal is set (ADR-0035: the goal is immutable).
 
         The goal is written once per task/run; on replan/escalation it already
@@ -70,19 +69,21 @@ class GoalSetter(BaseLLMNode[GoalSchema]):
         :param state: The current graph state.
         :returns: ``True`` when the goal still needs to be set.
         """
-        already_set = bool(getattr(getattr(state, "goal", None), "goal", ""))
+        already_set = bool(state.goal.goal)
         self.logger.debug(f"{already_set = }")
         return not already_set
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
         """Format prompt with state-specific parameters"""
-        variables = {"query": getattr(state, "query", "")}
+        variables = {"query": state.query}
         self.logger.debug(f"{variables =}")
         return variables
 
     @override
-    def _update_state(self, result: GoalSchema, state: BaseModel) -> dict[str, Any]:
+    def _update_state(
+        self, result: GoalSchema, state: KleaAgentState
+    ) -> dict[str, Any]:
         """Write the goal -- GoalSetter is its sole writer.
 
         Only ``goal`` is written; the goal is not the user-facing answer, so

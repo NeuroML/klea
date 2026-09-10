@@ -29,7 +29,7 @@ class MemoryState(BaseModel):
     query: str = ""
 
 
-class DummyNode(BaseLLMNode):
+class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     """Concrete BaseLLMNode for testing memory prompt injection."""
 
     model_type = "chat"

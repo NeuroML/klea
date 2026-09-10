@@ -193,5 +193,13 @@ type in ``klea_utils``".
   ``95fc002``/``66608b7`` (``LLMModel`` container), ``c6e1a8a``/``f5bcfde``
   (tool-caller abstract share), ``d288d94`` (guard ``_pre_exec`` skip
   semantics).
+* Generic parameters (amended ``2026-09-10``): ``AbstractLangGraphNode[TState,
+  TReturn]`` (state, return), ``AbstractLLMNode[TState, TOutput]`` (state,
+  structured-output schema) and ``BaseLLMNode[TState, TOutput]``.  App-specific
+  nodes parameterize ``TState`` with their concrete state (``RAGState`` /
+  ``KleaAgentState``); shared ``klea_utils`` nodes use ``BaseModel``.  This
+  supersedes the earlier single-parameter LLM form, where the output schema was
+  forwarded as the parent's *state* parameter, so state was never parameterized
+  and app nodes had to narrow ``BaseModel`` in overrides.
 * Codified ``2026-08-28``; abstract hierarchy extracted ``2026-08-16``
   and hardened with ``2026-07-21..29`` ``model container`` work.

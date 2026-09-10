@@ -144,7 +144,9 @@ def _is_empty_result(result: Any, schema: type[BaseModel] | None = None) -> bool
     return False
 
 
-class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
+class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
+    AbstractLLMNode[TState, TOutput]
+):
     """Base class for LangGraph nodes that load prompts from files.
 
     Extends AbstractLLMNode with:
@@ -165,7 +167,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         logger: logging.Logger,
         label: str,
         llm_models: dict[str, Any],
-        output_schema: type[TSchema] | None,
+        output_schema: type[TOutput] | None,
         memory: bool = False,
     ):
         """Initialize with file-based prompt loading and memory support.
@@ -218,12 +220,12 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         self._prompt_registry_location = value
 
     @property
-    def output_schema(self) -> type[TSchema] | None:
+    def output_schema(self) -> type[TOutput] | None:
         """Return Pydantic schema for structured output if required"""
         return self._output_schema
 
     @output_schema.setter
-    def output_schema(self, value: type[TSchema] | None) -> None:
+    def output_schema(self, value: type[TOutput] | None) -> None:
         """Set Pydantic schema for structured output"""
         self._output_schema = value
 
@@ -682,7 +684,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         revisit the prompt/model rather than expecting a loud invocation
         error.
         """
-        result: TSchema | AIMessage | None = None
+        result: TOutput | AIMessage | None = None
         schema = self.output_schema
 
         if schema:
@@ -768,7 +770,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
             """
         )
 
-    def _get_system_prompt(self, state: BaseModel) -> str | list:
+    def _get_system_prompt(self, state: TState) -> str | list:
         """Load system prompt from file, optionally adding memory and schema.
 
         When memory is enabled, returns a list of ``("system", text)`` plus
@@ -798,7 +800,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         self.logger.debug(f"{system_prompt =}")
         return system_prompt
 
-    def _get_recent_memory_messages(self, state: BaseModel) -> list[BaseMessage]:
+    def _get_recent_memory_messages(self, state: TState) -> list[BaseMessage]:
         """Return the recent verbatim history messages for the prompt.
 
         Forward-stable: ``messages[summarised_till - N:]`` keeps the cached
@@ -828,7 +830,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         _, recent = get_last_n_conversations(state.messages, start=start)  # type: ignore
         return recent
 
-    def _get_human_prompt(self, state: BaseModel) -> str:
+    def _get_human_prompt(self, state: TState) -> str:
         """Load human prompt from file."""
         human_prompt = self._load_prompt_file(f"{self.prompt_prefix}_user")
 
@@ -881,7 +883,7 @@ class BaseLLMNode[TSchema: BaseModel](AbstractLLMNode[TSchema]):
         self.logger.debug(f"{prompt_template =}")
         return prompt_template
 
-    def _get_memory_addition(self, state: BaseModel) -> str:
+    def _get_memory_addition(self, state: TState) -> str:
         """Hook for subclasses to append memory content into the system prompt.
 
         Override this method to provide memory-specific content.

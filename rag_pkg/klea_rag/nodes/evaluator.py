@@ -19,7 +19,7 @@ from klea_utils.stores.utils import serialize_reference_material
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState
 
 
-class Evaluator(BaseLLMNode[EvaluateAnswerSchema]):
+class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
     """Node that evaluates a RAG-generated answer against retrieved context."""
 
     model_type = "chat"

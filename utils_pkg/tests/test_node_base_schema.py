@@ -52,7 +52,7 @@ class MemoryState(BaseModel):
     context_summary: str = ""
 
 
-class DummyNode(BaseLLMNode):
+class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     """Concrete BaseLLMNode for testing the prompt block."""
 
     model_type = "chat"
