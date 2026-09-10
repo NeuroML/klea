@@ -24,17 +24,17 @@ Guard --(unsafe)--> DecliningQuery -> END
 RouteDecision (answer | act | plan)
   |-- answer -> AnswerUser -> END
   |-- act ----> Act
-  '-- plan ---> Planner -> Act
+  '-- plan ---> GoalSetter -> Planner -> Act
 
 Work loop:
   Act (ToolsPicker + ToolsCaller)
     -> TriageRouter (deterministic)
          +-- error, retries left -> Act
-         +-- retries exhausted   -> Planner -> Act
+         +-- retries exhausted   -> GoalSetter -> Planner -> Act
          +-- no error            -> Evaluator (operational)
                                       +-- step_incomplete -> Act
                                       +-- step_done       -> Act (next step)
-                                      +-- need_replan     -> Planner -> Act
+                                      +-- need_replan     -> GoalSetter -> Planner -> Act
                                       +-- plan_done       -> AnswerUser -> END
 ```
 
@@ -50,6 +50,7 @@ operational check.
 | ModeDecision / ModeInformer | resolve mode (ADR-0030) | no |
 | Guard | safety classification (ADR-0010) | yes (guard role) |
 | RouteDecision | upfront plan decision: answer inline, act, or plan (ADR-0035) | yes (chat role) |
+| GoalSetter | sole writer of the immutable goal + task success criteria; skipped if already set | yes (plan role) |
 | Act (ToolsPicker + ToolsCaller) | emit ``ToolCallsSchema`` or an inline answer; dispatch parallel tool calls (ADR-0020/0034) | picker yes, caller no |
 | TriageRouter | deterministic: error present? retries left? | no |
 | Evaluator | operational: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
@@ -112,7 +113,7 @@ shared with RAG (ADR-0020).
 
 ## State (relevant fields)
 
-* ``goal: GoalSchema`` (goal and success criteria).
+* ``goal: GoalSchema`` (goal and success criteria; immutable, written only by GoalSetter).
 * ``plan: PlanSchema`` (step list with per-step ``success_criteria``, status,
   current step index).
 * ``step_outputs: dict[int, list[CallToolResult]]`` (per-step results).
@@ -148,17 +149,33 @@ level 2 verifier with provenance.
 Failure is attributed per call, not per batch: successful calls in a batch are
 kept, failed calls are re-picked.
 
+## Goal handling
+
+``GoalSetter`` is the sole writer of ``state.goal`` (the goal plus task-level
+success criteria) and runs only when entering the plan path; ``_pre_exec``
+skips it if the goal is already set.  The Planner reads the goal but never
+writes it, so a replan cannot move the success reference.  On the ``act`` path
+the goal is unset and the Evaluator judges against the query; the goal is
+frozen as soon as planning begins.  Every Planner entry (initial plan,
+escalation, replan) passes through GoalSetter for this reason.
+
 ## Evaluator verdicts and routing
 
-The evaluator returns a pydantic model whose next-step is a ``Literal``:
+The Evaluator runs after every Act batch.  In general mode it also writes
+``message_for_user`` when the task is done (it doubles as answer synthesis), so
+it is not an extra call over a separate answer node.  Its verdict is a pydantic
+model whose next-step is a ``Literal``:
 
 * ``step_incomplete`` -> Act (more calls for the current step)
 * ``step_done`` -> Act (next step) if steps remain
 * ``plan_done`` -> AnswerUser
-* ``need_replan`` -> Planner
+* ``need_replan`` -> GoalSetter -> Planner
 
-The evaluator judges the goal and the current step's criterion, not merely
-whether tools succeeded.
+On the ``act`` (planless) path only ``plan_done`` (answer written) and
+``need_replan`` occur.  The Evaluator judges the goal (or the query when no
+goal is set) and the current step's criterion, not merely whether tools
+succeeded.  Scientific mode uses a separate, independent, epistemic verifier
+instead of this operational Evaluator.
 
 ## Escalation
 

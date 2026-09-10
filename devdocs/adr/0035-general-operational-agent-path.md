@@ -80,25 +80,27 @@ Guard
   -> RouteDecision (cheap LLM: answer | act | plan)
        +-- answer -> Answer (text produced inline; terminal)
        +-- act ----> Act
-       +-- plan ---> Planner -> Act
+       +-- plan ---> GoalSetter -> Planner -> Act
 
 Act (shared ToolsPicker + ToolsCaller; parallel calls within a step)
   -> TriageRouter (deterministic, per call)
        +-- error, retries left -> Act (re-pick with error)
-       +-- retries exhausted   -> Planner (revise plan)
+       +-- retries exhausted   -> GoalSetter -> Planner (revise plan)
        +-- no error            -> Evaluator (operational)
 
 Evaluator (runs after every Act batch)
   +-- step_incomplete -> Act
   +-- step_done       -> Act (next step)
-  +-- need_replan     -> Planner
+  +-- need_replan     -> GoalSetter -> Planner
   +-- plan_done       -> Answer
 ```
 
-Act, TriageRouter, Evaluator and Planner form the work loop.  The Planner is
-re-entered from three places: the initial `plan` route, the TriageRouter
-(ADaPT policy, repeated failure of the same step), and the Evaluator
-(`need_replan`); after a revision it returns to Act.
+Act, TriageRouter, Evaluator and Planner form the work loop.  Every entry to
+the Planner passes through GoalSetter, which sets the goal once and is skipped
+if the goal is already set.  The Planner is re-entered from three places: the
+initial `plan` route, the TriageRouter (ADaPT policy, repeated failure of the
+same step), and the Evaluator (`need_replan`); after a revision it returns to
+Act.
 
 * **RouteDecision** decides upfront whether the query is answered directly,
   handled by a single act, or planned.  This is the plan-first tier: non-trivial
@@ -127,10 +129,16 @@ re-entered from three places: the initial `plan` route, the TriageRouter
   Merging them would force an upfront ReWOO-style plan of concrete calls and a
   large compound emission that small models handle poorly; the picker is also
   shared with RAG (ADR-0020).
-* **Plan is state**: ``PlanSchema``/``StepSchema`` carry the goal and per-step
-  ``success_criteria``; the plan is mutable and revised by the planner when
-  step feedback invalidates it.  There is no cross-step DAG scheduling; step
-  order encodes dependencies.
+* **Plan is state**: ``PlanSchema``/``StepSchema`` carry the ordered steps and
+  their per-step ``success_criteria``; the plan is mutable and revised by the
+  Planner when step feedback invalidates it.  There is no cross-step DAG
+  scheduling; step order encodes dependencies.
+* **The goal is immutable**: ``GoalSetter`` is the sole writer of the goal and
+  task-level success criteria, and the Planner reads but never writes them, so
+  a replan cannot move the success reference (which would otherwise let a model
+  declare success by weakening the criterion).  On the ``act`` path the goal is
+  initially unset and the Evaluator judges against the query; the goal is frozen
+  as soon as planning begins.
 * **Failure signals are tiered and deterministic-first** (see the control-flow
   note): (0) structural/deterministic (emission validation, tool ``is_error``,
   artifact predicates, budget exhaustion); (1) observable-against-criterion;
@@ -146,7 +154,12 @@ re-entered from three places: the initial `plan` route, the TriageRouter
 * **Evaluator** runs after every Act batch and judges the goal and the current
   step against its criterion.  Its verdict is an explicit enum with literal
   next steps: ``step_incomplete`` -> picker; ``step_done`` -> picker for the
-  next step, or ``plan_done`` -> answer; ``need_replan`` -> planner.
+  next step, or ``plan_done`` -> answer; ``need_replan`` -> planner.  In general
+  mode the Evaluator also writes the user answer when the task is done, so it
+  is not an extra call over a separate answer node; on the ``act`` path it uses
+  the short outcomes ``done`` (answer written) or ``need_replan``, and there is
+  no independent judge beyond the deterministic triage.  Scientific mode keeps
+  a separate, independent, epistemic verifier.
 * **Escalation has two axes**: structural escalation (same model, more process:
   planning, decomposition, retrieval, retries) is always available; model
   escalation (a stronger model) is optional and requires more than one
@@ -177,6 +190,9 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
   ``klea_utils`` nodes and remain inspectable (ADR-0013).
 * Good, because the plan is evolvable state, so multi-step tasks adapt to step
   feedback without a DAG scheduler.
+* Good, because the goal and task-level success criteria are set once and
+  cannot be rewritten by replanning, so the Evaluator's success reference is
+  not under the control of the generator.
 * Good, because the operational/epistemic boundary is structural: scientific
   stages are absent from the general path.
 * Bad, because the general graph has more nodes and routing than flat ReAct,
@@ -192,8 +208,9 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
 
 * Graph shape: the compiled general graph is ``Guard -> RouteDecision ->
   {answer | act | plan}`` with the work loop ``Act -> TriageRouter ->
-  Evaluator -> {Act | Planner | Answer}``, and no mandatory
-  retrieval/evidence/gating/verification/provenance stage.
+  Evaluator -> {Act | Planner | Answer}``; GoalSetter gates every Planner
+  entry; and no mandatory retrieval/evidence/gating/verification/provenance
+  stage is present.
 * Tests: the deterministic triage router's retry policy and the evaluator's
   verdict-to-route mapping.
 * Schema: ``StepSchema`` has ``success_criteria``; the evaluator verdict is a
