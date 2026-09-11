@@ -348,17 +348,21 @@ listed below — add them with e.g. <code class="docutils literal notranslate"><
 <td><p><code class="docutils literal notranslate"><span class="pre">langchain-ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
 <td><p>Ollama inference provider (local models)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ingest</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">langchain-anthropic</span></code></p></td>
+<td><p>Anthropic provider (native <code class="docutils literal notranslate"><span class="pre">anthropic:</span></code> and custom <code class="docutils literal notranslate"><span class="pre">/messages</span></code> endpoints)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ingest</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">docling</span></code>, <code class="docutils literal notranslate"><span class="pre">typer</span></code>, <code class="docutils literal notranslate"><span class="pre">xxhash</span></code></p></td>
 <td><p>Document ingestion pipeline</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p>NiceGUI web UI frontend</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
-<td><p>All of the above</p></td>
-<td><p>All optional extras (vector stores + inference providers + frontends)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
+<td><p>All of the above except <code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<td><p>All optional extras (vector stores + inference providers + frontends); Anthropic stays opt-in</p></td>
 </tr>
 </tbody>
 </table>
@@ -399,13 +403,17 @@ listed below — add them with e.g. <code class="docutils literal notranslate"><
 <td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[ollama]</span></code></p></td>
 <td><p>Ollama inference provider for RAG</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[anthropic]</span></code></p></td>
+<td><p>Anthropic provider for RAG (native and custom <code class="docutils literal notranslate"><span class="pre">/messages</span></code> endpoints)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[nicegui]</span></code></p></td>
 <td><p>NiceGUI web UI frontend</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
-<td><p>All vector store and inference provider extras</p></td>
-<td><p>All RAG optional extras</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
+<td><p>All vector store and inference provider extras except <code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
+<td><p>All RAG optional extras; Anthropic stays opt-in</p></td>
 </tr>
 </tbody>
 </table>
@@ -552,13 +560,17 @@ to be installed:</p>
 
 <span class="c1"># For HuggingFace:</span>
 <span class="n">pip</span> <span class="n">install</span> <span class="n">klea</span><span class="o">-</span><span class="n">utils</span><span class="p">[</span><span class="n">huggingface</span><span class="p">]</span>
+
+<span class="c1"># For Anthropic (also enables custom /messages endpoints):</span>
+<span class="n">pip</span> <span class="n">install</span> <span class="n">klea</span><span class="o">-</span><span class="n">utils</span><span class="p">[</span><span class="n">anthropic</span><span class="p">]</span>
 </pre></div>
 </div>
 <p>See the <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/providers/overview">LangChain provider docs</a>
 for other providers and their package names.  The needed extras
-(<code class="docutils literal notranslate"><span class="pre">huggingface</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>) are documented in the extras tables above.</p>
+(<code class="docutils literal notranslate"><span class="pre">huggingface</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>) are documented in the extras
+tables above.</p>
 <p>Model names are prefixed according to their provider:</p>
-<ul class="simple">
+<ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">ollama:&lt;model_name&gt;:&lt;tag&gt;</span></code> for Ollama models</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;</span></code> for HuggingFace inference providers.
 The suffix <code class="docutils literal notranslate"><span class="pre">:local</span></code> selects the pipeline backend (runs the model
@@ -566,10 +578,21 @@ locally), while any other suffix (e.g. <code class="docutils literal notranslate
 HuggingFace Endpoints API.  HuggingFace models additionally require
 the <code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code> environment variable to be set (see
 <a class="reference external" href="https://huggingface.co/docs/hub/security-tokens">HuggingFace tokens</a>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">custom:&lt;model_name&gt;:&lt;base_url&gt;</span></code> for OpenAI-compatible endpoints
-(e.g. <code class="docutils literal notranslate"><span class="pre">custom:Qwen:https://inf01.example.com/v1/</span></code>).  These use the
-<code class="docutils literal notranslate"><span class="pre">ChatOpenAI</span></code> provider under the hood and require the
-<code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> environment variable.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">custom:&lt;model_name&gt;:&lt;url&gt;</span></code> for endpoints not covered by a native
+provider.  A bare base URL defaults to the OpenAI Chat Completions API
+(e.g. <code class="docutils literal notranslate"><span class="pre">custom:Qwen:https://inf01.example.com/v1/</span></code>); a full endpoint
+URL instead selects the wire API from its path (e.g. opencode Go serves
+different models on different endpoints):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.../chat/completions</span></code> – OpenAI Chat Completions;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.../responses</span></code> – OpenAI Responses API;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.../v1/messages</span></code> – Anthropic Messages API (requires the
+<code class="docutils literal notranslate"><span class="pre">anthropic</span></code> extra).</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> supplies the key for every custom surface, including
+Anthropic (where it is copied to <code class="docutils literal notranslate"><span class="pre">anthropic_api_key</span></code>); an explicit
+per-chat <code class="docutils literal notranslate"><span class="pre">api_key</span></code> override takes precedence.</p>
+</li>
 <li><p>Others (e.g. OpenAI, Anthropic) use their standard model names and
 environment variables as supported by LangChain.</p></li>
 </ul>

@@ -556,7 +556,9 @@
 <span class="sd">        """</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_invoke_config</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">config</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'configurable'</span><span class="p">,</span><span class="w"> </span><span class="p">{}))</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
         <span class="k">return</span> <span class="n">inst</span><span class="p">,</span> <span class="n">config</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_invoke_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
@@ -739,6 +741,7 @@
                     <span class="k">raise</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="c1"># TODO: can still be empty, eg: Huggingface. We should return something like "something went wrong. please retry".</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">output</span>
 
