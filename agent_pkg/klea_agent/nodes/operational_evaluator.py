@@ -25,7 +25,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
     Runs after every Act batch and judges the goal and the current step (or,
     with no plan, the request directly) against its success criteria.  It emits
-    an explicit ``next_step`` verdict and advances the plan -- but it is
+    an explicit ``evaluation`` verdict and advances the plan -- but it is
     **judge-only**: it never generates the user-facing answer, which is a
     separate synthesis stage (``AnswerFromResults``).  Keeping judgement and
     generation apart lets the same judge contract serve as the independent
@@ -93,13 +93,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         plan = state.plan
-        current = plan.current_step()
         executed = ", ".join(call.tool for call in state.tool_calls) or "(none)"
         variables = {
             "query": state.query,
             "goal": goal_text,
             "plan": plan.render(),
-            "current_step": current.render(current=True) if current else "(no plan)",
             "executed_tools": executed,
             "observations": self._observations_text(state),
         }
@@ -120,27 +118,27 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         """
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
-        next_step = result.next_step
+        evaluation = result.evaluation
 
         # Robustness: a model may report the *final* step as ``step_done``
         # ("criterion met, more steps remain") even though no steps remain.
         # Coerce to completion so the graph does not route back to the picker
         # past the end of the plan.
         if (
-            next_step == "step_done"
+            evaluation == "step_done"
             and plan.step_list
             and plan.current_step_index >= len(plan.step_list) - 1
         ):
             self.logger.debug("step_done on the final step; coercing to plan_done")
-            result.next_step = "plan_done"
-            next_step = "plan_done"
+            result.evaluation = "plan_done"
+            evaluation = "plan_done"
 
         # --- Per-step semantic budget (deterministic) --------------------
         # Count non-advancing evaluations; repeated ``step_incomplete`` on the
         # same step escalates to a replan rather than looping.
         step = plan.current_step_index
         attempts = dict(state.step_attempt_counts or {})
-        if next_step == "step_incomplete":
+        if evaluation == "step_incomplete":
             attempts[step] = attempts.get(step, 0) + 1
             if attempts[step] >= self.max_step_attempts:
                 self.logger.warning(
@@ -148,39 +146,39 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                     step,
                     attempts[step],
                 )
-                next_step = "need_replan"
-                result.next_step = "need_replan"
+                evaluation = "need_replan"
+                result.evaluation = "need_replan"
         else:
             attempts.pop(step, None)
         update["step_attempt_counts"] = attempts
 
         # --- Global run budget (deterministic backstop) ------------------
-        if next_step != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
+        if evaluation != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
             self.logger.warning(
                 "Tool-round budget (%d) exhausted; aborting",
                 self.max_tool_rounds,
             )
-            next_step = "abort"
-            result.next_step = "abort"
+            evaluation = "abort"
+            result.evaluation = "abort"
 
         if plan.step_list:
             index = plan.current_step_index
-            if next_step == "step_done" and 0 <= index < len(plan.step_list):
+            if evaluation == "step_done" and 0 <= index < len(plan.step_list):
                 plan.step_list[index].status = "done"
                 plan.current_step_index = index + 1
                 plan.status = "in_progress"
                 update["plan"] = plan
-            elif next_step == "plan_done":
+            elif evaluation == "plan_done":
                 if 0 <= index < len(plan.step_list):
                     plan.step_list[index].status = "done"
                 plan.current_step_index = len(plan.step_list)
                 plan.status = "completed"
                 update["plan"] = plan
-            elif next_step == "need_replan" and 0 <= index < len(plan.step_list):
+            elif evaluation == "need_replan" and 0 <= index < len(plan.step_list):
                 plan.step_list[index].status = "failed"
                 update["plan"] = plan
 
-        if next_step == "abort":
+        if evaluation == "abort":
             if plan.step_list and 0 <= plan.current_step_index < len(plan.step_list):
                 plan.step_list[plan.current_step_index].status = "failed"
             plan.status = "aborted"
@@ -191,7 +189,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         # can see why the plan was sent back.
         update["messages"] = [
             *state.messages,
-            AIMessage(content=f"Evaluation: {next_step} -- {result.reason}"),
+            AIMessage(content=f"Evaluation: {evaluation} -- {result.reason}"),
         ]
         self.logger.debug(f"{update = }")
         return update
@@ -202,9 +200,9 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         assert self._last_result is not None
         result = self._last_result
         if isinstance(result, EvaluationSchema):
-            summary = f"Verdict: {result.next_step}"
+            summary = f"Verdict: {result.evaluation}"
             details: dict[str, Any] = {
-                "next_step": result.next_step,
+                "evaluation": result.evaluation,
                 "reason": result.reason,
             }
         else:
@@ -252,6 +250,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     def _get_default_error_result(self) -> EvaluationSchema:
         """Escalate to the Planner when evaluation fails (never claim done)."""
         return EvaluationSchema(
-            next_step="need_replan",
+            evaluation="need_replan",
             reason="evaluation failed; escalating to replan",
         )

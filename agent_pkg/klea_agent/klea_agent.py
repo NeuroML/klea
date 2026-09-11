@@ -191,7 +191,7 @@ class KleaAgent(BaseLangGraph):
         picker; ``need_replan`` escalates to the Planner; ``plan_done`` ends at
         the answer and ``abort`` at the failure answer.
         """
-        return state.evaluation.next_step
+        return state.evaluation.evaluation
 
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).

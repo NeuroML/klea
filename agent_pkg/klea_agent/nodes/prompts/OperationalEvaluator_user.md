@@ -10,12 +10,6 @@
 
 ---
 
-## Current step
-
-{current_step}
-
----
-
 ## Observations
 
 {observations}

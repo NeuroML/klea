@@ -220,13 +220,13 @@ class PlannerOutput(BaseModel):
 class EvaluationSchema(BaseModel):
     """Operational verdict produced by the general Evaluator (ADR-0035).
 
-    The Evaluator judges only: ``next_step`` is the explicit routing outcome
+    The Evaluator judges only: ``evaluation`` is the explicit routing outcome
     and ``reason`` a short justification for inspection.  It never generates
     the user-facing answer -- that is a separate synthesis stage
     (``AnswerFromResults``), keeping evaluation independent of generation.
     """
 
-    next_step: Literal[
+    evaluation: Literal[
         "step_incomplete",
         "step_done",
         "plan_done",
