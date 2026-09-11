@@ -47,6 +47,9 @@ klea-utils extras
    * - ``ollama``
      - ``langchain-ollama``, ``ollama``
      - Ollama inference provider (local models)
+   * - ``anthropic``
+     - ``langchain-anthropic``
+     - Anthropic provider (native ``anthropic:`` and custom ``/messages`` endpoints)
    * - ``ingest``
      - ``docling``, ``typer``, ``xxhash``
      - Document ingestion pipeline
@@ -54,8 +57,8 @@ klea-utils extras
      - ``nicegui``
      - NiceGUI web UI frontend
    * - ``full``
-     - All of the above
-     - All optional extras (vector stores + inference providers + frontends)
+     - All of the above except ``anthropic``
+     - All optional extras (vector stores + inference providers + frontends); Anthropic stays opt-in
 
 Usage::
 
@@ -85,12 +88,15 @@ klea-rag extras
    * - ``ollama``
      - ``klea_utils[ollama]``
      - Ollama inference provider for RAG
+   * - ``anthropic``
+     - ``klea_utils[anthropic]``
+     - Anthropic provider for RAG (native and custom ``/messages`` endpoints)
    * - ``nicegui``
      - ``klea_utils[nicegui]``
      - NiceGUI web UI frontend
    * - ``full``
-     - All vector store and inference provider extras
-     - All RAG optional extras
+     - All vector store and inference provider extras except ``anthropic``
+     - All RAG optional extras; Anthropic stays opt-in
 
 Usage::
 
@@ -239,10 +245,14 @@ to be installed::
    # For HuggingFace:
    pip install klea-utils[huggingface]
 
+   # For Anthropic (also enables custom /messages endpoints):
+   pip install klea-utils[anthropic]
+
 See the `LangChain provider docs
 <https://docs.langchain.com/oss/python/integrations/providers/overview>`_
 for other providers and their package names.  The needed extras
-(``huggingface``, ``ollama``) are documented in the extras tables above.
+(``huggingface``, ``ollama``, ``anthropic``) are documented in the extras
+tables above.
 
 Model names are prefixed according to their provider:
 
@@ -253,10 +263,20 @@ Model names are prefixed according to their provider:
   HuggingFace Endpoints API.  HuggingFace models additionally require
   the ``HF_TOKEN`` environment variable to be set (see
   `HuggingFace tokens <https://huggingface.co/docs/hub/security-tokens>`_).
-* ``custom:<model_name>:<base_url>`` for OpenAI-compatible endpoints
-  (e.g. ``custom:Qwen:https://inf01.example.com/v1/``).  These use the
-  ``ChatOpenAI`` provider under the hood and require the
-  ``OPENAI_API_KEY`` environment variable.
+* ``custom:<model_name>:<url>`` for endpoints not covered by a native
+  provider.  A bare base URL defaults to the OpenAI Chat Completions API
+  (e.g. ``custom:Qwen:https://inf01.example.com/v1/``); a full endpoint
+  URL instead selects the wire API from its path (e.g. opencode Go serves
+  different models on different endpoints):
+
+  * ``.../chat/completions`` -- OpenAI Chat Completions;
+  * ``.../responses`` -- OpenAI Responses API;
+  * ``.../v1/messages`` -- Anthropic Messages API (requires the
+    ``anthropic`` extra).
+
+  ``OPENAI_API_KEY`` supplies the key for every custom surface, including
+  Anthropic (where it is copied to ``anthropic_api_key``); an explicit
+  per-chat ``api_key`` override takes precedence.
 * Others (e.g. OpenAI, Anthropic) use their standard model names and
   environment variables as supported by LangChain.
 

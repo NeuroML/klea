@@ -217,7 +217,12 @@ Git log has the step-by-step edits. Omit routine work.
   `x-opencode-session: <thread_id>` to opencode-hosted endpoints (routing and
   prompt-cache affinity). Provider specifics live behind
   `klea_utils.llm.apply_provider_overrides`; add a builder to
-  `_PROVIDER_HEADER_BUILDERS` rather than branching in `build_config`.
+  `_PROVIDER_HEADER_BUILDERS` rather than branching in `build_config`.  A
+  `custom:` model string may carry a full endpoint URL, whose path selects the
+  wire API (`/chat/completions`, `/responses`, `/v1/messages`) via
+  `klea_utils.llm.resolve_custom_endpoint`; a bare base URL defaults to OpenAI
+  Chat Completions, and the headers are sent on both the `openai` and
+  `anthropic` surfaces.
 - Shared MCP tool implementations live in `klea_utils/mcp/tool_impls/`; apps wrap
   them into FastMCP tools and pass their httpx session via the lifespan
   context (key `http_session`, see `klea_utils.mcp.lifespan`). Tool tests use

@@ -2,6 +2,18 @@
 
 > **Note:** `klea_agent` (`klea` / `klea-serve`) and `neuroml_mcp` (`nml-mcp`) are WIP and unreleased  ---  no PyPI releases. Tagged releases below are `klea_utils` and `klea_rag` only (`klea_utils-v*`, `klea_rag-v*`).
 
+## Unreleased  ---  `klea_utils` / `klea_rag`
+
+### Added
+
+- Custom model endpoints (`custom:<model>:<url>`) accept a full endpoint URL and select the wire API from its path (`/chat/completions`, `/responses`, or `/v1/messages`); a bare base URL still defaults to OpenAI Chat Completions.
+- New optional `anthropic` extra (`langchain-anthropic`) for the native Anthropic provider and custom `/messages` endpoints.
+
+### Changed
+
+- A custom `/v1/messages` endpoint uses the `anthropic` provider and copies `OPENAI_API_KEY` to `anthropic_api_key`, with an explicit per-chat `api_key` override taking precedence.
+- `anthropic_api_key` and `huggingfacehub_api_token` are masked in log output.
+
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
 
 ### Added
