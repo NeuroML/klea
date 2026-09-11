@@ -156,6 +156,20 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(len(update["messages"]), 1)
         self.assertIn("Plan (in_progress)", update["messages"][0].content)
 
+    def test_revision_budget_exhausted_is_unplannable(self):
+        planner = Planner(
+            logger=logging.getLogger("test"),
+            label="Planning",
+            llm_models={"plan": object()},
+            max_plan_revisions=2,
+        )
+        update = planner._update_state(
+            PlannerOutput(plan=PlanSchema(step_list=[StepSchema(description="s")])),
+            KleaAgentState(plan_revisions=2),
+        )
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertIn("failure_reason", update)
+
 
 class TestPlannerToolDisclosure(unittest.TestCase):
     """The planner consumes the compact (short) tool description."""

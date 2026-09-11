@@ -46,7 +46,7 @@ class TestStateDefaults:
         assert state.tool_retry_counts == {}
         assert state.step_attempt_counts == {}
         assert state.plan_revisions == 0
-        assert state.turn_iterations == 0
+        assert state.tool_rounds == 0
         assert state.failure_reason == ""
         assert state.human_feedback == ""
 
@@ -68,7 +68,7 @@ class TestCheckpointMsgpack:
             "evaluation": EvaluationSchema(next_step="abort"),
             "step_attempt_counts": {0: 2},
             "plan_revisions": 1,
-            "turn_iterations": 3,
+            "tool_rounds": 3,
             "failure_reason": "x",
         }
         type_name, data = serde.dumps_typed(payload)

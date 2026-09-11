@@ -113,6 +113,39 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertIn("need_replan", update["messages"][-1].content)
         self.assertIn("no progress", update["messages"][-1].content)
 
+    def test_step_incomplete_escalates_at_attempt_budget(self):
+        """Repeated ``step_incomplete`` on a step escalates to a replan."""
+        evaluator = self._evaluator()  # max_step_attempts=3
+        state = self._state()
+        state.step_attempt_counts = {0: 2}
+        update = evaluator._update_state(
+            EvaluationSchema(next_step="step_incomplete", reason="still going"),
+            state,
+        )
+        self.assertEqual(update["evaluation"].next_step, "need_replan")
+        self.assertEqual(update["plan"].step_list[0].status, "failed")
+        self.assertEqual(update["step_attempt_counts"][0], 3)
+
+    def test_progress_clears_step_attempt_budget(self):
+        update = self._evaluator()._update_state(
+            EvaluationSchema(next_step="step_done", reason="done"),
+            self._state(),
+        )
+        self.assertEqual(update["step_attempt_counts"], {})
+
+    def test_tool_round_budget_aborts(self):
+        """The global tool-round budget aborts a non-terminating run."""
+        evaluator = self._evaluator()  # max_tool_rounds=8
+        state = self._state()
+        state.tool_rounds = 8
+        update = evaluator._update_state(
+            EvaluationSchema(next_step="step_incomplete", reason="looping"),
+            state,
+        )
+        self.assertEqual(update["evaluation"].next_step, "abort")
+        self.assertEqual(update["plan"].status, "aborted")
+        self.assertIn("failure_reason", update)
+
     def test_prompt_variables_include_criteria(self):
         evaluator = self._evaluator()
         variables = evaluator._get_prompt_variables(self._state())

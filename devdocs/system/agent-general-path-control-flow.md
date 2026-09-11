@@ -147,7 +147,7 @@ and it is shared with RAG (ADR-0020).
 * ``step_attempt_counts: dict[int, int]`` (non-advancing evaluations per step;
   semantic no-progress budget).
 * ``plan_revisions: int`` (Planner entries; replan budget).
-* ``turn_iterations: int`` (Act batches in the run; global backstop).
+* ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run; global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``human_feedback: str`` (latest review input; empty otherwise).
 * ``evaluation: EvaluationSchema`` (latest operational verdict + reason).
@@ -180,7 +180,7 @@ level 2 verifier with provenance.
 | call-level (bad args, wrong tool, permission denied) | picker | re-pick with the error fed back |
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` N re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
-| plan cannot be revised usefully | failure answer | ``plan_revisions``/``turn_iterations`` cap -> ``abort`` |
+| plan cannot be revised usefully | failure answer | ``plan_revisions``/``tool_rounds`` cap -> ``abort`` |
 
 Failure is attributed per call, not per batch: successful calls in a batch are
 kept, failed calls are re-picked.
@@ -217,7 +217,7 @@ The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
 counters live in state (incremented by the acting nodes) and a deterministic
 router at the evaluation stage enforces the caps.  Exhausting the per-step
 counters escalates to the Planner (``replan``); exhausting ``plan_revisions``
-or ``turn_iterations`` sets ``abort`` and the failure answer.  The Evaluator
+or ``tool_rounds`` sets ``abort`` and the failure answer.  The Evaluator
 prompt uses ``step_incomplete`` only when a specific further call is expected,
 and ``need_replan`` when the observations show no progress toward the
 criterion.

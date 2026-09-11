@@ -48,6 +48,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
+        max_step_attempts: int = 3,
+        max_tool_rounds: int = 8,
     ):
         """Initialise the operational evaluator.
 
@@ -55,6 +57,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         :param label: Human-readable label for UI progress display
         :param llm_models: ``{role: LLMModel}`` dict (from ``BaseLangGraph.llm_models``)
         :param memory: Whether to include recent conversation history
+        :param max_step_attempts: Non-advancing (``step_incomplete``)
+            evaluations allowed for one step before escalating to a replan
+        :param max_tool_rounds: ToolsPicker -> ToolsCaller dispatch rounds
+            allowed in one run before the evaluator aborts (global backstop; a
+            round may contain several parallel tool calls)
         """
         super().__init__(
             logger=logger,
@@ -63,6 +70,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             output_schema=EvaluationSchema,
             memory=memory,
         )
+        self.max_step_attempts = max_step_attempts
+        self.max_tool_rounds = max_tool_rounds
 
     def _observations_text(self, state: KleaAgentState) -> str:
         """Return per-step tool outputs as readable text.
@@ -85,11 +94,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         plan = state.plan
         current = plan.current_step()
+        executed = ", ".join(call.tool for call in state.tool_calls) or "(none)"
         variables = {
             "query": state.query,
             "goal": goal_text,
             "plan": plan.render(),
             "current_step": current.render(current=True) if current else "(no plan)",
+            "executed_tools": executed,
             "observations": self._observations_text(state),
         }
         self.logger.debug(f"{variables = }")
@@ -124,6 +135,34 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             result.next_step = "plan_done"
             next_step = "plan_done"
 
+        # --- Per-step semantic budget (deterministic) --------------------
+        # Count non-advancing evaluations; repeated ``step_incomplete`` on the
+        # same step escalates to a replan rather than looping.
+        step = plan.current_step_index
+        attempts = dict(state.step_attempt_counts or {})
+        if next_step == "step_incomplete":
+            attempts[step] = attempts.get(step, 0) + 1
+            if attempts[step] >= self.max_step_attempts:
+                self.logger.warning(
+                    "Step %d not progressing after %d attempts; replanning",
+                    step,
+                    attempts[step],
+                )
+                next_step = "need_replan"
+                result.next_step = "need_replan"
+        else:
+            attempts.pop(step, None)
+        update["step_attempt_counts"] = attempts
+
+        # --- Global run budget (deterministic backstop) ------------------
+        if next_step != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
+            self.logger.warning(
+                "Tool-round budget (%d) exhausted; aborting",
+                self.max_tool_rounds,
+            )
+            next_step = "abort"
+            result.next_step = "abort"
+
         if plan.step_list:
             index = plan.current_step_index
             if next_step == "step_done" and 0 <= index < len(plan.step_list):
@@ -140,6 +179,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             elif next_step == "need_replan" and 0 <= index < len(plan.step_list):
                 plan.step_list[index].status = "failed"
                 update["plan"] = plan
+
+        if next_step == "abort":
+            if plan.step_list and 0 <= plan.current_step_index < len(plan.step_list):
+                plan.step_list[plan.current_step_index].status = "failed"
+            plan.status = "aborted"
+            update["plan"] = plan
+            update["failure_reason"] = "tool-round budget exhausted"
 
         # Record the verdict in run history so a replan (and summarisation)
         # can see why the plan was sent back.

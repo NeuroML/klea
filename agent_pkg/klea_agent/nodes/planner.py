@@ -48,6 +48,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
+        max_plan_revisions: int = 4,
     ):
         """Initialise the planner node.
 
@@ -57,6 +58,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :param memory: Whether to include recent conversation history.  The
             Planner needs prior context (follow-ups and earlier failed plans),
             so the orchestrator passes ``memory=self.memory``.
+        :param max_plan_revisions: Planner entries allowed in one run before it
+            gives up (deterministic replan budget)
         """
         super().__init__(
             logger=logger,
@@ -65,6 +68,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             output_schema=PlannerOutput,
             memory=memory,
         )
+        self.max_plan_revisions = max_plan_revisions
         self._tools_info: dict[str, dict[str, ToolInfo]] = {}
         self._tools_description = ""
 
@@ -125,6 +129,22 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         ``done`` in the previous plan stay ``done``.
         """
         update: dict[str, Any] = {"human_feedback": ""}
+
+        # --- Replan budget (deterministic) -------------------------------
+        revisions = state.plan_revisions + 1
+        update["plan_revisions"] = revisions
+        if revisions > self.max_plan_revisions:
+            self.logger.warning(
+                "Plan revision budget (%d) exhausted; giving up",
+                self.max_plan_revisions,
+            )
+            update["plan"] = PlanSchema(status="unplannable")
+            update["failure_reason"] = "plan revision budget exhausted"
+            update["messages"] = [
+                *state.messages,
+                AIMessage(content="Planning failed: plan revision budget exhausted"),
+            ]
+            return update
 
         # Goal lock: write only while unset.
         if not state.goal.goal and result.goal.goal:

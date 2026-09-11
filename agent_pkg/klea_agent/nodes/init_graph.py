@@ -59,7 +59,7 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "tool_retry_counts": {},
             "step_attempt_counts": {},
             "plan_revisions": 0,
-            "turn_iterations": 0,
+            "tool_rounds": 0,
             "failure_reason": "",
             "human_feedback": "",
             "tool_calls": [],

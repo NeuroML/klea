@@ -243,19 +243,21 @@ class KleaAgent(BaseLangGraph):
             "note": mode_data.get("note", ""),
         }
 
-    def _record_tool_batch(
+    def _record_tool_round(
         self, state: KleaAgentState, results: list[CallToolResult]
     ) -> dict[str, Any]:
-        """Record a dispatched tool batch: retry counter + per-step outputs.
+        """Record a dispatched tool round: retry counter + per-step outputs.
 
-        Passed as the tool caller's ``post_dispatch`` callback.  Updates the
-        ADaPT per-step retry counter (a conditional-edge router cannot update
-        state, so the counter is maintained here and :class:`TriageRouter`
-        reads it to decide retry vs replan; incremented on any ``is_error``
-        result and cleared when the batch made progress, ADR-0035), and
-        appends the batch results to ``step_outputs`` so the Evaluator and
-        Planner see every observation for the step.  ``step_outputs`` is
-        bounded to the most recent ``MAX_STEP_RESULTS`` per step.
+        Passed as the tool caller's ``post_dispatch`` callback.  A round is one
+        ToolsPicker -> ToolsCaller dispatch (it may contain several parallel
+        tool calls).  Updates the ADaPT per-step retry counter (a
+        conditional-edge router cannot update state, so the counter is
+        maintained here and :class:`TriageRouter` reads it to decide retry vs
+        replan; incremented on any ``is_error`` result and cleared when the
+        round made progress, ADR-0035), appends the round's results to
+        ``step_outputs`` so the Evaluator and Planner see every observation for
+        the step (bounded to the most recent ``MAX_STEP_RESULTS``), and counts
+        the round in ``tool_rounds``.
 
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
@@ -265,8 +267,15 @@ class KleaAgent(BaseLangGraph):
         step = current_step_key(state)
         outputs = dict(state.step_outputs or {})
         outputs[step] = [*outputs.get(step, []), *results][-self.MAX_STEP_RESULTS :]
-        self.logger.debug(f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }")
-        return {"tool_retry_counts": counts, "step_outputs": outputs}
+        rounds = state.tool_rounds + 1
+        self.logger.debug(
+            f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }\n{rounds = }"
+        )
+        return {
+            "tool_retry_counts": counts,
+            "step_outputs": outputs,
+            "tool_rounds": rounds,
+        }
 
     async def _create_graph(self):
         """Create the LangGraph"""
@@ -355,7 +364,7 @@ class KleaAgent(BaseLangGraph):
             label="Running tools",
             mcp_client=self.mcp_client,
             tools_meta={t.name: t.meta for t in (self.mcp_tools or []) if t.meta},
-            post_dispatch=self._record_tool_batch,
+            post_dispatch=self._record_tool_round,
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
         self._op_evaluator_node = OperationalEvaluator(

@@ -253,8 +253,9 @@ class KleaAgentState(BaseModel):
     step_attempt_counts: dict[int, int] = Field(default_factory=dict)
     # number of Planner entries in this run (replan budget)
     plan_revisions: int = 0
-    # number of Act batches in this run (global backstop)
-    turn_iterations: int = 0
+    # number of ToolsPicker -> ToolsCaller dispatch rounds in this run
+    # (global backstop; a round may contain several parallel tool calls)
+    tool_rounds: int = 0
     # why the run failed or could not be planned (for the failure answer)
     failure_reason: str = ""
     # latest human review input (empty unless a plan is under review)
