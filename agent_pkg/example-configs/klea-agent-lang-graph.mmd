@@ -10,35 +10,35 @@ graph TD;
 	Informing\20about\20mode(Informing about mode)
 	Checking\20safety(Checking safety)
 	Declining\20query(Declining query)
-	Setting\20goal(Setting goal)
-	Deciding\20route(Deciding route)
 	Planning(Planning)
 	Selecting\20tools(Selecting tools)
 	Running\20tools(Running tools)
 	Evaluating(Evaluating)
 	Composing\20answer(Composing answer)
 	Preparing\20response(Preparing response)
+	Awaiting\20review(Awaiting review)
 	Summarizing\20history(Summarizing history)
 	__end__([<p>__end__</p>]):::last
-	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
+	Awaiting\20review --> Planning;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
+	Checking\20safety -. &nbsp;safe&nbsp; .-> Planning;
 	Composing\20answer --> Preparing\20response;
-	Deciding\20route -. &nbsp;answer&nbsp; .-> Preparing\20response;
-	Deciding\20route -. &nbsp;act&nbsp; .-> Selecting\20tools;
-	Deciding\20route -. &nbsp;plan&nbsp; .-> Setting\20goal;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
+	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
+	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;step_done&nbsp; .-> Selecting\20tools;
-	Evaluating -. &nbsp;need_replan&nbsp; .-> Setting\20goal;
 	Initializing --> Determining\20mode;
-	Planning --> Selecting\20tools;
+	Planning -. &nbsp;review&nbsp; .-> Awaiting\20review;
+	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
+	Planning -. &nbsp;answer&nbsp; .-> Preparing\20response;
+	Planning -. &nbsp;act&nbsp; .-> Selecting\20tools;
 	Preparing\20response --> Summarizing\20history;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
+	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
 	Running\20tools -. &nbsp;retry&nbsp; .-> Selecting\20tools;
-	Running\20tools -. &nbsp;replan&nbsp; .-> Setting\20goal;
-	Selecting\20tools --> Running\20tools;
-	Setting\20goal --> Planning;
+	Selecting\20tools -. &nbsp;replan&nbsp; .-> Planning;
+	Selecting\20tools -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;

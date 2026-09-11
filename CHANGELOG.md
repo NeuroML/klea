@@ -8,9 +8,13 @@
 
 - Agent operating modes (Scientific / General) with `Mode{requested,resolved,note}`, mode router, CLI `--mode` and web selector/badge (ADR-0030).
 - App-owned web mode UI (`ui/web/mode_ui.py`, `page.py`, `app.py`) and `GET /chat/{user}/{chat}/context` hydration on the agent side.
+- General-path `Planner` as the single entry point (answers trivial requests inline; otherwise plans and fixes the goal), replacing the separate route/goal nodes (ADR-0035).
+- Human plan-review step (`AwaitReview`; auto-approve stub, real pause/resume deferred) and an `in_review` plan state.
+- Deterministic loop budgets and a terminal failure answer, so a stuck run stops and explains instead of looping.
 
 ### Changed
 
+- Tool selection: the picker prefers the planner's suggested tools and replans when none fit; per-step observations and run progress are kept in state and context.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
 ## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`

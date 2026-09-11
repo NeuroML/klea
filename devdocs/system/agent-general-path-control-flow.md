@@ -28,9 +28,9 @@ Planner (single entry: goal + plan + optional inline answer + review flag)
   |-- status in_review -----> AwaitReview --(user input only)--> Planner
   '-- status in_progress ---> step entry
 
-Step entry (deterministic on the current step):
-  tool step      -> ToolsPicker -> ToolsCaller -> TriageRouter
-  reasoning step -> ReasonStep -> Evaluator
+Step entry (the tools picker is the sole tool selector):
+  ToolsPicker --empty selection--> Planner   (no suitable tool: replan)
+              --otherwise--------> ToolsCaller -> TriageRouter
 
 TriageRouter (deterministic, tool-error triage):
   error, retries left  -> ToolsPicker
@@ -59,7 +59,6 @@ is no separate routing node.
 | Planner | single entry brain: decide answer vs plan, write the immutable goal, create/revise the plan, flag review (ADR-0035) | yes (plan role) |
 | AwaitReview | capture human review input only (no LLM); free-text feedback | no |
 | ToolsPicker + ToolsCaller (Act) | emit ``ToolCallsSchema`` and dispatch parallel tool calls (ADR-0020/0034) | picker yes, caller no |
-| ReasonStep | execute a tool-free (reasoning/content) step | yes (chat role) |
 | TriageRouter | deterministic tool-error triage: error present? retries left? | no |
 | Evaluator | operational judge only: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
@@ -112,12 +111,18 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 
 | Node | Tool info | Rationale |
 |------|-----------|-----------|
-| Planner | name + docstring, no parameter list | decides whether a step needs tools (tool vs reasoning) and suggests real tools |
+| Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
 | ToolsPicker | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` |
 
-A step that needs no tools skips the picker and goes to ``ReasonStep``; the
-Planner notes tool use per step (for example via ``suggested_tools``).  The
-picker remains the authority on which tool fits an executable step.
+Plans are **tool-executable only**: a request that needs no tools is answered
+inline by the Planner, so a plan step always goes through the picker.  The
+Planner's per-step ``suggested_tools`` is a **prior**, not a binding: the picker
+honours it when it fits and otherwise picks a different available tool (giving a
+``reason``), or returns an empty list when nothing fits (-> replan).  The
+outcome contract is the step's success criteria, judged by the Evaluator; a
+different tool that meets the criteria is fine, and a tool that does not is
+caught by ``need_replan``.  The picker is shared with RAG, which has no
+suggestions and simply selects from all tools.
 
 Access level (deferred; its own ADR): a ``read_only | full`` policy that
 filters the Planner's and picker's tool lists by the MCP
@@ -147,7 +152,8 @@ and it is shared with RAG (ADR-0020).
 * ``step_attempt_counts: dict[int, int]`` (non-advancing evaluations per step;
   semantic no-progress budget).
 * ``plan_revisions: int`` (Planner entries; replan budget).
-* ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run; global backstop).
+* ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run;
+  global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``human_feedback: str`` (latest review input; empty otherwise).
 * ``evaluation: EvaluationSchema`` (latest operational verdict + reason).
@@ -182,7 +188,7 @@ level 2 verifier with provenance.
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | plan cannot be revised usefully | failure answer | ``plan_revisions``/``tool_rounds`` cap -> ``abort`` |
 
-Failure is attributed per call, not per batch: successful calls in a batch are
+Failure is attributed per call, not per round: successful calls in a round are
 kept, failed calls are re-picked.
 
 ## Goal handling
@@ -196,7 +202,7 @@ so a new request gets a fresh goal without a new session.
 
 ## Evaluator verdicts and routing
 
-The Evaluator judges only and runs after every Act/reasoning batch.  Its
+The Evaluator judges only and runs after every tool round.  Its
 verdict is a pydantic model whose next-step is a ``Literal``:
 
 * ``step_incomplete`` -> step entry (more calls for the current step)
@@ -206,21 +212,24 @@ verdict is a pydantic model whose next-step is a ``Literal``:
 * ``abort`` -> AnswerFromResults (failure)
 
 It judges the goal and the current step's criterion, not merely whether tools
-succeeded.  It never writes ``message_for_user``.  A final-step ``step_done``
-is coerced to ``plan_done`` so the graph does not route back to the picker past
-the end of the plan.  Scientific mode uses a separate, independent, epistemic
-verifier with the same judge-only contract.
+succeeded; it is given the executed tool names and judges the **outcome**, so a
+different tool that meets the criteria is fine, while a material mismatch is
+reported in ``reason``.  It never writes ``message_for_user``.  A final-step
+``step_done`` is coerced to ``plan_done`` so the graph does not route back to
+the picker past the end of the plan.  Scientific mode uses a separate,
+independent, epistemic verifier with the same judge-only contract.
 
 ## Termination and budgets
 
 The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
-counters live in state (incremented by the acting nodes) and a deterministic
-router at the evaluation stage enforces the caps.  Exhausting the per-step
-counters escalates to the Planner (``replan``); exhausting ``plan_revisions``
-or ``tool_rounds`` sets ``abort`` and the failure answer.  The Evaluator
-prompt uses ``step_incomplete`` only when a specific further call is expected,
-and ``need_replan`` when the observations show no progress toward the
-criterion.
+counters live in state (incremented by the acting nodes) and the caps are
+enforced deterministically in the Evaluator/Planner ``_update_state`` (not by
+the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
+``plan_revisions`` escalate to a replan/``unplannable``; ``tool_rounds`` sets
+``abort`` and the failure answer, so the act/eval loop always terminates.  The
+Evaluator prompt uses ``step_incomplete`` only when a specific further call is
+expected, and ``need_replan`` when the observations show no progress toward
+the criterion.
 
 ## Answer synthesis
 

@@ -316,16 +316,28 @@ the `Planner` subsumes routing and goal-setting, and `RouteDecision`,
   with one node instead of a separate router.
 * Goal immutability moves into the Planner: it writes `state.goal` only while
   unset; `InitGraphState` clears it per execution.
-* Steps may be tool-backed or reasoning/content-only; a reasoning step skips
-  the tools picker (a `ReasonStep` node generates its content).  The Planner
-  notes tool use per step; the picker remains the authority on which tool fits
-  an executable step.
+* **Plans are tool-executable only**; requests needing no tools are answered
+  inline.  There is no separate reasoning-step node: reasoning happens in the
+  Planner (decomposition), the tools picker (arguments) and the
+  evaluator/answer synthesis.  The picker is the sole selector of the concrete
+  call; the step's `suggested_tools` is a prior it honours when they fit and
+  deviates from (with a reason) when they do not.  An empty selection means no
+  suitable tool and routes to a replan.  The contract is the step's success
+  criteria, not the tool identity.
 * Plan review uses a human-input node (`AwaitReview`) whose free-text feedback
   the Planner interprets; the Planner owns the `in_review -> in_progress`
   transition.  The first stage ships an auto-approve stub; real
   LangGraph `interrupt`/resume is recorded as ADR-0037.
-* Deterministic abort/retry guards are unchanged and still bound the
-  act/eval loop; they are the reason the simplification is safe.
+* Deterministic budgets bound the loop (counters in state, enforced in the
+  acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan),
+  repeated non-advancing evaluations (`step_attempt_counts` -> replan),
+  Planner entries (`plan_revisions` -> `unplannable`) and total picker+caller
+  rounds (`tool_rounds` -> `abort`).
+* Feedback is split by source: `evaluation` (LLM judge, structured) and
+  `human_feedback` (review text); the Planner receives both, and run progress
+  (query, plans, verdicts, answers) is recorded in `messages`.
+* `AnswerFromResults` synthesises the final reply on success and explains the
+  failure (from `failure_reason`) on `abort`/`unplannable`.
 * A deterministic `read_only | full` access level (tool-list filtering plus a
   hard dispatch gate using the MCP `read_only`/`destructive` annotations) is
   deferred to its own ADR.
