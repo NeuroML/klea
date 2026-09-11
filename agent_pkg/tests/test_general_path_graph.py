@@ -44,6 +44,7 @@ async def test_general_path_work_loop(monkeypatch):
 
     for expected in (
         "Planning",
+        "Awaiting review",
         "Selecting tools",
         "Running tools",
         "Evaluating",
@@ -62,7 +63,11 @@ async def test_general_path_work_loop(monkeypatch):
     # Planner routing on plan.status.
     assert ("Planning", "Preparing response") in edges  # not_needed
     assert ("Planning", "Composing answer") in edges  # unplannable
+    assert ("Planning", "Awaiting review") in edges  # in_review
     assert ("Planning", "Selecting tools") in edges  # in_progress
+
+    # Human review loops back to the Planner (ADR-0035).
+    assert ("Awaiting review", "Planning") in edges
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
     assert ("Selecting tools", "Running tools") in edges

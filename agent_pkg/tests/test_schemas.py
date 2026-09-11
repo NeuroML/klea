@@ -48,6 +48,7 @@ class TestStateDefaults:
         assert state.plan_revisions == 0
         assert state.turn_iterations == 0
         assert state.failure_reason == ""
+        assert state.human_feedback == ""
 
 
 class TestCheckpointMsgpack:

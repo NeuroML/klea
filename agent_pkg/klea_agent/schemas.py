@@ -245,6 +245,8 @@ class KleaAgentState(BaseModel):
     turn_iterations: int = 0
     # why the run failed or could not be planned (for the failure answer)
     failure_reason: str = ""
+    # latest human review input (empty unless a plan is under review)
+    human_feedback: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()

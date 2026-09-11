@@ -27,6 +27,7 @@ from langgraph.graph import END, START, StateGraph
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
+from klea_agent.nodes.await_review import AwaitReview
 from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
@@ -159,14 +160,16 @@ class KleaAgent(BaseLangGraph):
         """Route on the Planner's ``plan.status`` (ADR-0035).
 
         ``not_needed`` -> answer inline (the Planner wrote the answer);
-        ``unplannable`` -> failure answer; otherwise (``in_progress``) -> run
-        the plan through the tool work loop.
+        ``unplannable`` -> failure answer; ``in_review`` -> human review;
+        otherwise (``in_progress``) -> run the plan through the tool work loop.
         """
         status = state.plan.status
         if status == "not_needed":
             return "answer"
         if status == "unplannable":
             return "failure"
+        if status == "in_review":
+            return "review"
         return "act"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
@@ -344,6 +347,10 @@ class KleaAgent(BaseLangGraph):
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
+        # Human plan review (ADR-0035): stub until the interrupt/resume stage.
+        self._await_review_node = AwaitReview(
+            logger=self.logger, label="Awaiting review"
+        )
         # Work-loop nodes: the shared picker/caller (ADR-0020) plus the
         # deterministic TriageRouter and the operational OperationalEvaluator
         # (ADR-0035).  Parallel tool calls are handled by
@@ -365,6 +372,9 @@ class KleaAgent(BaseLangGraph):
         )
         self.workflow.add_node(
             self._answer_user_node.label, self._answer_user_node.execute
+        )
+        self.workflow.add_node(
+            self._await_review_node.label, self._await_review_node.execute
         )
 
         if self.memory:
@@ -409,9 +419,13 @@ class KleaAgent(BaseLangGraph):
             {
                 "answer": self._answer_user_node.label,
                 "failure": self._answer_from_results_node.label,
+                "review": self._await_review_node.label,
                 "act": self._tools_picker_node.label,
             },
         )
+        # Human review loops back to the Planner, which interprets the
+        # feedback and owns the in_review <-> in_progress transition.
+        self.workflow.add_edge(self._await_review_node.label, self._planner_node.label)
         self.workflow.add_edge(
             self._tools_picker_node.label, self._tools_caller_node.label
         )

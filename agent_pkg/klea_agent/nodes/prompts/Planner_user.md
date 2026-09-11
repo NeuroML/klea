@@ -16,6 +16,12 @@
 
 ---
 
+## Review feedback
+
+{human_feedback}
+
+---
+
 ## Project context
 
 ### Discovery

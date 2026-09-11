@@ -107,6 +107,38 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(plan.step_list[1].status, "pending")
         self.assertEqual(plan.current_step_index, 1)
 
+    def test_in_review_status_is_kept(self):
+        """A plan the Planner flags for review keeps ``in_review``."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="g"),
+                plan=PlanSchema(
+                    step_list=[StepSchema(description="s")], status="in_review"
+                ),
+            ),
+            KleaAgentState(query="q"),
+        )
+        self.assertEqual(update["plan"].status, "in_review")
+
+    def test_human_feedback_is_consumed(self):
+        """Review feedback is cleared once the Planner has read it."""
+        state = KleaAgentState(
+            human_feedback="looks good, proceed",
+            plan=PlanSchema(
+                step_list=[StepSchema(description="s")], status="in_review"
+            ),
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlanSchema(
+                    step_list=[StepSchema(description="s")], status="in_progress"
+                )
+            ),
+            state,
+        )
+        self.assertEqual(update["human_feedback"], "")
+        self.assertEqual(update["plan"].status, "in_progress")
+
 
 class TestPlannerToolDisclosure(unittest.TestCase):
     """The planner consumes the compact (short) tool description."""

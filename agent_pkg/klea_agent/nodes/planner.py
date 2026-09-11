@@ -103,6 +103,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "query": state.query,
             "goal": goal_text,
             "plan": state.plan.render(),
+            "human_feedback": state.human_feedback or "(none)",
             "artefacts": state.artefacts,
             "discovery": state.discovery_persistent,
             "observations": state.step_outputs,
@@ -121,7 +122,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         written rather than mutating the previous one, and any steps already
         ``done`` in the previous plan stay ``done``.
         """
-        update: dict[str, Any] = {}
+        update: dict[str, Any] = {"human_feedback": ""}
 
         # Goal lock: write only while unset.
         if not state.goal.goal and result.goal.goal:
@@ -160,10 +161,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 current = index
                 break
 
-        # A non-empty plan is executed.  The ``in_review`` outcome is added in
-        # the plan-review stage; until then the Planner always proceeds.
+        # The Planner decides whether the plan needs human review before it
+        # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
+        # has been consumed by this LLM call and is cleared above.
+        status = "in_review" if result.plan.status == "in_review" else "in_progress"
         update["plan"] = PlanSchema(
-            step_list=steps, status="in_progress", current_step_index=current
+            step_list=steps, status=status, current_step_index=current
         )
         self.logger.debug(f"{update = }")
         return update
