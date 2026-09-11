@@ -16,6 +16,7 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState
 
@@ -58,4 +59,7 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
         )
 
-        return {"message_for_user": answer}
+        return {
+            "message_for_user": answer,
+            "messages": [*state.messages, AIMessage(content=answer)],
+        }

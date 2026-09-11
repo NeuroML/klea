@@ -148,6 +148,14 @@ class TestPlannerState(unittest.TestCase):
         variables = self._planner()._get_prompt_variables(state)
         self.assertEqual(variables["evaluation_feedback"], "no progress")
 
+    def test_plan_recorded_in_messages(self):
+        update = self._planner()._update_state(
+            PlannerOutput(plan=PlanSchema(step_list=[StepSchema(description="s")])),
+            KleaAgentState(query="q"),
+        )
+        self.assertEqual(len(update["messages"]), 1)
+        self.assertIn("Plan (in_progress)", update["messages"][0].content)
+
 
 class TestPlannerToolDisclosure(unittest.TestCase):
     """The planner consumes the compact (short) tool description."""

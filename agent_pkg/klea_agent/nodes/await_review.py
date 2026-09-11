@@ -16,6 +16,7 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from langchain_core.messages import HumanMessage
 
 from klea_agent.schemas import KleaAgentState
 
@@ -63,4 +64,7 @@ class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         self.write_custom_stream(
             NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
         )
-        return {"human_feedback": feedback}
+        return {
+            "human_feedback": feedback,
+            "messages": [*state.messages, HumanMessage(content=feedback)],
+        }

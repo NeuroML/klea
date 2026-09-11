@@ -12,6 +12,7 @@ import logging
 from typing import Any, override
 
 from klea_utils.nodes.abstract import AbstractLangGraphNode
+from langchain_core.messages import HumanMessage
 
 from klea_agent.schemas import (
     CodeSchema,
@@ -41,7 +42,13 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
 
     @override
     async def execute(self, state: KleaAgentState) -> dict[str, Any]:
-        """Reset state fields to their initial values."""
+        """Reset state fields to their initial values.
+
+        Also appends the current query to ``messages`` (run history), which is
+        preserved across turns so the Planner's memory and summarisation see
+        the conversation.  A HITL resume does not re-run this node, so the
+        query is recorded once per turn.
+        """
         self.write_custom_stream({"type": "progress", "node": self.label})
         return {
             "guard_decision": "safe",
@@ -61,4 +68,5 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "artefacts": {},
             "discovery_per_step": Discovery(),
             "code": CodeSchema(),
+            "messages": [*state.messages, HumanMessage(content=state.query)],
         }

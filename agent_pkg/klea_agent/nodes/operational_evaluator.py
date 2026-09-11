@@ -15,6 +15,7 @@ from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.tools import textualize_tool_results
+from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import EvaluationSchema, KleaAgentState
 
@@ -64,15 +65,16 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return per-step and latest-batch tool outputs as readable text."""
+        """Return per-step tool outputs as readable text.
+
+        ``step_outputs`` accumulates every batch for each step, so the current
+        step's latest batch is already included; the separate latest-batch
+        block is gone to avoid double-printing it.
+        """
         parts = []
         for step_index, results in state.step_outputs.items():
             if results:
                 parts.append(f"Step {step_index}:\n{textualize_tool_results(results)}")
-        if state.tool_results:
-            parts.append(
-                f"Latest batch:\n{textualize_tool_results(state.tool_results)}"
-            )
         return "\n\n".join(parts) if parts else "(no observations yet)"
 
     @override
@@ -139,6 +141,12 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 plan.step_list[index].status = "failed"
                 update["plan"] = plan
 
+        # Record the verdict in run history so a replan (and summarisation)
+        # can see why the plan was sent back.
+        update["messages"] = [
+            *state.messages,
+            AIMessage(content=f"Evaluation: {next_step} -- {result.reason}"),
+        ]
         self.logger.debug(f"{update = }")
         return update
 

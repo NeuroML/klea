@@ -65,15 +65,15 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         )
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return per-step and latest-batch tool outputs as readable text."""
+        """Return per-step tool outputs as readable text.
+
+        ``step_outputs`` accumulates every batch for each step, so the latest
+        batch is already included; there is no separate latest-batch block.
+        """
         parts = []
         for step_index, results in state.step_outputs.items():
             if results:
                 parts.append(f"Step {step_index}:\n{textualize_tool_results(results)}")
-        if state.tool_results:
-            parts.append(
-                f"Latest batch:\n{textualize_tool_results(state.tool_results)}"
-            )
         return "\n\n".join(parts) if parts else "(no observations)"
 
     @override

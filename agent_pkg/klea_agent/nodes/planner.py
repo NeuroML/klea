@@ -15,6 +15,7 @@ from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState, PlannerOutput, PlanSchema
 
@@ -145,6 +146,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 update["failure_reason"] = (
                     "planner produced neither a plan nor a direct answer"
                 )
+                update["messages"] = [
+                    *state.messages,
+                    AIMessage(content=f"Planning failed: {update['failure_reason']}"),
+                ]
             self.logger.debug(f"{update = }")
             return update
 
@@ -166,9 +171,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
         # has been consumed by this LLM call and is cleared above.
         status = "in_review" if result.plan.status == "in_review" else "in_progress"
-        update["plan"] = PlanSchema(
-            step_list=steps, status=status, current_step_index=current
-        )
+        plan = PlanSchema(step_list=steps, status=status, current_step_index=current)
+        update["plan"] = plan
+        update["messages"] = [
+            *state.messages,
+            AIMessage(content=f"Plan ({status}):\n{plan.render()}"),
+        ]
         self.logger.debug(f"{update = }")
         return update
 

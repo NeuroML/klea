@@ -32,7 +32,11 @@ from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
-from klea_agent.nodes.triage_router import TriageRouter, update_tool_retry_counts
+from klea_agent.nodes.triage_router import (
+    TriageRouter,
+    current_step_key,
+    update_tool_retry_counts,
+)
 
 from .config import AppConfig
 from .schemas import (
@@ -59,6 +63,10 @@ class KleaAgent(BaseLangGraph):
     config_class = AppConfig
     config_file_default = "klea_agent.json"
     graph_name = "klea-agent"
+
+    #: Cap on accumulated tool results kept per step (bounds checkpoint and
+    #: prompt size); only the most recent results are retained.
+    MAX_STEP_RESULTS = 20
 
     # type hints
     app_config: AppConfig
@@ -235,24 +243,30 @@ class KleaAgent(BaseLangGraph):
             "note": mode_data.get("note", ""),
         }
 
-    def _record_tool_retries(
+    def _record_tool_batch(
         self, state: KleaAgentState, results: list[CallToolResult]
     ) -> dict[str, Any]:
-        """Update the ADaPT per-step retry counter from the tool results.
+        """Record a dispatched tool batch: retry counter + per-step outputs.
 
-        Passed as the tool caller's ``post_dispatch`` callback.  A conditional
-        -edge router cannot update state, so the counter is maintained here and
-        :class:`TriageRouter` reads it to decide retry vs replan.  The current
-        step's counter is incremented on any ``is_error`` result and cleared
-        when the batch made progress (ADR-0035).
+        Passed as the tool caller's ``post_dispatch`` callback.  Updates the
+        ADaPT per-step retry counter (a conditional-edge router cannot update
+        state, so the counter is maintained here and :class:`TriageRouter`
+        reads it to decide retry vs replan; incremented on any ``is_error``
+        result and cleared when the batch made progress, ADR-0035), and
+        appends the batch results to ``step_outputs`` so the Evaluator and
+        Planner see every observation for the step.  ``step_outputs`` is
+        bounded to the most recent ``MAX_STEP_RESULTS`` per step.
 
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
-        :returns: State updates carrying the updated retry counts.
+        :returns: State updates carrying the updated retry counts and outputs.
         """
         counts = update_tool_retry_counts(state, results)
-        self.logger.debug(f"{counts = }")
-        return {"tool_retry_counts": counts}
+        step = current_step_key(state)
+        outputs = dict(state.step_outputs or {})
+        outputs[step] = [*outputs.get(step, []), *results][-self.MAX_STEP_RESULTS :]
+        self.logger.debug(f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }")
+        return {"tool_retry_counts": counts, "step_outputs": outputs}
 
     async def _create_graph(self):
         """Create the LangGraph"""
@@ -341,7 +355,7 @@ class KleaAgent(BaseLangGraph):
             label="Running tools",
             mcp_client=self.mcp_client,
             tools_meta={t.name: t.meta for t in (self.mcp_tools or []) if t.meta},
-            post_dispatch=self._record_tool_retries,
+            post_dispatch=self._record_tool_batch,
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
         self._op_evaluator_node = OperationalEvaluator(

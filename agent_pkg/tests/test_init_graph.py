@@ -19,6 +19,7 @@ from klea_agent.schemas import (
     PlanSchema,
     StepSchema,
 )
+from langchain_core.messages import HumanMessage
 
 
 @pytest.mark.asyncio
@@ -52,5 +53,8 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["evaluation"].next_step == "plan_done"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update
-    assert "messages" not in update
     assert "context_summary" not in update
+    # The query is appended to the run history (messages is preserved + query).
+    assert len(update["messages"]) == 1
+    assert isinstance(update["messages"][-1], HumanMessage)
+    assert update["messages"][-1].content == "q"

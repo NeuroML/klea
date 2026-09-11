@@ -105,6 +105,14 @@ class TestOperationalEvaluator(unittest.TestCase):
             self._evaluator()._get_default_error_result().next_step, "need_replan"
         )
 
+    def test_verdict_recorded_in_messages(self):
+        update = self._evaluator()._update_state(
+            EvaluationSchema(next_step="need_replan", reason="no progress"),
+            self._state(),
+        )
+        self.assertIn("need_replan", update["messages"][-1].content)
+        self.assertIn("no progress", update["messages"][-1].content)
+
     def test_prompt_variables_include_criteria(self):
         evaluator = self._evaluator()
         variables = evaluator._get_prompt_variables(self._state())
