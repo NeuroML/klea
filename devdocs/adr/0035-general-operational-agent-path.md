@@ -296,52 +296,54 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
 * Supersedes: no prior ADR; the general path was not decided by ADR-0025
   (superseded by ADR-0029 for the correctness loop).
 
-## Update (2026-09-10): single-entry Planner
+## Update (2026-09-10): narrow router + task-only Planner
 
 The original decision kept a cheap `RouteDecision` first hop plus a separate
-`GoalSetter`.  After review, this was simplified to a **single entry node**:
-the `Planner` subsumes routing and goal-setting, and `RouteDecision`,
-`GoalSetter` and `RouteSchema` are removed.
+`GoalSetter`.  It was first simplified to a single-entry Planner that both
+routed and planned; live testing then showed that let the Planner answer
+environment questions inline from assumption (it hallucinated a cwd), which
+prompting alone cannot reliably prevent.  The final shape is a **narrow,
+fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
+`RouteDecision`/`RouteSchema` are reinstated with a smaller job.
 
-* The Planner receives the query and the tool catalogue, and emits a
-  `PlannerOutput { goal, plan, direct_answer }`.  It produces **a plan even
-  for a single action** ("always a plan"); there is no separate `act` branch
-  or seeded one-step plan.
-* `plan.status` is the **single source of routing truth**:
-  `not_needed` (answer inline) -> `AnswerUser`; `in_review` -> `AwaitReview`;
-  `unplannable` -> failure answer; `in_progress` -> step execution.  There is
-  no separate route/review flag, so routing cannot diverge from state.
-* Trivial chat is preserved as the cheap floor: the Planner answers inline
-  (`direct_answer`, `status = not_needed`), so it stays Guard + one call, but
-  with one node instead of a separate router.
-* Goal immutability moves into the Planner: it writes `state.goal` only while
-  unset; `InitGraphState` clears it per execution.
-* **Plans are tool-executable only**; requests needing no tools are answered
-  inline.  There is no separate reasoning-step node: reasoning happens in the
-  Planner (decomposition), the tools picker (arguments) and the
-  evaluator/answer synthesis.  The picker is the sole selector of the concrete
-  call; the step's `suggested_tools` is a prior it honours when they fit and
-  deviates from (with a reason) when they do not.  An empty selection means no
-  suitable tool and routes to a replan.  The contract is the step's success
-  criteria, not the tool identity.
+* `RouteDecision` runs after the Guard and decides only `chat` vs `task`; it is
+  tool-free, reads conversation history for follow-ups, answers `chat` inline,
+  and **defaults to `task` when unsure** (fail-closed).  It is the only place a
+  model may answer the user directly, and it must not answer world-facts.
+* The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
+  answers the user.  `plan.status` is the post-Planner routing source:
+  `in_review` -> `AwaitReview`, `unplannable` -> failure answer, `in_progress`
+  -> step execution.  It produces a plan even for a single action.
+* Trivial chat stays the cheap floor: Guard + RouteDecision (2 calls).
+* Goal immutability: the Planner writes `state.goal` only while unset;
+  `InitGraphState` clears it per execution.
+* **Plans are tool-executable only**.  There is no reasoning-step node:
+  reasoning happens in the router (chat), the Planner (decomposition), the
+  picker (arguments) and the evaluator/answer synthesis.  The picker is the
+  sole selector of the concrete call; the step's `suggested_tools` is a prior it
+  honours when they fit and deviates from (with a reason) when they do not.  An
+  empty selection means no suitable tool and routes to a replan.  The contract
+  is the step's success criteria, not the tool identity.
 * Plan review uses a human-input node (`AwaitReview`) whose free-text feedback
   the Planner interprets; the Planner owns the `in_review -> in_progress`
-  transition.  The first stage ships an auto-approve stub; real
-  LangGraph `interrupt`/resume is recorded as ADR-0037.
+  transition.  The first stage ships an auto-approve stub; real LangGraph
+  `interrupt`/resume is recorded as ADR-0037.
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan),
   repeated non-advancing evaluations (`step_attempt_counts` -> replan),
   Planner entries (`plan_revisions` -> `unplannable`) and total picker+caller
   rounds (`tool_rounds` -> `abort`).
 * Feedback is split by source: `evaluation` (LLM judge, structured) and
-  `human_feedback` (review text); the Planner receives both, and run progress
+  `human_feedback` (review text); both reach the Planner, and run progress
   (query, plans, verdicts, answers) is recorded in `messages`.
 * `AnswerFromResults` synthesises the final reply on success and explains the
   failure (from `failure_reason`) on `abort`/`unplannable`.
-* A deterministic `read_only | full` access level (tool-list filtering plus a
-  hard dispatch gate using the MCP `read_only`/`destructive` annotations) is
-  deferred to its own ADR.
+* Residual risk: a router misroute (a reality question answered as chat).  The
+  mitigations are the narrow fail-closed prompt; a deterministic env-keyword
+  backstop and an independent inline-answer verifier are deferred (the latter
+  is needed for scientific mode anyway, ADR-0029).  A general `run_command`
+  tool (deferred) makes environment facts answerable via the task path.
+* A deterministic `read_only | full` access level is deferred to its own ADR.
 
-This supersedes the `RouteDecision`/`GoalSetter` part of the decision above.
 The current mechanics live in
 `devdocs/system/agent-general-path-control-flow.md`.

@@ -32,6 +32,7 @@ from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
+from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.nodes.triage_router import (
     TriageRouter,
     current_step_key,
@@ -49,6 +50,7 @@ from .schemas import (
     Mode,
     PlannerOutput,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 
@@ -127,6 +129,7 @@ class KleaAgent(BaseLangGraph):
             Discovery,
             Mode,
             PlannerOutput,
+            RouteSchema,
             EvaluationSchema,
         ]
 
@@ -164,16 +167,17 @@ class KleaAgent(BaseLangGraph):
         await self.setup()
         return self.graph
 
+    async def _route_decision_router(self, state: KleaAgentState) -> str:
+        """Return the entry route (``chat`` or ``task``)."""
+        return state.route.route
+
     async def _planner_router(self, state: KleaAgentState) -> str:
         """Route on the Planner's ``plan.status`` (ADR-0035).
 
-        ``not_needed`` -> answer inline (the Planner wrote the answer);
         ``unplannable`` -> failure answer; ``in_review`` -> human review;
         otherwise (``in_progress``) -> run the plan through the tool work loop.
         """
         status = state.plan.status
-        if status == "not_needed":
-            return "answer"
         if status == "unplannable":
             return "failure"
         if status == "in_review":
@@ -334,9 +338,22 @@ class KleaAgent(BaseLangGraph):
             self._decline_to_answer_node.label, self._decline_to_answer_node.execute
         )
 
-        # Single entry brain (ADR-0035): the Planner decides inline answer vs
-        # plan, writes the immutable goal, and produces the plan.  It reads
-        # conversation history so follow-ups and earlier failed plans inform it.
+        # Entry router (ADR-0035): narrow, fail-closed ``chat`` vs ``task``.
+        # It answers ``chat`` inline; ``task`` goes to the Planner.  It reads
+        # conversation history for follow-ups and continuity.
+        self._route_decision_node = RouteDecision(
+            logger=self.logger,
+            label="Deciding route",
+            llm_models=self.llm_models,
+            memory=self.memory,
+        )
+        self.workflow.add_node(
+            self._route_decision_node.label, self._route_decision_node.execute
+        )
+
+        # Task path brain (ADR-0035): writes the immutable goal and the plan.
+        # It reads conversation history so follow-ups and earlier failed plans
+        # inform it, and never answers the user directly.
         self._planner_node = Planner(
             logger=self.logger,
             label="Planning",
@@ -441,16 +458,25 @@ class KleaAgent(BaseLangGraph):
             self._guard_node.label,
             self._guard_router_node.execute,
             {
-                "safe": self._planner_node.label,
+                "safe": self._route_decision_node.label,
                 "unsafe": self._decline_to_answer_node.label,
             },
         )
-        # Planner entry routing (ADR-0035): route on ``plan.status``.
+        # Entry routing (ADR-0035): the narrow router answers ``chat`` inline
+        # and hands ``task`` to the Planner.
+        self.workflow.add_conditional_edges(
+            self._route_decision_node.label,
+            self._route_decision_router,
+            {
+                "chat": self._answer_user_node.label,
+                "task": self._planner_node.label,
+            },
+        )
+        # Planner routing (ADR-0035): route on ``plan.status``.
         self.workflow.add_conditional_edges(
             self._planner_node.label,
             self._planner_router,
             {
-                "answer": self._answer_user_node.label,
                 "failure": self._answer_from_results_node.label,
                 "review": self._await_review_node.label,
                 "act": self._tools_picker_node.label,

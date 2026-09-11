@@ -44,5 +44,4 @@
 
 ---
 
-Based on the request above, answer directly (`direct_answer`) or provide an
-updated plan with the goal.
+Based on the request above, provide a plan with the goal.

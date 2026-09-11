@@ -17,6 +17,7 @@ from klea_agent.schemas import (
     KleaAgentState,
     Mode,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 from langchain_core.messages import HumanMessage
@@ -50,6 +51,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["plan_revisions"] == 0
     assert update["tool_rounds"] == 0
     assert update["failure_reason"] == ""
+    assert update["route"] == RouteSchema()
     assert update["evaluation"].next_step == "plan_done"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update

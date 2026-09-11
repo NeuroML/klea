@@ -16,17 +16,27 @@ from klea_agent.schemas import (
     KleaAgentState,
     PlannerOutput,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
 
+class TestRouteSchema:
+    """Entry routing defaults to the fail-closed ``task``."""
+
+    def test_defaults_to_task(self):
+        assert RouteSchema().route == "task"
+
+    @pytest.mark.parametrize("route", ["chat", "task"])
+    def test_accepts_routes(self, route):
+        assert RouteSchema(route=route).route == route
+
+
 class TestPlanSchema:
     """Entry routing statuses on the plan."""
 
-    @pytest.mark.parametrize(
-        "status", ["not_needed", "in_review", "in_progress", "unplannable"]
-    )
+    @pytest.mark.parametrize("status", ["in_review", "in_progress", "unplannable"])
     def test_entry_statuses_accepted(self, status):
         assert PlanSchema(status=status).status == status
 
@@ -49,6 +59,7 @@ class TestStateDefaults:
         assert state.tool_rounds == 0
         assert state.failure_reason == ""
         assert state.human_feedback == ""
+        assert state.route == RouteSchema()
 
 
 class TestCheckpointMsgpack:
@@ -58,12 +69,12 @@ class TestCheckpointMsgpack:
         allowed = KleaAgent.__new__(KleaAgent).get_allowed_msgpack_modules()
         serde = JsonPlusSerializer(allowed_msgpack_modules=allowed)
         payload = {
+            "route": RouteSchema(route="chat", answer="hi"),
             "planner_output": PlannerOutput(
                 goal=GoalSchema(goal="g", success_criteria="c"),
                 plan=PlanSchema(
                     step_list=[StepSchema(description="s")], status="in_progress"
                 ),
-                direct_answer="",
             ),
             "evaluation": EvaluationSchema(next_step="abort"),
             "step_attempt_counts": {0: 2},

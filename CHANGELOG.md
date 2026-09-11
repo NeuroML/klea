@@ -8,7 +8,7 @@
 
 - Agent operating modes (Scientific / General) with `Mode{requested,resolved,note}`, mode router, CLI `--mode` and web selector/badge (ADR-0030).
 - App-owned web mode UI (`ui/web/mode_ui.py`, `page.py`, `app.py`) and `GET /chat/{user}/{chat}/context` hydration on the agent side.
-- General-path `Planner` as the single entry point (answers trivial requests inline; otherwise plans and fixes the goal), replacing the separate route/goal nodes (ADR-0035).
+- General-path entry router (`RouteDecision`): a narrow, fail-closed `chat` vs `task` decision that answers trivial chat inline (2-call floor) and hands everything else to the `Planner`, which plans and fixes the goal but never answers the user (ADR-0035).
 - Human plan-review step (`AwaitReview`; auto-approve stub, real pause/resume deferred) and an `in_review` plan state.
 - Deterministic loop budgets and a terminal failure answer, so a stuck run stops and explains instead of looping.
 

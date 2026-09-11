@@ -21,6 +21,7 @@ from klea_agent.schemas import (
     GoalSchema,
     KleaAgentState,
     PlanSchema,
+    RouteSchema,
 )
 
 
@@ -55,6 +56,7 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "message_for_user": "",
             "plan": PlanSchema(),
             "goal": GoalSchema(),
+            "route": RouteSchema(),
             "evaluation": EvaluationSchema(),
             "tool_retry_counts": {},
             "step_attempt_counts": {},

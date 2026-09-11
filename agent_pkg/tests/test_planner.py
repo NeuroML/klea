@@ -24,7 +24,7 @@ from klea_utils.mcp.schemas import ToolInfo
 
 
 class TestPlannerState(unittest.TestCase):
-    """Planner state updates: inline answer, goal lock, plan, failure."""
+    """Planner state updates: goal lock, plan, failure."""
 
     def _planner(self) -> Planner:
         return Planner(
@@ -32,13 +32,6 @@ class TestPlannerState(unittest.TestCase):
             label="Planning",
             llm_models={"plan": object()},
         )
-
-    def test_direct_answer_sets_not_needed(self):
-        update = self._planner()._update_state(
-            PlannerOutput(direct_answer="hello"), KleaAgentState(query="hi")
-        )
-        self.assertEqual(update["plan"].status, "not_needed")
-        self.assertEqual(update["message_for_user"], "hello")
 
     def test_plan_writes_goal_and_in_progress(self):
         update = self._planner()._update_state(

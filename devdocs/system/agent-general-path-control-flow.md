@@ -3,7 +3,7 @@
 Status: design note, not an ADR.  Concrete mechanics for ADR-0035; to be
 replaced by the C4 agent component diagram once the graph is implemented.
 Written 2026-09-10 by opencode (model: deepseek-flash); revised same day to
-the single-entry Planner topology.
+the narrow-router + task-path topology.
 
 ## Scope
 
@@ -22,11 +22,12 @@ ModeDecision --(cannot run)--> ModeInformer -> END
   |
 Guard --(unsafe)--> DecliningQuery -> END
   |
-Planner (single entry: goal + plan + optional inline answer + review flag)
-  |-- status not_needed ----> AnswerUser -> END
-  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
-  |-- status in_review -----> AwaitReview --(user input only)--> Planner
-  '-- status in_progress ---> step entry
+RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
+  |-- chat --> AnswerUser -> END
+  '-- task --> Planner
+                 |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
+                 |-- status in_review -----> AwaitReview --(user input only)--> Planner
+                 '-- status in_progress ---> step entry
 
 Step entry (the tools picker is the sole tool selector):
   ToolsPicker --empty selection--> Planner   (no suitable tool: replan)
@@ -37,7 +38,7 @@ TriageRouter (deterministic, tool-error triage):
   retries exhausted    -> Planner
   no error             -> Evaluator
 
-Evaluator (operational judge; never sees entry statuses):
+Evaluator (operational judge):
   step_incomplete -> step entry
   step_done       -> step entry (next step)
   need_replan     -> Planner
@@ -45,9 +46,11 @@ Evaluator (operational judge; never sees entry statuses):
   abort           -> AnswerFromResults (failure) -> AnswerUser -> END
 ```
 
-Trivial chat: Guard plus one Planner call; the Planner answers inline
-(``status = not_needed``) and the graph goes straight to ``AnswerUser``.  There
-is no separate routing node.
+Trivial chat: Guard + RouteDecision (2 calls); the router answers inline and the
+graph goes straight to ``AnswerUser``.  ``RouteDecision`` is deliberately
+narrow and tool-free -- it only decides "self-contained conversation vs needs
+the environment", defaulting to ``task`` (fail-closed) so a world-fact is never
+answered from assumption.
 
 ## Nodes
 
@@ -56,7 +59,8 @@ is no separate routing node.
 | InitGraphState | seed/reset state | no |
 | ModeDecision / ModeInformer | resolve mode (ADR-0030) | no |
 | Guard | safety classification (ADR-0010) | yes (guard role) |
-| Planner | single entry brain: decide answer vs plan, write the immutable goal, create/revise the plan, flag review (ADR-0035) | yes (plan role) |
+| RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
+| Planner | task-path brain: write the immutable goal, create/revise the plan, flag review (ADR-0035); never answers the user | yes (plan role) |
 | AwaitReview | capture human review input only (no LLM); free-text feedback | no |
 | ToolsPicker + ToolsCaller (Act) | emit ``ToolCallsSchema`` and dispatch parallel tool calls (ADR-0020/0034) | picker yes, caller no |
 | TriageRouter | deterministic tool-error triage: error present? retries left? | no |
@@ -64,29 +68,27 @@ is no separate routing node.
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
 | AnswerUser | deliver the final user-facing message | no |
 
-## Planner outcomes and routing
+## Entry routing and Planner outcomes
 
-The Planner is the single entry decision-maker.  It receives the query, the
-tool catalogue and (with memory) recent history, and emits a
-``PlannerOutput``:
+``RouteDecision`` emits a ``RouteSchema`` and is the only place a model may
+answer the user directly:
 
-* ``goal: GoalSchema`` and ``plan: PlanSchema``;
-* ``direct_answer: str`` (payload when ``plan.status == "not_needed"``).
+| route | meaning | edge |
+|-------|---------|------|
+| ``chat`` | self-contained conversation/knowledge; the router wrote ``answer`` | ``AnswerUser`` |
+| ``task`` | needs the environment/workspace/session | ``Planner`` |
 
-``plan.status`` is the **single source of routing truth**; there is no separate
-route flag or review flag.  Entry statuses and their routing:
+The Planner (task path only) emits ``PlannerOutput {goal, plan}``;
+``plan.status`` is the post-Planner routing source:
 
-| status | meaning | post-Planner edge |
-|--------|---------|-------------------|
-| ``not_needed`` | answer inline, no plan | ``AnswerUser`` |
+| status | meaning | edge |
+|--------|---------|------|
 | ``in_review`` | plan produced, awaiting human review | ``AwaitReview`` |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | approved; execute | step entry |
+| ``in_progress`` | ready; execute | step entry |
 
-``Planner._update_state`` normalises deterministically: steps + review ->
-``in_review``; steps -> ``in_progress``; no steps + ``direct_answer`` ->
-``not_needed``; no steps + no answer -> ``unplannable``.  ``direct_answer`` is
-payload only and is never read for routing.
+``Planner._update_state``: steps + review -> ``in_review``; steps ->
+``in_progress``; no steps -> ``unplannable``.  It never answers the user.
 
 ## Plan review (human-in-the-loop)
 
@@ -111,18 +113,19 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 
 | Node | Tool info | Rationale |
 |------|-----------|-----------|
+| RouteDecision | no tool list | narrow chat|task routing; tools would only tempt capability guessing |
 | Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
 | ToolsPicker | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` |
 
-Plans are **tool-executable only**: a request that needs no tools is answered
-inline by the Planner, so a plan step always goes through the picker.  The
-Planner's per-step ``suggested_tools`` is a **prior**, not a binding: the picker
-honours it when it fits and otherwise picks a different available tool (giving a
-``reason``), or returns an empty list when nothing fits (-> replan).  The
-outcome contract is the step's success criteria, judged by the Evaluator; a
-different tool that meets the criteria is fine, and a tool that does not is
-caught by ``need_replan``.  The picker is shared with RAG, which has no
-suggestions and simply selects from all tools.
+Plans are **tool-executable only**: a self-contained request that needs no tools
+is answered inline by ``RouteDecision`` (``chat``), so a plan step always goes
+through the picker.  The Planner's per-step ``suggested_tools`` is a **prior**,
+not a binding: the picker honours it when it fits and otherwise picks a
+different available tool (giving a ``reason``), or returns an empty list when
+nothing fits (-> replan).  The outcome contract is the step's success criteria,
+judged by the Evaluator; a different tool that meets the criteria is fine, and a
+tool that does not is caught by ``need_replan``.  The picker is shared with RAG,
+which has no suggestions and simply selects from all tools.
 
 Access level (deferred; its own ADR): a ``read_only | full`` policy that
 filters the Planner's and picker's tool lists by the MCP
@@ -141,6 +144,8 @@ and it is shared with RAG (ADR-0020).
 
 ## State (relevant fields)
 
+* ``route: RouteSchema`` (entry routing: ``chat`` | ``task``, with the inline
+  chat answer).
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
 * ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``,

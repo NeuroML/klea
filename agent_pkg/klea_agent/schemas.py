@@ -80,12 +80,11 @@ class StepSchema(BaseModel):
 class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
     #: Lifecycle + routing status.  The Planner writes the entry values
-    #: (``not_needed`` | ``in_review`` | ``in_progress`` | ``unplannable``);
-    #: the Evaluator/budget guards write the terminal ones.  This single field
-    #: is the post-Planner routing source; no separate route flag exists.
+    #: (``in_review`` | ``in_progress`` | ``unplannable``); the Evaluator/budget
+    #: guards write the terminal ones.  This single field is the post-Planner
+    #: routing source; no separate route flag exists.
     status: Literal[
         "not_started",
-        "not_needed",
         "in_review",
         "in_progress",
         "completed",
@@ -187,23 +186,35 @@ class Mode(BaseModel):
     )
 
 
+class RouteSchema(BaseModel):
+    """Entry routing decision made by ``RouteDecision`` (ADR-0035).
+
+    ``chat`` is a self-contained general-conversation/knowledge request that
+    the router answers inline (``answer``); ``task`` is anything needing the
+    current environment/workspace/session and is handed to the Planner.  The
+    default is ``task`` (fail-closed: never answer a world-fact from
+    assumption).
+    """
+
+    route: Literal["chat", "task"] = Field(
+        default="task",
+        description="Answer inline (chat) or plan and execute (task)",
+    )
+    answer: str = Field(default="", description="Inline answer when route is 'chat'")
+
+
 class PlannerOutput(BaseModel):
     """Structured output of the Planner (ADR-0035).
 
-    The Planner is the single entry brain: it decides whether the request can
-    be answered directly (``direct_answer``) and otherwise writes the
-    immutable ``goal`` and an evolvable ``plan``.  ``plan.status`` carries the
-    routing outcome: ``not_needed`` (answered inline), ``in_progress``
+    The Planner is the task path's brain: it writes the immutable ``goal`` and
+    an evolvable ``plan``.  ``plan.status`` carries the outcome: ``in_progress``
     (execute the plan), ``in_review`` (await human review), or ``unplannable``
-    (no viable plan).  ``direct_answer`` is payload only and is never read for
-    routing.
+    (no viable plan).  It never answers the user directly -- chat is handled by
+    ``RouteDecision`` and the final reply by ``AnswerFromResults``.
     """
 
     goal: GoalSchema = GoalSchema()
     plan: PlanSchema = PlanSchema()
-    direct_answer: str = Field(
-        default="", description="Inline answer when no plan/action is needed"
-    )
 
 
 class EvaluationSchema(BaseModel):
@@ -238,6 +249,7 @@ class KleaAgentState(BaseModel):
         default_factory=TokenUsage
     )
     mode: Mode = Mode()
+    route: RouteSchema = RouteSchema()
     evaluation: EvaluationSchema = EvaluationSchema()
 
     # code string if any

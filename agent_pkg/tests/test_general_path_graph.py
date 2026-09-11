@@ -37,12 +37,13 @@ async def _compile(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_general_path_work_loop(monkeypatch):
-    """The single-entry Planner routes to answer | failure | work loop."""
+    """The narrow router splits chat | task; the task path runs the loop."""
     graph = await _compile(monkeypatch)
     node_names = {n.name for n in graph.nodes.values()}
     edges = {(e.source, e.target) for e in graph.edges}
 
     for expected in (
+        "Deciding route",
         "Planning",
         "Awaiting review",
         "Selecting tools",
@@ -53,16 +54,15 @@ async def test_general_path_work_loop(monkeypatch):
     ):
         assert expected in node_names
 
-    # The old split entry nodes are gone (ADR-0035 update).
-    assert "Deciding route" not in node_names
     assert "Setting goal" not in node_names
 
-    # Entry: guard -> planner (single brain).
-    assert ("Checking safety", "Planning") in edges
+    # Entry: guard -> route decision; chat -> answer, task -> planner.
+    assert ("Checking safety", "Deciding route") in edges
+    assert ("Deciding route", "Preparing response") in edges  # chat
+    assert ("Deciding route", "Planning") in edges  # task
 
     # Planner routing on plan.status.
-    assert ("Planning", "Preparing response") in edges  # not_needed
-    assert ("Planning", "Composing answer") in edges  # unplannable
+    assert ("Planning", "Composing answer") in edges  # unplannable -> failure
     assert ("Planning", "Awaiting review") in edges  # in_review
     assert ("Planning", "Selecting tools") in edges  # in_progress
 
