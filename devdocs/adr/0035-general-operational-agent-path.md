@@ -295,3 +295,41 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
   plans.
 * Supersedes: no prior ADR; the general path was not decided by ADR-0025
   (superseded by ADR-0029 for the correctness loop).
+
+## Update (2026-09-10): single-entry Planner
+
+The original decision kept a cheap `RouteDecision` first hop plus a separate
+`GoalSetter`.  After review, this was simplified to a **single entry node**:
+the `Planner` subsumes routing and goal-setting, and `RouteDecision`,
+`GoalSetter` and `RouteSchema` are removed.
+
+* The Planner receives the query and the tool catalogue, and emits a
+  `PlannerOutput { goal, plan, direct_answer }`.  It produces **a plan even
+  for a single action** ("always a plan"); there is no separate `act` branch
+  or seeded one-step plan.
+* `plan.status` is the **single source of routing truth**:
+  `not_needed` (answer inline) -> `AnswerUser`; `in_review` -> `AwaitReview`;
+  `unplannable` -> failure answer; `in_progress` -> step execution.  There is
+  no separate route/review flag, so routing cannot diverge from state.
+* Trivial chat is preserved as the cheap floor: the Planner answers inline
+  (`direct_answer`, `status = not_needed`), so it stays Guard + one call, but
+  with one node instead of a separate router.
+* Goal immutability moves into the Planner: it writes `state.goal` only while
+  unset; `InitGraphState` clears it per execution.
+* Steps may be tool-backed or reasoning/content-only; a reasoning step skips
+  the tools picker (a `ReasonStep` node generates its content).  The Planner
+  notes tool use per step; the picker remains the authority on which tool fits
+  an executable step.
+* Plan review uses a human-input node (`AwaitReview`) whose free-text feedback
+  the Planner interprets; the Planner owns the `in_review -> in_progress`
+  transition.  The first stage ships an auto-approve stub; real
+  LangGraph `interrupt`/resume is recorded as ADR-0037.
+* Deterministic abort/retry guards are unchanged and still bound the
+  act/eval loop; they are the reason the simplification is safe.
+* A deterministic `read_only | full` access level (tool-list filtering plus a
+  hard dispatch gate using the MCP `read_only`/`destructive` annotations) is
+  deferred to its own ADR.
+
+This supersedes the `RouteDecision`/`GoalSetter` part of the decision above.
+The current mechanics live in
+`devdocs/system/agent-general-path-control-flow.md`.
