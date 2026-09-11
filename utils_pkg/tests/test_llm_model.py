@@ -6,6 +6,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+import pytest
 from klea_utils.llm import LLMModel
 
 logging.basicConfig(level=logging.DEBUG)
@@ -300,3 +301,72 @@ class TestFullMerge:
         assert c["model_provider"] == "ollama"
         # Layer 0 still present (not overridden by anything)
         assert c["max_tokens"] == 2048
+
+
+# ---------------------------------------------------------------------------
+# custom: endpoint surface detection
+# ---------------------------------------------------------------------------
+
+
+class TestCustomEndpointSurface:
+    """``custom:`` model strings map their endpoint suffix to a surface."""
+
+    def _config(self, model_name, **kwargs):
+        model = LLMModel(
+            model_name=model_name,
+            instance=None,
+            user_agent="klea-agent/0.0.1",
+        )
+        return configurable(model.build_config(**kwargs))
+
+    def test_base_url_defaults_to_openai(self):
+        c = self._config("custom:some-model:https://opencode.ai/zen/go/v1/")
+        assert c["model_provider"] == "openai"
+        # Bare base URL is preserved verbatim for backward compatibility.
+        assert c["base_url"] == "https://opencode.ai/zen/go/v1/"
+        assert "use_responses_api" not in c
+
+    def test_chat_completions_endpoint(self):
+        c = self._config(
+            "custom:deepseek-v4.1-flash:https://opencode.ai/zen/go/v1/chat/completions"
+        )
+        assert c["model_provider"] == "openai"
+        assert c["base_url"] == "https://opencode.ai/zen/go/v1"
+        assert c["use_responses_api"] is False
+
+    def test_responses_endpoint(self):
+        c = self._config(
+            "custom:muse-spark-1.3-contributor:https://opencode.ai/zen/go/v1/responses"
+        )
+        assert c["model_provider"] == "openai"
+        assert c["base_url"] == "https://opencode.ai/zen/go/v1"
+        assert c["use_responses_api"] is True
+
+    def test_messages_endpoint(self):
+        pytest.importorskip("langchain_anthropic")
+        c = self._config("custom:minimax-m3:https://opencode.ai/zen/go/v1/messages")
+        assert c["model_provider"] == "anthropic"
+        # The Anthropic SDK re-appends /v1/messages, so /v1 is stripped too.
+        assert c["anthropic_api_url"] == "https://opencode.ai/zen/go"
+        assert "base_url" not in c
+
+    def test_messages_copies_openai_api_key_from_env(self, monkeypatch):
+        pytest.importorskip("langchain_anthropic")
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        c = self._config("custom:minimax-m3:https://opencode.ai/zen/go/v1/messages")
+        assert c["anthropic_api_key"] == "env-key"
+
+    def test_messages_prefers_explicit_api_key(self, monkeypatch):
+        pytest.importorskip("langchain_anthropic")
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        c = self._config(
+            "custom:minimax-m3:https://opencode.ai/zen/go/v1/messages",
+            context_overrides={"api_key": "override-key"},
+        )
+        assert c["anthropic_api_key"] == "override-key"
+
+    def test_messages_without_any_key(self, monkeypatch):
+        pytest.importorskip("langchain_anthropic")
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        c = self._config("custom:minimax-m3:https://opencode.ai/zen/go/v1/messages")
+        assert "anthropic_api_key" not in c
