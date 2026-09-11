@@ -17,10 +17,8 @@ from klea_agent.schemas import (
     KleaAgentState,
     Mode,
     PlanSchema,
-    RouteSchema,
     StepSchema,
 )
-from klea_utils.mcp.schemas import ToolCallsSchema
 
 
 @pytest.mark.asyncio
@@ -40,8 +38,6 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
         plan_revisions=2,
         turn_iterations=4,
         failure_reason="boom",
-        tool_selection=ToolCallsSchema(reason="stale"),
-        route=RouteSchema(route="act"),
         evaluation=EvaluationSchema(next_step="step_done"),
     )
     update = await node.execute(state)
@@ -53,8 +49,6 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["plan_revisions"] == 0
     assert update["turn_iterations"] == 0
     assert update["failure_reason"] == ""
-    assert update["tool_selection"] == ToolCallsSchema()
-    assert update["route"].route == "answer"
     assert update["evaluation"].next_step == "plan_done"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update

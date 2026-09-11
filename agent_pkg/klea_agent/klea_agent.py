@@ -17,7 +17,6 @@ from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
-from klea_utils.mcp.schemas import ToolCallsSchema
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
 from klea_utils.nodes.guard_router import GuardRouterNode
@@ -28,12 +27,10 @@ from langgraph.graph import END, START, StateGraph
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
-from klea_agent.nodes.goal_setter import GoalSetter
 from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
-from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.nodes.triage_router import TriageRouter, update_tool_retry_counts
 
 from .config import AppConfig
@@ -45,8 +42,8 @@ from .schemas import (
     GoalSchema,
     KleaAgentState,
     Mode,
+    PlannerOutput,
     PlanSchema,
-    RouteSchema,
     StepSchema,
 )
 
@@ -120,9 +117,8 @@ class KleaAgent(BaseLangGraph):
             ArtefactSchema,
             Discovery,
             Mode,
-            RouteSchema,
+            PlannerOutput,
             EvaluationSchema,
-            ToolCallsSchema,
         ]
 
     @override
@@ -159,16 +155,26 @@ class KleaAgent(BaseLangGraph):
         await self.setup()
         return self.graph
 
-    async def _route_decision_router(self, state: KleaAgentState) -> str:
-        """Return the RouteDecision label (``answer`` | ``act`` | ``plan``)."""
-        return state.route.route
+    async def _planner_router(self, state: KleaAgentState) -> str:
+        """Route on the Planner's ``plan.status`` (ADR-0035).
+
+        ``not_needed`` -> answer inline (the Planner wrote the answer);
+        ``unplannable`` -> failure answer; otherwise (``in_progress``) -> run
+        the plan through the tool work loop.
+        """
+        status = state.plan.status
+        if status == "not_needed":
+            return "answer"
+        if status == "unplannable":
+            return "failure"
+        return "act"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
         """Return the OperationalEvaluator verdict (ADR-0035).
 
         ``step_incomplete`` / ``step_done`` continue the work loop through the
-        picker; ``need_replan`` escalates to the Planner (through GoalSetter);
-        ``plan_done`` ends at the answer.
+        picker; ``need_replan`` escalates to the Planner; ``plan_done`` ends at
+        the answer and ``abort`` at the failure answer.
         """
         return state.evaluation.next_step
 
@@ -292,30 +298,14 @@ class KleaAgent(BaseLangGraph):
             self._decline_to_answer_node.label, self._decline_to_answer_node.execute
         )
 
-        self._goal_setter_node = GoalSetter(
-            logger=self.logger,
-            label="Setting goal",
-            llm_models=self.llm_models,
-            output_schema=GoalSchema,
-            memory=False,
-        )
-        self.workflow.add_node(
-            self._goal_setter_node.label, self._goal_setter_node.execute
-        )
-
-        self._route_decision_node = RouteDecision(
-            logger=self.logger,
-            label="Deciding route",
-            llm_models=self.llm_models,
-        )
-        self.workflow.add_node(
-            self._route_decision_node.label, self._route_decision_node.execute
-        )
-
+        # Single entry brain (ADR-0035): the Planner decides inline answer vs
+        # plan, writes the immutable goal, and produces the plan.  It reads
+        # conversation history so follow-ups and earlier failed plans inform it.
         self._planner_node = Planner(
             logger=self.logger,
             label="Planning",
             llm_models=self.llm_models,
+            memory=self.memory,
         )
         self._planner_node.set_tools_info(self.tools_info)
         # ToolsPicker/Caller are the shared nodes from ``klea_utils`` (ADR-0020).
@@ -408,24 +398,20 @@ class KleaAgent(BaseLangGraph):
             self._guard_node.label,
             self._guard_router_node.execute,
             {
-                "safe": self._route_decision_node.label,
+                "safe": self._planner_node.label,
                 "unsafe": self._decline_to_answer_node.label,
             },
         )
-        # Entry routing (ADR-0035): answer inline, single act, or plan.
+        # Planner entry routing (ADR-0035): route on ``plan.status``.
         self.workflow.add_conditional_edges(
-            self._route_decision_node.label,
-            self._route_decision_router,
+            self._planner_node.label,
+            self._planner_router,
             {
                 "answer": self._answer_user_node.label,
+                "failure": self._answer_from_results_node.label,
                 "act": self._tools_picker_node.label,
-                "plan": self._goal_setter_node.label,
             },
         )
-        # Work loop: GoalSetter gates every Planner entry and is skipped when
-        # the goal is already set (ADR-0035: the goal is immutable).
-        self.workflow.add_edge(self._goal_setter_node.label, self._planner_node.label)
-        self.workflow.add_edge(self._planner_node.label, self._tools_picker_node.label)
         self.workflow.add_edge(
             self._tools_picker_node.label, self._tools_caller_node.label
         )
@@ -435,7 +421,7 @@ class KleaAgent(BaseLangGraph):
             {
                 "retry": self._tools_picker_node.label,
                 "evaluate": self._op_evaluator_node.label,
-                "replan": self._goal_setter_node.label,
+                "replan": self._planner_node.label,
             },
         )
         self.workflow.add_conditional_edges(
@@ -444,8 +430,9 @@ class KleaAgent(BaseLangGraph):
             {
                 "step_incomplete": self._tools_picker_node.label,
                 "step_done": self._tools_picker_node.label,
-                "need_replan": self._goal_setter_node.label,
+                "need_replan": self._planner_node.label,
                 "plan_done": self._answer_from_results_node.label,
+                "abort": self._answer_from_results_node.label,
             },
         )
         # Answer synthesis is separate from evaluation: the Evaluator judges,

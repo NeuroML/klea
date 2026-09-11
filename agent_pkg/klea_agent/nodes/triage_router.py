@@ -64,7 +64,7 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
 
     * no error -> ``evaluate`` (hand off to the Evaluator);
     * call-level error with retries left -> ``retry`` (re-pick with the error);
-    * retries exhausted -> ``replan`` (escalate to GoalSetter -> Planner).
+    * retries exhausted -> ``replan`` (escalate to Planner).
 
     Semantic step/plan judgements belong to the Evaluator.  The retry budget
     is the ADaPT policy: re-pick a step N times, then escalate.  Failure is

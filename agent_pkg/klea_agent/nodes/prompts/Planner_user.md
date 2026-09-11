@@ -1,23 +1,30 @@
-## Goal
+## Request
+
+{query}
+
+---
+
+## Current goal
 
 {goal}
 
 ---
 
-## Current state
-
-### Current plan
+## Current plan
 
 {plan}
 
 ---
 
-## Execution history:
+## Project context
 
-### Artefacts:
+### Discovery
+
+{discovery}
+
+### Artefacts
 
 {artefacts}
-
 
 ### Observations
 
@@ -25,5 +32,5 @@
 
 ---
 
-
-Based on the above state, please provide an updated plan.
+Based on the request above, answer directly (`direct_answer`) or provide an
+updated plan with the goal.

@@ -11,7 +11,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Any, override
 
-from klea_utils.mcp.schemas import ToolCallsSchema
 from klea_utils.nodes.abstract import AbstractLangGraphNode
 
 from klea_agent.schemas import (
@@ -21,7 +20,6 @@ from klea_agent.schemas import (
     GoalSchema,
     KleaAgentState,
     PlanSchema,
-    RouteSchema,
 )
 
 
@@ -50,14 +48,12 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "message_for_user": "",
             "plan": PlanSchema(),
             "goal": GoalSchema(),
-            "route": RouteSchema(),
             "evaluation": EvaluationSchema(),
             "tool_retry_counts": {},
             "step_attempt_counts": {},
             "plan_revisions": 0,
             "turn_iterations": 0,
             "failure_reason": "",
-            "tool_selection": ToolCallsSchema(),
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},

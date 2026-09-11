@@ -37,14 +37,12 @@ async def _compile(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_general_path_work_loop(monkeypatch):
-    """Entry routing branches answer | act | plan; the work loop is wired."""
+    """The single-entry Planner routes to answer | failure | work loop."""
     graph = await _compile(monkeypatch)
     node_names = {n.name for n in graph.nodes.values()}
     edges = {(e.source, e.target) for e in graph.edges}
 
     for expected in (
-        "Deciding route",
-        "Setting goal",
         "Planning",
         "Selecting tools",
         "Running tools",
@@ -54,22 +52,26 @@ async def test_general_path_work_loop(monkeypatch):
     ):
         assert expected in node_names
 
-    # Entry: guard -> route decision; route -> answer | act | plan.
-    assert ("Checking safety", "Deciding route") in edges
-    assert ("Deciding route", "Preparing response") in edges  # answer
-    assert ("Deciding route", "Selecting tools") in edges  # act
-    assert ("Deciding route", "Setting goal") in edges  # plan
+    # The old split entry nodes are gone (ADR-0035 update).
+    assert "Deciding route" not in node_names
+    assert "Setting goal" not in node_names
+
+    # Entry: guard -> planner (single brain).
+    assert ("Checking safety", "Planning") in edges
+
+    # Planner routing on plan.status.
+    assert ("Planning", "Preparing response") in edges  # not_needed
+    assert ("Planning", "Composing answer") in edges  # unplannable
+    assert ("Planning", "Selecting tools") in edges  # in_progress
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
-    assert ("Setting goal", "Planning") in edges
-    assert ("Planning", "Selecting tools") in edges
     assert ("Selecting tools", "Running tools") in edges
     assert ("Running tools", "Selecting tools") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
-    assert ("Running tools", "Setting goal") in edges  # replan
+    assert ("Running tools", "Planning") in edges  # replan
     assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done
-    assert ("Evaluating", "Setting goal") in edges  # need_replan
-    assert ("Evaluating", "Composing answer") in edges  # plan_done
+    assert ("Evaluating", "Planning") in edges  # need_replan
+    assert ("Evaluating", "Composing answer") in edges  # plan_done/abort
     assert ("Composing answer", "Preparing response") in edges
 
 

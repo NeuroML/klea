@@ -12,12 +12,18 @@ import logging
 import unittest
 
 from klea_agent.nodes.planner import Planner
-from klea_agent.schemas import KleaAgentState, PlanSchema, StepSchema
+from klea_agent.schemas import (
+    GoalSchema,
+    KleaAgentState,
+    PlannerOutput,
+    PlanSchema,
+    StepSchema,
+)
 from klea_utils.mcp.schemas import ToolInfo
 
 
-class TestPlanner(unittest.TestCase):
-    """Planner state updates and tiered tool disclosure."""
+class TestPlannerState(unittest.TestCase):
+    """Planner state updates: inline answer, goal lock, plan, failure."""
 
     def _planner(self) -> Planner:
         return Planner(
@@ -26,35 +32,93 @@ class TestPlanner(unittest.TestCase):
             llm_models={"plan": object()},
         )
 
-    def test_update_state_does_not_write_goal(self):
-        """The Planner is not a goal writer (ADR-0035: the goal is immutable)."""
-        planner = self._planner()
-        state = KleaAgentState()
-        result = PlanSchema(
-            step_list=[
-                StepSchema(
-                    step_number=1,
-                    description="read the model file",
-                    success_criteria="file content is available",
-                )
-            ]
+    def test_direct_answer_sets_not_needed(self):
+        update = self._planner()._update_state(
+            PlannerOutput(direct_answer="hello"), KleaAgentState(query="hi")
         )
-        update = planner._update_state(result, state)
-        self.assertNotIn("goal", update)
-        self.assertIn("plan", update)
-        plan = update["plan"]
-        self.assertEqual(plan.status, "in_progress")
+        self.assertEqual(update["plan"].status, "not_needed")
+        self.assertEqual(update["message_for_user"], "hello")
+
+    def test_plan_writes_goal_and_in_progress(self):
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="g", success_criteria="c"),
+                plan=PlanSchema(
+                    step_list=[
+                        StepSchema(
+                            step_number=1,
+                            description="read the model file",
+                            success_criteria="file content is available",
+                        )
+                    ]
+                ),
+            ),
+            KleaAgentState(query="q"),
+        )
+        self.assertEqual(update["goal"].goal, "g")
+        self.assertEqual(update["plan"].status, "in_progress")
         self.assertEqual(
-            plan.step_list[0].success_criteria, "file content is available"
+            update["plan"].step_list[0].success_criteria, "file content is available"
         )
 
-    def test_empty_plan_marks_failed(self):
-        """An empty plan is marked failed rather than left not_started."""
-        update = self._planner()._update_state(PlanSchema(), KleaAgentState())
-        self.assertEqual(update["plan"].status, "failed")
+    def test_goal_is_locked_once_set(self):
+        """A replan cannot move the fixed goal (ADR-0035)."""
+        state = KleaAgentState(goal=GoalSchema(goal="fixed", success_criteria="c"))
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="different"),
+                plan=PlanSchema(step_list=[StepSchema(description="s")]),
+            ),
+            state,
+        )
+        self.assertNotIn("goal", update)
+        self.assertEqual(update["plan"].status, "in_progress")
+
+    def test_empty_plan_is_unplannable(self):
+        update = self._planner()._update_state(PlannerOutput(), KleaAgentState())
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertIn("failure_reason", update)
+
+    def test_completed_steps_are_reapplied(self):
+        """Steps already done in the old plan stay done in a fresh plan."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, status="done"),
+                    StepSchema(step_number=2),
+                ],
+                status="in_progress",
+                current_step_index=1,
+            )
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlanSchema(
+                    step_list=[
+                        StepSchema(step_number=1, description="a"),
+                        StepSchema(step_number=2, description="b"),
+                    ]
+                )
+            ),
+            state,
+        )
+        plan = update["plan"]
+        self.assertEqual(plan.step_list[0].status, "done")
+        self.assertEqual(plan.step_list[1].status, "pending")
+        self.assertEqual(plan.current_step_index, 1)
+
+
+class TestPlannerToolDisclosure(unittest.TestCase):
+    """The planner consumes the compact (short) tool description."""
+
+    def _planner(self) -> Planner:
+        return Planner(
+            logger=logging.getLogger("test"),
+            label="Planning",
+            llm_models={"plan": object()},
+        )
 
     def test_tool_descriptions_prefer_short(self):
-        """The planner consumes the compact (short) tool description."""
         planner = self._planner()
         planner.set_tools_info(
             {
@@ -69,7 +133,6 @@ class TestPlanner(unittest.TestCase):
         self.assertEqual(planner._get_tool_descriptions(), "read -- docstring only")
 
     def test_tool_descriptions_fall_back_to_full(self):
-        """Falls back to the full description when no short form exists."""
         planner = self._planner()
         planner.set_tools_info(
             {"code": {"read": ToolInfo(description="read -- full description")}}

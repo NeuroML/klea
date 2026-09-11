@@ -12,49 +12,23 @@ import pytest
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import (
     EvaluationSchema,
+    GoalSchema,
     KleaAgentState,
+    PlannerOutput,
     PlanSchema,
     StepSchema,
 )
-from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from pydantic import ValidationError
 
 
-class TestToolCallsSchema:
-    """Picker output: tool calls plus the explicit suitability assessment."""
+class TestPlanSchema:
+    """Entry routing statuses on the plan."""
 
-    def test_defaults_are_tools(self):
-        schema = ToolCallsSchema()
-        assert schema.tool_calls == []
-        assert schema.assessment == "tools"
-        assert schema.reason == ""
-
-    @pytest.mark.parametrize("assessment", ["tools", "reasoning", "unavailable"])
-    def test_accepts_known_assessments(self, assessment):
-        schema = ToolCallsSchema(assessment=assessment)
-        assert schema.assessment == assessment
-
-    def test_rejects_unknown_assessment(self):
-        with pytest.raises(ValidationError):
-            ToolCallsSchema.model_validate({"assessment": "nonsense"})
-
-
-class TestStepAndPlanSchema:
-    """New step kind and plan status values."""
-
-    def test_step_kind_defaults_to_tool(self):
-        assert StepSchema().kind == "tool"
-
-    def test_step_kind_accepts_reasoning(self):
-        assert StepSchema(kind="reasoning").kind == "reasoning"
-
-    def test_step_kind_rejects_unknown(self):
-        with pytest.raises(ValidationError):
-            StepSchema.model_validate({"kind": "chat"})
-
-    def test_plan_status_accepts_unplannable(self):
-        assert PlanSchema(status="unplannable").status == "unplannable"
+    @pytest.mark.parametrize(
+        "status", ["not_needed", "in_review", "in_progress", "unplannable"]
+    )
+    def test_entry_statuses_accepted(self, status):
+        assert PlanSchema(status=status).status == status
 
 
 class TestEvaluationSchema:
@@ -74,28 +48,21 @@ class TestStateDefaults:
         assert state.plan_revisions == 0
         assert state.turn_iterations == 0
         assert state.failure_reason == ""
-        assert state.tool_selection == ToolCallsSchema()
 
 
 class TestCheckpointMsgpack:
-    """Nested state models round-trip and are in the checkpoint allowlist."""
-
-    def test_models_are_allowlisted(self):
-        allowed = KleaAgent.__new__(KleaAgent).get_allowed_msgpack_modules()
-        assert ToolCallsSchema in allowed
+    """Nested state models round-trip through the checkpoint serializer."""
 
     def test_nested_models_roundtrip(self):
         allowed = KleaAgent.__new__(KleaAgent).get_allowed_msgpack_modules()
         serde = JsonPlusSerializer(allowed_msgpack_modules=allowed)
         payload = {
-            "tool_selection": ToolCallsSchema(
-                assessment="reasoning",
-                reason="no tool needed",
-                tool_calls=[ToolCallSchema(tool="list_files")],
-            ),
-            "plan": PlanSchema(
-                step_list=[StepSchema(description="s", kind="reasoning")],
-                status="unplannable",
+            "planner_output": PlannerOutput(
+                goal=GoalSchema(goal="g", success_criteria="c"),
+                plan=PlanSchema(
+                    step_list=[StepSchema(description="s")], status="in_progress"
+                ),
+                direct_answer="",
             ),
             "evaluation": EvaluationSchema(next_step="abort"),
             "step_attempt_counts": {0: 2},

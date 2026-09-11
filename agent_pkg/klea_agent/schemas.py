@@ -67,9 +67,20 @@ class StepSchema(BaseModel):
 
 class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
-    status: Literal["not_started", "in_progress", "completed", "failed", "aborted"] = (
-        Field(default="not_started", validate_default=True)
-    )
+    #: Lifecycle + routing status.  The Planner writes the entry values
+    #: (``not_needed`` | ``in_review`` | ``in_progress`` | ``unplannable``);
+    #: the Evaluator/budget guards write the terminal ones.  This single field
+    #: is the post-Planner routing source; no separate route flag exists.
+    status: Literal[
+        "not_started",
+        "not_needed",
+        "in_review",
+        "in_progress",
+        "completed",
+        "failed",
+        "aborted",
+        "unplannable",
+    ] = Field(default="not_started", validate_default=True)
     current_step_index: int = 0
 
     def render(self, *, markdown: bool = False) -> str:
@@ -164,19 +175,23 @@ class Mode(BaseModel):
     )
 
 
-class RouteSchema(BaseModel):
-    """Upfront routing decision made by ``RouteDecision`` (ADR-0035).
+class PlannerOutput(BaseModel):
+    """Structured output of the Planner (ADR-0035).
 
-    ``answer`` is populated only for the ``answer`` route (the node answers
-    inline); ``rationale`` is a short justification kept for inspection.
+    The Planner is the single entry brain: it decides whether the request can
+    be answered directly (``direct_answer``) and otherwise writes the
+    immutable ``goal`` and an evolvable ``plan``.  ``plan.status`` carries the
+    routing outcome: ``not_needed`` (answered inline), ``in_progress``
+    (execute the plan), ``in_review`` (await human review), or ``unplannable``
+    (no viable plan).  ``direct_answer`` is payload only and is never read for
+    routing.
     """
 
-    route: Literal["answer", "act", "plan"] = Field(
-        default="answer",
-        description="Answer directly, handle with a single act, or plan",
+    goal: GoalSchema = GoalSchema()
+    plan: PlanSchema = PlanSchema()
+    direct_answer: str = Field(
+        default="", description="Inline answer when no plan/action is needed"
     )
-    answer: str = Field(default="", description="Inline answer when route is 'answer'")
-    rationale: str = Field(default="", description="Short justification for the route")
 
 
 class EvaluationSchema(BaseModel):
@@ -193,6 +208,7 @@ class EvaluationSchema(BaseModel):
         "step_done",
         "plan_done",
         "need_replan",
+        "abort",
     ] = Field(
         default="plan_done",
         description="Operational routing outcome for the current step/task",
@@ -210,7 +226,6 @@ class KleaAgentState(BaseModel):
         default_factory=TokenUsage
     )
     mode: Mode = Mode()
-    route: RouteSchema = RouteSchema()
     evaluation: EvaluationSchema = EvaluationSchema()
 
     # code string if any
@@ -220,8 +235,16 @@ class KleaAgentState(BaseModel):
     goal: GoalSchema = GoalSchema()
     plan: PlanSchema = PlanSchema()
     step_outputs: dict[int, list[CallToolResult]] = Field(default_factory=dict)
-    # per-step re-pick counter for the ADaPT escalation policy
-    step_retry_counts: dict[int, int] = Field(default_factory=dict)
+    # per-step re-pick counter for the ADaPT tool-error escalation policy
+    tool_retry_counts: dict[int, int] = Field(default_factory=dict)
+    # per-step non-advancing evaluation counter (semantic loop budget)
+    step_attempt_counts: dict[int, int] = Field(default_factory=dict)
+    # number of Planner entries in this run (replan budget)
+    plan_revisions: int = 0
+    # number of Act batches in this run (global backstop)
+    turn_iterations: int = 0
+    # why the run failed or could not be planned (for the failure answer)
+    failure_reason: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()
