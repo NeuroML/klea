@@ -266,7 +266,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         """
         inst = self._llm_entry.instance
         config = self._build_invoke_config()
-        self.logger.debug(f"{self.model_type = }\n{config = }")
+        self.logger.debug(
+            f"{self.model_type = }\n{mask_sensitive(config.get('configurable', {})) = }"
+        )
         return inst, config
 
     def _build_invoke_config(self) -> RunnableConfig:

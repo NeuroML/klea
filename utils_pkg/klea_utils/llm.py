@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import sys
 import time
@@ -29,6 +30,7 @@ from langgraph.types import RunnableConfig
 from pydantic import BaseModel
 
 from .errors import LLMInvocationErrorCategory
+from .imports import require_extra
 from .models_catalog import get_catalog_model_limits, probe_endpoint_model_limits
 from .plogging import mask_sensitive
 
@@ -969,10 +971,15 @@ def _is_opencode_endpoint(base_url: str | None) -> bool:
     return host == _OPENCODE_HOST_SUFFIX or host.endswith("." + _OPENCODE_HOST_SUFFIX)
 
 
-def _openai_request_headers(
+def _default_request_headers(
     base_url: str | None, session_id: str | None, user_agent: str
 ) -> dict[str, str]:
-    """Default request headers for OpenAI-compatible providers."""
+    """Default request headers for chat providers (OpenAI, Anthropic).
+
+    Identifies Klea with a User-Agent and, for opencode-hosted endpoints,
+    sends the per-conversation ``x-opencode-session`` header so the backend can
+    optimise routing and prompt caching.
+    """
     headers: dict[str, str] = {}
     if user_agent:
         headers["User-Agent"] = user_agent
@@ -981,12 +988,14 @@ def _openai_request_headers(
     return headers
 
 
-#: Per-provider request-header builders.  ``custom`` endpoints are mapped to
-#: the ``openai`` provider by ``build_config``, so they share this entry.  Add
-#: a provider here (rather than branching in ``build_config``) if another
+#: Per-provider request-header builders.  ``custom`` endpoints resolve to the
+#: ``openai`` or ``anthropic`` provider in ``build_config`` (see
+#: :func:`resolve_custom_endpoint`) and both share the default builder.  Add a
+#: provider here (rather than branching in ``build_config``) if another
 #: integration needs its own headers.
 _PROVIDER_HEADER_BUILDERS: dict[str, Callable[..., dict[str, str]]] = {
-    "openai": _openai_request_headers,
+    "openai": _default_request_headers,
+    "anthropic": _default_request_headers,
 }
 
 
@@ -1009,7 +1018,10 @@ def apply_provider_overrides(
     builder = _PROVIDER_HEADER_BUILDERS.get(overrides.get("model_provider") or "openai")
     if builder is None:
         return
-    headers = builder(overrides.get("base_url"), session_id, user_agent)
+    # Anthropic stores its endpoint under ``anthropic_api_url``; every other
+    # provider uses ``base_url``.
+    endpoint = overrides.get("base_url") or overrides.get("anthropic_api_url")
+    headers = builder(endpoint, session_id, user_agent)
     if not headers:
         return
     existing = overrides.get("default_headers") or {}
@@ -1210,6 +1222,22 @@ class LLMModel(BaseModel):
             if parsed.suffix:
                 overrides["base_url"] = parsed.suffix
         logger.debug(f"After model string parse:\n{mask_sensitive(overrides) = }")
+
+        # A custom Anthropic endpoint still authenticates with the generic
+        # custom key users set as OPENAI_API_KEY (ChatAnthropic itself reads
+        # ANTHROPIC_API_KEY).  Copy it across so one key works for every
+        # custom surface; an explicit api_key override wins.
+        if (
+            parsed.provider == "custom"
+            and overrides.get("model_provider") == "anthropic"
+        ):
+            require_extra("langchain_anthropic", "anthropic")
+            custom_key = overrides.get("api_key") or os.environ.get("OPENAI_API_KEY")
+            if custom_key:
+                overrides.setdefault("anthropic_api_key", custom_key)
+            logger.debug(
+                f"After anthropic key mapping:\n{mask_sensitive(overrides) = }"
+            )
 
         # Inject HuggingFace from_model_id kwargs derived from the model
         # string suffix.  These are not fields on ChatHuggingFace itself

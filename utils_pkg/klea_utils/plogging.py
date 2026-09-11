@@ -197,6 +197,14 @@ def setup_root_logger(
     return root
 
 
+#: Default keys whose values are masked in logs by :func:`mask_sensitive`.
+#: Covers the generic ``api_key`` plus the provider-specific field names Klea
+#: may copy it into (Anthropic, HuggingFace).
+DEFAULT_SENSITIVE_KEYS: frozenset[str] = frozenset(
+    {"api_key", "anthropic_api_key", "huggingfacehub_api_token"}
+)
+
+
 def mask_sensitive(
     data: dict[str, Any],
     sensitive_keys: set[str] | None = None,
@@ -210,10 +218,10 @@ def mask_sensitive(
 
     :param data: The dict to sanitize.
     :param sensitive_keys: Keys whose values should be masked.
-        Defaults to ``{"api_key"}``.
+        Defaults to :data:`DEFAULT_SENSITIVE_KEYS`.
     :returns: New dict with masked values.
     """
-    keys = sensitive_keys or {"api_key"}
+    keys = sensitive_keys or set(DEFAULT_SENSITIVE_KEYS)
     safe: dict[str, Any] = {}
     for key, val in data.items():
         if isinstance(val, dict):
