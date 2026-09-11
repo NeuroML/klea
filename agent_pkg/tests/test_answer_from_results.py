@@ -57,6 +57,28 @@ class TestAnswerFromResults(unittest.TestCase):
         self.assertIn("list files", variables["goal"])
         self.assertIn("list files", variables["plan"])
         self.assertIn("observations", variables)
+        self.assertEqual(variables["outcome"], "success")
+
+    def _failed_state(self) -> KleaAgentState:
+        state = KleaAgentState(query="do x")
+        state.plan = PlanSchema(status="aborted")
+        state.failure_reason = "tool-round budget exhausted"
+        return state
+
+    def test_failure_outcome_in_prompt_variables(self):
+        variables = self._node()._get_prompt_variables(self._failed_state())
+        self.assertEqual(variables["outcome"], "failure")
+        self.assertEqual(variables["failure_reason"], "tool-round budget exhausted")
+
+    def test_failure_fallback_mentions_reason(self):
+        answer = self._node()._fallback_answer(self._failed_state())
+        self.assertIn("could not complete", answer)
+        self.assertIn("tool-round budget exhausted", answer)
+
+    def test_unplannable_plan_is_failure(self):
+        state = KleaAgentState(query="do x")
+        state.plan = PlanSchema(status="unplannable")
+        self.assertTrue(self._node()._is_failure(state))
 
 
 if __name__ == "__main__":

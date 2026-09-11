@@ -10,6 +10,14 @@
 
 ---
 
+## Outcome
+
+{outcome}
+
+Failure reason: {failure_reason}
+
+---
+
 ## Observations
 
 {observations}
