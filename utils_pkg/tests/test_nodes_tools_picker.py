@@ -45,10 +45,18 @@ class Step(BaseModel):
     description: str = "do it"
     status: str = "pending"
 
+    def render(self, *, current: bool = False) -> str:
+        return self.description
+
 
 class PlanLike(BaseModel):
     current_step_index: int = 0
     step_list: list[Step] = Field(default_factory=list)
+
+    def current_step(self) -> Step | None:
+        if 0 <= self.current_step_index < len(self.step_list):
+            return self.step_list[self.current_step_index]
+        return None
 
 
 class AgentLikeState(BaseModel):
@@ -120,7 +128,7 @@ def test_prompt_variables_superset_for_agent_state():
         "observations",
         "current_step",
     } <= set(variables)
-    assert variables["current_step"].description == "do it"
+    assert variables["current_step"] == "do it"
 
 
 def test_prompt_variables_query_driven_for_rag_state():

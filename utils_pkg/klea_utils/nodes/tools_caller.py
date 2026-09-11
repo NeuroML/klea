@@ -73,22 +73,26 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
 
+        Always writes ``tool_results`` -- an empty list when there is nothing
+        to dispatch -- so a previous batch's results are never left in state
+        and re-evaluated.
+
         :param state: Current graph state (must carry ``tool_calls``).
         :returns: ``{"tool_results": [...]}`` plus any callback extras.
         """
-        if not self._pre_exec(state):
-            self.logger.debug("Pre-exec check failed, skipping execution")
-            return {}
-
         self._pre_exec_stream()
 
-        tool_calls = getattr(state, "tool_calls", [])
-        results = await dispatch_tool_calls(
-            self._mcp_client,
-            [(tc.tool, tc.args) for tc in tool_calls],
-            self._tools_meta,
-            self._project_root,
-        )
+        if self._pre_exec(state):
+            tool_calls = getattr(state, "tool_calls", [])
+            results = await dispatch_tool_calls(
+                self._mcp_client,
+                [(tc.tool, tc.args) for tc in tool_calls],
+                self._tools_meta,
+                self._project_root,
+            )
+        else:
+            self.logger.debug("No tool calls to dispatch; writing empty results")
+            results = []
         self.logger.debug(f"{results =}")
 
         self._last_state = state

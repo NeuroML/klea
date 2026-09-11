@@ -181,6 +181,16 @@ class KleaAgent(BaseLangGraph):
         """
         return state.evaluation.next_step
 
+    async def _picker_router(self, state: KleaAgentState) -> str:
+        """Route after the tools picker (ADR-0035).
+
+        An empty ``tool_calls`` means the picker found no available tool for the
+        current step; the Planner revises the plan rather than the caller
+        running nothing (which would loop).  The picker is the authority on
+        tool suitability, so the Evaluator is not involved.
+        """
+        return "dispatch" if state.tool_calls else "replan"
+
     async def _mode_router_node(self, state: KleaAgentState) -> str:
         """Route mode decision: proceed normally or inform (ADR-0030).
 
@@ -426,8 +436,15 @@ class KleaAgent(BaseLangGraph):
         # Human review loops back to the Planner, which interprets the
         # feedback and owns the in_review <-> in_progress transition.
         self.workflow.add_edge(self._await_review_node.label, self._planner_node.label)
-        self.workflow.add_edge(
-            self._tools_picker_node.label, self._tools_caller_node.label
+        # The picker is the authority on tool suitability: if it finds no
+        # suitable tool, replan; otherwise dispatch the selected calls.
+        self.workflow.add_conditional_edges(
+            self._tools_picker_node.label,
+            self._picker_router,
+            {
+                "dispatch": self._tools_caller_node.label,
+                "replan": self._planner_node.label,
+            },
         )
         self.workflow.add_conditional_edges(
             self._tools_caller_node.label,

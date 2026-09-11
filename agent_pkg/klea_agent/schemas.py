@@ -53,14 +53,26 @@ class StepSchema(BaseModel):
     def render(self, *, current: bool = False, markdown: bool = False) -> str:
         """Render this step as one line with its status marker.
 
+        Everything a model may need is included (description, success
+        criteria, suggested tools, dependencies) so the Evaluator, Planner and
+        status pane see the same step detail.
+
         :param current: Whether this is the plan's current step.
         :param markdown: Prefix the line with ``- `` for a markdown list.
-        :returns: ``[STATUS] N. description (success criteria: ...)``.
+        :returns: ``[STATUS] N. description (success criteria: ...; suggested
+            tools: ...; depends on: ...)``.
         """
         criteria = self.success_criteria or "(none)"
+        tools = ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
+        depends = (
+            ", ".join(str(step) for step in self.depends_on)
+            if self.depends_on
+            else "(none)"
+        )
         line = (
             f"{self.status_label(current=current)} {self.step_number}. "
-            f"{self.description} (success criteria: {criteria})"
+            f"{self.description} (success criteria: {criteria}; "
+            f"suggested tools: {tools}; depends on: {depends})"
         )
         return f"- {line}" if markdown else line
 

@@ -104,6 +104,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "goal": goal_text,
             "plan": state.plan.render(),
             "human_feedback": state.human_feedback or "(none)",
+            "evaluation_feedback": state.evaluation.reason or "(none)",
             "artefacts": state.artefacts,
             "discovery": state.discovery_persistent,
             "observations": state.step_outputs,

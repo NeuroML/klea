@@ -22,6 +22,12 @@
 
 ---
 
+## Evaluator feedback
+
+{evaluation_feedback}
+
+---
+
 ## Project context
 
 ### Discovery

@@ -60,17 +60,17 @@ def _record_stream(node: ToolsCallerNode, events: list[dict]) -> None:
     cast(Any, node).write_custom_stream = events.append
 
 
-async def test_skips_when_no_tool_calls_or_client():
+async def test_always_writes_tool_results():
+    """No calls (or no client) still writes empty results, never stale ones."""
     node = _make_node()
     events: list[dict] = []
     _record_stream(node, events)
-    assert await node.execute(MiniState()) == {}
-    assert events == []
+    assert await node.execute(MiniState()) == {"tool_results": []}
+    assert [e["type"] for e in events] == ["progress", "info", "debug"]
 
     node = _make_node(client=FakeMCPClient())
     _record_stream(node, events)
-    assert await node.execute(MiniState()) == {}
-    assert events == []
+    assert await node.execute(MiniState()) == {"tool_results": []}
 
 
 async def test_pre_exec_gates_on_tool_calls_and_client():

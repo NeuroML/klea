@@ -54,9 +54,24 @@ class TestPlanRender(unittest.TestCase):
         )
         self.assertEqual(
             step.render(current=True),
-            "[CURRENT] 2. edit the file (success criteria: tests pass)",
+            (
+                "[CURRENT] 2. edit the file (success criteria: tests pass; "
+                "suggested tools: (none); depends on: (none))"
+            ),
         )
         self.assertTrue(step.render(current=True, markdown=True).startswith("- "))
+
+    def test_step_render_includes_tools_and_deps(self):
+        step = StepSchema(
+            step_number=2,
+            description="edit the file",
+            success_criteria="tests pass",
+            suggested_tools=["edit", "write"],
+            depends_on=[1],
+        )
+        rendered = step.render()
+        self.assertIn("suggested tools: edit, write", rendered)
+        self.assertIn("depends on: 1", rendered)
 
     def test_step_render_done_marker(self):
         step = StepSchema(description="x", status="done")

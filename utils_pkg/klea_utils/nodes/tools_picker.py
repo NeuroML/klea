@@ -141,8 +141,10 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["observations"] = state.tool_results
         plan = getattr(state, "plan", None)
         if plan is not None:
-            current_step_index = plan.current_step_index
-            variables["current_step"] = plan.step_list[current_step_index]
+            current = plan.current_step()
+            variables["current_step"] = (
+                current.render(current=True) if current else "(no plan)"
+            )
         return variables
 
     @override

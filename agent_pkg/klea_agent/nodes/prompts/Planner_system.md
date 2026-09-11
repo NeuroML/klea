@@ -16,6 +16,7 @@
 * `goal` (optional): the fixed task goal already set for this run (do not change it)
 * `plan` (optional): the current plan rendered with per-step status markers
 * `human_feedback` (optional): the user's review of the plan, if it was reviewed
+* `evaluation_feedback` (optional): the evaluator's reason for sending the plan back
 * `discovery`: general information about the project
 * `artefacts`: durable results produced so far
 * `observations`: recent tool outputs or errors
@@ -56,7 +57,9 @@
   that shows the step is done (for example "file X exists and validates").
 * Replanning: if a step failed or produced unexpected output, adjust the
   remaining steps.  Keep completed steps, do not repeat them, and do not reset
-  step numbering unless the plan is replaced entirely.
+  step numbering unless the plan is replaced entirely.  Use
+  `evaluation_feedback` and the observations to understand why the plan was
+  sent back.
 * Only reference available tools.  Do not invent tools or arbitrary shell
   commands.
 

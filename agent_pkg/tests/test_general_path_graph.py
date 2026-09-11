@@ -70,7 +70,8 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Awaiting review", "Planning") in edges
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
-    assert ("Selecting tools", "Running tools") in edges
+    assert ("Selecting tools", "Running tools") in edges  # dispatch
+    assert ("Selecting tools", "Planning") in edges  # no tool -> replan
     assert ("Running tools", "Selecting tools") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
     assert ("Running tools", "Planning") in edges  # replan

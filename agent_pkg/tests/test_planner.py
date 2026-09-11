@@ -13,6 +13,7 @@ import unittest
 
 from klea_agent.nodes.planner import Planner
 from klea_agent.schemas import (
+    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlannerOutput,
@@ -138,6 +139,14 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(update["human_feedback"], "")
         self.assertEqual(update["plan"].status, "in_progress")
+
+    def test_evaluation_feedback_is_exposed(self):
+        """The evaluator's reason reaches the Planner on a replan."""
+        state = KleaAgentState(
+            evaluation=EvaluationSchema(next_step="need_replan", reason="no progress")
+        )
+        variables = self._planner()._get_prompt_variables(state)
+        self.assertEqual(variables["evaluation_feedback"], "no progress")
 
 
 class TestPlannerToolDisclosure(unittest.TestCase):
