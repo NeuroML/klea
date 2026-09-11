@@ -20,6 +20,7 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.mcp.schemas import ToolCallsSchema
 
 
 @pytest.mark.asyncio
@@ -34,7 +35,12 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
         summarised_till=3,
         mode=Mode(resolved="general"),
         plan=PlanSchema(step_list=[StepSchema(description="x")]),
-        step_retry_counts={0: 2},
+        tool_retry_counts={0: 2},
+        step_attempt_counts={0: 1},
+        plan_revisions=2,
+        turn_iterations=4,
+        failure_reason="boom",
+        tool_selection=ToolCallsSchema(reason="stale"),
         route=RouteSchema(route="act"),
         evaluation=EvaluationSchema(next_step="step_done"),
     )
@@ -42,7 +48,12 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
 
     assert update["plan"].step_list == []
     assert update["goal"].goal == ""
-    assert update["step_retry_counts"] == {}
+    assert update["tool_retry_counts"] == {}
+    assert update["step_attempt_counts"] == {}
+    assert update["plan_revisions"] == 0
+    assert update["turn_iterations"] == 0
+    assert update["failure_reason"] == ""
+    assert update["tool_selection"] == ToolCallsSchema()
     assert update["route"].route == "answer"
     assert update["evaluation"].next_step == "plan_done"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.

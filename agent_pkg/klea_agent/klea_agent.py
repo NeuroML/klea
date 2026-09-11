@@ -17,6 +17,7 @@ from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
+from klea_utils.mcp.schemas import ToolCallsSchema
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
 from klea_utils.nodes.guard_router import GuardRouterNode
@@ -33,7 +34,7 @@ from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.route_decision import RouteDecision
-from klea_agent.nodes.triage_router import TriageRouter, update_step_retry_counts
+from klea_agent.nodes.triage_router import TriageRouter, update_tool_retry_counts
 
 from .config import AppConfig
 from .schemas import (
@@ -121,6 +122,7 @@ class KleaAgent(BaseLangGraph):
             Mode,
             RouteSchema,
             EvaluationSchema,
+            ToolCallsSchema,
         ]
 
     @override
@@ -229,9 +231,9 @@ class KleaAgent(BaseLangGraph):
         :param results: Tool call results (one per call in ``tool_calls``).
         :returns: State updates carrying the updated retry counts.
         """
-        counts = update_step_retry_counts(state, results)
+        counts = update_tool_retry_counts(state, results)
         self.logger.debug(f"{counts = }")
-        return {"step_retry_counts": counts}
+        return {"tool_retry_counts": counts}
 
     async def _create_graph(self):
         """Create the LangGraph"""

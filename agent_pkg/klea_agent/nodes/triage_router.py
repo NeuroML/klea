@@ -31,7 +31,7 @@ def current_step_key(state: KleaAgentState) -> int:
     return int(getattr(plan, "current_step_index", 0) or 0)
 
 
-def update_step_retry_counts(
+def update_tool_retry_counts(
     state: KleaAgentState, results: list[CallToolResult] | None = None
 ) -> dict[int, int]:
     """Return the updated per-step consecutive-failure counter (ADaPT).
@@ -47,7 +47,7 @@ def update_step_retry_counts(
     :param results: The batch's tool results; defaults to ``state.tool_results``
         when not supplied (e.g. in tests).
     """
-    counts = dict(getattr(state, "step_retry_counts", None) or {})
+    counts = dict(getattr(state, "tool_retry_counts", None) or {})
     step = current_step_key(state)
     batch = results if results is not None else (state.tool_results or [])
     if any(getattr(r, "is_error", False) for r in batch):
@@ -100,7 +100,7 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
         if not has_error:
             return "evaluate"
         step = current_step_key(state)
-        count = int((getattr(state, "step_retry_counts", None) or {}).get(step, 0))
+        count = int((getattr(state, "tool_retry_counts", None) or {}).get(step, 0))
         return "retry" if count <= self.max_retries else "replan"
 
     @override
@@ -119,7 +119,7 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
                 "tool_count": len(results),
                 "step": current_step_key(state),
                 "retry_count": int(
-                    (getattr(state, "step_retry_counts", None) or {}).get(
+                    (getattr(state, "tool_retry_counts", None) or {}).get(
                         current_step_key(state), 0
                     )
                 ),

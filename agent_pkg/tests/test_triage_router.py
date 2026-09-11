@@ -15,7 +15,7 @@ from fastmcp.client.client import CallToolResult
 from klea_agent.nodes.triage_router import (
     TriageRouter,
     current_step_key,
-    update_step_retry_counts,
+    update_tool_retry_counts,
 )
 from klea_agent.schemas import KleaAgentState, PlanSchema
 
@@ -26,7 +26,7 @@ def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
         CallToolResult(content=[], structured_content=None, meta=None, is_error=error)
     ]
     state.plan = PlanSchema(current_step_index=step)
-    state.step_retry_counts = counts or {}
+    state.tool_retry_counts = counts or {}
     return state
 
 
@@ -34,20 +34,20 @@ class TestRetryCounts:
     """The consecutive-failure counter updated by the caller callback."""
 
     def test_error_increments(self):
-        counts = update_step_retry_counts(_state(error=True))
+        counts = update_tool_retry_counts(_state(error=True))
         assert counts == {0: 1}
 
     def test_repeated_errors_accumulate(self):
-        counts = update_step_retry_counts(_state(error=True, counts={0: 2}))
+        counts = update_tool_retry_counts(_state(error=True, counts={0: 2}))
         assert counts == {0: 3}
 
     def test_success_clears_budget(self):
-        counts = update_step_retry_counts(_state(error=False, counts={0: 2}))
+        counts = update_tool_retry_counts(_state(error=False, counts={0: 2}))
         assert counts == {}
 
     def test_step_key_tracks_plan_index(self):
         assert current_step_key(_state(error=False, step=3)) == 3
-        counts = update_step_retry_counts(_state(error=True, step=3))
+        counts = update_tool_retry_counts(_state(error=True, step=3))
         assert counts == {3: 1}
 
 
