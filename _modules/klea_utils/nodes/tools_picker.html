@@ -431,8 +431,10 @@
             <span class="n">variables</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">tool_results</span>
         <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">current_step_index</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">current_step_index</span>
-            <span class="n">variables</span><span class="p">[</span><span class="s2">"current_step"</span><span class="p">]</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">step_list</span><span class="p">[</span><span class="n">current_step_index</span><span class="p">]</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">current_step</span><span class="p">()</span>
+            <span class="n">variables</span><span class="p">[</span><span class="s2">"current_step"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">current</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">current</span> <span class="k">else</span> <span class="s2">"(no plan)"</span>
+            <span class="p">)</span>
         <span class="k">return</span> <span class="n">variables</span>
 
     <span class="nd">@override</span>

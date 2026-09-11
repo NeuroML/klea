@@ -495,8 +495,8 @@ only a JSON config.</p>
 <li><p>A JSON configuration file selected by a <em>profile</em> name.</p>
 <p>Each JSON config is identified by a profile: <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">&lt;name&gt;</span></code> loads
 <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code>.  The file is looked up in the current directory first,
-then in the per-app config directory (<code class="docutils literal notranslate"><span class="pre">~/.config/klea/</span></code> for the Agent,
-<code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  The
+then in the per-app config directory (<code class="docutils literal notranslate"><span class="pre">~/.config/klea-agent/</span></code> for the
+Agent, <code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  The
 default profile is <code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code>, so <code class="docutils literal notranslate"><span class="pre">klea_agent.json</span></code>
 and <code class="docutils literal notranslate"><span class="pre">klea_rag.json</span></code> are loaded when no <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is given.</p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">template</span></code> on any CLI to scaffold a ready-to-fill config
@@ -612,8 +612,8 @@ third-party libraries.  Each CLI uses its own <code class="docutils literal notr
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> web client</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-rag-web/klea-rag-web.log</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> (Agent server / graph)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">klea/klea.log</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea-agent</span></code> (Agent server / graph)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">klea-agent/klea-agent.log</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> TUI client</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-tui/klea-tui.log</span></code></p></td>

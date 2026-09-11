@@ -177,8 +177,8 @@ Both the RAG and Agent packages load configuration from:
 
    Each JSON config is identified by a profile: ``--profile <name>`` loads
    ``<name>.json``.  The file is looked up in the current directory first,
-   then in the per-app config directory (``~/.config/klea/`` for the Agent,
-   ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).  The
+   then in the per-app config directory (``~/.config/klea-agent/`` for the
+   Agent, ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).  The
    default profile is ``klea_agent`` / ``klea_rag``, so ``klea_agent.json``
    and ``klea_rag.json`` are loaded when no ``--profile`` is given.
 
@@ -297,8 +297,8 @@ third-party libraries.  Each CLI uses its own ``<app>`` name:
      - ``klea-rag-tui/klea-rag-tui.log``
    * - ``klea-rag`` web client
      - ``klea-rag-web/klea-rag-web.log``
-   * - ``klea`` (Agent server / graph)
-     - ``klea/klea.log``
+   * - ``klea-agent`` (Agent server / graph)
+     - ``klea-agent/klea-agent.log``
    * - ``klea`` TUI client
      - ``klea-tui/klea-tui.log``
    * - ``klea`` web client

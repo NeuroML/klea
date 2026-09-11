@@ -303,6 +303,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
@@ -1190,6 +1191,103 @@
 
 
 
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Provider request headers</span>
+<span class="c1"># ---------------------------------------------------------------------------</span>
+<span class="c1"># Klea identifies itself to OpenAI-compatible inference endpoints with its own</span>
+<span class="c1"># User-Agent, and sends a stable per-conversation session header to</span>
+<span class="c1"># opencode-hosted endpoints so the backend can optimise routing and prompt</span>
+<span class="c1"># caching.  Provider specifics live behind one hook so call sites stay clean.</span>
+
+<span class="c1">#: Host suffix for opencode-hosted OpenAI-compatible endpoints.  These accept</span>
+<span class="c1">#: an ``x-opencode-session`` header carrying the conversation/session id.</span>
+<span class="n">_OPENCODE_HOST_SUFFIX</span> <span class="o">=</span> <span class="s2">"opencode.ai"</span>
+
+
+<div class="viewcode-block" id="resolve_user_agent">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_user_agent">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_user_agent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return ``&lt;prefix&gt;/&lt;version&gt;`` for the running application.</span>
+
+<span class="sd">    Mirrors ``web_fetch._honest_user_agent``: the version is read from the</span>
+<span class="sd">    installed distribution named *prefix* (``importlib.metadata`` normalises</span>
+<span class="sd">    separators, so the graph name doubles as the distribution name --</span>
+<span class="sd">    ``klea-agent`` -&gt; ``klea_agent``) and falls back to ``dev`` when metadata</span>
+<span class="sd">    is unavailable (e.g. an uninstalled checkout).</span>
+
+<span class="sd">    :param prefix: Application name, e.g. ``"klea-agent"``.</span>
+<span class="sd">    :returns: The User-Agent string, e.g. ``"klea-agent/0.0.1"``.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">importlib.metadata</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageNotFoundError</span><span class="p">,</span> <span class="n">version</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">version_str</span> <span class="o">=</span> <span class="n">version</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">PackageNotFoundError</span><span class="p">:</span>
+        <span class="n">version_str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">version_str</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'dev'</span><span class="si">}</span><span class="s2">"</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_opencode_endpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return ``True`` when *base_url* points at an opencode-hosted endpoint."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">base_url</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
+
+    <span class="n">host</span> <span class="o">=</span> <span class="p">(</span><span class="n">urlparse</span><span class="p">(</span><span class="n">base_url</span><span class="p">)</span><span class="o">.</span><span class="n">hostname</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">host</span> <span class="o">==</span> <span class="n">_OPENCODE_HOST_SUFFIX</span> <span class="ow">or</span> <span class="n">host</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"."</span> <span class="o">+</span> <span class="n">_OPENCODE_HOST_SUFFIX</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_openai_request_headers</span><span class="p">(</span>
+    <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Default request headers for OpenAI-compatible providers."""</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">user_agent</span><span class="p">:</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">"User-Agent"</span><span class="p">]</span> <span class="o">=</span> <span class="n">user_agent</span>
+    <span class="k">if</span> <span class="n">session_id</span> <span class="ow">and</span> <span class="n">_is_opencode_endpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">):</span>
+        <span class="n">headers</span><span class="p">[</span><span class="s2">"x-opencode-session"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session_id</span>
+    <span class="k">return</span> <span class="n">headers</span>
+
+
+<span class="c1">#: Per-provider request-header builders.  ``custom`` endpoints are mapped to</span>
+<span class="c1">#: the ``openai`` provider by ``build_config``, so they share this entry.  Add</span>
+<span class="c1">#: a provider here (rather than branching in ``build_config``) if another</span>
+<span class="c1">#: integration needs its own headers.</span>
+<span class="n">_PROVIDER_HEADER_BUILDERS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"openai"</span><span class="p">:</span> <span class="n">_openai_request_headers</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="apply_provider_overrides">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.apply_provider_overrides">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_provider_overrides</span><span class="p">(</span>
+    <span class="n">overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Add provider-specific request headers to a configurable dict (in place).</span>
+
+<span class="sd">    Called once at the end of :meth:`LLMModel.build_config`.  Only providers</span>
+<span class="sd">    with a registered builder are affected; any ``default_headers`` already in</span>
+<span class="sd">    *overrides* win over ours.</span>
+
+<span class="sd">    :param overrides: The merged ``config["configurable"]`` dict.</span>
+<span class="sd">    :param session_id: Per-conversation session id (LangGraph ``thread_id``).</span>
+<span class="sd">    :param user_agent: Klea User-Agent (see :func:`resolve_user_agent`).</span>
+<span class="sd">    """</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">_PROVIDER_HEADER_BUILDERS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">headers</span> <span class="o">=</span> <span class="n">builder</span><span class="p">(</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">),</span> <span class="n">session_id</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">headers</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">existing</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"default_headers"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">overrides</span><span class="p">[</span><span class="s2">"default_headers"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">headers</span><span class="p">,</span> <span class="o">**</span><span class="n">existing</span><span class="p">}</span></div>
+
+
+
 <span class="c1">#: Base URL attribute names on the concrete chat model classes returned by</span>
 <span class="c1">#: ``_ConfigurableModel._model()``.  Each provider exposes its resolved</span>
 <span class="c1">#: endpoint under a different attribute (e.g. ``ChatOpenAI.openai_api_base``,</span>
@@ -1295,6 +1393,8 @@
     <span class="n">provider_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">modifiable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">required</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1">#: Klea User-Agent sent to OpenAI-compatible endpoints (``klea-agent/&lt;v&gt;``).</span>
+    <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
 <div class="viewcode-block" id="LLMModel.build_config">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.LLMModel.build_config">[docs]</a>
@@ -1302,6 +1402,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">context_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">node_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Merge up to five layers of model configuration into a ``RunnableConfig``.</span>
 
@@ -1319,6 +1420,8 @@
 <span class="sd">            present in ``node_defaults``.</span>
 <span class="sd">        :param node_defaults: Frozen per-node defaults (e.g.</span>
 <span class="sd">            ``{"temperature": 0.3}``).  Always win.</span>
+<span class="sd">        :param session_id: Per-conversation session id (LangGraph ``thread_id``)</span>
+<span class="sd">            used for the opencode ``x-opencode-session`` header.</span>
 <span class="sd">        :returns: A ``RunnableConfig`` with the ``configurable`` key</span>
 <span class="sd">            populated.</span>
 <span class="sd">        """</span>
@@ -1401,6 +1504,12 @@
         <span class="k">if</span> <span class="s2">"api_key"</span> <span class="ow">in</span> <span class="n">overrides</span><span class="p">:</span>
             <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"huggingfacehub_api_token"</span><span class="p">,</span> <span class="n">overrides</span><span class="p">[</span><span class="s2">"api_key"</span><span class="p">])</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"After api_key mapping:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="c1"># Provider-specific request headers (Klea User-Agent; opencode session</span>
+        <span class="c1"># header on opencode-hosted endpoints).</span>
+        <span class="n">apply_provider_overrides</span><span class="p">(</span>
+            <span class="n">overrides</span><span class="p">,</span> <span class="n">session_id</span><span class="o">=</span><span class="n">session_id</span><span class="p">,</span> <span class="n">user_agent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span>
+        <span class="p">)</span>
 
         <span class="c1"># Wrap in the "configurable" key expected by _ConfigurableModel.</span>
         <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">RunnableConfig</span><span class="p">,</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">})</span></div>

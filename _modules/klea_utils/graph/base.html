@@ -317,7 +317,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">create_model</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">KleaRunContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span><span class="p">,</span> <span class="n">resolve_user_agent</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.paths</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_config_dir</span><span class="p">,</span> <span class="n">init_dir</span><span class="p">,</span> <span class="n">resolve_app_config_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetrieverConfig</span>
@@ -458,6 +458,8 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">checkpointer</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">AsyncSqliteSaver</span> <span class="o">|</span> <span class="n">InMemorySaver</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">paths</span> <span class="o">=</span> <span class="n">PlatformDirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph_name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+        <span class="c1">#: Klea identity sent to OpenAI-compatible endpoints (User-Agent).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span> <span class="o">=</span> <span class="n">resolve_user_agent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph_name</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 
@@ -765,6 +767,15 @@
         <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm_models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">entry</span><span class="o">.</span><span class="n">provider_defaults</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider_defaults_for_role</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_user_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Set the resolved Klea User-Agent on each ``LLMModel``.</span>
+
+<span class="sd">        Gives every role the app identity sent to OpenAI-compatible endpoints</span>
+<span class="sd">        (``klea-agent/&lt;version&gt;`` / ``klea-rag/&lt;version&gt;``).</span>
+<span class="sd">        """</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm_models</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">entry</span><span class="o">.</span><span class="n">user_agent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_check_required_models</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Warn at startup when required model roles have no default model.</span>
 
@@ -1006,6 +1017,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_env</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_model_names</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_provider_defaults</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_user_agent</span><span class="p">()</span>
         <span class="c1"># ``llm_models`` is now fully populated (roles, model names, required</span>
         <span class="c1"># flags, provider defaults) -- log the resolved config once.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>

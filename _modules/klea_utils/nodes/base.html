@@ -341,6 +341,25 @@
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
 <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span> <span class="o">=</span> <span class="mi">3</span>
 
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_current_session_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the current LangGraph ``thread_id``, or ``None`` outside a run.</span>
+
+<span class="sd">    The thread id is Klea's stable per-conversation session id.  It is sent as</span>
+<span class="sd">    the opencode ``x-opencode-session`` request header so the backend can</span>
+<span class="sd">    optimise routing and prompt caching (see</span>
+<span class="sd">    :func:`klea_utils.llm.apply_provider_overrides`).</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_config</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="n">get_config</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - no run context (e.g. unit tests)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">thread_id</span> <span class="o">=</span> <span class="p">(</span><span class="n">config</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"thread_id"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">thread_id</span> <span class="ow">or</span> <span class="kc">None</span>
+
+
 <span class="c1">#: Max times to retry an invoke whose output was truncated (``finish_reason</span>
 <span class="c1">#: == "length"``), each time growing the reserved output window.  The</span>
 <span class="c1">#: budget covers the full climb from the smallest node window to the</span>
@@ -569,6 +588,7 @@
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">build_config</span><span class="p">(</span>
             <span class="n">context_overrides</span><span class="o">=</span><span class="n">role_overrides</span><span class="p">,</span>
             <span class="n">node_defaults</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_defaults</span><span class="p">,</span>
+            <span class="n">session_id</span><span class="o">=</span><span class="n">_current_session_id</span><span class="p">(),</span>
         <span class="p">)</span>
 
         <span class="c1"># Get the merged configurable dict for provider field filtering.</span>

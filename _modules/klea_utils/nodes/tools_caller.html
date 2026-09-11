@@ -365,22 +365,26 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Gate and dispatch the tool calls in ``state.tool_calls``.</span>
 
+<span class="sd">        Always writes ``tool_results`` -- an empty list when there is nothing</span>
+<span class="sd">        to dispatch -- so a previous batch's results are never left in state</span>
+<span class="sd">        and re-evaluated.</span>
+
 <span class="sd">        :param state: Current graph state (must carry ``tool_calls``).</span>
 <span class="sd">        :returns: ``{"tool_results": [...]}`` plus any callback extras.</span>
 <span class="sd">        """</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Pre-exec check failed, skipping execution"</span><span class="p">)</span>
-            <span class="k">return</span> <span class="p">{}</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">()</span>
 
-        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
-        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
-            <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_tools_meta</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+            <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
+                <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tools_meta</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No tool calls to dispatch; writing empty results"</span><span class="p">)</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">results</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="o">=</span> <span class="n">state</span>
