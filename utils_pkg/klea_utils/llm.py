@@ -87,6 +87,75 @@ def parse_model_name(raw: str) -> ParsedModelName:
     return ParsedModelName(provider=provider, model_name=parts[1], suffix=parts[2])
 
 
+#: Recognised wire-API endpoint suffixes for ``custom:`` model URLs, mapped to
+#: the resolution target ``(model_provider, use_responses_api)``.  A ``None``
+#: means the flag is not applicable (or is the provider default) and should be
+#: left unset.  Detection is purely URL-path based so no external model list or
+#: catalog is needed.
+_CUSTOM_ENDPOINT_SURFACES: dict[str, tuple[str, bool | None]] = {
+    "/chat/completions": ("openai", False),
+    "/responses": ("openai", True),
+    "/v1/messages": ("anthropic", None),
+}
+
+
+class CustomEndpoint(NamedTuple):
+    """Resolved API surface for a ``custom:`` model endpoint URL.
+
+    ``base_url`` is the URL to hand to the provider SDK (the endpoint resource
+    path is stripped, because the SDK appends it again).  ``model_provider`` is
+    the LangChain provider to use, and ``use_responses_api`` selects the OpenAI
+    Responses API when ``True`` (``None`` leaves the SDK default).
+    """
+
+    base_url: str
+    model_provider: str
+    use_responses_api: bool | None = None
+
+
+def resolve_custom_endpoint(url: str) -> CustomEndpoint:
+    """Detect the wire API surface from a ``custom:`` model endpoint URL.
+
+    The suffix of *url* selects the API surface so that one ``custom:`` model
+    string works for any OpenAI-compatible endpoint, the OpenAI Responses API,
+    or the Anthropic Messages API (e.g. opencode Go serves different models on
+    different surfaces).  Because each provider SDK appends its own resource
+    path, the matched suffix is stripped from the returned ``base_url``:
+
+    * ``.../chat/completions`` -> OpenAI Chat Completions (``openai``)
+    * ``.../responses``        -> OpenAI Responses API (``openai``, responses)
+    * ``.../v1/messages``      -> Anthropic Messages API (``anthropic``;
+      the SDK re-appends ``/v1/messages``, so ``.../zen/go`` is returned)
+
+    Any other URL is treated as a plain base URL and defaults to the standard
+    OpenAI Chat Completions surface (``openai``, flag unset), preserving the
+    behaviour for self-hosted OpenAI-compatible endpoints.
+
+    :param url: The ``custom:`` model string suffix (a base URL or a full
+        endpoint URL).
+    :returns: The resolved :class:`CustomEndpoint`.
+    :raises ValueError: If *url* is empty.
+    """
+    if not url:
+        raise ValueError("Empty custom endpoint URL")
+
+    stripped = url.rstrip("/")
+    for suffix, (provider, use_responses_api) in _CUSTOM_ENDPOINT_SURFACES.items():
+        if stripped.endswith(suffix):
+            base_url = stripped[: -len(suffix)]
+            if not base_url:
+                raise ValueError(f"Custom endpoint URL {url!r} has no base path")
+            logger.debug(
+                f"Resolved custom endpoint {url!r} -> provider="
+                f"{provider!r}, use_responses_api={use_responses_api!r}, "
+                f"{base_url = }"
+            )
+            return CustomEndpoint(base_url, provider, use_responses_api)
+
+    logger.debug(f"No known endpoint suffix in {url!r}; treating as an OpenAI base URL")
+    return CustomEndpoint(url, "openai", None)
+
+
 def check_ollama_model(logger, model, exit=False):
     """Check if ollama model is available
 
