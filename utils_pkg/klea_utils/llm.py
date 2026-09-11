@@ -140,7 +140,9 @@ def parse_output_with_thought[TSchema: BaseModel](
         try:
             result = parser.parse(answer)
         except OutputParserException:
+            logger.debug(f"Handling OutputParserException. {answer = }")
             cleaned = repair_json(answer)
+            logger.debug(f"{cleaned = }")
             result = parser.parse(cleaned)
 
     else:
@@ -158,7 +160,9 @@ def parse_output_with_thought[TSchema: BaseModel](
         try:
             result = parser.parse(answer)
         except OutputParserException:
+            logger.debug(f"Handling OutputParserException. {answer = }")
             cleaned = repair_json(answer)
+            logger.debug(f"{cleaned = }")
             result = parser.parse(cleaned)
 
     logger.debug(f"{thought = }")
