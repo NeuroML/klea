@@ -1187,11 +1187,28 @@ class LLMModel(BaseModel):
         parsed = parse_model_name(overrides["model"])
         overrides["model"] = parsed.model_name
         if parsed.provider == "custom":
-            overrides["model_provider"] = "openai"
-        elif parsed.provider:
-            overrides["model_provider"] = parsed.provider
-        if parsed.suffix:
-            overrides["base_url"] = parsed.suffix
+            # The suffix may be a bare base URL (default: OpenAI Chat
+            # Completions) or a full endpoint URL whose surface we detect
+            # (chat completions / responses / messages).  See
+            # resolve_custom_endpoint.
+            if parsed.suffix:
+                endpoint = resolve_custom_endpoint(parsed.suffix)
+                overrides["model_provider"] = endpoint.model_provider
+                if endpoint.model_provider == "anthropic":
+                    # Anthropic's LangChain field is anthropic_api_url, and its
+                    # SDK re-appends /v1/messages to the stripped base URL.
+                    overrides["anthropic_api_url"] = endpoint.base_url
+                else:
+                    overrides["base_url"] = endpoint.base_url
+                if endpoint.use_responses_api is not None:
+                    overrides["use_responses_api"] = endpoint.use_responses_api
+            else:
+                overrides["model_provider"] = "openai"
+        else:
+            if parsed.provider:
+                overrides["model_provider"] = parsed.provider
+            if parsed.suffix:
+                overrides["base_url"] = parsed.suffix
         logger.debug(f"After model string parse:\n{mask_sensitive(overrides) = }")
 
         # Inject HuggingFace from_model_id kwargs derived from the model
