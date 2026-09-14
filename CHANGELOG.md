@@ -33,6 +33,10 @@
 - Tool selection: the picker prefers the planner's suggested tools and replans when none fit; per-step observations and run progress are kept in state and context.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
+### Fixed
+
+- The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.
+
 ## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`
 
 ### Added
