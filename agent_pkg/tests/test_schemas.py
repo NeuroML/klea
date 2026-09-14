@@ -44,8 +44,8 @@ class TestPlanSchema:
 class TestEvaluationSchema:
     """The evaluator verdict gains an explicit abort outcome."""
 
-    def test_next_step_accepts_abort(self):
-        assert EvaluationSchema(next_step="abort").next_step == "abort"
+    def test_evaluation_accepts_abort(self):
+        assert EvaluationSchema(evaluation="abort").evaluation == "abort"
 
 
 class TestStateDefaults:
@@ -76,7 +76,7 @@ class TestCheckpointMsgpack:
                     step_list=[StepSchema(description="s")], status="in_progress"
                 ),
             ),
-            "evaluation": EvaluationSchema(next_step="abort"),
+            "evaluation": EvaluationSchema(evaluation="abort"),
             "step_attempt_counts": {0: 2},
             "plan_revisions": 1,
             "tool_rounds": 3,

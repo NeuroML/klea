@@ -40,7 +40,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
         plan_revisions=2,
         tool_rounds=4,
         failure_reason="boom",
-        evaluation=EvaluationSchema(next_step="step_done"),
+        evaluation=EvaluationSchema(evaluation="step_done"),
     )
     update = await node.execute(state)
 
@@ -52,7 +52,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["tool_rounds"] == 0
     assert update["failure_reason"] == ""
     assert update["route"] == RouteSchema()
-    assert update["evaluation"].next_step == "plan_done"
+    assert update["evaluation"].evaluation == "plan_done"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update
     assert "context_summary" not in update
