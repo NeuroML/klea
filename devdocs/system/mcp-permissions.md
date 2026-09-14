@@ -1,11 +1,15 @@
 # MCP tool permissions: current state, limits, and options
 
 Status: design note.  In-tool path checks and the client-side per-path gate
-are implemented; the allow/deny/ask ruleset and interactive approval loop
-are deferred.  Updates to this note should be reflected in the permission
-layer as it evolves.
+are implemented; the annotation-driven tool access level is specified in
+`../adr/0037-tool-access-levels.md` (implementation in progress); the
+allow/deny/ask ruleset and interactive approval loop are deferred.
+Updates to this note should be reflected in the permission layer as it
+evolves.
 
-Last updated: 2026-08-29 (layers as built; decision at `../adr/0007-mcp-permissions.md`).
+Last updated: 2026-09-14 (invocation axis / tool access level added, at
+`../adr/0037-tool-access-levels.md`; path layers decision at
+`../adr/0007-mcp-permissions.md`).
 
 ## Current state
 
@@ -74,6 +78,46 @@ implementation (the author-side layer).  Self-contained helpers with their
 own containment (e.g. `download_file_to_cache`, the sandboxed code
 execution tools) are not marked: their boundary is their own cache/sandbox,
 not the project root.
+
+## The invocation axis: tool access levels
+
+Permission has two axes (ADR-0007): *may this tool be invoked?* and *may
+it touch path X?*.  The `checkpaths` declaration above handles the second;
+the first is the **tool access level** (ADR-0037; implementation in
+progress).
+
+`klea_utils.mcp.access` provides
+`AccessLevel = Literal["read_only", "full"]`, the default `full`, and the
+helpers `tool_permits` / `filter_tools_info` / `check_tool_access`.  The
+level is carried on the shared `BaseGraphSchema.access_level` (ADR-0032);
+the agent defaults to `full`, RAG is fixed at `read_only` (it retrieves
+and must never mutate).
+
+A tool is classified from its MCP `ToolAnnotations` (`readOnlyHint` /
+`destructiveHint`, ADR-0004), which `BaseLangGraph._build_tools_info`
+copies onto `ToolInfo`.  In `read_only`, a tool is permitted only when it
+is explicitly `read_only` and not `destructive`; a tool with no
+annotation fails closed.  Enforcement mirrors the path gate:
+
+- **Disclosure:** the Planner and `ToolsPicker` filter `tools_info` by the
+  level, so disallowed tools are never shown to the model.
+- **Dispatch:** `dispatch_tool_calls` rejects a disallowed call with the
+  same synthetic `is_error` result used for a `checkpaths` denial, before
+  it reaches the server.
+
+A deployment can override a tool's classification through the per-tool
+`general.tool_access` map (`ToolAccessOverride`: `read_only` /
+`destructive`), for tools whose server does not annotate.  Precedence is
+`tool_access` override > annotation > fail-closed; the map is applied when
+`ToolInfo` is built, so disclosure and dispatch agree.
+
+Annotations are self-reported hints (`mcp.types.ToolAnnotations`): they are
+authoritative for Klea-authored/trusted servers and advisory for
+third-party ones.  The access level is a least-privilege rail, **not** a
+boundary against a malicious server; only OS sandboxing (layer 3 below) is.
+See `../adr/0037-tool-access-levels.md` for the trust model and the
+deferred roadmap (consent loop, sandbox-by-default, curated servers,
+credential scoping).
 
 ## Standardised tool call state
 
@@ -157,8 +201,12 @@ as built:
    they reach the server.  The *allow / deny / ask* ruleset and the
    interactive user-approval loop (graph pause + TUI/web input, opencode
    style) are **deferred** -- see the TODO in `permission.py` and the
-   kanban board.  The client-side gate only applies to tools that declare
-   `checkpaths`; third-party servers that do not are not path-gated.
+   kanban board.  The *invocation* half (tool access level) is specified
+   in ADR-0037: `dispatch_tool_calls` will reject calls to tools
+   disallowed by the state's `read_only | full` level, derived from the
+   MCP annotations.  The client-side gate only applies to tools that
+   declare `checkpaths` (path half) or annotations (invocation half);
+   third-party servers that declare neither are not gated.
 
 3. **OS-level sandboxing (orthogonal)** -- run third-party MCP servers
    (or the whole agent) in a container / bubblewrap / chroot with only
@@ -170,5 +218,6 @@ above, and advise sandboxing for third-party servers.  In all cases,
 connecting to a server means trusting its author: never connect to a
 server you do not trust.
 
-See also ``../adr/0007-mcp-permissions.md`` for the architectural
-decision that adopts this posture.
+See also ``../adr/0007-mcp-permissions.md`` (path layers) and
+``../adr/0037-tool-access-levels.md`` (invocation axis / access level) for
+the architectural decisions that adopt this posture.
