@@ -14,6 +14,10 @@
 - A custom `/v1/messages` endpoint uses the `anthropic` provider and copies `OPENAI_API_KEY` to `anthropic_api_key`, with an explicit per-chat `api_key` override taking precedence.
 - `anthropic_api_key` and `huggingfacehub_api_token` are masked in log output.
 
+### Fixed
+
+- Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
+
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
 
 ### Added

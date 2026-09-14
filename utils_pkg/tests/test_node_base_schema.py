@@ -16,7 +16,7 @@ from typing import Any, Literal, cast
 
 import pytest
 from klea_utils.graph.schemas import TokenUsage
-from klea_utils.llm import LLMModel, create_configurable_model
+from klea_utils.llm import LLMModel, create_configurable_model, is_output_empty
 from klea_utils.nodes.base import BaseLLMNode, _is_empty_result, _schema_to_example
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompt_values import ChatPromptValue
@@ -64,7 +64,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
         return {}
 
     def _get_default_error_result(self):
-        return AIMessage(content="")
+        return AnswerSchema(answer="fallback")
 
 
 def _node(schema) -> DummyNode:
@@ -186,8 +186,32 @@ def test_is_empty_result_non_structured_populated():
     assert _is_empty_result(AIMessage(content="some text")) is False
 
 
+def test_is_output_empty_plain_message():
+    """Blank/whitespace AIMessages are empty; populated ones are not."""
+    assert is_output_empty(AIMessage(content="")) is True
+    assert is_output_empty(AIMessage(content="   \n")) is True
+    assert is_output_empty(AIMessage(content="text")) is False
+
+
+def test_is_output_empty_structured_dict_inspects_raw():
+    """Structured output emptiness is judged from the raw message."""
+    blank = {"raw": AIMessage(content=""), "parsed": AnswerSchema()}
+    populated = {
+        "raw": AIMessage(content='{"answer": "a"}'),
+        "parsed": AnswerSchema(answer="a"),
+    }
+    assert is_output_empty(blank) is True
+    assert is_output_empty(populated) is False
+
+
+def test_is_output_empty_structured_dict_without_raw():
+    """With no raw message, a parsed result counts as non-empty."""
+    assert is_output_empty({"parsed": AnswerSchema(answer="a")}) is False
+    assert is_output_empty({"parsed": None}) is True
+
+
 def test_process_output_warns_on_empty_result(caplog):
-    """An all-default structured parse triggers a warning log."""
+    """An all-default structured parse warns and uses the node fallback."""
     node = _node(AnswerSchema)
     output = {
         "parsed": AnswerSchema(),
@@ -196,7 +220,7 @@ def test_process_output_warns_on_empty_result(caplog):
     }
     with caplog.at_level(logging.WARNING):
         result = node._process_output(output)
-    assert result == AnswerSchema()
+    assert result == AnswerSchema(answer="fallback")
     assert "Empty LLM output from Dummy" in caplog.text
 
 

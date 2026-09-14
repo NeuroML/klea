@@ -22,7 +22,7 @@ from ..llm import (
     split_output_by_section,
 )
 from ..nodes.abstract import NodeStreamData
-from .base import BaseLLMNode
+from .base import EMPTY_RESULT_FALLBACK, BaseLLMNode
 
 
 class FallbackConfig(BaseModel):
@@ -97,6 +97,10 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
 
         content = content_to_str(result.content)
         _thought, answer_text = split_output_by_section(content, "<think>", "</think>")
+        # An empty generation (the base retry budget was exhausted) must not
+        # surface as a blank reply to the user; fall back to a clear message.
+        if not answer_text.strip():
+            answer_text = content_to_str(self._get_default_error_result().content)
         answer += answer_text
 
         messages = list(state.messages)  # type: ignore
@@ -107,8 +111,8 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
 
     @override
     def _get_default_error_result(self) -> AIMessage:
-        """Return default result when processing fails."""
-        return AIMessage(content="")
+        """Return the fallback message when the model produced no answer."""
+        return AIMessage(content=EMPTY_RESULT_FALLBACK)
 
     @override
     def _get_info(self) -> NodeStreamData | None:

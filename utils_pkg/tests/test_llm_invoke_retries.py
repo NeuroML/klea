@@ -17,6 +17,7 @@ from klea_utils.llm import LLMModel
 from klea_utils.models_catalog import ModelLimits
 from klea_utils.nodes.base import (
     MAX_CONTEXT_OVERFLOW_RETRIES,
+    MAX_EMPTY_OUTPUT_RETRIES,
     MAX_OUTPUT_TOKENS_CEILING,
     MAX_TRUNCATION_RETRIES,
     TRUNCATION_LINEAR_STEP,
@@ -203,6 +204,33 @@ class TestInvokeWithRetries:
             raise AssertionError("expected RuntimeError")
 
         assert inst.ainvoke.await_count == 1
+
+    async def test_empty_output_retries_then_succeeds(self):
+        """A blank response is re-invoked until the model returns content."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                AIMessage(content="", response_metadata={"finish_reason": "stop"}),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        out = await self._invoke(inst)
+
+        assert inst.ainvoke.await_count == 2
+        assert out.content == "ok"
+
+    async def test_empty_output_exhausts_retries(self):
+        """Persistent blank responses stop retrying and return as-is."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="  ", response_metadata={"finish_reason": "stop"}
+            )
+        )
+        out = await self._invoke(inst)
+
+        assert inst.ainvoke.await_count == 1 + MAX_EMPTY_OUTPUT_RETRIES
+        assert out.content == "  "
 
     async def test_truncation_retry_grows_window(self):
         """A truncated output retries once with a linearly grown output window."""

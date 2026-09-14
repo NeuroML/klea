@@ -35,11 +35,11 @@ from ..llm import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     add_memory_to_prompt,
     classify_llm_invocation_error,
-    content_to_str,
     estimate_input_tokens,
     get_last_n_conversations,
     get_provider_allowed_fields,
     get_token_limit_param,
+    is_output_empty,
     is_output_truncated,
     load_prompt,
     parse_output_with_thought,
@@ -52,6 +52,11 @@ from .abstract import AbstractLLMNode
 #: Max times to retry an invoke that overflowed the context window, each
 #: time shrinking the reserved output window to free headroom.
 MAX_CONTEXT_OVERFLOW_RETRIES = 3
+
+#: Max times to retry an invoke that returned an empty response.  Some
+#: providers (notably HuggingFace) intermittently return a successful but
+#: blank message; the retry is a plain re-invoke with no window change.
+MAX_EMPTY_OUTPUT_RETRIES = 2
 
 
 def _current_session_id() -> str | None:
@@ -144,6 +149,11 @@ def _schema_to_example(schema: dict[str, Any]) -> Any:
             return None
 
 
+#: User-facing fallback when an LLM produced no usable answer and the node
+#: has no more specific fallback of its own.
+EMPTY_RESULT_FALLBACK = "Something went wrong. Please retry."
+
+
 def _is_empty_result(result: Any, schema: type[BaseModel] | None = None) -> bool:
     """Return True if *result* carries no usable content.
 
@@ -159,7 +169,7 @@ def _is_empty_result(result: Any, schema: type[BaseModel] | None = None) -> bool
     if schema is not None:
         return isinstance(result, schema) and result == schema()
     if isinstance(result, AIMessage):
-        return not content_to_str(result.content).strip()
+        return is_output_empty(result)
     return False
 
 
@@ -451,7 +461,6 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                     raise
         else:
             output = await self._invoke_with_retries(inst.ainvoke, prompt, config)
-        # TODO: can still be empty, eg: Huggingface. We should return something like "something went wrong. please retry".
         self.logger.debug(f"{output = }")
         return output
 
@@ -589,7 +598,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
     ) -> AIMessage | dict[str, Any]:
         """Invoke an LLM with adaptive retries on length-related failures.
 
-        Two retry behaviours, both bounded:
+        Three retry behaviours, all bounded:
 
         * ``context_overflow`` errors (request rejected because input plus
           the reserved output exceeds the window) retry up to
@@ -603,6 +612,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
           "length"``), or a raised ``length_truncation`` exception (some
           SDKs, e.g. the OpenAI streaming / structured-output path, raise
           instead of returning a truncated message).
+        * Empty responses (some providers, notably HuggingFace,
+          intermittently return a blank successful message) retry up to
+          :data:`MAX_EMPTY_OUTPUT_RETRIES` times with a plain re-invoke.
 
         All other failures (rate limits, auth, model-not-found, ...) are
         re-raised immediately.  Retrying stops early if resizing the
@@ -615,6 +627,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         """
         overflow_retries = 0
         truncation_retries = 0
+        empty_retries = 0
 
         while True:
             try:
@@ -656,6 +669,21 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                     truncation_retries += 1
                     self.logger.warning(message)
                     continue
+                return output
+
+            if is_output_empty(output):
+                if empty_retries < MAX_EMPTY_OUTPUT_RETRIES:
+                    empty_retries += 1
+                    self.logger.warning(
+                        "Empty LLM output, retrying (%d/%d)",
+                        empty_retries,
+                        MAX_EMPTY_OUTPUT_RETRIES,
+                    )
+                    continue
+                self.logger.warning(
+                    "Empty LLM output after %d retries; returning as-is",
+                    MAX_EMPTY_OUTPUT_RETRIES,
+                )
                 return output
 
             return output
@@ -747,6 +775,14 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                 f"Empty LLM output from {self.label}: nothing usable was "
                 f"produced (all-default structured result or blank message)"
             )
+            # Structured nodes define a typed fail-closed default (e.g. the
+            # router's ``task`` route, the evaluator's ``need_replan``), so
+            # surface it instead of the empty instance.  Non-structured
+            # nodes keep the raw output: their ``_get_default_error_result``
+            # is not necessarily an ``AIMessage`` (the guard returns a bare
+            # ``str``), and user-facing ones supply their own fallback text.
+            if self.output_schema is not None:
+                result = self._get_default_error_result()
 
         return result
 

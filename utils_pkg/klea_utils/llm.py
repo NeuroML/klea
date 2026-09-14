@@ -411,6 +411,31 @@ def is_output_truncated(output: AIMessage | dict[str, Any]) -> bool:
     return str(finish_reason).lower() == "length"
 
 
+def is_output_empty(output: AIMessage | dict[str, Any]) -> bool:
+    """Return True if an LLM output carries no usable text content.
+
+    Some providers (notably HuggingFace) intermittently return a successful
+    response with blank content.  Handles both plain ``AIMessage`` outputs
+    and structured-output dicts (``{"raw": AIMessage, "parsed": ...}``); for
+    the structured form the ``raw`` message is inspected, so a blank raw
+    response is flagged even when the parser produced an all-default
+    instance.
+
+    :param output: The raw output from ``llm.invoke()``.
+    :returns: True when the output has no non-whitespace text.
+    """
+    if isinstance(output, dict):
+        raw = output.get("raw")
+        if isinstance(raw, AIMessage):
+            return not content_to_str(raw.content).strip()
+        # No raw message to inspect: empty unless the parser still produced
+        # a non-None structured result.
+        return output.get("parsed") is None
+    if isinstance(output, AIMessage):
+        return not content_to_str(output.content).strip()
+    return False
+
+
 def get_token_limit_param(provider: str) -> str:
     """Return the max-output token parameter name for a provider.
 

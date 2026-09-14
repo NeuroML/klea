@@ -17,7 +17,7 @@ from klea_utils.llm import (
     split_output_by_section,
 )
 from klea_utils.nodes.abstract import NodeStreamData
-from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK, BaseLLMNode
 from klea_utils.stores.utils import serialize_reference_material
 from klea_utils.tools import textualize_tool_results
 from langchain.messages import AIMessage
@@ -171,5 +171,5 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
 
     @override
     def _get_default_error_result(self) -> Any:
-        """Return default result when processing fails."""
-        return AnswerSchema(answer="", references=[])
+        """Return the fallback answer when processing produced nothing."""
+        return AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])

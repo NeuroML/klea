@@ -12,6 +12,7 @@ import logging
 from types import SimpleNamespace
 
 from klea_utils.nodes.answer_general import AnswerGeneral, FallbackConfig
+from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK
 from langchain_core.messages import AIMessage
 
 WARNING = "Answer from training data; sources could not be verified."
@@ -77,3 +78,11 @@ def test_no_warning_when_no_domains_attribute():
     node = _node(FallbackConfig(enabled=True, warning=WARNING))
     answer = _update(node, _state())
     assert WARNING not in answer
+
+
+def test_blank_answer_uses_fallback_message():
+    """A blank generation surfaces the retry message, not an empty reply."""
+    node = _node(None)
+    result = AIMessage(content="<think>thinking</think>\n   ")
+    updates = node._update_state(result, _state())
+    assert updates["message_for_user"] == EMPTY_RESULT_FALLBACK
