@@ -9,8 +9,19 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import pytest
-from klea_rag.schemas import RetrievalQueryOutput
+from klea_rag.rag import RAG
+from klea_rag.schemas import (
+    EvaluateAnswerSchema,
+    RAGState,
+    RetrievalQueryOutput,
+)
+from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.state import BaseGraphSchema
+from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.stores.filters import translate_metadata_filter
+from langgraph.channels.binop import BinaryOperatorAggregate
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.graph import StateGraph
 
 
 def test_no_constraints_returns_none():
@@ -119,3 +130,45 @@ def test_malformed_config_clauses_rejected_on_translation():
     assert out is not None
     with pytest.raises(ValueError):
         translate_metadata_filter("chroma:/data/store", out)
+
+
+def test_rag_state_inherits_base_graph_schema():
+    """RAGState extends the shared BaseGraphSchema (ADR-0032)."""
+    assert issubclass(RAGState, BaseGraphSchema)
+
+
+def test_rag_state_shared_defaults():
+    state = RAGState()
+    assert state.query == ""
+    assert state.messages == []
+    assert state.guard_decision == "safe"
+    assert state.summarised_till == 0
+    assert state.message_for_user == ""
+    assert state.tool_calls == []
+    assert state.tool_results == []
+    assert state.usage_metrics == TokenUsage()
+
+
+def test_rag_state_channels_present():
+    channels = StateGraph(RAGState).channels
+    assert {"messages", "tool_calls", "tool_results", "context_summary"} <= set(
+        channels
+    )
+    assert {"query_domains", "retrieval_query"} <= set(channels)
+    assert isinstance(channels["usage_metrics"], BinaryOperatorAggregate)
+
+
+def test_rag_state_models_roundtrip():
+    """Shared and RAG-specific checkpointed models round-trip through msgpack."""
+    allowed = RAG.__new__(RAG).get_allowed_msgpack_modules()
+    serde = JsonPlusSerializer(allowed_msgpack_modules=allowed)
+    payload = {
+        "text_response_eval": EvaluateAnswerSchema(coverage=0.5),
+        "retrieval_query": RetrievalQueryOutput(search_query="neurons"),
+        "tool_calls": [ToolCallSchema(tool="read_file", args={"path": "x.md"})],
+        "usage_metrics": TokenUsage(input_tokens=4, output_tokens=5, total_tokens=9),
+        "retrieval_attempts": 2,
+        "rewrite_attempts": 1,
+    }
+    type_name, data = serde.dumps_typed(payload)
+    assert serde.loads_typed((type_name, data)) == payload

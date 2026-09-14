@@ -113,6 +113,19 @@ layer, not by nodes.
   node produces (plan, generated code, executed results), so it is
   expected to ride the node/artifact state and the ADR-0013 node-event
   system, not the graph-level ``context`` projection.
+* Cross-app state contract (amended ``2026-09-14``): apps still define
+  their own state, but the fields every graph shares -- ``query``,
+  ``messages``, ``guard_decision``,
+  ``context_summary``/``summarised_till``, ``message_for_user``,
+  ``tool_calls``/``tool_results`` and the reduced ``usage_metrics`` -- move
+  into ``klea_utils.graph.state.BaseGraphSchema``
+  (``utils_pkg/klea_utils/graph/state.py``), which app states subclass.
+  This gives the implicit shared-node contract a single home and lets a new
+  shared field (e.g. the tool access level, ADR-0037) reach every app
+  without duplication.  App-specific fields (the agent's
+  ``mode``/``plan``/``route``, RAG's
+  ``query_domains``/``reference_material``) stay in the subclasses, and
+  ``context_snapshot`` remains an app hook.
 
 ### Consequences
 
@@ -157,6 +170,10 @@ layer, not by nodes.
 * ``ModeDecision.execute`` returns state updates only; ``KleaAgent``
   overrides ``context_snapshot`` to project ``mode``/``requested``/
   ``note`` from its ``mode`` field.
+* Both app states subclass ``BaseGraphSchema`` and LangGraph still resolves
+  the inherited ``usage_metrics`` reducer channel; shared defaults and a
+  msgpack round-trip are covered by ``utils_pkg/tests/test_graph_state.py``
+  and each app's ``tests/test_schemas.py``.
 * Lint/type/docs gates remain: ``ruff check``, ``ty``, ``docs: make html``.
 
 ## Pros and Cons of the Options
@@ -202,6 +219,10 @@ layer, not by nodes.
 
 ## More Information
 
+* Amended ``2026-09-14``: the shared cross-app state fields are factored
+  into ``klea_utils.graph.state.BaseGraphSchema``; ``KleaAgentState`` and
+  ``RAGState`` subclass it and add their own fields.  See
+  ``utils_pkg/klea_utils/graph/state.py``.
 * Refines: ADR-0013 (stream contract gains the graph-level ``context``
   event type), ADR-0030 (the operating mode is surfaced to the frontend
   by this graph-level ``context`` event rather than node

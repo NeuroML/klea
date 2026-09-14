@@ -8,13 +8,10 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from typing import Annotated, Literal
+from typing import Literal
 
 from fastmcp.client.client import CallToolResult
-from klea_utils.graph.reducers import add_token_usage
-from klea_utils.graph.schemas import TokenUsage
-from klea_utils.mcp.schemas import ToolCallSchema
-from langchain_core.messages import AnyMessage
+from klea_utils.graph.state import BaseGraphSchema
 from pydantic import BaseModel, Field
 from typing_extensions import Any
 
@@ -239,15 +236,15 @@ class EvaluationSchema(BaseModel):
     reason: str = Field(default="", description="Short justification for the verdict")
 
 
-class KleaAgentState(BaseModel):
-    """The state of the graph"""
+class KleaAgentState(BaseGraphSchema):
+    """The state of the graph
 
-    query: str = ""
-    messages: list[AnyMessage] = Field(default_factory=list)
-    guard_decision: str = "safe"
-    usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
-        default_factory=TokenUsage
-    )
+    Inherits the shared fields (query, messages, tool calls/results, usage
+    metrics, summary/message fields) from
+    :class:`klea_utils.graph.state.BaseGraphSchema` (ADR-0032) and adds the
+    agent-specific ones.
+    """
+
     mode: Mode = Mode()
     route: RouteSchema = RouteSchema()
     evaluation: EvaluationSchema = EvaluationSchema()
@@ -280,15 +277,3 @@ class KleaAgentState(BaseModel):
 
     # { id -> artefact }
     artefacts: dict[str, ArtefactSchema] = Field(default_factory=dict)
-
-    # summarised version of context so far
-    context_summary: str = ""
-
-    # index till which summarised
-    summarised_till: int = 0
-    message_for_user: str = ""
-
-    # selected tool calls and their results (one call per plan step, kept as
-    # a list to share the tool caller/picker nodes with RAG)
-    tool_calls: list[ToolCallSchema] = Field(default_factory=list)
-    tool_results: list[CallToolResult] = Field(default_factory=list)

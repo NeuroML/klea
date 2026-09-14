@@ -19,7 +19,12 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.state import BaseGraphSchema
+from klea_utils.mcp.schemas import ToolCallSchema
+from langgraph.channels.binop import BinaryOperatorAggregate
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+from langgraph.graph import StateGraph
 
 
 class TestRouteSchema:
@@ -62,6 +67,32 @@ class TestStateDefaults:
         assert state.route == RouteSchema()
 
 
+class TestSharedStateInheritance:
+    """KleaAgentState extends the shared BaseGraphSchema (ADR-0032)."""
+
+    def test_is_base_graph_schema(self):
+        assert issubclass(KleaAgentState, BaseGraphSchema)
+
+    def test_shared_defaults(self):
+        state = KleaAgentState()
+        assert state.query == ""
+        assert state.messages == []
+        assert state.guard_decision == "safe"
+        assert state.summarised_till == 0
+        assert state.message_for_user == ""
+        assert state.tool_calls == []
+        assert state.tool_results == []
+        assert state.usage_metrics == TokenUsage()
+
+    def test_shared_and_app_channels_present(self):
+        channels = StateGraph(KleaAgentState).channels
+        assert {"messages", "tool_calls", "tool_results", "context_summary"} <= set(
+            channels
+        )
+        assert {"mode", "plan", "route"} <= set(channels)
+        assert isinstance(channels["usage_metrics"], BinaryOperatorAggregate)
+
+
 class TestCheckpointMsgpack:
     """Nested state models round-trip through the checkpoint serializer."""
 
@@ -77,6 +108,10 @@ class TestCheckpointMsgpack:
                 ),
             ),
             "evaluation": EvaluationSchema(evaluation="abort"),
+            "tool_calls": [ToolCallSchema(tool="list_files", args={"path": "."})],
+            "usage_metrics": TokenUsage(
+                input_tokens=1, output_tokens=2, total_tokens=3
+            ),
             "step_attempt_counts": {0: 2},
             "plan_revisions": 1,
             "tool_rounds": 3,

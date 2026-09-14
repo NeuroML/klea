@@ -8,13 +8,9 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
-from fastmcp.client.client import CallToolResult
-from klea_utils.graph.reducers import add_token_usage
-from klea_utils.graph.schemas import TokenUsage
-from klea_utils.mcp.schemas import ToolCallSchema
-from langchain_core.messages import AnyMessage
+from klea_utils.graph.state import BaseGraphSchema
 from pydantic import BaseModel, Field
 
 
@@ -79,26 +75,18 @@ class RetrievalQueryOutput(BaseModel):
         return {"$and": clauses}
 
 
-class RAGState(BaseModel):
-    """The state of the graph"""
+class RAGState(BaseGraphSchema):
+    """The state of the graph
 
-    query: str = ""
+    Inherits the shared fields (query, messages, tool calls/results, usage
+    metrics, summary/message fields) from
+    :class:`klea_utils.graph.state.BaseGraphSchema` (ADR-0032) and adds the
+    RAG-specific ones.
+    """
+
     # schema for this is computed at run time for the classifier node
     query_domains: list[str] = Field(default=["undefined"], validate_default=True)
     text_response_eval: EvaluateAnswerSchema = EvaluateAnswerSchema()
-    guard_decision: str = "safe"
-    messages: list[AnyMessage] = Field(default_factory=list)
-
-    # summarised version of context so far
-    context_summary: str = ""
-
-    # index till which summarised
-    summarised_till: int = 0
-    message_for_user: str = ""
-
-    # tool calls
-    tool_calls: list[ToolCallSchema] = Field(default_factory=list)
-    tool_results: list[CallToolResult] = Field(default_factory=list)
 
     # reference material from retrievals
     reference_material: dict[str, list[tuple]] = Field(default_factory=dict)
@@ -114,8 +102,3 @@ class RAGState(BaseModel):
     # generated retrieval query (and any retrieval filters) for the
     # current round
     retrieval_query: RetrievalQueryOutput = RetrievalQueryOutput()
-
-    # Token usage is reduced so parallel nodes can update it safely.
-    usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
-        default_factory=TokenUsage
-    )
