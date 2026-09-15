@@ -4,7 +4,7 @@ Session-context projection endpoint.
 
 Returns the session context for a chat -- the app-defined projection of
 *checkpointed graph state* via :meth:`BaseLangGraph.context_snapshot`
-(ADR-0032) -- so frontends can restore the mode badge / selector on
+(ADR-0032) -- so frontends can restore the mode selector on
 hydration without waiting for the next streamed query.
 
 Design: the mode lives in checkpointed graph state, which is the single

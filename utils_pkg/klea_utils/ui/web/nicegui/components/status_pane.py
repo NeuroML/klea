@@ -53,7 +53,7 @@ def attach_status_pane(ctx: PageContext) -> None:
             current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
             with ui.column().classes("w-full gap-0 p-2"):
                 # App-defined context slots (e.g. operating-mode and
-                # tool-access selectors/badges, ADR-0030/ADR-0037).  Rendered
+                # tool-access selectors, ADR-0030/ADR-0037).  Rendered
                 # inside the refreshable pane, so they update on pane refresh.
                 for render in ctx.status_extras:
                     render()

@@ -204,7 +204,10 @@ The default level is set in the app config:
 
 The agent defaults to ``full`` and accepts a per-request ``access_level``
 override in the chat API; the RAG is fixed at ``read_only`` (it only
-retrieves).
+retrieves).  In the agent's web UI the level is a per-chat selector in the
+status pane (next to the operating mode), so it can be changed without
+editing the request payload; the effective level is projected back through
+the graph's ``context`` event.
 
 Because annotations are self-reported, tools that declare nothing are
 hidden under ``read_only``.  A deployment can declare the capability of a

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Agent tool-access-level selector and badge (ADR-0037).
+Agent tool-access-level selector (ADR-0037).
 
 This module provides the *agent-specific* access-level UI that slots into the
 shared status pane via :attr:`PageContext.status_extras` (ADR-0031, ADR-0032):
 a request selector (full / read_only) that writes the next query's
-``access_level`` request into ``PageContext.query_extra``, and a badge that
-mirrors the *effective* level streamed back as a ``context`` event (the
-checkpointed graph state -- never the raw request).
+``access_level`` request into ``PageContext.query_extra``; the *effective*
+level streamed back as a ``context`` event (the checkpointed graph state --
+never the raw request) seeds the selector.
 
 File: klea_agent/ui/web/access_ui.py
 

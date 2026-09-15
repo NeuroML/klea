@@ -73,7 +73,7 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                             ]
                     # Session context (the agent's operating mode etc.,
                     # ADR-0032) is a projection of checkpointed graph state.
-                    # Restore it so the badge/selector render correctly before
+                    # Restore it so the selector renders correctly before
                     # the first streamed query, without app-specific knowledge.
                     logger.debug("GET /chat/%s/%s/context", user_id, chat_id)
                     ctx_resp = await client.get(

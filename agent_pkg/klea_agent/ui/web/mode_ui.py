@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Agent operating-mode selector and badge (ADR-0030).
+Agent operating-mode selector (ADR-0030).
 
 This module provides the *agent-specific* mode UI that slots into the
 shared status pane via :attr:`PageContext.status_extras` (ADR-0031,
 ADR-0032): a request selector (general / scientific) that writes the
-next query's ``mode`` request into ``PageContext.query_extra``, and a
-badge that mirrors the *resolved* mode streamed back as a ``context``
-event (the checkpointed graph state -- never the raw request).
+next query's ``mode`` request into ``PageContext.query_extra``; the
+*resolved* mode streamed back as a ``context`` event (the checkpointed
+graph state -- never the raw request) seeds the selector and its
+inform-branch note is shown as the group tooltip.
 
 File: klea_agent/ui/web/mode_ui.py
 

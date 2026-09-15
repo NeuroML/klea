@@ -92,7 +92,7 @@ class PageContext:
     fetch_model_info: Callable[[], Any] | None = None
     model_config_dialog: Callable[[], Any] | None = None
     # App-defined content rendered inside the (refreshable) status pane,
-    # e.g. operating-mode or tool-access selectors/badges (ADR-0030,
+    # e.g. operating-mode or tool-access selectors (ADR-0030,
     # ADR-0037).  Each app UI appends its own render callable; the status
     # pane calls them in registration order.
     status_extras: list[Callable[[], Any]] = field(default_factory=list)

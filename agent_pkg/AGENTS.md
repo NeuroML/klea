@@ -64,9 +64,10 @@ klea_agent/
 └── ui/
     ├── cli.py       # Typer CLI entry point (klea, klea-serve)
     └── web/         # NiceGUI page composition over klea_utils components (ADR-0031)
-        ├── app.py   # process entry point
-        ├── mode_ui.py # operating-mode selector + resolved-mode badge (status-pane slot)
-        └── page.py  # setup_layout -- composes the shared components
+        ├── access_ui.py  # tool-access selector (status-pane slot; ADR-0037)
+        ├── app.py    # process entry point
+        ├── mode_ui.py    # operating-mode selector (status-pane slot; ADR-0030)
+        └── page.py   # setup_layout -- composes the shared components
 ```
 
 The bundled tools server is shared: it lives in `klea_utils.mcp.server`
@@ -74,7 +75,6 @@ The bundled tools server is shared: it lives in `klea_utils.mcp.server`
 subprocess (`python -m klea_utils.mcp.server.bundled`), and also runnable
 standalone via the `klea-mcp` CLI. The tool picker/caller nodes are the
 shared `klea_utils.nodes.tools_picker` / `klea_utils.nodes.tools_caller`.
-```
 
 ### Key Technologies
 - LangChain/LangGraph for agent orchestration

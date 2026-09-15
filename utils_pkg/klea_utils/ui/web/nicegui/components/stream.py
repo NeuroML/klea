@@ -61,7 +61,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     if t == "context":
         # App-defined session context (e.g. the agent's operating mode,
         # ADR-0030), carried verbatim into the chat dict so
-        # the page can render it (badges / status) without app-specific
+        # the page can render it (status) without app-specific
         # knowledge of every event type.
         chat.setdefault("context", {}).update(event.get("data", {}))
         return "context"
