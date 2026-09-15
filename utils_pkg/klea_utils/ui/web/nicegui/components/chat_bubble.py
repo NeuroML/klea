@@ -74,7 +74,7 @@ class ChatBubble(ui.element):
                 if collapsed
                 else f"{text_align} msg-expanded"
             )
-            with ui.element("div").classes(text_cls):
+            with ui.element("div").classes(f"{text_cls} chat-markdown"):
                 # 'alerts' extra renders GitHub-style ``> [!WARNING]`` blocks
                 # (used for the fallback / best-effort warnings) as callouts.
                 ui.markdown(text, extras=["fenced-code-blocks", "tables", "alerts"])
