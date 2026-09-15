@@ -27,6 +27,26 @@ fact.
 today.  The agent (``klea_agent``) is under active development, with an
 initial release planned.
 
+Quickstart
+----------
+
+New to Klea? Start with installation and the end-to-end RAG tutorial:
+
+* :doc:`install` -- install Klea (PyPI or from source, with optional extras)
+* :doc:`tutorials/create-and-use-rag` -- build your first vector store, configure a domain, and query it
+
+Prototype Deployments
+---------------------
+
+These prototype Klea RAG deployments are available on HuggingFace that use the web interface.
+
+- `NeuroML RAG <https://huggingface.co/spaces/NeuroML/NeuroKLEA>`__
+- `OpenWorm RAG <https://huggingface.co/spaces/sanjayankur31/OpenWormLLM>`__
+
+Please note that there are limited resources/credits available for these
+prototypes, and so they may fall over if there is too much activity.
+They are not production deployments.
+
 Architecture
 ------------
 
@@ -75,26 +95,6 @@ support comes from the domain-specific ``nml-mcp`` server and the curated
 NeuroML vector stores.  The full C4 model (system context, containers,
 components, deployment) is maintained as developer documentation: see
 :doc:`developer-info`.
-
-Quickstart
-----------
-
-New to Klea? Start with installation and the end-to-end RAG tutorial:
-
-* :doc:`install` -- install Klea (PyPI or from source, with optional extras)
-* :doc:`tutorials/create-and-use-rag` -- build your first vector store, configure a domain, and query it
-
-Prototype Deployments
----------------------
-
-These prototype Klea RAG deployments are available on HuggingFace that use the web interface.
-
-- `NeuroML RAG <https://huggingface.co/spaces/NeuroML/NeuroKLEA>`__
-- `OpenWorm RAG <https://huggingface.co/spaces/sanjayankur31/OpenWormLLM>`__
-
-Please note that there are limited resources/credits available for these
-prototypes, and so they may fall over if there is too much activity.
-They are not production deployments.
 
 Funding
 -------
