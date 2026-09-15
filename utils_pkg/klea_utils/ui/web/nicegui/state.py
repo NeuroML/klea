@@ -103,6 +103,36 @@ def resolve_choice(
     return default
 
 
+def resolve_chat_choice(
+    current_chat: dict | None,
+    pending: Any,
+    pref: Any,
+    context_value: Any,
+    allowed: Container[str],
+    default: str,
+) -> str:
+    """Return the effective choice for *current_chat*.
+
+    ``pending`` (``PageContext.query_extra``) is page-session scoped, not
+    per-chat, so it is only consulted before a chat exists -- e.g. choosing an
+    operating mode or access level for the first message.  Once a chat exists
+    its per-chat preference and hydrated context win, so switching chats
+    restores each chat's own value instead of the last selection made
+    elsewhere.
+
+    :param current_chat: The active chat session dict, or a falsy value.
+    :param pending: The pending request, or ``None``.
+    :param pref: The per-chat preference, or ``None``.
+    :param context_value: The value from the hydrated ``context`` event.
+    :param allowed: The set of valid option values.
+    :param default: The fallback value.
+    :returns: The resolved value, else *default*.
+    """
+    if current_chat:
+        pending = None
+    return resolve_choice(pending, pref, context_value, allowed, default)
+
+
 def get_chats_sorted(user_id: str) -> list[tuple[str, dict]]:
     """Return (chat_id, data) pairs for *user_id*, pinned first, then by creation desc.
 

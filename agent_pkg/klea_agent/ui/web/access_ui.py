@@ -19,7 +19,7 @@ import logging
 
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats, resolve_choice
+from klea_utils.ui.web.nicegui.state import chats, resolve_chat_choice
 
 logger = logging.getLogger(__name__)
 
@@ -34,17 +34,18 @@ DEFAULT_ACCESS_LEVEL = "full"
 
 
 def attach_access_ui(ctx: PageContext) -> None:
-    """Register the access-level selector + badge as a status-pane slot.
+    """Register the per-chat access-level selector as a status-pane slot.
 
     Must be called before :func:`klea_utils.ui.web.nicegui.components.status_pane.attach_status_pane`
     (the pane renders its slots at attach time and on every refresh).
 
-    The selector buttons set ``ctx.query_extra["access_level"]`` (the next
-    query's request) and a per-chat preference kept in the frontend chat
-    state; the badge reflects the effective level from the streamed
-    ``context`` event, which is the checkpointed graph state.  Before the
-    first stream there is no ``context`` yet, so the selector falls back to the
-    request/config default.
+    Access is a per-chat property: the buttons write the request into
+    ``ctx.query_extra["access_level"]`` (carried by the next query) and
+    an ``access_pref`` on the frontend chat state.  ``query_extra`` is
+    page-session scoped, so it only counts as a pending request before a
+    chat exists (letting the user pick a level for the first message);
+    once a chat exists that chat's preference and hydrated ``context``
+    win, so switching chats restores each chat's own level.
 
     :param ctx: The shared page context.
     """
@@ -63,20 +64,21 @@ def attach_access_ui(ctx: PageContext) -> None:
         logger.debug("user=%s requested access_level=%s", ctx.user_id, level)
 
     def _render() -> None:
-        """Render the selector row and the effective-level badge.
+        """Render the selector row, tracking this chat's effective level.
 
-        The selector tracks the *request* (restored across reloads from the
-        hydrated ``context``, which carries the effective checkpointed level);
-        the badge mirrors that effective level.  Re-syncing ``query_extra``
-        matters because ``access_level`` is a plain state field: an empty
-        re-request after a reload would otherwise fall back to the config
-        default and change the level on the next query.
+        The selector mirrors the *request* (restored across reloads from
+        the hydrated ``context``, which carries the checkpointed level).
+        Before a chat exists the pending ``query_extra`` selection is
+        used; after that the per-chat state decides, so each chat keeps
+        its own level.
         """
         current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
         context = current_chat.get("context", {})
-        # Pending request (this session's selection) wins, then the per-chat
-        # preference, then the hydrated effective level, then the default.
-        requested = resolve_choice(
+        # ``query_extra`` is page-session scoped, so ``resolve_chat_choice``
+        # only lets it win before a chat exists; afterwards this chat's
+        # preference/context decide, keeping each chat's level independent.
+        requested = resolve_chat_choice(
+            current_chat,
             ctx.query_extra.get("access_level"),
             current_chat.get("access_pref"),
             context.get("access_level"),

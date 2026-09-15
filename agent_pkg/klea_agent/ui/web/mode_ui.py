@@ -19,7 +19,7 @@ import logging
 
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats, resolve_choice
+from klea_utils.ui.web.nicegui.state import chats, resolve_chat_choice
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +31,19 @@ MODES: dict[str, tuple[str, str]] = {
 
 
 def attach_mode_ui(ctx: PageContext) -> None:
-    """Register the mode selector + badge as the status-pane content slot.
+    """Register the per-chat mode selector as a status-pane content slot.
 
     Must be called before :func:`klea_utils.ui.web.nicegui.components.status_pane.attach_status_pane`
     (the pane renders its slot at attach time and on every refresh).
 
-    The selector buttons set ``ctx.query_extra["mode"]`` (the next
-    query's request) and a per-chat preference kept in the frontend chat
-    state; the badge reflects the authoritative checkpointed mode from
-    the streamed ``context`` event, with the inform-branch ``note``
-    shown alongside.  Before the first stream there is no ``context``
-    yet, so the badge falls back to the requested mode.
+    Mode is a per-chat property: the buttons write the request into
+    ``ctx.query_extra["mode"]`` (carried by the next query) and a
+    ``mode_pref`` on the frontend chat state.  ``query_extra`` is
+    page-session scoped, so it only counts as a pending request before a
+    chat exists (letting the user pick a mode for the first message);
+    once a chat exists that chat's preference and hydrated ``context``
+    win, so switching chats restores each chat's own mode.  The
+    inform-branch ``note`` is shown as the group tooltip.
 
     :param ctx: The shared page context.
     """
@@ -60,19 +62,20 @@ def attach_mode_ui(ctx: PageContext) -> None:
         logger.debug("user=%s requested mode=%s", ctx.user_id, mode)
 
     def _render() -> None:
-        """Render the selector row and the resolved-mode badge.
+        """Render the selector row, tracking this chat's effective mode.
 
-        The selector tracks the *request* (next query will carry it,
-        restored across reloads from the hydrated ``context``); the badge
-        mirrors the *resolved* mode from checkpointed state.  Before a chat
-        exists the selector still renders with the default, so the mode can
-        be chosen before the first message.
+        The selector mirrors the *request* (the next query will carry it,
+        restored across reloads from the hydrated ``context``).  Before a
+        chat exists the pending ``query_extra`` selection is used; after
+        that the per-chat state decides, so each chat keeps its own mode.
         """
         current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
         context = current_chat.get("context", {})
-        # Pending request (this session's selection) wins, then the per-chat
-        # preference, then the hydrated context, then the default.
-        requested = resolve_choice(
+        # ``query_extra`` is page-session scoped, so ``resolve_chat_choice``
+        # only lets it win before a chat exists; afterwards this chat's
+        # preference/context decide, keeping each chat's mode independent.
+        requested = resolve_chat_choice(
+            current_chat,
             ctx.query_extra.get("mode"),
             current_chat.get("mode_pref"),
             context.get("requested"),
