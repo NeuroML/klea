@@ -12,6 +12,7 @@ import logging
 from typing import Any, ClassVar, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
+from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
@@ -69,21 +70,25 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         )
         self.max_plan_revisions = max_plan_revisions
         self._tools_info: dict[str, dict[str, ToolInfo]] = {}
-        self._tools_description = ""
 
-    def _get_tool_descriptions(self) -> str:
+    def _get_tool_descriptions(self, state: KleaAgentState) -> str:
         """Return combined compact tool descriptions from ``_tools_info``.
 
         Uses ``ToolInfo.short_description`` (name plus docstring, no parameter
         list) so the planner prompt stays small under tiered disclosure
         (ADR-0035); the tool picker carries the full argument detail.  Falls
-        back to ``description`` when a short form was not built.  Mirrors
-        ``ToolsPicker._get_tool_descriptions`` but without domain filtering --
-        the agent's single ``code`` domain includes all tools.
+        back to ``description`` when a short form was not built.  Tools the
+        state's ``access_level`` does not permit are excluded (ADR-0037), so
+        the planner never plans around a disallowed tool.
+
+        :param state: Current graph state (supplies the access level).
+        :returns: Compact descriptions joined into one block.
         """
+        access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+        tools_info = filter_tools_info(self._tools_info, access_level)
         parts = [
             info.short_description or info.description or ""
-            for domain_tools in self._tools_info.values()
+            for domain_tools in tools_info.values()
             for info in domain_tools.values()
         ]
         return "\n\n".join(parts)
@@ -91,11 +96,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     def set_tools_info(self, tools_info: dict[str, dict[str, ToolInfo]]) -> None:
         """Set tool metadata (called by orchestrator after construction).
 
-        Stores the per-domain ``ToolInfo`` map from ``BaseLangGraph.tools_info``
-        and refreshes the cached description string.
+        Stores the per-domain ``ToolInfo`` map from ``BaseLangGraph.tools_info``;
+        filtering by the run's access level happens per invocation in
+        :meth:`_get_tool_descriptions`.
         """
         self._tools_info = tools_info or {}
-        self._tools_description = self._get_tool_descriptions()
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState) -> dict:
@@ -112,7 +117,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "artefacts": state.artefacts,
             "discovery": state.discovery_persistent,
             "observations": state.step_outputs,
-            "tools_description": self._get_tool_descriptions(),
+            "tools_description": self._get_tool_descriptions(state),
         }
 
     @override
@@ -236,7 +241,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
                 "unprocessed_output": extract_llm_output_content(self._last_output),
                 "processed_output": str(self._last_result),
-                "tools_description": self._get_tool_descriptions(),
+                "tools_description": self._get_tool_descriptions(self._last_state),
             }
         )
         return NodeStreamData(

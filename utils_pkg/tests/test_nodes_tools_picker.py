@@ -39,6 +39,7 @@ class RagLikeState(BaseModel):
     query: str = "q"
     query_domains: list[str] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
+    access_level: str = "full"
 
 
 class Step(BaseModel):
@@ -64,6 +65,7 @@ class AgentLikeState(BaseModel):
     artefacts: dict = Field(default_factory=dict)
     tool_results: list[CallToolResult] = Field(default_factory=list)
     plan: PlanLike = Field(default_factory=PlanLike)
+    access_level: str = "full"
 
 
 def _make_picker(**kwargs) -> ToolsPicker:
@@ -95,6 +97,40 @@ def test_get_tool_descriptions_includes_all_without_domains():
 def test_get_tool_descriptions_unknown_domain_is_empty():
     picker = _make_picker()
     assert picker._get_tool_descriptions(RagLikeState(query_domains=["nope"])) == ""
+
+
+ACCESS_TOOLS = {
+    "d": {
+        "read": ToolInfo(description="read tool", read_only=True),
+        "delete": ToolInfo(description="delete tool", destructive=True),
+        "plain": ToolInfo(description="plain tool"),
+    }
+}
+
+
+def test_get_tool_descriptions_read_only_hides_disallowed():
+    """read_only discloses only explicitly read-only tools (ADR-0037)."""
+    picker = _make_picker(tools_info=ACCESS_TOOLS)
+    state = AgentLikeState(access_level="read_only")
+    assert picker._get_tool_descriptions(state) == "read tool"
+
+
+def test_get_tool_descriptions_full_includes_all():
+    picker = _make_picker(tools_info=ACCESS_TOOLS)
+    state = AgentLikeState(access_level="full")
+    descriptions = picker._get_tool_descriptions(state)
+    assert "read tool" in descriptions
+    assert "delete tool" in descriptions
+    assert "plain tool" in descriptions
+
+
+def test_pre_exec_skips_when_access_level_hides_all():
+    picker = _make_picker(
+        tools_info={
+            "d": {"delete": ToolInfo(description="delete tool", destructive=True)}
+        }
+    )
+    assert picker._pre_exec(AgentLikeState(access_level="read_only")) is False
 
 
 def test_pre_exec_skips_when_no_tools_for_domain():

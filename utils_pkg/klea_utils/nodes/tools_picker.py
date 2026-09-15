@@ -16,6 +16,7 @@ from typing import Any, ClassVar, override
 from pydantic import BaseModel
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
+from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
 from klea_utils.mcp.schemas import ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
@@ -91,22 +92,26 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
 
         When the state carries ``query_domains`` (RAG), descriptions are
         filtered to those domains; otherwise all tools are included (agent).
+        Tools the state's ``access_level`` does not permit are always excluded
+        (ADR-0037), so a disallowed tool is never disclosed to the model.
 
         :param state: Current graph state.
         :returns: Descriptions joined into one block, or ``""`` when none.
         """
+        access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+        tools_info = filter_tools_info(self._tools_info, access_level)
         domains = getattr(state, "query_domains", None)
         if domains:
             parts: list[str] = []
             for d in domains:
-                if d in self._tools_info:
+                if d in tools_info:
                     parts.extend(
-                        info.description or "" for info in self._tools_info[d].values()
+                        info.description or "" for info in tools_info[d].values()
                     )
         else:
             parts = [
                 info.description or ""
-                for domain_tools in self._tools_info.values()
+                for domain_tools in tools_info.values()
                 for info in domain_tools.values()
             ]
         return "\n\n".join(parts)

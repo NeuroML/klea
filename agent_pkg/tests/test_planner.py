@@ -186,14 +186,49 @@ class TestPlannerToolDisclosure(unittest.TestCase):
                 }
             }
         )
-        self.assertEqual(planner._get_tool_descriptions(), "read -- docstring only")
+        self.assertEqual(
+            planner._get_tool_descriptions(KleaAgentState()), "read -- docstring only"
+        )
 
     def test_tool_descriptions_fall_back_to_full(self):
         planner = self._planner()
         planner.set_tools_info(
             {"code": {"read": ToolInfo(description="read -- full description")}}
         )
-        self.assertEqual(planner._get_tool_descriptions(), "read -- full description")
+        self.assertEqual(
+            planner._get_tool_descriptions(KleaAgentState()),
+            "read -- full description",
+        )
+
+    def test_tool_descriptions_filtered_by_access_level(self):
+        """read_only hides destructive and unannotated tools (ADR-0037)."""
+        planner = self._planner()
+        planner.set_tools_info(
+            {
+                "code": {
+                    "read": ToolInfo(description="read tool", read_only=True),
+                    "delete": ToolInfo(description="delete tool", destructive=True),
+                    "plain": ToolInfo(description="plain tool"),
+                }
+            }
+        )
+        state = KleaAgentState(access_level="read_only")
+        self.assertEqual(planner._get_tool_descriptions(state), "read tool")
+
+    def test_tool_descriptions_full_includes_all(self):
+        planner = self._planner()
+        planner.set_tools_info(
+            {
+                "code": {
+                    "read": ToolInfo(description="read tool", read_only=True),
+                    "delete": ToolInfo(description="delete tool", destructive=True),
+                }
+            }
+        )
+        state = KleaAgentState(access_level="full")
+        descriptions = planner._get_tool_descriptions(state)
+        self.assertIn("read tool", descriptions)
+        self.assertIn("delete tool", descriptions)
 
 
 if __name__ == "__main__":

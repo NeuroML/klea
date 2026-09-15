@@ -398,6 +398,9 @@ class BaseLangGraph(ABC):
 
         Precedence is request (``extra_state``) > ``general.access_level`` >
         the state field default.  Mutates *input_state* in place.
+
+        :param input_state: The initial-state dict being built for the run.
+        :param extra_state: The caller's per-run state extras, or ``None``.
         """
         if extra_state and extra_state.get("access_level") is not None:
             return
