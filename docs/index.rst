@@ -1,11 +1,18 @@
 Welcome to Klea
 ===============
 
-Knowledge vaLidated Expert AI Assistant for Neuroscience.
+Knowledge vaLidated Expert AI Assistant for scientific research.
 
-Klea is a suite of AI tools for Neuroscience.  It provides a general
-purpose agent with coding capabilities, a generic RAG pipeline, and
-MCP servers for modelling and analysis.
+Klea is a suite of AI tools for scientific research.  It provides a
+general purpose agent with coding capabilities, a generic RAG pipeline,
+and MCP servers for modelling and analysis.
+
+Klea enforces groundedness: answers are drawn from retrieved sources and
+checked by an evaluation loop, and each response records its provenance
+(the documents and tools it drew on) so researchers can inspect and verify
+the generated output.  When a query cannot be grounded in the available
+sources, Klea flags the fallback rather than presenting it as confident
+fact.
 
 Architecture
 ------------
@@ -49,11 +56,12 @@ also code.  ``klea_rag`` is an additional component, primarily consumed by
 C4 architecture model
 ---------------------
 
-Although Klea is being validated in the neuroscience domain (via the
-``nml-mcp`` server and the curated NeuroML vector stores), it is developed as a
-general-purpose RAG + agentic assistant and is not tied to any single domain.
-The full C4 model (system context, containers, components, deployment) is
-maintained as developer documentation: see :doc:`developer-info`.
+Klea is developed as a general-purpose RAG + agentic assistant for
+scientific research and is not tied to any single domain.  The neuroscience
+support comes from the domain-specific ``nml-mcp`` server and the curated
+NeuroML vector stores.  The full C4 model (system context, containers,
+components, deployment) is maintained as developer documentation: see
+:doc:`developer-info`.
 
 Quickstart
 ----------
@@ -87,11 +95,15 @@ awarded to `Padraig Gleeson
 <https://profiles.ucl.ac.uk/77575-ankur-sinha>`_ at `University College
 London <https://openneuroai.org/>`_.
 
+As part of this Pathfinder project, Klea is being tested for neuroscience
+research, through the NeuroML-specific ``nml-mcp`` server and the curated
+NeuroML vector stores.
+
 Klea is developed and maintained by `Ankur Sinha
 <https://profiles.ucl.ac.uk/77575-ankur-sinha>`_ (GitHub:
 `@sanjayankur31 <https://github.com/sanjayankur31>`_) with contributions
 from the NeuroML community (see `all-contributors
-<https://github.com/NeuroML/neuroklea#contributors>`_ and
+<https://github.com/NeuroML/klea#contributors>`_ and
 :doc:`contributing`).
 
 .. image:: _static/biofair-logo.png

@@ -11,10 +11,10 @@ Developer docs on GitHub
 ------------------------
 
 * `devdocs index on GitHub
-  <https://github.com/NeuroML/neuroklea/blob/development/devdocs/README.md>`__
+  <https://github.com/NeuroML/klea/blob/development/devdocs/README.md>`__
   -- curated index of all developer notes (system docs and ADRs).
 * `devdocs/ on GitHub
-  <https://github.com/NeuroML/neuroklea/tree/development/devdocs>`__
+  <https://github.com/NeuroML/klea/tree/development/devdocs>`__
   -- browse the full folder (``system/``, ``adr/``, ``.agents/``).
 
 ``devdocs/`` is for contributors.  See :doc:`contributing` for workflow,
@@ -33,12 +33,13 @@ Level 1 -- System Context
 
 The system context diagram shows Klea as a single system, the people who use
 it, and the external software systems it depends on.  Klea is developed as a
-general-purpose RAG + agentic assistant; neuroscience is the current motivating
-domain (via the ``nml-mcp`` server and the curated NeuroML vector stores), but
-the agent and RAG are domain-configurable and work for any domain.
+general-purpose RAG + agentic assistant for scientific research, and is being
+tested as part of the BioFAIR Pathfinder project for neuroscience research
+(via the ``nml-mcp`` server and the curated NeuroML vector stores), but the
+agent and RAG are domain-configurable and work for any domain.
 
 - `System Context diagram (Level 1)
-  <https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-system-context.md>`__
+  <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-system-context.md>`__
 
 Level 2 -- Container
 ~~~~~~~~~~~~~~~~~~~~
@@ -49,7 +50,7 @@ library -- plus how they interact and connect to the external systems
 from Level 1.
 
 - `Container diagram (Level 2)
-  <https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-container.md>`__
+  <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-container.md>`__
 
 Level 3 -- Component (RAG)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -60,7 +61,7 @@ interactions -- and embeds the auto-generated LangGraph Mermaid source as
 its faithful core.
 
 - `RAG component diagram (Level 3)
-  <https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-component-rag.md>`__
+  <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-component-rag.md>`__
 
 Deployment
 ~~~~~~~~~~
@@ -70,7 +71,7 @@ run-time deployment nodes (developer workstation vs local vs container
 platform with HuggingFace Spaces as a nested node).
 
 - `Deployment diagram
-  <https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-deployment.md>`__
+  <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-deployment.md>`__
 
 Further component (agent) and code views will be added to ``devdocs/`` as
 they are written.
@@ -81,13 +82,13 @@ Architecture Decision Records (ADRs)
 ADRs are short, numbered records in MADR format in ``devdocs/adr/``
 (``NNNN-<slug>.md``).  Each records context, options considered, outcome, and
 consequences.  See `adr-template.md
-<https://github.com/NeuroML/neuroklea/blob/development/devdocs/adr-template.md>`__
+<https://github.com/NeuroML/klea/blob/development/devdocs/adr-template.md>`__
 for the template.
 
 Browse all ADRs on GitHub:
 
 * `devdocs/adr/ on GitHub
-  <https://github.com/NeuroML/neuroklea/tree/development/devdocs/adr>`__
+  <https://github.com/NeuroML/klea/tree/development/devdocs/adr>`__
 
 Other system notes
 ------------------
@@ -96,4 +97,4 @@ System and component contracts (Mermaid diagrams and data-flow notes)
 live in ``devdocs/system/``:
 
 * `devdocs/system/ on GitHub
-  <https://github.com/NeuroML/neuroklea/tree/development/devdocs/system>`__
+  <https://github.com/NeuroML/klea/tree/development/devdocs/system>`__

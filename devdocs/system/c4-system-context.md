@@ -21,9 +21,10 @@ sort of diagram that is meaningful to both technical and non-technical readers.
 
 ### Domain note (important)
 
-Klea is a general-purpose platform; neuroscience is the motivating use case,
+Klea is a general-purpose platform for scientific research; neuroscience is the
+current validation domain (tested as part of the BioFAIR Pathfinder project),
 but apart from the `neuroml_mcp` server (`nml-mcp`) nothing in Klea is
-neuroscience-specific:
+domain-specific:
 
 - `klea_rag` (the RAG pipeline) and `klea_agent` (the agent) are
   domain-configurable: they work for any domain.  A deployment points them at
@@ -34,9 +35,9 @@ neuroscience-specific:
 - The RAG pipeline is the currently mature, primary use case.  The agent
   (`klea_agent`) is work-in-progress; development has so far focused on RAG.
 
-Although Klea is being validated in the neuroscience domain (via `nml-mcp` and
-the curated NeuroML vector stores), it is developed as a general-purpose RAG +
-agentic assistant and is not tied to any single domain.
+Klea is developed as a general-purpose RAG + agentic assistant and is not tied
+to any single domain.  The neuroscience validation (via `nml-mcp` and the
+curated NeuroML vector stores) is part of the BioFAIR Pathfinder project.
 
 ## System Context diagram
 
@@ -49,7 +50,7 @@ config:
 C4Context
     title System Context diagram for Klea
 
-    Person(researcher, "Researchers", "Use Klea across the full research workflow: literature review and querying via the RAG, and agent-driven hypothesis generation / validation, project planning, and execution of modelling and data-analysis pipelines. Klea is domain-configurable, so this applies to any domain; neuroscience is the current motivating use case.")
+    Person(researcher, "Researchers", "Use Klea across the full research workflow: literature review and querying via the RAG, and agent-driven hypothesis generation / validation, project planning, and execution of modelling and data-analysis pipelines. Klea is domain-configurable, so this applies to any domain; neuroscience is the current validation domain (BioFAIR Pathfinder).")
     Person(devops, "Operators / DevOps", "Configure profiles, build and manage vector stores, run the MCP servers, and deploy Klea locally or as shared infrastructure (e.g. HuggingFace Spaces, institutional platforms).")
     Person(extagent, "External AI Agents / MCP Clients", "Programmatically consume the NeuroML MCP server and (optionally) the RAG service over HTTP / MCP.")
 
@@ -85,15 +86,15 @@ platform that combines a general-purpose agent, a retrieval-augmented
 generation (RAG) pipeline, and Model Context Protocol (MCP) tooling.  It is
 domain-configurable: the same agent and RAG machinery serve any domain when
 pointed at the right vector stores, LLM providers, and MCP servers.  The
-neuroscience flavour comes from the `nml-mcp` server and the curated
-NeuroML vector stores it is wired to; the agent and RAG code themselves carry
-no neuroscience assumptions.
+neuroscience support comes from the `nml-mcp` server and the curated
+NeuroML vector stores it is wired to (validated in the BioFAIR Pathfinder
+project); the agent and RAG code themselves carry no domain assumptions.
 
 ## Actors (people)
 
 | Actor | Role | How they use Klea |
 |-------|------|-------------------|
-| Researchers | End users running research workflows | Use `klea` / `klea-rag` / `klea-code` (CLI, TUI, or Web UI) across the full workflow: literature review and querying via the RAG, and agent-driven hypothesis generation / validation, project planning, and execution of modelling and data-analysis pipelines.  Klea is domain-configurable (neuroscience is the current motivating use case). |
+| Researchers | End users running research workflows | Use `klea` / `klea-rag` / `klea-code` (CLI, TUI, or Web UI) across the full workflow: literature review and querying via the RAG, and agent-driven hypothesis generation / validation, project planning, and execution of modelling and data-analysis pipelines.  Klea is domain-configurable (neuroscience is the current validation domain). |
 | Operators / DevOps | Operate, deploy, and provision | Configure profiles, build/manage vector stores (`klea-stores-create`), run the MCP servers, and deploy Klea locally or as shared infrastructure (e.g. HuggingFace Spaces, institutional platforms). |
 | External AI Agents / MCP Clients | Automated consumers | Connect over HTTP / MCP to `nml-mcp` and (optionally) the RAG service as a backend. |
 

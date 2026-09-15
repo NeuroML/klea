@@ -6,7 +6,7 @@ GitHub Discussions
 
 For questions, feature requests, and troubleshooting discussions
 please use the `GitHub Discussions
-<https://github.com/NeuroML/neuroklea/discussions>`_ page.
+<https://github.com/NeuroML/klea/discussions>`_ page.
 
 Chat
 ----
@@ -19,4 +19,4 @@ Reporting bugs
 --------------
 
 Open an issue on the `GitHub issue tracker
-<https://github.com/NeuroML/neuroklea/issues>`_.
+<https://github.com/NeuroML/klea/issues>`_.

@@ -12,8 +12,8 @@ venv`` does not).
 
 Clone the repository and install in editable mode::
 
-   git clone https://github.com/NeuroML/neuroklea.git
-   cd neuroklea
+   git clone https://github.com/NeuroML/klea.git
+   cd klea
    uv pip install -r requirements-dev.txt
 
 Use ``uv`` for all package operations when it is available; do not use
@@ -39,7 +39,7 @@ This project uses a standard fork-and-PR workflow:
 5. Address review feedback if any.
 
 Only pick up issues tagged with the ``help wanted`` label
-(https://github.com/NeuroML/neuroklea/issues?q=is%3Aissue+state%3Aopen+label%3A%22help+wanted%22);
+(https://github.com/NeuroML/klea/issues?q=is%3Aissue+state%3Aopen+label%3A%22help+wanted%22);
 other issues are planned or internal work.  Before starting on an issue,
 comment on it first to check its status, and keep any discussion on the
 issue itself so it remains the single place for discussion.
