@@ -163,6 +163,9 @@ plus design research and TODO context.  Keep work-in-progress notes out of
 the public `docs/` site; update `docs/` and `CHANGELOG.md` only when the
 work is implemented.
 
+Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
+semantic classes): `devdocs/system/web-theming.md`.
+
 ## Session continuity
 
 `.agents/YYYY-MM-DD-HHMM.md` logs previous work, where HHMM is the time the
