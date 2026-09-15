@@ -51,9 +51,9 @@ Verification in step 2 covers:
 | `rag_pkg/` | `klea_rag` | `klea-rag`, `klea-rag-serve` |
 | `mcp_pkg/` | `neuroml_mcp` | `nml-mcp` |
 
-`klea_agent` is the main application: a general purpose agent with coding
-capabilities.  `klea_rag` is primarily consumed by `klea_agent` (as a
-retrieval/RAG service).
+`klea_agent` is the main application: a general-purpose research agent
+(coding, workflows, analysis, hypothesis generation).  `klea_rag` is
+primarily consumed by `klea_agent` (as a retrieval/RAG service).
 
 Each has its own `AGENTS.md` with architecture details -- refer to those for
 package-specific commands, node layout, and conventions.

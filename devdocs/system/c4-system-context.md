@@ -82,7 +82,7 @@ C4Context
 ## System in scope
 
 **Klea** -- "Knowledge vaLidated Expert AI Assistant".  A LangGraph-based
-platform that combines a general-purpose agent, a retrieval-augmented
+platform that combines a general-purpose research agent, a retrieval-augmented
 generation (RAG) pipeline, and Model Context Protocol (MCP) tooling.  It is
 domain-configurable: the same agent and RAG machinery serve any domain when
 pointed at the right vector stores, LLM providers, and MCP servers.  The

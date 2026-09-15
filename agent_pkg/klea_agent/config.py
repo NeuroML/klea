@@ -20,7 +20,7 @@ class GeneralConfig(BaseModel):
     """General, domain-agnostic application settings (agent)."""
 
     #: The shared bundled tools server is on by default for the agent
-    #: (batteries-included coding agent); deployers can disable or filter it.
+    #: (batteries-included research agent); deployers can disable or filter it.
     bundled_tools: BundledToolsConfig = Field(default_factory=BundledToolsConfig)
     #: Tool invocation access level (ADR-0037).  ``read_only`` hides and
     #: rejects mutating tools; per-request payloads may override it.

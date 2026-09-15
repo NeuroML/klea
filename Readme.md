@@ -2,12 +2,6 @@
 
 Knowledge vaLidated Expert AI Assistant for scientific research.
 
-Klea enforces groundedness: answers are drawn from retrieved sources and
-checked by an evaluation loop, and each response records its provenance --
-the documents and tools it drew on -- so researchers can inspect and verify
-the generated output.  When a query cannot be grounded in the available
-sources, Klea flags the fallback rather than presenting it as confident fact.
-
 [![GitHub CI](https://github.com/NeuroML/klea/actions/workflows/ci.yml/badge.svg)](https://github.com/NeuroML/klea/actions/workflows/ci.yml)
 [![GitHub](https://img.shields.io/github/license/NeuroML/klea)](https://github.com/NeuroML/klea/blob/main/LICENSE)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/NeuroML/klea)](https://github.com/NeuroML/klea/pulls)
@@ -21,11 +15,28 @@ sources, Klea flags the fallback rather than presenting it as confident fact.
 
 
 This repository contains multiple packages that together make up the AI assistant, Klea.
-This is currently in active development.
+
+## Why Klea
+
+Klea is a general-purpose research agent for the research lifecycle, including
+literature review, hypothesis generation, planning, coding, pipeline
+execution, and analysis.  Because capabilities are supplied by MCP tools and
+domain-configurable knowledge stores rather than hard-coded, the same agent
+extends to new research tasks as tools are added.
+
+Klea enforces groundedness: answers are drawn from retrieved sources and
+checked by an evaluation loop, and each response records its provenance --
+the documents and tools it drew on -- so researchers can inspect and verify
+the generated output.  When a query cannot be grounded in the available
+sources, Klea flags the fallback rather than presenting it as confident fact.
+
+**Status:** the RAG pipeline (`klea_rag` / `klea_utils`) is ready to use
+today.  The agent (`klea_agent`) is under active development, with an initial
+release planned.
 
 The packages included, one in each folder are:
 
-- agent_pkg: the main Klea agent, a general purpose agent with coding capabilities
+- agent_pkg: the main Klea agent, a general-purpose research agent (coding, workflows, analysis, hypothesis generation)
 - rag_pkg: a generic RAG implementation, primarily consumed by the agent
 - mcp_pkg: MCP server for NeuroML
 - utils_pkg: common utility functions used by other packages
