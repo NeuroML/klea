@@ -2,8 +2,8 @@ MCP utilities
 =============
 
 Shared machinery for building MCP servers and clients used by Klea apps:
-metadata schemas, tool registration, an httpx session lifespan, path
-permission checks, and the reusable bundled tools server.
+metadata schemas, tool registration, tool access levels, an httpx session
+lifespan, path permission checks, and the reusable bundled tools server.
 
 Schemas
 -------
@@ -30,6 +30,20 @@ Tool call dispatch
 ------------------
 
 .. automodule:: klea_utils.mcp.dispatch
+   :members:
+   :show-inheritance:
+
+Tool access levels
+------------------
+
+.. automodule:: klea_utils.mcp.access
+   :members:
+   :show-inheritance:
+
+Tool results
+------------
+
+.. automodule:: klea_utils.mcp.tool_result
    :members:
    :show-inheritance:
 
@@ -71,6 +85,14 @@ their httpx session via the lifespan context.
    :show-inheritance:
 
 .. automodule:: klea_utils.mcp.tool_impls.download_file
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.run_command
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.sqlite_query
    :members:
    :show-inheritance:
 

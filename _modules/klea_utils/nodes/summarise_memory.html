@@ -240,6 +240,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -318,7 +319,7 @@
 
 <div class="viewcode-block" id="SummariseMemoryNode">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.summarise_memory.SummariseMemoryNode">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">SummariseMemoryNode</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SummariseMemoryNode</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">BaseModel</span><span class="p">]):</span>
     <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
     <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>

@@ -240,6 +240,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -333,6 +334,94 @@
     <span class="c1"># Collapse long bot messages to 4 lines with an expand / collapse toggle.</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-collapsed { max-height: 6em; overflow: hidden; }"</span><span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-expanded { max-height: none; }"</span><span class="p">)</span>
+    <span class="c1"># Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a</span>
+    <span class="c1"># margin on ``&lt;pre&gt;``, so a long line would overflow the bubble and the</span>
+    <span class="c1"># page.  Keep the block inside the bubble and scroll it internally; the</span>
+    <span class="c1"># ``chat-markdown`` class scopes this to bubbles (the inspector and status</span>
+    <span class="c1"># panes have their own rules).</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".chat-markdown pre { "</span>
+        <span class="s2">"margin: 0.5rem 0; "</span>
+        <span class="s2">"padding: 0.5rem 0.75rem; "</span>
+        <span class="s2">"overflow-x: auto; "</span>
+        <span class="s2">"max-width: 100%; "</span>
+        <span class="s2">"border-radius: 0.375rem; "</span>
+        <span class="s2">"background: rgba(127, 127, 127, 0.15); }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-markdown code { font-size: 0.8rem; }"</span><span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".chat-markdown :not(pre) &gt; code { "</span>
+        <span class="s2">"background: rgba(127, 127, 127, 0.15); "</span>
+        <span class="s2">"padding: 0.1rem 0.3rem; "</span>
+        <span class="s2">"border-radius: 0.25rem; "</span>
+        <span class="s2">"word-break: break-word; }"</span>
+    <span class="p">)</span>
+    <span class="c1"># Status-pane context controls (operating mode / tool access).  Quasar's</span>
+    <span class="c1"># ``flat`` buttons have no border and its fixed grey palette is hard to see</span>
+    <span class="c1"># on the dark drawer, so the inactive option is drawn as an outline whose</span>
+    <span class="c1"># colour follows its text (``currentColor``).  The row gets a little</span>
+    <span class="c1"># vertical breathing room.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".choice-row { padding-top: 0.35rem; padding-bottom: 0.35rem; }"</span><span class="p">)</span>
+    <span class="c1"># Design tokens: the single source of truth for themed colours.  Light</span>
+    <span class="c1"># values live under ``:root``; dark values override the *same* custom</span>
+    <span class="c1"># properties under ``body.body--dark`` (NiceGUI/Quasar's dark-mode class),</span>
+    <span class="c1"># so components use one variable and never need paired light/dark rules.</span>
+    <span class="c1">#</span>
+    <span class="c1"># The block must live in NiceGUI's ``overrides`` cascade layer: Quasar's</span>
+    <span class="c1"># utilities (e.g. ``.text-primary``) are ``!important`` inside the later</span>
+    <span class="c1"># ``quasar_importants`` layer, and for ``!important`` declarations earlier</span>
+    <span class="c1"># layers win while unlayered rules (where ``ui.add_css`` lands) lose.</span>
+    <span class="c1"># Without the layer these rules are silently ignored and the controls fall</span>
+    <span class="c1"># back to Quasar's fixed blue/greys.</span>
+    <span class="c1">#</span>
+    <span class="c1"># Quasar brand tokens (``--q-*``) additionally need ``!important``: NiceGUI</span>
+    <span class="c1"># auto-applies a ``ui.colors`` element whose ``colors.js`` sets them</span>
+    <span class="c1"># *inline* on ``&lt;body&gt;`` (``document.body.style.setProperty``), and inline</span>
+    <span class="c1"># normal declarations beat stylesheet declarations whatever their layer.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">"@layer overrides {</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  :root {</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-control: #424242;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-muted: #757575;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-hint: #9e9e9e;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-surface: #e0e0e0;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  body.body--dark {</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Quasar brand token: lighten ``primary`` so primary-tinted widgets (the</span>
+        <span class="c1"># send button, active tab, Save, links, ...) stay legible on dark.</span>
+        <span class="s2">"    --q-primary: #64b5f6 !important;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Unify the dark page background with the ``q-dark`` panels and drawers</span>
+        <span class="c1"># (both use ``--q-dark``, #1d1d1d).  Quasar's default ``--q-dark-page``</span>
+        <span class="c1"># (#121212) is near-black, which left the page/tab strip visibly darker</span>
+        <span class="c1"># than the panels sitting on it.</span>
+        <span class="s2">"    --q-dark-page: #1d1d1d !important;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-control: #e0e0e0;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-muted: #cfcfcf;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-hint: #bdbdbd;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Footer stays a distinct, slightly darker bar (mirrors light mode,</span>
+        <span class="c1"># where the footer is darker than the page).</span>
+        <span class="s2">"    --klea-surface: #161616;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Neutral interactive icons and the inactive segmented option; the</span>
+        <span class="c1"># outline border follows the text colour (Quasar draws</span>
+        <span class="c1"># ``.q-btn--outline`` with ``currentColor``).</span>
+        <span class="s2">"  .icon-btn,</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  .choice-btn:not(.choice-btn--active) {</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    color: var(--klea-control) !important;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  .choice-label {</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    color: var(--klea-muted) !important;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Bar surfaces (footer, ...): Quasar sets no footer background, so the</span>
+        <span class="c1"># app pins one explicitly; this keeps it theme-aware.</span>
+        <span class="s2">"  .footer-bar { background: var(--klea-surface) !important; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Quasar's grey text classes use fixed literals, so map the ones we use</span>
+        <span class="c1"># onto the tokens in dark mode.</span>
+        <span class="s2">"  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  body.body--dark .text-grey-6 { color: var(--klea-muted) !important; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  body.body--dark .text-grey-7 { color: var(--klea-muted) !important; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"}"</span>
+    <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-entry &gt; summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; }"</span>
     <span class="p">)</span>
