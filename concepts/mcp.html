@@ -479,7 +479,10 @@ and its trust limits.</p>
 </div>
 <p>The agent defaults to <code class="docutils literal notranslate"><span class="pre">full</span></code> and accepts a per-request <code class="docutils literal notranslate"><span class="pre">access_level</span></code>
 override in the chat API; the RAG is fixed at <code class="docutils literal notranslate"><span class="pre">read_only</span></code> (it only
-retrieves).</p>
+retrieves).  In the agent’s web UI the level is a per-chat selector in the
+status pane (next to the operating mode), so it can be changed without
+editing the request payload; the effective level is projected back through
+the graph’s <code class="docutils literal notranslate"><span class="pre">context</span></code> event.</p>
 <p>Because annotations are self-reported, tools that declare nothing are
 hidden under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>.  A deployment can declare the capability of a
 trusted tool explicitly, which takes precedence over its annotations:</p>

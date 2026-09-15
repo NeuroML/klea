@@ -352,7 +352,7 @@
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"context"</span><span class="p">:</span>
         <span class="c1"># App-defined session context (e.g. the agent's operating mode,</span>
         <span class="c1"># ADR-0030), carried verbatim into the chat dict so</span>
-        <span class="c1"># the page can render it (badges / status) without app-specific</span>
+        <span class="c1"># the page can render it (status) without app-specific</span>
         <span class="c1"># knowledge of every event type.</span>
         <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"context"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{}))</span>
         <span class="k">return</span> <span class="s2">"context"</span>
