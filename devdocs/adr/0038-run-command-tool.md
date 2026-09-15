@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-09-14
 decision-makers: Ankur Sinha
 consulted: ""
@@ -188,4 +188,4 @@ step.  Both are separate follow-ups.
   `utils_pkg/klea_utils/mcp/privilege.py`,
   `utils_pkg/klea_utils/mcp/registry.py` (root guard),
   `utils_pkg/klea_utils/graph/base.py` (startup warning).
-* Status: proposed 2026-09-14.
+* Status: accepted 2026-09-14.

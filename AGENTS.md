@@ -238,32 +238,19 @@ Git log has the step-by-step edits. Omit routine work.
 
 ## Permissions conventions
 
-- Every tool that reads or writes the filesystem must gate its path
-  arguments through `klea_utils.mcp.tool_impls.permission.check_path_access`
-  with an explicit boundary (`project_root`, default cwd) and return a
-  clear, non-halting error on denial.  Self-contained helpers with their
-  own containment (e.g. `download_file_to_cache`) use that as the
-  boundary.
-- The in-tool check is author-side: it does not protect against third-party
-  MCP servers.  Full discussion and options: `devdocs/system/mcp-permissions.md`.
-- Tool invocation is gated by the tool access level (`read_only` | `full`,
-  ADR-0037).  Classify tools with the standard MCP annotations
-  (`ToolInfo.read_only` / `destructive`) and let `klea_utils.mcp.access`
-  filter disclosure and gate dispatch; deployments may override a tool's
-  classification via `general.tool_access`.  `read_only` is fail-closed: a
-  tool with no annotation is not permitted.
-- Command execution (`run_command`, ADR-0038) is `destructive` (full-mode
-  only) and inherits the server environment.  Its `working_directory` is
-  checked like any other path, but that check is advisory, not confinement;
-  run untrusted commands under OS isolation.
-- Klea-authored tools refuse to run when the server process is root (uid 0)
-  unless `KLEA_ALLOW_ROOT_TOOLS` is set.  The guard lives in
-  `klea_utils.mcp.registry.register_tools` (ADR-0038); third-party MCP
-  servers are not covered and run with their own privileges.
-- Tool calls are bounded by a per-call wall-clock backstop in
-  `klea_utils.mcp.dispatch.dispatch_tool_calls` (default 900 s;
-  `KLEA_TOOL_CALL_TIMEOUT`, `0` disables).  Tools should still enforce their
-  own, tighter timeouts.
+- Filesystem tools gate their path arguments through
+  `klea_utils.mcp.tool_impls.permission.check_path_access` with an explicit
+  boundary (`project_root`, default cwd) and return a clear, non-halting
+  error on denial; self-contained helpers use their own containment.
+- Tool invocation is gated by the access level (`read_only` | `full`):
+  classify tools with the standard MCP annotations and let
+  `klea_utils.mcp.access` filter disclosure and gate dispatch.  `read_only`
+  is fail-closed (an unannotated tool is not permitted).
+- Klea-authored tools refuse to run as root by default, and every dispatched
+  call has a wall-clock backstop.  Run untrusted commands under OS isolation.
+
+See `devdocs/system/mcp-permissions.md` and ADRs 0007/0037/0038 for the
+mechanisms, environment variables, and limits.
 
 ## CLI conventions
 

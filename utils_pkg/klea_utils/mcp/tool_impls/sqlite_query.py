@@ -61,12 +61,14 @@ def sqlite_query(
     return a clear error rather than raising.
 
     Use when:
+
     - Answering a question from structured, tabular data stored in a
       sqlite database (exact values, LIKE patterns, ranges, aggregations).
     - The data is not searchable as free text (that is what the vector/BM25
       stores are for).
 
     Do not use for:
+
     - Free-text / semantic search over document collections.
     - Anything that writes; this tool is read-only by construction.
 
@@ -172,10 +174,12 @@ def sqlite_schema(
     RAG runs tools in a single pass and cannot take a separate look-up step.
 
     Use when:
+
     - You need to know what tables and columns a database has before
       writing a query.
 
     Do not use for:
+
     - Querying data (use sqlite_query instead).
 
     Example: sqlite_schema(db_path="data.db")

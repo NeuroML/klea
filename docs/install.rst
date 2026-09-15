@@ -290,6 +290,65 @@ that vector stores load at startup from the embedding model, so an
 embedding model chosen per chat in the web UI cannot enable retrieval for
 stores -- set ``KLEA_RAG_EMBEDDING_MODEL`` before starting the server.
 
+Environment variables
+~~~~~~~~~~~~~~~~~~~~~
+
+The environment variables Klea reads, and what they control:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 64
+
+   * - Variable
+     - Purpose
+   * - ``KLEA_AGENT_ENV_FILE`` / ``KLEA_RAG_ENV_FILE``
+     - Path to the optional ``k=v`` env file (default ``klea_agent.env`` /
+       ``rag.env``).
+   * - ``KLEA_AGENT_APP_CONFIG_FILE`` / ``KLEA_RAG_APP_CONFIG_FILE``
+     - JSON config file to load; ``--profile`` takes precedence when given.
+   * - ``KLEA_<APP>_<ROLE>_MODEL``
+     - Per-role model defaults, e.g. ``KLEA_AGENT_CHAT_MODEL``,
+       ``KLEA_RAG_EMBEDDING_MODEL`` (see `Model defaults`_).
+   * - ``OPENAI_API_KEY``
+     - API key for OpenAI and for ``custom:`` endpoints (including the
+       Anthropic surface).
+   * - ``ANTHROPIC_API_KEY``
+     - API key for the native Anthropic provider.
+   * - ``HF_TOKEN``
+     - HuggingFace token for HuggingFace models/endpoints.
+   * - ``GITHUB_TOKEN``
+     - Optional GitHub token for the repository ``github`` tool (higher rate
+       limits and private repositories).
+   * - ``KLEA_LOG_LEVEL``
+     - Console log level (level name or number; see `Logging`_).
+   * - ``KLEA_TOOL_CALL_TIMEOUT``
+     - Per-call wall-clock backstop for tool calls, in seconds (default
+       ``900``; ``0`` disables).
+   * - ``KLEA_ALLOW_ROOT_TOOLS``
+     - Allow Klea-authored tools to run as root; refused by default.
+   * - ``KLEA_RUN_COMMAND_MAX_TIMEOUT``
+     - Ceiling for ``run_command``'s ``timeout_seconds`` in seconds
+       (default ``600``).
+   * - ``KLEA_MODELS_DEV_URL``
+     - Override the models.dev catalog URL (offline mirror / enterprise
+       proxy).
+   * - ``KLEA_INGEST_MAILTO``
+     - Contact email sent to DOI services (Crossref, OpenAlex) during store
+       ingestion, for their polite pool.
+   * - ``NICEGUI_STORAGE_PATH``
+     - Absolute directory for the web client's per-session storage (see
+       `Web client user storage`_).
+   * - ``RUNNING_IN_DOCKER``
+     - Internal: skip graph-diagram export on startup (set by the container
+       image).
+
+These are shell/process environment variables.  Values set only in the env
+file do **not** reach spawned MCP server subprocesses (which inherit the
+process environment), so tool-related variables such as
+``KLEA_TOOL_CALL_TIMEOUT``, ``KLEA_ALLOW_ROOT_TOOLS`` and
+``KLEA_RUN_COMMAND_MAX_TIMEOUT`` must be exported in the environment that
+launches the app.
+
 .. _logging:
 
 Logging
@@ -304,7 +363,12 @@ Each Klea application writes its logs to a rotating file (1 MB per file,
 
 The file captures DEBUG output for the Klea packages and third-party
 libraries, while the console shows INFO for Klea and INFO-or-above for
-third-party libraries.  Each CLI uses its own ``<app>`` name:
+third-party libraries.  The console level can be changed with the
+``KLEA_LOG_LEVEL`` environment variable (a case-insensitive level name such
+as ``debug``, or a numeric level) or the shared ``--debug`` flag, which takes
+precedence and also exports the variable so spawned child processes inherit
+it.  The rotating file always captures DEBUG.  Each CLI uses its own
+``<app>`` name:
 
 .. list-table::
    :header-rows: 1

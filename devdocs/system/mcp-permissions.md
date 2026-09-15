@@ -124,6 +124,30 @@ touch any path, process, or host the server can reach.  OS sandboxing
 (layer 3) is the only boundary for command execution; the path argument is a
 convenience, not confinement.
 
+## Root guard and call limits
+
+Two cross-cutting guards protect Klea-authored tools (ADR-0038):
+
+- **Root guard.**  `klea_utils.mcp.registry.register_tools` wraps every
+  Klea-authored tool (bundled and NeuroML servers) so it refuses to execute
+  when the server process has root privileges (effective uid 0), returning a
+  non-halting error.  The override is the process environment variable
+  `KLEA_ALLOW_ROOT_TOOLS` (truthy: `1`/`true`/`yes`/`on`).  `register_tools`
+  and `BaseLangGraph.setup()` log a startup warning when running as root.
+  Third-party MCP servers do not use `register_tools` and are not covered;
+  their privileges are the operator's choice.
+- **Per-call timeout backstop.**
+  `klea_utils.mcp.dispatch.dispatch_tool_calls` passes a wall-clock timeout to
+  `call_tool`, so a hung tool returns a non-halting time-out error instead of
+  stalling the graph.  Default 900 s, overridable via the process environment
+  variable `KLEA_TOOL_CALL_TIMEOUT` (`0` disables).  Individual tools should
+  still enforce their own, tighter timeouts; `run_command` has its own ceiling
+  in `KLEA_RUN_COMMAND_MAX_TIMEOUT`.
+
+Both are process environment variables (like `KLEA_LOG_LEVEL`), so they must
+be exported to the app/server process; env-file-only values do not propagate
+to spawned MCP server subprocesses.
+
 ## Standardised tool call state
 
 Both Klea Agent and Klea RAG use the shared `ToolCallSchema` /

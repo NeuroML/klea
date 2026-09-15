@@ -125,8 +125,10 @@ for free, without adopting Klea's tag vocabulary.
 ``destructive`` + ``open_world``: it is full-mode only (never offered or run
 under ``read_only``, see below), and its optional ``working_directory``
 argument is checked like any other path but does **not** confine the command
-(a shell can ``cd`` elsewhere or use absolute paths).  See ADR-0038 for the
-design and its limits.
+(a shell can ``cd`` elsewhere or use absolute paths).  Commands default to a
+30-second timeout with a 600-second ceiling, overridable via
+``KLEA_RUN_COMMAND_MAX_TIMEOUT``.  See ADR-0038 for the design and its
+limits.
 
 Klea-authored tools (this one included) also refuse to run when the server
 process has root privileges (uid 0), unless the ``KLEA_ALLOW_ROOT_TOOLS``
