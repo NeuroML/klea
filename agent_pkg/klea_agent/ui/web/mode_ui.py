@@ -3,7 +3,7 @@
 Agent operating-mode selector and badge (ADR-0030).
 
 This module provides the *agent-specific* mode UI that slots into the
-shared status pane via :attr:`PageContext.status_extra` (ADR-0031,
+shared status pane via :attr:`PageContext.status_extras` (ADR-0031,
 ADR-0032): a request selector (general / scientific) that writes the
 next query's ``mode`` request into ``PageContext.query_extra``, and a
 badge that mirrors the *resolved* mode streamed back as a ``context``
@@ -125,4 +125,4 @@ def attach_mode_ui(ctx: PageContext) -> None:
                 if note:
                     ui.label(note).classes("text-xs text-grey-6 italic")
 
-    ctx.status_extra = _render
+    ctx.status_extras.append(_render)

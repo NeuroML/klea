@@ -91,10 +91,10 @@ klea_utils/
 │       ├── nicegui/   # NiceGUI shared components + process entry (ADR-0031)
 │       │   ├── components/  # Reusable page pieces coordinated via PageContext:
 │       │   │   ├── context.py   # PageContext (config, mutable state, element refs,
-│       │   │   │                 #   callbacks; query_extra / status_extra slots)
+│       │   │   │                 #   callbacks; query_extra / status_extras slots)
 │       │   │   ├── bootstrap.py # run_nicegui_server(page_builder=...) -- ui.run entry
 │       │   │   ├── stream.py    # apply_stream_event (pure) + run_stream (SSE -> UI)
-│       │   │   ├── status_pane.py # right drawer; app content slot (ctx.status_extra)
+│       │   │   ├── status_pane.py # right drawer; app content slot (ctx.status_extras)
 │       │   │   └── ... chat_bubble, chat_area, chat_list, header, inspector,
 │       │   │         input_area, initial_load, model_dialog, storage, theme
 │       │   ├── client.py  # server API client (sessions, models, chat)

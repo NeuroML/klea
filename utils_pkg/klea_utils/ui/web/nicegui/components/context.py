@@ -92,6 +92,8 @@ class PageContext:
     fetch_model_info: Callable[[], Any] | None = None
     model_config_dialog: Callable[[], Any] | None = None
     # App-defined content rendered inside the (refreshable) status pane,
-    # e.g. an operating-mode selector/badge (ADR-0030).
-    status_extra: Callable[[], Any] | None = None
+    # e.g. operating-mode or tool-access selectors/badges (ADR-0030,
+    # ADR-0037).  Each app UI appends its own render callable; the status
+    # pane calls them in registration order.
+    status_extras: list[Callable[[], Any]] = field(default_factory=list)
     switch_chat: Callable[[str], None] = field(default=_noop_arg)
