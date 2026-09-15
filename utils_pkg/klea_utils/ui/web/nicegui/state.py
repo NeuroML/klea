@@ -12,7 +12,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Container
 from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,34 @@ def ensure_chat(user_id: str, chat_id: str) -> dict:
     else:
         logger.debug("found existing %s", key)
     return chats[key]
+
+
+def resolve_choice(
+    pending: Any,
+    pref: Any,
+    context_value: Any,
+    allowed: Container[str],
+    default: str,
+) -> str:
+    """Return the effective UI choice from pending, pref, context, default.
+
+    Used by the status-pane context controls (operating mode / tool access
+    level) so their defaults render before a chat exists: the caller passes
+    the pending request (``PageContext.query_extra``), the per-chat
+    preference, and the hydrated context value; the first one that is a known
+    option wins, otherwise *default*.
+
+    :param pending: The pending request (next query's value), or ``None``.
+    :param pref: The per-chat preference, or ``None``.
+    :param context_value: The value from the hydrated ``context`` event.
+    :param allowed: The set of valid option values.
+    :param default: The fallback value.
+    :returns: The first valid value among the candidates, else *default*.
+    """
+    for value in (pending, pref, context_value):
+        if value in allowed:
+            return value
+    return default
 
 
 def get_chats_sorted(user_id: str) -> list[tuple[str, dict]]:

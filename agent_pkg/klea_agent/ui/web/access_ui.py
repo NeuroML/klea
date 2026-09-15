@@ -17,9 +17,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
-from nicegui import ui
+from klea_utils.ui.web.nicegui.state import chats, resolve_choice
 
 logger = logging.getLogger(__name__)
 
@@ -72,23 +72,19 @@ def attach_access_ui(ctx: PageContext) -> None:
         re-request after a reload would otherwise fall back to the config
         default and change the level on the next query.
         """
-        current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
-        if not current_chat:
-            return
+        current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
         context = current_chat.get("context", {})
-        # A live access_pref (this session's selection) wins over the
-        # hydrated context; the latter restores the last effective level
-        # across a page reload, when access_pref is gone.
-        requested = (
-            current_chat.get("access_pref")
-            or context.get("access_level")
-            or DEFAULT_ACCESS_LEVEL
+        # Pending request (this session's selection) wins, then the per-chat
+        # preference, then the hydrated effective level, then the default.
+        requested = resolve_choice(
+            ctx.query_extra.get("access_level"),
+            current_chat.get("access_pref"),
+            context.get("access_level"),
+            ACCESS_LEVELS,
+            DEFAULT_ACCESS_LEVEL,
         )
 
-        if (
-            requested in ACCESS_LEVELS
-            and ctx.query_extra.get("access_level") != requested
-        ):
+        if ctx.query_extra.get("access_level") != requested:
             ctx.query_extra["access_level"] = requested
             logger.debug(
                 "user=%s chat=%s sync query_extra access_level=%s",
@@ -97,34 +93,13 @@ def attach_access_ui(ctx: PageContext) -> None:
                 requested,
             )
 
-        effective = context.get("access_level")
-
-        with ui.row().classes("items-center w-full gap-1"):
-            ui.label("Access:").classes("text-xs font-bold text-grey-6")
-            for value, (label, tooltip) in ACCESS_LEVELS.items():
-                with (
-                    ui.button(
-                        label,
-                        on_click=lambda v=value: _set_access(v),
-                    )
-                    .props(
-                        "flat dense text-xs "
-                        + (
-                            "bg-primary text-white"
-                            if requested == value
-                            else "text-grey-6"
-                        )
-                    )
-                    .classes("px-2")
-                ):
-                    if requested == value:
-                        ui.tooltip(f"Currently requested: {label}. {tooltip}")
-
-        # Badge mirrors the checkpointed (effective) level, not the request
-        # (ADR-0032: ``context`` is a projection of graph state).
-        if effective:
-            label = ACCESS_LEVELS.get(effective, (effective, ""))[0]
-            with ui.row().classes("items-center w-full gap-1"):
-                ui.label(f"{label} access").classes("text-xs font-bold text-primary")
+        choice_buttons(
+            "Access:",
+            {value: label for value, (label, _tip) in ACCESS_LEVELS.items()},
+            requested,
+            _set_access,
+            colors={"full": "red-5", "read_only": "green-5"},
+            tooltips={value: tip for value, (_label, tip) in ACCESS_LEVELS.items()},
+        )
 
     ctx.status_extras.append(_render)

@@ -44,13 +44,25 @@ def attach_status_pane(ctx: PageContext) -> None:
 
         @ui.refreshable
         def _status_pane() -> None:
-            """Render chat name, model info and state sections for the active chat."""
-            current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
-            if not current_chat:
-                if ctx.chat_id:
-                    logger.debug("No chat found for %s, status pane empty", ctx.chat_id)
-                return
+            """Render context controls, then chat state for the active chat.
+
+            The app-defined context controls (mode/access) render even before a
+            chat exists, so they can be set before the first message; they
+            attach to the chat once it is created.
+            """
+            current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
             with ui.column().classes("w-full gap-0"):
+                # App-defined context slots (e.g. operating-mode and
+                # tool-access selectors/badges, ADR-0030/ADR-0037).  Rendered
+                # inside the refreshable pane, so they update on pane refresh.
+                for render in ctx.status_extras:
+                    render()
+                if not current_chat:
+                    with ui.column().classes("w-full items-center mt-12"):
+                        ui.label(
+                            "State updates will appear here once you send a message"
+                        ).classes("text-xl text-grey-5 text-center")
+                    return
                 with ui.row().classes("items-center w-full gap-0"):
                     with ui.label(current_chat.get("name", "")).classes(
                         "text-sm font-bold mb-0"
@@ -73,13 +85,6 @@ def attach_status_pane(ctx: PageContext) -> None:
                         .classes("text-sm")
                     ):
                         ui.tooltip("Choose models")
-
-                # App-defined content slots (e.g. operating-mode and
-                # tool-access selectors/badges, ADR-0030/ADR-0037).
-                # Rendered inside the refreshable pane, so they update on
-                # pane refresh.
-                for render in ctx.status_extras:
-                    render()
 
                 model_info = current_chat.get("model_info", {})
                 if model_info:

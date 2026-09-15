@@ -17,9 +17,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
-from nicegui import ui
+from klea_utils.ui.web.nicegui.state import chats, resolve_choice
 
 logger = logging.getLogger(__name__)
 
@@ -64,26 +64,27 @@ def attach_mode_ui(ctx: PageContext) -> None:
 
         The selector tracks the *request* (next query will carry it,
         restored across reloads from the hydrated ``context``); the badge
-        mirrors the *resolved* mode from checkpointed state.  Before the
-        first stream both are absent, so the request falls back to the
-        general default.
+        mirrors the *resolved* mode from checkpointed state.  Before a chat
+        exists the selector still renders with the default, so the mode can
+        be chosen before the first message.
         """
-        current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
-        if not current_chat:
-            return
+        current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
         context = current_chat.get("context", {})
-        # A live mode_pref (this session's selection) wins over the
-        # hydrated context; the latter restores the last request across a
-        # page reload, when mode_pref is gone.
-        requested = (
-            current_chat.get("mode_pref") or context.get("requested") or "general"
+        # Pending request (this session's selection) wins, then the per-chat
+        # preference, then the hydrated context, then the default.
+        requested = resolve_choice(
+            ctx.query_extra.get("mode"),
+            current_chat.get("mode_pref"),
+            context.get("requested"),
+            MODES,
+            "general",
         )
 
         # Keep the request sent with the next query aligned with this chat.
         # Needed because ``Mode`` is a whole-object state field (no reducer):
         # an empty query_extra after a reload would send the server default
         # and silently reset the checkpointed mode on the next query.
-        if requested in MODES and ctx.query_extra.get("mode") != requested:
+        if ctx.query_extra.get("mode") != requested:
             ctx.query_extra["mode"] = requested
             logger.debug(
                 "user=%s chat=%s sync query_extra mode=%s",
@@ -92,37 +93,16 @@ def attach_mode_ui(ctx: PageContext) -> None:
                 requested,
             )
 
-        resolved = context.get("mode")
         note = context.get("note", "")
 
-        with ui.row().classes("items-center w-full gap-1"):
-            ui.label("Mode:").classes("text-xs font-bold text-grey-6")
-            for value, (label, tooltip) in MODES.items():
-                with (
-                    ui.button(
-                        label,
-                        on_click=lambda v=value: _set_mode(v),
-                    )
-                    .props(
-                        "flat dense text-xs "
-                        + (
-                            "bg-primary text-white"
-                            if requested == value
-                            else "text-grey-6"
-                        )
-                    )
-                    .classes("px-2")
-                ):
-                    if requested == value:
-                        ui.tooltip(f"Currently requested: {label}. {tooltip}")
-
-        # Badge mirrors the checkpointed (resolved) mode, not the request
-        # (ADR-0032: ``context`` is a projection of graph state).
-        if resolved:
-            label = MODES.get(resolved, (resolved, ""))[0]
-            with ui.row().classes("items-center w-full gap-1"):
-                ui.label(f"{label} mode").classes("text-xs font-bold text-primary")
-                if note:
-                    ui.label(note).classes("text-xs text-grey-6 italic")
+        choice_buttons(
+            "Mode:",
+            {value: label for value, (label, _tip) in MODES.items()},
+            requested,
+            _set_mode,
+            colors={"general": "blue-5", "scientific": "green-5"},
+            tooltips={value: tip for value, (_label, tip) in MODES.items()},
+            info=note,
+        )
 
     ctx.status_extras.append(_render)
