@@ -76,9 +76,9 @@ def attach_input(ctx: PageContext) -> None:
 
         with (
             text.add_slot("append"),
-            ui.button(icon="send", on_click=send).props(
-                "flat dense round color=primary"
-            ),
+            ui.button(icon="send", on_click=send)
+            .props("flat dense round color=primary")
+            .classes("send-btn"),
         ):
             ui.tooltip("Enter to send, Shift+Enter for newline")
 

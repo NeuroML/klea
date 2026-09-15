@@ -51,7 +51,7 @@ def attach_status_pane(ctx: PageContext) -> None:
             attach to the chat once it is created.
             """
             current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
-            with ui.column().classes("w-full gap-0"):
+            with ui.column().classes("w-full gap-0 p-2"):
                 # App-defined context slots (e.g. operating-mode and
                 # tool-access selectors/badges, ADR-0030/ADR-0037).  Rendered
                 # inside the refreshable pane, so they update on pane refresh.
@@ -63,7 +63,7 @@ def attach_status_pane(ctx: PageContext) -> None:
                             "State updates will appear here once you send a message"
                         ).classes("text-xl text-grey-5 text-center")
                     return
-                with ui.row().classes("items-center w-full gap-0"):
+                with ui.row().classes("items-center w-full gap-0 pt-2 pb-1"):
                     with ui.label(current_chat.get("name", "")).classes(
                         "text-sm font-bold mb-0"
                     ):
@@ -81,8 +81,8 @@ def attach_status_pane(ctx: PageContext) -> None:
                             icon="settings",
                             on_click=ctx.model_config_dialog,
                         )
-                        .props("flat dense round color=grey-9")
-                        .classes("text-sm")
+                        .props("flat dense round")
+                        .classes("text-sm icon-btn")
                     ):
                         ui.tooltip("Choose models")
 
@@ -136,7 +136,7 @@ def attach_status_pane(ctx: PageContext) -> None:
             has_content = bool(model_info) or bool(sections) or has_token_usage
             if not has_content:
                 ui.label("State updates will appear here").classes(
-                    "text-sm text-gray-500"
+                    "text-sm text-grey-5"
                 )
                 return
             if sections:

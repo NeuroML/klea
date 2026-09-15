@@ -163,6 +163,7 @@ def attach_chat_list(ctx: PageContext) -> None:
                     ui.item_section().props("side"),
                     ui.button(icon="more_vert")
                     .props("flat dense round")
+                    .classes("icon-btn")
                     .on("click.stop", lambda: None),
                     ui.menu(),
                 ):

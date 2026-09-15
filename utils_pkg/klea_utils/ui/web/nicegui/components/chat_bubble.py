@@ -83,12 +83,12 @@ class ChatBubble(ui.element):
                 ui.label(stamp).classes("text-xs text-grey-5")
 
                 if on_copy:
-                    ui.button(icon="content_copy").props("flat dense round size=sm").on(
-                        "click", on_copy
-                    )
+                    ui.button(icon="content_copy").props(
+                        "flat dense round size=sm"
+                    ).classes("icon-btn").on("click", on_copy)
 
                 if on_expand:
                     icon = "expand_less" if not collapsed else "expand_more"
-                    ui.button(icon=icon).props("flat dense round size=sm").on(
-                        "click", on_expand
-                    )
+                    ui.button(icon=icon).props("flat dense round size=sm").classes(
+                        "icon-btn"
+                    ).on("click", on_expand)

@@ -42,9 +42,13 @@ def choice_buttons(
     """Render a compact, aligned segmented single-choice control.
 
     The selected option is filled with its colour (or ``primary``) and white
-    text; the others are flat grey.  Buttons are ``dense``/``size=sm`` and
-    share the group width equally, so the control stays close to the
+    text; the others are drawn as outlines.  Buttons are ``dense``/``size=sm``
+    and share the group width equally, so the control stays close to the
     surrounding label text and two stacked controls align.
+
+    The ``choice-row`` / ``choice-label`` / ``choice-btn`` classes are styled
+    in :mod:`klea_utils.ui.web.nicegui.components.theme` so the inactive
+    option stays legible in dark mode (its outline follows its text colour).
 
     :param label: Row label (e.g. ``"Mode:"``).
     :param options: ``{value: label}`` mapping; iteration order is display
@@ -65,8 +69,8 @@ def choice_buttons(
     """
     colors = colors or {}
     tooltips = tooltips or {}
-    with ui.row().classes("items-center w-full gap-2"):
-        ui.label(label).classes("text-xs font-bold text-grey-6").style(
+    with ui.row().classes("items-center w-full gap-2 choice-row"):
+        ui.label(label).classes("text-xs font-bold choice-label").style(
             f"min-width: {label_width}"
         )
         group = (
@@ -82,12 +86,15 @@ def choice_buttons(
                     f"dense size=sm no-caps color={colors.get(value, 'primary')} "
                     "text-color=white"
                     if active
-                    else "dense size=sm no-caps flat color=grey-7"
+                    else "dense size=sm no-caps outline"
+                )
+                classes = "flex-1 choice-btn" + (
+                    " choice-btn--active" if active else ""
                 )
                 with (
                     ui.button(text, on_click=lambda v=value: on_select(v))
                     .props(props)
-                    .classes("flex-1")
+                    .classes(classes)
                 ):
                     tip = tooltips.get(value)
                     if tip:
