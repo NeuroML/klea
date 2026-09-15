@@ -246,6 +246,12 @@ Git log has the step-by-step edits. Omit routine work.
   boundary.
 - The in-tool check is author-side: it does not protect against third-party
   MCP servers.  Full discussion and options: `devdocs/system/mcp-permissions.md`.
+- Tool invocation is gated by the tool access level (`read_only` | `full`,
+  ADR-0037).  Classify tools with the standard MCP annotations
+  (`ToolInfo.read_only` / `destructive`) and let `klea_utils.mcp.access`
+  filter disclosure and gate dispatch; deployments may override a tool's
+  classification via `general.tool_access`.  `read_only` is fail-closed: a
+  tool with no annotation is not permitted.
 
 ## CLI conventions
 

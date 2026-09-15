@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-09-14
 decision-makers: Ankur Sinha
 consulted: ""
@@ -290,4 +290,4 @@ Named so the limitation above is not mistaken for a solution:
   (`general.tool_access`).  Tag exposure (a different mechanism) is
   documented in `docs/concepts/mcp.rst` and stripped client-side by
   `klea_utils.tools.clean_tool_meta`.
-* Status: proposed 2026-09-14; flip to accepted once reviewed.
+* Status: accepted 2026-09-14.

@@ -159,6 +159,51 @@ fastmcp prefixes tool names with the server name (e.g.
 ``NeuroML_list_files``) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.
 
+Tool access levels
+------------------
+
+Klea can restrict which tools may be invoked.  The level is either
+``full`` (every tool) or ``read_only`` (only tools explicitly annotated
+``readOnlyHint: true`` and not ``destructiveHint: true``; a tool with no
+annotation is **not** permitted).  Disallowed tools are never shown to the
+model, and a call to one is rejected before it reaches the MCP server with
+a non-halting error the model can adapt to.  See ADR-0037 for the design
+and its trust limits.
+
+The default level is set in the app config:
+
+.. code-block:: json
+
+   {
+       "general": {
+           "access_level": "read_only"
+       }
+   }
+
+The agent defaults to ``full`` and accepts a per-request ``access_level``
+override in the chat API; the RAG is fixed at ``read_only`` (it only
+retrieves).
+
+Because annotations are self-reported, tools that declare nothing are
+hidden under ``read_only``.  A deployment can declare the capability of a
+trusted tool explicitly, which takes precedence over its annotations:
+
+.. code-block:: json
+
+   {
+       "general": {
+           "tool_access": {
+               "my_server_search": {"read_only": true},
+               "my_server_fetch": {"read_only": false, "destructive": true}
+           }
+       }
+   }
+
+This is a least-privilege guard for trustworthy tools, not a sandbox: a
+server that misreports its annotations cannot be confined this way.  For
+servers Klea does not author, run them under OS-level isolation (see the
+MCP permissions notes in the development documentation).
+
 Writing tools for Klea
 ----------------------
 

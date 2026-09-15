@@ -1,15 +1,13 @@
 # MCP tool permissions: current state, limits, and options
 
-Status: design note.  In-tool path checks and the client-side per-path gate
-are implemented; the annotation-driven tool access level is specified in
-`../adr/0037-tool-access-levels.md` (implementation in progress); the
+Status: design note.  In-tool path checks, the client-side per-path gate
+and the annotation-driven tool access level are implemented; the
 allow/deny/ask ruleset and interactive approval loop are deferred.
 Updates to this note should be reflected in the permission layer as it
 evolves.
 
-Last updated: 2026-09-14 (invocation axis / tool access level added, at
-`../adr/0037-tool-access-levels.md`; path layers decision at
-`../adr/0007-mcp-permissions.md`).
+Last updated: 2026-09-14 (invocation axis / tool access level implemented,
+ADR-0037; path layers decision at ADR-0007).
 
 ## Current state
 
@@ -83,8 +81,7 @@ not the project root.
 
 Permission has two axes (ADR-0007): *may this tool be invoked?* and *may
 it touch path X?*.  The `checkpaths` declaration above handles the second;
-the first is the **tool access level** (ADR-0037; implementation in
-progress).
+the first is the **tool access level** (ADR-0037).
 
 `klea_utils.mcp.access` provides
 `AccessLevel = Literal["read_only", "full"]`, the default `full`, and the
@@ -201,12 +198,12 @@ as built:
    they reach the server.  The *allow / deny / ask* ruleset and the
    interactive user-approval loop (graph pause + TUI/web input, opencode
    style) are **deferred** -- see the TODO in `permission.py` and the
-   kanban board.  The *invocation* half (tool access level) is specified
-   in ADR-0037: `dispatch_tool_calls` will reject calls to tools
-   disallowed by the state's `read_only | full` level, derived from the
-   MCP annotations.  The client-side gate only applies to tools that
-   declare `checkpaths` (path half) or annotations (invocation half);
-   third-party servers that declare neither are not gated.
+   kanban board.  The *invocation* half (tool access level) is implemented
+   (ADR-0037): `dispatch_tool_calls` rejects calls to tools disallowed by
+   the state's `read_only | full` level, derived from the MCP annotations.
+   The client-side gate only applies to tools that declare `checkpaths`
+   (path half) or annotations (invocation half); third-party servers that
+   declare neither are not gated.
 
 3. **OS-level sandboxing (orthogonal)** -- run third-party MCP servers
    (or the whole agent) in a container / bubblewrap / chroot with only
