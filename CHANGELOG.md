@@ -10,6 +10,8 @@
 - New optional `anthropic` extra (`langchain-anthropic`) for the native Anthropic provider and custom `/messages` endpoints.
 - Tool access levels (`read_only` | `full`) derived from standard MCP annotations, enforced both when tools are disclosed to the model and before dispatch; deployments can override a tool's capability per tool via `general.tool_access` (ADR-0037).
 - Shared base graph state `BaseGraphSchema` (`klea_utils.graph.state`) holding the fields common to all application graph states.
+- General `run_command` bundled tool: shell command execution (full-mode only, destructive) so environment and coding tasks are answerable via the agent's task path; the timeout ceiling is configurable via `KLEA_RUN_COMMAND_MAX_TIMEOUT` (ADR-0038).
+- Klea-authored MCP tools refuse to run when the server process is root (uid 0) unless `KLEA_ALLOW_ROOT_TOOLS` is set, with a startup warning; this covers the bundled and NeuroML servers (ADR-0038).
 
 ### Changed
 
@@ -32,6 +34,7 @@
 - Human plan-review step (`AwaitReview`; auto-approve stub, real pause/resume deferred) and an `in_review` plan state.
 - Deterministic loop budgets and a terminal failure answer, so a stuck run stops and explains instead of looping.
 - Per-request tool `access_level` (chat payload) plus `general.access_level` / `general.tool_access` config; the agent defaults to `full` (ADR-0037).
+- Environment and coding requests (working directory, builds, scripts) are now answerable in full mode via the bundled `run_command` tool instead of ending `unplannable` (ADR-0038).
 
 ### Changed
 

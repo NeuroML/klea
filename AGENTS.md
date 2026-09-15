@@ -252,6 +252,14 @@ Git log has the step-by-step edits. Omit routine work.
   filter disclosure and gate dispatch; deployments may override a tool's
   classification via `general.tool_access`.  `read_only` is fail-closed: a
   tool with no annotation is not permitted.
+- Command execution (`run_command`, ADR-0038) is `destructive` (full-mode
+  only) and inherits the server environment.  Its `working_directory` is
+  checked like any other path, but that check is advisory, not confinement;
+  run untrusted commands under OS isolation.
+- Klea-authored tools refuse to run when the server process is root (uid 0)
+  unless `KLEA_ALLOW_ROOT_TOOLS` is set.  The guard lives in
+  `klea_utils.mcp.registry.register_tools` (ADR-0038); third-party MCP
+  servers are not covered and run with their own privileges.
 
 ## CLI conventions
 
