@@ -73,33 +73,47 @@ def _add_css_overrides() -> None:
     # colour follows its text (``currentColor``).  The row gets a little
     # vertical breathing room.
     ui.add_css(".choice-row { padding-top: 0.35rem; padding-bottom: 0.35rem; }")
-    # Theme-aware colours must live in NiceGUI's ``overrides`` cascade layer:
-    # Quasar's utilities (e.g. ``.text-primary``) are ``!important`` inside the
-    # later ``quasar_importants`` layer, and for ``!important`` declarations
-    # earlier layers win while unlayered rules (where ``ui.add_css`` lands)
-    # lose.  Without the layer these rules are silently ignored and the
-    # controls fall back to Quasar's fixed blue/greys.
+    # Design tokens: the single source of truth for themed colours.  Light
+    # values live under ``:root``; dark values override the *same* custom
+    # properties under ``body.body--dark`` (NiceGUI/Quasar's dark-mode class),
+    # so components use one variable and never need paired light/dark rules.
+    #
+    # The block must live in NiceGUI's ``overrides`` cascade layer: Quasar's
+    # utilities (e.g. ``.text-primary``) are ``!important`` inside the later
+    # ``quasar_importants`` layer, and for ``!important`` declarations earlier
+    # layers win while unlayered rules (where ``ui.add_css`` lands) lose.
+    # Without the layer these rules are silently ignored and the controls fall
+    # back to Quasar's fixed blue/greys.
     ui.add_css(
         "@layer overrides {\n"
-        # Neutral, theme-aware icon buttons (kebab, copy, expand, settings):
-        # Quasar's flat buttons default to ``primary``, which does not adapt.
-        "  .icon-btn { color: #424242 !important; }\n"
-        "  .body--dark .icon-btn { color: #e0e0e0 !important; }\n"
-        # Segmented single-choice controls: outlined inactive option with a
-        # neutral label; the border follows the text colour (Quasar draws
+        "  :root {\n"
+        "    --klea-control: #424242;\n"
+        "    --klea-muted: #757575;\n"
+        "    --klea-hint: #9e9e9e;\n"
+        "  }\n"
+        "  body.body--dark {\n"
+        # Quasar brand token: lighten ``primary`` so primary-tinted widgets (the
+        # send button, active tab, Save, links, ...) stay legible on dark.
+        "    --q-primary: #64b5f6;\n"
+        "    --klea-control: #e0e0e0;\n"
+        "    --klea-muted: #cfcfcf;\n"
+        "    --klea-hint: #bdbdbd;\n"
+        "  }\n"
+        # Neutral interactive icons and the inactive segmented option; the
+        # outline border follows the text colour (Quasar draws
         # ``.q-btn--outline`` with ``currentColor``).
-        "  .choice-label { color: #757575 !important; }\n"
-        "  .body--dark .choice-label { color: #cfcfcf !important; }\n"
-        "  .choice-btn:not(.choice-btn--active) { color: #424242 !important; }\n"
-        "  .body--dark .choice-btn:not(.choice-btn--active) { color: #e0e0e0 !important; }\n"
-        # Primary call-to-action (send): keep the blue family but lighten it on
-        # dark backgrounds.
-        "  .send-btn { color: #1976d2 !important; }\n"
-        "  .body--dark .send-btn { color: #64b5f6 !important; }\n"
-        # Quasar's fixed greys do not adapt; lighten the muted text.
-        "  .body--dark .text-grey-5 { color: #bdbdbd !important; }\n"
-        "  .body--dark .text-grey-6 { color: #cfcfcf !important; }\n"
-        "  .body--dark .text-grey-7 { color: #dcdcdc !important; }\n"
+        "  .icon-btn,\n"
+        "  .choice-btn:not(.choice-btn--active) {\n"
+        "    color: var(--klea-control) !important;\n"
+        "  }\n"
+        "  .choice-label {\n"
+        "    color: var(--klea-muted) !important;\n"
+        "  }\n"
+        # Quasar's grey text classes use fixed literals, so map the ones we use
+        # onto the tokens in dark mode.
+        "  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }\n"
+        "  body.body--dark .text-grey-6 { color: var(--klea-muted) !important; }\n"
+        "  body.body--dark .text-grey-7 { color: var(--klea-muted) !important; }\n"
         "}"
     )
     ui.add_css(
