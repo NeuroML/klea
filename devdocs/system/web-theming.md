@@ -59,14 +59,22 @@ variable and never need paired light/dark rules.
 | `--klea-control` | `#424242` | `#e0e0e0` | icon buttons, inactive segmented option |
 | `--klea-muted` | `#757575` | `#cfcfcf` | labels and secondary text |
 | `--klea-hint` | `#9e9e9e` | `#bdbdbd` | faintest text (Quasar `text-grey-5`) |
+| `--klea-surface` | `#e0e0e0` | `#161616` | bar surfaces (footer); Quasar sets no footer background |
 | `--q-primary` | `#1976D2` (Quasar default) | `#64b5f6` | primary brand colour |
+| `--q-dark-page` | n/a (light theme) | `#1d1d1d` | dark page background, set to match the `q-dark` panels/drawers |
 
 Notes:
 
 - Redefining `--q-primary` under `body.body--dark` themes **every**
   primary-tinted widget at once (send button, active tab, Save, links) with no
-  per-widget rules.  Quasar defines it on `:root` in the `quasar` layer, and
-  we do not call `ui.colors()`, so our override wins.
+  per-widget rules.
+- **`--q-*` overrides need `!important`.**  NiceGUI auto-applies a `ui.colors`
+  element (`klea_utils` never calls it), and its `colors.js` sets
+  `--q-primary`, `--q-dark` and `--q-dark-page` **inline on `<body>`**
+  (`document.body.style.setProperty`).  Inline normal declarations beat
+  stylesheet declarations regardless of cascade layer, so the brand-token
+  overrides in `theme.py` carry `!important`.  The `--klea-*` tokens are not
+  set inline, so they need no `!important`.
 - Quasar's grey **text** classes use fixed literals
   (`.text-grey-7 { color: #757575 !important; }`, not `var(--q-grey-7)`), so
   they cannot be tokenised via `--q-grey-*`; the ones we use are mapped onto
@@ -74,6 +82,9 @@ Notes:
 - Dark mode is the `body.body--dark` class (Quasar/NiceGUI).  Tailwind's
   `dark:` variant is configured as
   `&:where(body.body--dark, body.body--dark *)`, so `dark:` classes also work.
+- Quasar's dark theme has two greys: `--q-dark-page` (#121212) paints the
+  page/body, while `--q-dark` (#1d1d1d) paints `q-dark` panels and drawers.
+  We set `--q-dark-page` to the panel grey so the page and its panels match.
 
 ## Semantic classes
 
@@ -86,18 +97,23 @@ themes:
   segmented single-choice control (`choice.py`); the inactive option is a
   Quasar `outline` button whose border follows the text colour
   (`currentColor`).
+- `.footer-bar` -- the app footer surface (`--klea-surface`); Quasar's
+  `.q-footer` has no background of its own, so the app pins one.
 
 All of these are styled in `theme.py`; call sites only add the class.
 
 ## Adding a themed control (checklist)
 
-1. Use a token (`--klea-control` / `--klea-muted` / `--klea-hint`) or, for
-   brand colour, Quasar's `color=` prop (themed by `--q-primary`).
+1. Use a token (`--klea-control` / `--klea-muted` / `--klea-hint` /
+   `--klea-surface`) or, for brand colour, Quasar's `color=` prop (themed by
+   `--q-primary`).
 2. Put any colour rule that must beat Quasar in `@layer overrides`;
    layout/structure rules can stay unlayered.
-3. Keep the rule in `theme.py` (one override sheet) and key it to a semantic
+3. If you override a `--q-*` brand token, add `!important` (the inline
+   `ui.colors` values otherwise win).
+4. Keep the rule in `theme.py` (one override sheet) and key it to a semantic
    class applied via `.classes(...)`.
-4. Verify both themes by toggling dark mode.
+5. Verify both themes by toggling dark mode.
 
 ## Pointers
 

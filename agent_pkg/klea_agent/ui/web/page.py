@@ -146,7 +146,7 @@ def setup_layout(
     initial_load.attach_initial_load(ctx)
 
     # ---- Footer ----
-    with ui.footer().classes("bg-grey-3 dark:bg-grey-9 text-xs py-1"):
+    with ui.footer().classes("footer-bar text-xs py-1"):
         ui.html(footer_text).classes("w-full text-center text-grey-6")
 
 

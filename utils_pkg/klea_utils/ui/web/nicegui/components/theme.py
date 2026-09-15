@@ -84,20 +84,34 @@ def _add_css_overrides() -> None:
     # layers win while unlayered rules (where ``ui.add_css`` lands) lose.
     # Without the layer these rules are silently ignored and the controls fall
     # back to Quasar's fixed blue/greys.
+    #
+    # Quasar brand tokens (``--q-*``) additionally need ``!important``: NiceGUI
+    # auto-applies a ``ui.colors`` element whose ``colors.js`` sets them
+    # *inline* on ``<body>`` (``document.body.style.setProperty``), and inline
+    # normal declarations beat stylesheet declarations whatever their layer.
     ui.add_css(
         "@layer overrides {\n"
         "  :root {\n"
         "    --klea-control: #424242;\n"
         "    --klea-muted: #757575;\n"
         "    --klea-hint: #9e9e9e;\n"
+        "    --klea-surface: #e0e0e0;\n"
         "  }\n"
         "  body.body--dark {\n"
         # Quasar brand token: lighten ``primary`` so primary-tinted widgets (the
         # send button, active tab, Save, links, ...) stay legible on dark.
-        "    --q-primary: #64b5f6;\n"
+        "    --q-primary: #64b5f6 !important;\n"
+        # Unify the dark page background with the ``q-dark`` panels and drawers
+        # (both use ``--q-dark``, #1d1d1d).  Quasar's default ``--q-dark-page``
+        # (#121212) is near-black, which left the page/tab strip visibly darker
+        # than the panels sitting on it.
+        "    --q-dark-page: #1d1d1d !important;\n"
         "    --klea-control: #e0e0e0;\n"
         "    --klea-muted: #cfcfcf;\n"
         "    --klea-hint: #bdbdbd;\n"
+        # Footer stays a distinct, slightly darker bar (mirrors light mode,
+        # where the footer is darker than the page).
+        "    --klea-surface: #161616;\n"
         "  }\n"
         # Neutral interactive icons and the inactive segmented option; the
         # outline border follows the text colour (Quasar draws
@@ -109,6 +123,9 @@ def _add_css_overrides() -> None:
         "  .choice-label {\n"
         "    color: var(--klea-muted) !important;\n"
         "  }\n"
+        # Bar surfaces (footer, ...): Quasar sets no footer background, so the
+        # app pins one explicitly; this keeps it theme-aware.
+        "  .footer-bar { background: var(--klea-surface) !important; }\n"
         # Quasar's grey text classes use fixed literals, so map the ones we use
         # onto the tokens in dark mode.
         "  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }\n"

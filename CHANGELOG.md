@@ -24,7 +24,7 @@
 ### Fixed
 
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
-- Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text and secondary greys follow dark mode instead of Quasar's fixed palette.
+- Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
 
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
 
