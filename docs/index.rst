@@ -3,9 +3,18 @@ Welcome to Klea
 
 Knowledge vaLidated Expert AI Assistant for scientific research.
 
-Klea is a suite of AI tools for scientific research.  It provides a
-general purpose agent with coding capabilities, a generic RAG pipeline,
-and MCP servers for modelling and analysis.
+Klea is a suite of AI tools for scientific research: a general-purpose
+research agent, a generic RAG pipeline, and MCP servers for modelling and
+analysis.
+
+Why Klea
+--------
+
+Klea is a general-purpose research agent for the research lifecycle,
+including literature review, hypothesis generation, planning, coding,
+pipeline execution, and analysis.  Because capabilities are supplied by MCP
+tools and domain-configurable knowledge stores rather than hard-coded, the
+same agent extends to new research tasks as tools are added.
 
 Klea enforces groundedness: answers are drawn from retrieved sources and
 checked by an evaluation loop, and each response records its provenance
@@ -13,6 +22,10 @@ checked by an evaluation loop, and each response records its provenance
 the generated output.  When a query cannot be grounded in the available
 sources, Klea flags the fallback rather than presenting it as confident
 fact.
+
+**Status:** the RAG pipeline (``klea_rag`` / ``klea_utils``) is ready to use
+today.  The agent (``klea_agent``) is under active development, with an
+initial release planned.
 
 Architecture
 ------------
@@ -37,7 +50,7 @@ The project is organised as a monorepo with four installable packages:
    * - ``agent_pkg``
      - ``klea_agent``
      - ``klea``, ``klea-serve``
-     - General purpose agent with coding capabilities
+     - General-purpose research agent (coding, workflows, analysis, hypotheses)
    * - ``mcp_pkg``
      - ``neuroml_mcp``
      - ``nml-mcp``
@@ -49,9 +62,9 @@ store abstraction (Chroma / PGVector / Qdrant), and the
 :class:`~klea_utils.graph.base.BaseLangGraph` orchestrator framework.
 Web interfaces are available via NiceGUI (primary) and Streamlit.
 
-``klea_agent`` is the main application: a general purpose agent that can
-also code.  ``klea_rag`` is an additional component, primarily consumed by
-``klea_agent`` as a retrieval/RAG service.
+``klea_agent`` is the main application: a general-purpose research agent
+with General and Scientific operating modes.  ``klea_rag`` is an additional
+component, primarily consumed by ``klea_agent`` as a retrieval/RAG service.
 
 C4 architecture model
 ---------------------

@@ -4,7 +4,7 @@ klea
 **WIP: coming soon** -- this CLI is under active development and not yet
 ready for general use.
 
-General purpose agent (with coding capabilities) client.
+General-purpose research agent client.
 
 .. typer:: klea_agent.ui.cli:agent_app
    :prog: klea

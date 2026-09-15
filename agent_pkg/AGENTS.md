@@ -1,6 +1,6 @@
 # AGENTS.md - Agent Package
 
-General purpose agent (with coding capabilities) using LangChain/LangGraph.
+General-purpose research agent (coding, workflows, analysis, hypothesis generation) using LangChain/LangGraph.
 
 ## Package Overview
 

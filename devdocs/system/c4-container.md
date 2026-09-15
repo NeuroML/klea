@@ -49,7 +49,7 @@ flowchart TB
     subgraph Klea [Klea]
         direction TB
         ui["Client UIs<br/>Python (klea_agent.ui / klea_rag.ui)<br/>Per-app NiceGUI pages + CLI wiring<br/>Compose klea_utils UI components; CLI auto-spawns server, connects over HTTP/SSE"]
-        agent["klea_agent<br/>Python / FastAPI / LangGraph<br/>General-purpose coding agent (KleaAgent)<br/>includes former code_pkg  ---  WIP<br/>CLI: klea; serve: :8006"]
+        agent["klea_agent<br/>Python / FastAPI / LangGraph<br/>General-purpose research agent (KleaAgent)<br/>includes former code_pkg  ---  WIP<br/>CLI: klea; serve: :8006"]
         rag["klea_rag<br/>Python / FastAPI / LangGraph<br/>Domain-configurable RAG pipeline (RAG)<br/>CLI: klea-rag; serve: :8005  ---  mature"]
         nmlmcp["nml-mcp (neuroml_mcp)<br/>Python / FastMCP<br/>NeuroML MCP server<br/>CLI: nml-mcp  ---  streamable-http :8542"]
         bundled["bundled klea-mcp<br/>Python / FastMCP<br/>Shared tools (web_fetch, file read/list, download)<br/>stdio subprocess per app; standalone via klea-mcp"]
@@ -108,7 +108,7 @@ flowchart TB
 | Container | Package | Role | Key entry points |
 |-----------|---------|------|------------------|
 | Client UIs | `klea_agent.ui` / `klea_rag.ui` | Per-app NiceGUI pages and CLI wiring composed from `klea_utils` UI components; CLI auto-spawns the server and connects over HTTP/SSE | `klea`, `klea-rag` CLIs |
-| `klea_agent` | `agent_pkg` | General-purpose coding agent (`KleaAgent` over `BaseLangGraph`); **WIP** | `klea`, `klea-serve` (HTTP `:8006`) |
+| `klea_agent` | `agent_pkg` | General-purpose research agent (`KleaAgent` over `BaseLangGraph`); **WIP** | `klea`, `klea-serve` (HTTP `:8006`) |
 | `klea_rag` | `rag_pkg` | Domain-configurable RAG pipeline (`RAG` over `BaseLangGraph`); mature path | `klea-rag`, `klea-rag-serve` (HTTP `:8005`) |
 | `nml-mcp` | `mcp_pkg` | NeuroML MCP server: model gen, NeuroML-DB/OSB search, sandboxed code exec, web/doc tools | `nml-mcp` (streamable-http `:8542`) |
 | bundled `klea-mcp` | `klea_utils.mcp.server.bundled` | Shared tools server (web_fetch, file read/list, download); launched as a stdio subprocess by each app | `klea-mcp` (standalone) |
