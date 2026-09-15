@@ -15,10 +15,11 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Request
 from klea_utils.api import chat_core
+from klea_utils.mcp.access import AccessLevel
 from pydantic import BaseModel, Field
 
 
@@ -33,16 +34,25 @@ class ChatPayload(BaseModel):
         default="general",
         description="Requested operating mode (scientific requires a curated source)",
     )
+    # Optional per-request tool access level (ADR-0037); ``None`` leaves the
+    # app config ``general.access_level`` in charge.
+    access_level: AccessLevel | None = Field(
+        default=None,
+        description="Tool access level override: 'read_only' or 'full' (ADR-0037)",
+    )
 
 
-def _extra_state(payload: ChatPayload) -> dict[str, dict[str, str]]:
+def _extra_state(payload: ChatPayload) -> dict[str, Any]:
     """Build the graph's initial-state extras from the payload.
 
     :param payload: The validated chat payload.
     :returns: Extra state fields passed to :class:`~klea_utils.graph.base.BaseLangGraph`
-        invocation methods (``mode.requested``).
+        invocation methods (``mode.requested``, optional ``access_level``).
     """
-    return {"mode": {"requested": payload.mode}}
+    extra: dict[str, Any] = {"mode": {"requested": payload.mode}}
+    if payload.access_level is not None:
+        extra["access_level"] = payload.access_level
+    return extra
 
 
 def create_chat_router() -> APIRouter:

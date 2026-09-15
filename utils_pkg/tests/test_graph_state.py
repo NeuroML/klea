@@ -23,6 +23,7 @@ SHARED_FIELDS = {
     "tool_calls",
     "tool_results",
     "usage_metrics",
+    "access_level",
 }
 
 
@@ -38,6 +39,7 @@ def test_base_schema_defaults():
     assert state.tool_calls == []
     assert state.tool_results == []
     assert state.usage_metrics == TokenUsage()
+    assert state.access_level == "full"
 
 
 def test_base_schema_exposes_shared_channels():

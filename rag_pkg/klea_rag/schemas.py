@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from typing import Any, Literal
 
 from klea_utils.graph.state import BaseGraphSchema
+from klea_utils.mcp.access import AccessLevel
 from pydantic import BaseModel, Field
 
 
@@ -87,6 +88,9 @@ class RAGState(BaseGraphSchema):
     # schema for this is computed at run time for the classifier node
     query_domains: list[str] = Field(default=["undefined"], validate_default=True)
     text_response_eval: EvaluateAnswerSchema = EvaluateAnswerSchema()
+
+    # Fixed by design (ADR-0037): the RAG retrieves, never mutates.
+    access_level: AccessLevel = "read_only"
 
     # reference material from retrievals
     reference_material: dict[str, list[tuple]] = Field(default_factory=dict)

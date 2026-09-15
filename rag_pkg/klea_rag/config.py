@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.access import ToolAccessOverride
 from klea_utils.mcp.server.config import BundledToolsConfig
 from klea_utils.stores.config import PerDomainConfig as BasePerDomainConfig
 from pydantic import BaseModel, Field, model_validator
@@ -46,6 +47,13 @@ class GeneralConfig(BaseModel):
     #: tools make sense differs per deployment).
     bundled_tools: BundledToolsConfig = Field(
         default_factory=lambda: BundledToolsConfig(enabled=False)
+    )
+    #: Per-tool capability overrides (ADR-0037), applied over MCP annotations.
+    #: The RAG is fixed at ``read_only`` (its state default); this only lets a
+    #: deployment declare unannotated tools as read-only so they stay usable.
+    tool_access: dict[str, ToolAccessOverride] = Field(
+        default_factory=dict,
+        description="Per-tool read_only/destructive overrides (ADR-0037)",
     )
 
     @model_validator(mode="after")

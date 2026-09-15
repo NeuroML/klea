@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from klea_utils.graph.reducers import add_token_usage
 from klea_utils.graph.schemas import TokenUsage
+from klea_utils.mcp.access import AccessLevel
 from klea_utils.mcp.schemas import ToolCallSchema
 
 
@@ -47,3 +48,5 @@ class BaseGraphSchema(BaseModel):
     usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
         default_factory=TokenUsage
     )
+    #: Tool invocation access level (ADR-0037); apps may override the default.
+    access_level: AccessLevel = "full"

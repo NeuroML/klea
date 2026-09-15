@@ -30,6 +30,12 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, resolve_user_agent
+from klea_utils.mcp.access import (
+    AccessLevel,
+    ToolAccessOverride,
+    resolve_access_level,
+    resolve_capability,
+)
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.paths import get_config_dir, init_dir, resolve_app_config_path
 from klea_utils.stores.config import RetrieverConfig
@@ -320,6 +326,9 @@ class BaseLangGraph(ABC):
                 domain_servers[domain] = list(config.mcpServers.keys())
                 num_servers += len(list(config.mcpServers.keys()))
 
+        # Operator capability overrides (ADR-0037), applied over annotations.
+        access_overrides = self._tool_access_overrides()
+
         for domain, server_names in domain_servers.items():
             domain_tools_info: dict[str, ToolInfo] = {}
             for t in self.mcp_tools:
@@ -336,18 +345,65 @@ class BaseLangGraph(ABC):
                 full_description, short_description = build_tool_description(t)
                 # Carry the standard MCP annotations so the tool access level
                 # (ADR-0037) can classify the tool client-side; an absent
-                # annotation stays ``None`` (fail-closed in read_only).
+                # annotation stays ``None`` (fail-closed in read_only).  A
+                # configured ``general.tool_access`` override takes precedence.
                 annotations = getattr(t, "annotations", None)
+                read_only, destructive = resolve_capability(
+                    getattr(annotations, "readOnlyHint", None),
+                    getattr(annotations, "destructiveHint", None),
+                    access_overrides.get(t.name),
+                )
                 domain_tools_info[t.name] = ToolInfo(
                     title=t.title,
                     description=full_description,
                     short_description=short_description,
                     meta=clean_tool_meta(t.meta),
-                    read_only=getattr(annotations, "readOnlyHint", None),
-                    destructive=getattr(annotations, "destructiveHint", None),
+                    read_only=read_only,
+                    destructive=destructive,
                 )
             self.tools_info[domain] = domain_tools_info
         self.logger.debug(f"{self.tools_info = }")
+
+    def _tool_access_overrides(self) -> dict[str, ToolAccessOverride]:
+        """Return the configured per-tool capability overrides (ADR-0037).
+
+        Reads ``app_config.general.tool_access``; returns an empty mapping
+        when the app config does not declare it.
+
+        :returns: ``{tool_name: ToolAccessOverride}``.
+        """
+        general = getattr(getattr(self, "app_config", None), "general", None)
+        overrides = getattr(general, "tool_access", None)
+        return dict(overrides) if overrides else {}
+
+    def _configured_access_level(self) -> AccessLevel | None:
+        """Return the config-declared access level, or ``None``.
+
+        Reads ``app_config.general.access_level``.  Apps that do not declare
+        the field (e.g. RAG, whose level is fixed) return ``None`` so the
+        state default applies.
+
+        :returns: The configured level, or ``None`` when unset.
+        """
+        general = getattr(getattr(self, "app_config", None), "general", None)
+        raw = getattr(general, "access_level", None)
+        if raw is None:
+            return None
+        return resolve_access_level(raw)
+
+    def _apply_access_level_default(
+        self, input_state: dict[str, Any], extra_state: dict[str, Any] | None
+    ) -> None:
+        """Seed the config access level unless the request overrides it.
+
+        Precedence is request (``extra_state``) > ``general.access_level`` >
+        the state field default.  Mutates *input_state* in place.
+        """
+        if extra_state and extra_state.get("access_level") is not None:
+            return
+        default = self._configured_access_level()
+        if default is not None:
+            input_state["access_level"] = default
 
     async def _get_vector_stores(self) -> None:
         """Get vector stores"""
@@ -811,6 +867,7 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
+        self._apply_access_level_default(input_state, extra_state)
         final_state = await self.graph.ainvoke(
             input_state, config=config, context=context
         )
@@ -848,6 +905,7 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
+        self._apply_access_level_default(input_state, extra_state)
         async for chunk in self.graph.astream(
             input_state, config=config, context=context
         ):
@@ -886,6 +944,7 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
+        self._apply_access_level_default(input_state, extra_state)
         res = self.graph.astream(input_state, config=config, context=context)
         return res
 
@@ -942,6 +1001,7 @@ class BaseLangGraph(ABC):
         input_state = {"query": query}
         if extra_state:
             input_state.update(extra_state)
+        self._apply_access_level_default(input_state, extra_state)
         stream = await self.graph.astream_events(
             input_state,
             config=config,

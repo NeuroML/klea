@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from types import SimpleNamespace
 from typing import Any, cast, override
 
 import pytest
@@ -16,6 +17,7 @@ from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, create_configurable_model
+from klea_utils.mcp.access import ToolAccessOverride
 from klea_utils.nodes.answer_general import AnswerGeneral
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from langchain_core.messages import AnyMessage
@@ -152,6 +154,77 @@ class TestBuildToolsInfoAnnotations:
         # An unannotated tool carries no capability signal.
         assert info["plain"].read_only is None
         assert info["plain"].destructive is None
+
+    def _graph_with_overrides(self, tools, tool_access):
+        graph = ToyGraph()
+        graph.mcp_tools = tools
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(mcpServers={"srv": {"url": "http://example.invalid/mcp"}})
+        }
+        graph.app_config = cast(
+            BaseModel,
+            SimpleNamespace(
+                general=SimpleNamespace(access_level="full", tool_access=tool_access)
+            ),
+        )
+        graph._build_tools_info()
+        return graph
+
+    def test_tool_access_override_relaxes_unannotated(self):
+        """A config override can declare an unannotated tool read-only."""
+        graph = self._graph_with_overrides(
+            [self._tool("plain")],
+            {"plain": ToolAccessOverride(read_only=True)},
+        )
+        assert graph.tools_info["code"]["plain"].read_only is True
+
+    def test_tool_access_override_restricts_optimistic_tool(self):
+        """A config override can mark an over-optimistic tool destructive."""
+        graph = self._graph_with_overrides(
+            [self._tool("search", read_only=True)],
+            {"search": ToolAccessOverride(destructive=True)},
+        )
+        assert graph.tools_info["code"]["search"].destructive is True
+
+
+class TestConfiguredAccessLevel:
+    """The config default seeds state unless the request overrides (ADR-0037)."""
+
+    def test_no_config_level_returns_none(self):
+        # ToyGraph's app_config has no general.access_level.
+        assert ToyGraph()._configured_access_level() is None
+
+    def test_config_level_resolved(self):
+        graph = ToyGraph()
+        graph.app_config = cast(
+            BaseModel,
+            SimpleNamespace(general=SimpleNamespace(access_level="read_only")),
+        )
+        assert graph._configured_access_level() == "read_only"
+
+    def test_seeds_default_when_request_omits(self):
+        graph = ToyGraph()
+        graph.app_config = cast(
+            BaseModel,
+            SimpleNamespace(general=SimpleNamespace(access_level="read_only")),
+        )
+        input_state: dict = {"query": "q"}
+
+        graph._apply_access_level_default(input_state, None)
+
+        assert input_state["access_level"] == "read_only"
+
+    def test_request_overrides_config(self):
+        graph = ToyGraph()
+        graph.app_config = cast(
+            BaseModel,
+            SimpleNamespace(general=SimpleNamespace(access_level="read_only")),
+        )
+        input_state: dict = {"query": "q"}
+
+        graph._apply_access_level_default(input_state, {"access_level": "full"})
+
+        assert "access_level" not in input_state
 
 
 class WarningGraph(ToyGraph):

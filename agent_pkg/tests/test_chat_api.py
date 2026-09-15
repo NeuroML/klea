@@ -171,6 +171,40 @@ class TestChat:
             context={"model_overrides": {}},
         )
 
+    async def test_query_passes_access_level(self, client, app):
+        """POST /query forwards an explicit access_level override (ADR-0037)."""
+        await client.post(
+            "/query",
+            json={
+                "query": "hello",
+                "chat_id": "c-access",
+                "user_id": "u",
+                "access_level": "read_only",
+            },
+        )
+        app.state.graph.run_graph_invoke.assert_called_once_with(
+            "hello",
+            "user_u:chat_c-access",
+            extra_state={
+                "mode": {"requested": "general"},
+                "access_level": "read_only",
+            },
+            context={"model_overrides": {}},
+        )
+
+    async def test_query_rejects_unknown_access_level(self, client):
+        """An invalid access level is rejected by the payload schema."""
+        response = await client.post(
+            "/query",
+            json={
+                "query": "hello",
+                "chat_id": "c-bad",
+                "user_id": "u",
+                "access_level": "god_mode",
+            },
+        )
+        assert response.status_code == 422
+
     async def test_query_passes_stored_model_overrides(self, client, app):
         """Stored per-chat model overrides ride the Runtime context (ADR-0033)."""
         store: SessionStore = app.state.chat_sessions

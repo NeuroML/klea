@@ -83,6 +83,7 @@ class TestSharedStateInheritance:
         assert state.tool_calls == []
         assert state.tool_results == []
         assert state.usage_metrics == TokenUsage()
+        assert state.access_level == "full"
 
     def test_shared_and_app_channels_present(self):
         channels = StateGraph(KleaAgentState).channels

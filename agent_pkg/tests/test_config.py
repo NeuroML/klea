@@ -31,6 +31,18 @@ class TestWriteConfigTemplate:
         config = AppConfig()
         assert config.general.bundled_tools.enabled is True
 
+    def test_access_level_defaults(self):
+        """Access level and overrides have safe defaults (ADR-0037)."""
+        config = AppConfig()
+        assert config.general.access_level == "full"
+        assert config.general.tool_access == {}
+
+    def test_template_includes_access_settings(self, tmp_path):
+        target = write_config_template(tmp_path)
+        data = json.loads(target.read_text())
+        assert data["general"]["access_level"] == "full"
+        assert data["general"]["tool_access"] == {}
+
     def test_template_includes_bundled_tools(self, tmp_path):
         target = write_config_template(tmp_path)
         data = json.loads(target.read_text())

@@ -149,6 +149,11 @@ def test_rag_state_shared_defaults():
     assert state.usage_metrics == TokenUsage()
 
 
+def test_rag_state_is_read_only():
+    """RAG is fixed at read_only (ADR-0037): it retrieves, never mutates."""
+    assert RAGState().access_level == "read_only"
+
+
 def test_rag_state_channels_present():
     channels = StateGraph(RAGState).channels
     assert {"messages", "tool_calls", "tool_results", "context_summary"} <= set(

@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.access import AccessLevel, ToolAccessOverride
 from klea_utils.mcp.server.config import BundledToolsConfig
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,18 @@ class GeneralConfig(BaseModel):
     #: The shared bundled tools server is on by default for the agent
     #: (batteries-included coding agent); deployers can disable or filter it.
     bundled_tools: BundledToolsConfig = Field(default_factory=BundledToolsConfig)
+    #: Tool invocation access level (ADR-0037).  ``read_only`` hides and
+    #: rejects mutating tools; per-request payloads may override it.
+    access_level: AccessLevel = Field(
+        default="full",
+        description="Tool access level: 'read_only' or 'full' (ADR-0037)",
+    )
+    #: Per-tool capability overrides (ADR-0037), applied over MCP annotations
+    #: for tools that do not annotate (or annotate inaccurately).
+    tool_access: dict[str, ToolAccessOverride] = Field(
+        default_factory=dict,
+        description="Per-tool read_only/destructive overrides (ADR-0037)",
+    )
 
 
 class AppConfig(BaseModel):
