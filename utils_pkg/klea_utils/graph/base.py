@@ -334,11 +334,17 @@ class BaseLangGraph(ABC):
                 # one example; params via Args:), see build_tool_description
                 # and docs/concepts/mcp.rst.
                 full_description, short_description = build_tool_description(t)
+                # Carry the standard MCP annotations so the tool access level
+                # (ADR-0037) can classify the tool client-side; an absent
+                # annotation stays ``None`` (fail-closed in read_only).
+                annotations = getattr(t, "annotations", None)
                 domain_tools_info[t.name] = ToolInfo(
                     title=t.title,
                     description=full_description,
                     short_description=short_description,
                     meta=clean_tool_meta(t.meta),
+                    read_only=getattr(annotations, "readOnlyHint", None),
+                    destructive=getattr(annotations, "destructiveHint", None),
                 )
             self.tools_info[domain] = domain_tools_info
         self.logger.debug(f"{self.tools_info = }")

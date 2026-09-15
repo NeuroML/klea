@@ -12,12 +12,14 @@ import logging
 from typing import Any, cast, override
 
 import pytest
+from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, create_configurable_model
 from klea_utils.nodes.answer_general import AnswerGeneral
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from langchain_core.messages import AnyMessage
+from mcp.types import Tool, ToolAnnotations
 from pydantic import BaseModel, Field
 
 
@@ -105,6 +107,51 @@ class ToyGraph(BaseLangGraph):
         workflow.add_edge(self._fixed_node.label, END)
 
         self.graph = workflow.compile()
+
+
+class TestBuildToolsInfoAnnotations:
+    """_build_tools_info propagates MCP annotations onto ToolInfo (ADR-0037)."""
+
+    @staticmethod
+    def _tool(
+        name: str,
+        *,
+        read_only: bool | None = None,
+        destructive: bool | None = None,
+    ) -> Tool:
+        annotations = None
+        if read_only is not None or destructive is not None:
+            annotations = ToolAnnotations(
+                readOnlyHint=read_only, destructiveHint=destructive
+            )
+        return Tool(
+            name=name,
+            description=f"{name} tool",
+            inputSchema={},
+            annotations=annotations,
+        )
+
+    def test_annotation_propagation(self):
+        graph = ToyGraph()
+        graph.mcp_tools = [
+            self._tool("search", read_only=True),
+            self._tool("delete", destructive=True),
+            self._tool("plain"),
+        ]
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(mcpServers={"srv": {"url": "http://example.invalid/mcp"}})
+        }
+
+        graph._build_tools_info()
+
+        info = graph.tools_info["code"]
+        assert info["search"].read_only is True
+        assert info["search"].destructive is None
+        assert info["delete"].destructive is True
+        assert info["delete"].read_only is None
+        # An unannotated tool carries no capability signal.
+        assert info["plain"].read_only is None
+        assert info["plain"].destructive is None
 
 
 class WarningGraph(ToyGraph):
