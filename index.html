@@ -299,15 +299,26 @@
           <section id="welcome-to-klea">
 <h1>Welcome to Klea<a class="headerlink" href="#welcome-to-klea" title="Link to this heading">¶</a></h1>
 <p>Knowledge vaLidated Expert AI Assistant for scientific research.</p>
-<p>Klea is a suite of AI tools for scientific research.  It provides a
-general purpose agent with coding capabilities, a generic RAG pipeline,
-and MCP servers for modelling and analysis.</p>
+<p>Klea is a suite of AI tools for scientific research: a general-purpose
+research agent, a generic RAG pipeline, and MCP servers for modelling and
+analysis.</p>
+<section id="why-klea">
+<h2>Why Klea<a class="headerlink" href="#why-klea" title="Link to this heading">¶</a></h2>
+<p>Klea is a general-purpose research agent for the research lifecycle,
+including literature review, hypothesis generation, planning, coding,
+pipeline execution, and analysis.  Because capabilities are supplied by MCP
+tools and domain-configurable knowledge stores rather than hard-coded, the
+same agent extends to new research tasks as tools are added.</p>
 <p>Klea enforces groundedness: answers are drawn from retrieved sources and
 checked by an evaluation loop, and each response records its provenance
 (the documents and tools it drew on) so researchers can inspect and verify
 the generated output.  When a query cannot be grounded in the available
 sources, Klea flags the fallback rather than presenting it as confident
 fact.</p>
+<p><strong>Status:</strong> the RAG pipeline (<code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_utils</span></code>) is ready to use
+today.  The agent (<code class="docutils literal notranslate"><span class="pre">klea_agent</span></code>) is under active development, with an
+initial release planned.</p>
+</section>
 <section id="architecture">
 <h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading">¶</a></h2>
 <p>The project is organised as a monorepo with four installable packages:</p>
@@ -334,7 +345,7 @@ fact.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agent_pkg</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea_agent</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code>, <code class="docutils literal notranslate"><span class="pre">klea-serve</span></code></p></td>
-<td><p>General purpose agent with coding capabilities</p></td>
+<td><p>General-purpose research agent (coding, workflows, analysis, hypotheses)</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mcp_pkg</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">neuroml_mcp</span></code></p></td>
@@ -349,9 +360,9 @@ provides configurable LLM setup (with runtime model switching), vector
 store abstraction (Chroma / PGVector / Qdrant), and the
 <a class="reference internal" href="api/utils/graph.html#klea_utils.graph.base.BaseLangGraph" title="klea_utils.graph.base.BaseLangGraph"><code class="xref py py-class docutils literal notranslate"><span class="pre">BaseLangGraph</span></code></a> orchestrator framework.
 Web interfaces are available via NiceGUI (primary) and Streamlit.</p>
-<p><code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> is the main application: a general purpose agent that can
-also code.  <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> is an additional component, primarily consumed by
-<code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> as a retrieval/RAG service.</p>
+<p><code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> is the main application: a general-purpose research agent
+with General and Scientific operating modes.  <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> is an additional
+component, primarily consumed by <code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> as a retrieval/RAG service.</p>
 </section>
 <section id="c4-architecture-model">
 <h2>C4 architecture model<a class="headerlink" href="#c4-architecture-model" title="Link to this heading">¶</a></h2>
@@ -451,6 +462,7 @@ from the NeuroML community (see <a class="reference external" href="https://gith
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Welcome to Klea</a><ul>
+<li><a class="reference internal" href="#why-klea">Why Klea</a></li>
 <li><a class="reference internal" href="#architecture">Architecture</a></li>
 <li><a class="reference internal" href="#c4-architecture-model">C4 architecture model</a></li>
 <li><a class="reference internal" href="#quickstart">Quickstart</a></li>
