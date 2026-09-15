@@ -99,10 +99,11 @@ Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, list_files, read_file, download_file (each also has its scope + functional tags)
+   bundled  web_fetch, list_files, read_file, download_file, run_command (each also has its scope + functional tags)
 
    Web scope:   web_fetch (bundled), download_file (bundled, download)
    Local scope: list_files / read_file (bundled, files),
+                run_command (bundled, code),
                 run_python_code / run_lems_simulation (neuroml, code),
                 create_new_NeuroML_model (neuroml)
 
@@ -119,6 +120,19 @@ registered MCP tool; see the ``ToolInfo`` docstring and
 https://fastmcp.wiki/en/servers/tools#mcp-annotations.  So a generic MCP
 host connecting to a Klea server sees the read-only / destructive contract
 for free, without adopting Klea's tag vocabulary.
+
+``run_command`` executes a shell command and is therefore marked
+``destructive`` + ``open_world``: it is full-mode only (never offered or run
+under ``read_only``, see below), and its optional ``working_directory``
+argument is checked like any other path but does **not** confine the command
+(a shell can ``cd`` elsewhere or use absolute paths).  See ADR-0038 for the
+design and its limits.
+
+Klea-authored tools (this one included) also refuse to run when the server
+process has root privileges (uid 0), unless the ``KLEA_ALLOW_ROOT_TOOLS``
+environment variable is set.  This catches accidental root deployments
+(containers default to root); third-party MCP servers are not covered and run
+with whatever privileges they are given.
 
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^

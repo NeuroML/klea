@@ -81,6 +81,10 @@ their httpx session via the lifespan context.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.mcp.tool_impls.run_command
+   :members:
+   :show-inheritance:
+
 Repository sources
 ------------------
 

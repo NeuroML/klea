@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import functools
 import inspect
 import logging
 from types import ModuleType
@@ -16,9 +17,46 @@ from typing import Any
 from fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+from klea_utils.mcp.privilege import (
+    ALLOW_ROOT_ENV_VAR,
+    allow_root_tools,
+    root_denial_message,
+    running_as_root,
+    warn_if_root,
+)
 from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.tool_result import to_result
 
 logger = logging.getLogger(__name__)
+
+
+def _wrap_with_root_guard(fn):
+    """Wrap a tool so it refuses to run as root unless explicitly allowed.
+
+    The guard runs at call time (the process uid is fixed, but the override
+    env var is read per call).  ``functools.wraps`` preserves the signature,
+    docstring and annotations so fastmcp still derives the tool schema and
+    injects ``Context``; the wrapper also tolerates synchronous tools.
+
+    :param fn: The registered tool function.
+    :returns: An async wrapper that applies the root guard then calls *fn*.
+    """
+
+    @functools.wraps(fn)
+    async def _guarded(*args: Any, **kwargs: Any) -> Any:
+        if running_as_root() and not allow_root_tools():
+            logger.warning(
+                "Refusing to run tool %s as root (uid 0); set %s=1 to override",
+                fn.__name__,
+                ALLOW_ROOT_ENV_VAR,
+            )
+            return to_result({"error": root_denial_message()})
+        result = fn(*args, **kwargs)
+        if inspect.isawaitable(result):
+            result = await result
+        return result
+
+    return _guarded
 
 
 def register_tools(mcp: FastMCP, modules: list[ModuleType]):
@@ -36,6 +74,7 @@ def register_tools(mcp: FastMCP, modules: list[ModuleType]):
     :param modules: list of modules with tool function definitions
 
     """
+    warn_if_root(logger)
     for module in modules:
         for fname, fn in inspect.getmembers(module, inspect.isfunction):
             if fn.__module__ != module.__name__:
@@ -92,7 +131,7 @@ def register_tools(mcp: FastMCP, modules: list[ModuleType]):
             if annotations_kwargs:
                 kwargs["annotations"] = ToolAnnotations(**annotations_kwargs)
 
-            mcp.tool(fn, **kwargs)
+            mcp.tool(_wrap_with_root_guard(fn), **kwargs)
             logger.debug(f"Registered MCP tool: {fname}")
 
 

@@ -111,6 +111,24 @@ than application configuration; a config field can be added later if needed.
   zero and is set for a non-zero exit, a timeout, or a denied working
   directory (the ADR-0003 `isError` contract via `to_result`).
 
+### Root guard
+
+Every Klea-authored tool is wrapped at registration
+(`klea_utils.mcp.registry.register_tools`) to refuse execution when the
+server process runs as root (effective uid 0), returning the standard
+non-halting error result; a startup warning is logged when a Klea server or
+app runs as root.  The override is the process environment variable
+`KLEA_ALLOW_ROOT_TOOLS` (truthy: `1`/`true`/`yes`/`on`).  This covers the
+bundled tools and the NeuroML server (both use `register_tools`), so it is
+not limited to `run_command`: as root, even the path-confined file tools can
+read/write beyond what their OS permissions would otherwise allow.
+
+This is defense-in-depth for accidental root deployments (containers default
+to root), not a sandbox or a security boundary.  Third-party MCP servers do
+not use `register_tools` and run with whatever privileges the operator gives
+them (ADR-0007 trust model); the guard is the most Klea can do for the tools
+it authors.
+
 ### Deferred: real isolation
 
 This tool is **not** a sandbox.  The path check is advisory, the command
@@ -129,18 +147,27 @@ step.  Both are separate follow-ups.
   construction (annotation-driven), and failures are non-halting.
 * Good, because a hung or verbose command is bounded by the timeout and
   output cap, and the ceiling can be raised for long research workflows.
+* Good, because Klea-authored tools refuse to run as root by default, so an
+  accidental root deployment (containers) is caught rather than silently
+  granting full privileges.
 * Bad, because it is a powerful, unconfined capability in `full` mode; only
   OS isolation (deferred) can confine an untrusted command.
 * Bad, because the inherited environment can expose secrets to a command,
   and the `working_directory` check can be bypassed (`cd /`, absolute paths).
+* Bad, because the root guard only covers Klea-authored tools; third-party
+  MCP servers run with their own privileges (operator's responsibility).
 * Neutral, because the model can request a longer timeout within the ceiling
   (mirroring opencode's "retry with a larger timeout").
 
 ### Confirmation
 
 * Unit tests: success, non-zero exit -> error, working directory denied /
-  inside / default, timeout kills the process group, output truncation, stdin
-  closed, and the `KLEA_RUN_COMMAND_MAX_TIMEOUT` override.
+  inside / default / not-a-directory, timeout kills the process group, output
+  truncation, stdin closed, and the `KLEA_RUN_COMMAND_MAX_TIMEOUT` override
+  (including non-finite values).
+* Root guard tests (`test_mcp_privilege.py`, `test_mcp_registry.py`): helpers,
+  refusal as root, override allows, signature/schema preservation, and the
+  registration warning.
 * Annotation/tag assertions in `test_bundled_server.py`; a `read_only`
   disclosure/dispatch exclusion test (ADR-0037).
 * Lint/type: `ruff` and `ty` clean; `pytest -m "not localonly"`.
@@ -157,5 +184,8 @@ step.  Both are separate follow-ups.
   `MAX_CAPTURE_BYTES=1 MiB`, `stdin: ignore`, `detached`, external-workdir
   approval, advisory command-argument path scan).
 * Code loci: `utils_pkg/klea_utils/mcp/tool_impls/run_command.py`,
-  `utils_pkg/klea_utils/mcp/server/bundled_tools.py`.
+  `utils_pkg/klea_utils/mcp/server/bundled_tools.py`,
+  `utils_pkg/klea_utils/mcp/privilege.py`,
+  `utils_pkg/klea_utils/mcp/registry.py` (root guard),
+  `utils_pkg/klea_utils/graph/base.py` (startup warning).
 * Status: proposed 2026-09-14.

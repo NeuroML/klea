@@ -8,13 +8,15 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import inspect
 import logging
 import sys
 import types
 
 import pytest
-from fastmcp import FastMCP
-from klea_utils.mcp.registry import register_tools, tool_meta
+from fastmcp import Client, FastMCP
+from klea_utils.mcp import registry
+from klea_utils.mcp.registry import _wrap_with_root_guard, register_tools, tool_meta
 from klea_utils.mcp.schemas import ToolInfo
 
 logger = logging.getLogger(__name__)
@@ -152,3 +154,77 @@ async def test_register_tools_no_annotations_when_unset():
 
     plain = tools["sample_tool"]
     assert plain.annotations is None
+
+
+async def _echo(value: str) -> str:
+    """Echo the value back."""
+    return value
+
+
+def test_wrap_with_root_guard_preserves_metadata():
+    """The guard must not hide the name/docstring/signature from fastmcp."""
+    wrapped = _wrap_with_root_guard(_echo)
+    assert wrapped.__name__ == "_echo"
+    assert wrapped.__doc__ == _echo.__doc__
+    assert inspect.signature(wrapped) == inspect.signature(_echo)
+
+
+@pytest.mark.asyncio
+async def test_wrap_with_root_guard_refuses_as_root(monkeypatch):
+    monkeypatch.setattr(registry, "running_as_root", lambda: True)
+    monkeypatch.setattr(registry, "allow_root_tools", lambda: False)
+    called = False
+
+    async def tool(x):
+        nonlocal called
+        called = True
+        return x
+
+    result = await _wrap_with_root_guard(tool)("x")
+    assert result.is_error is True
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_wrap_with_root_guard_allows_with_override(monkeypatch):
+    monkeypatch.setattr(registry, "running_as_root", lambda: True)
+    monkeypatch.setattr(registry, "allow_root_tools", lambda: True)
+    assert await _wrap_with_root_guard(_echo)("x") == "x"
+
+
+@pytest.mark.asyncio
+async def test_registered_tool_keeps_parameters():
+    """The wrapper must not hide the signature from fastmcp's schema."""
+    server = FastMCP("test-server")
+    register_tools(server, [sys.modules[__name__]])
+
+    tools = {t.name: t for t in await server.list_tools()}
+
+    properties = tools["sample_tool"].parameters.get("properties", {})
+    assert "param" in properties
+
+
+@pytest.mark.asyncio
+async def test_registered_tool_refused_as_root(monkeypatch):
+    server = FastMCP("test-server")
+    register_tools(server, [sys.modules[__name__]])
+    monkeypatch.setattr(registry, "running_as_root", lambda: True)
+    monkeypatch.setattr(registry, "allow_root_tools", lambda: False)
+
+    async with Client(transport=server) as client:
+        result = await client.call_tool(
+            "sample_tool", {"param": "hi"}, raise_on_error=False
+        )
+
+    assert result.is_error is True
+
+
+def test_register_tools_warns_if_root(monkeypatch):
+    """Registration logs the root warning once (via warn_if_root)."""
+    called: list = []
+    monkeypatch.setattr(registry, "warn_if_root", called.append)
+
+    server = FastMCP("test-server")
+    register_tools(server, [sys.modules[__name__]])
+
+    assert called

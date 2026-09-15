@@ -19,6 +19,13 @@ from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.download_file import download_file as download_file_impl
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
 from klea_utils.mcp.tool_impls.read_file import read_file as read_file_impl
+from klea_utils.mcp.tool_impls.run_command import (
+    DEFAULT_MAX_OUTPUT_CHARS,
+    DEFAULT_MAX_TIMEOUT_SECONDS,
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_TIMEOUT_ENV_VAR,
+)
+from klea_utils.mcp.tool_impls.run_command import run_command as run_command_impl
 from klea_utils.mcp.tool_impls.web_fetch import web_fetch as web_fetch_impl
 from klea_utils.mcp.tool_result import to_result
 
@@ -257,3 +264,82 @@ async def download_file(
             }
         )
     return to_result({"saved_to": str(target), "error": ""})
+
+
+@tool_meta(
+    ToolInfo(
+        tags={BUNDLED_TAG, "local", "code"},
+        checkpaths=["working_directory"],
+        destructive=True,
+        open_world=True,
+    )
+)
+async def run_command(
+    command: Annotated[
+        str,
+        Field(
+            description=(
+                "Shell command string to run. Pipes, '&&' and redirection are "
+                "supported."
+            ),
+            min_length=1,
+        ),
+    ],
+    working_directory: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Directory to run the command in; must be inside the project "
+                "directory. Defaults to the project directory."
+            ),
+        ),
+    ] = None,
+    timeout_seconds: Annotated[
+        float,
+        Field(
+            description=(
+                f"Seconds before the command is killed. Defaults to "
+                f"{DEFAULT_TIMEOUT_SECONDS:g}; the maximum is set by the "
+                f"{MAX_TIMEOUT_ENV_VAR} environment variable (default "
+                f"{DEFAULT_MAX_TIMEOUT_SECONDS:g})."
+            ),
+            ge=1,
+        ),
+    ] = DEFAULT_TIMEOUT_SECONDS,
+    max_output_chars: Annotated[
+        int,
+        Field(description="Maximum characters captured per output stream", ge=1),
+    ] = DEFAULT_MAX_OUTPUT_CHARS,
+) -> ToolResult:
+    """Run a shell command and return its exit status and output.
+
+    Use this tool to inspect or act on the workspace: print the working
+    directory, list processes, run a build or test, or invoke a script.
+
+    Use when:
+    - You need a fact about the environment (working directory, host, date).
+    - You need to run a build, test, or script in the project.
+
+    Do not use for:
+    - Reading a file (use the read file tool instead).
+    - Listing a directory (use the list files tool instead).
+
+    Example: run_command(command="pwd && ls", working_directory=".")
+
+    Args:
+        command: Shell command string to run.
+        working_directory: Directory to run in; must be inside the project.
+        timeout_seconds: Seconds before the command is killed.
+        max_output_chars: Maximum characters captured per output stream.
+
+    Returns:
+        Dictionary with command, working_directory, returncode, stdout,
+        stderr, truncated, error.
+    """
+    result = await run_command_impl(
+        command=command,
+        working_directory=working_directory,
+        timeout_seconds=timeout_seconds,
+        max_output_chars=max_output_chars,
+    )
+    return to_result(result)

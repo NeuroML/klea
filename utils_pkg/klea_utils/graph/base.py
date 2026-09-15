@@ -36,6 +36,7 @@ from klea_utils.mcp.access import (
     resolve_access_level,
     resolve_capability,
 )
+from klea_utils.mcp.privilege import warn_if_root
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.paths import get_config_dir, init_dir, resolve_app_config_path
 from klea_utils.stores.config import RetrieverConfig
@@ -798,6 +799,7 @@ class BaseLangGraph(ABC):
         #. ``_post_setup()``
         """
         self._pre_setup()
+        warn_if_root(self.logger)
         await self._setup_checkpointer()
         self._setup_models()
         self._load_env()
