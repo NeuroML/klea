@@ -173,6 +173,12 @@ fastmcp prefixes tool names with the server name (e.g.
 ``NeuroML_list_files``) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.
 
+Each dispatched call also has a wall-clock **backstop** so a hung tool cannot
+stall the graph: the default is 900 seconds, overridable with the
+``KLEA_TOOL_CALL_TIMEOUT`` environment variable (``0`` disables it).  A call
+that exceeds it returns a non-halting error and is cancelled; tools should
+still enforce their own, tighter timeouts.
+
 Tool access levels
 ------------------
 

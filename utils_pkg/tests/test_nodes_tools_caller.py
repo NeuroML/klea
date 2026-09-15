@@ -35,7 +35,7 @@ class FakeMCPClient:
     async def __aexit__(self, exc_type, exc_value, traceback):
         return False
 
-    async def call_tool(self, name, arguments, raise_on_error=False):
+    async def call_tool(self, name, arguments, raise_on_error=False, timeout=None):
         self.calls.append((name, arguments))
         return CallToolResult(content=[], structured_content=None, meta=None)
 

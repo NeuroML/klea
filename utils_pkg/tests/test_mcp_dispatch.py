@@ -8,8 +8,15 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
+
 from fastmcp.client.client import CallToolResult
-from klea_utils.mcp.dispatch import dispatch_tool_calls
+from klea_utils.mcp.dispatch import (
+    DEFAULT_TOOL_CALL_TIMEOUT_SECONDS,
+    TOOL_CALL_TIMEOUT_ENV_VAR,
+    dispatch_tool_calls,
+    tool_call_timeout_seconds,
+)
 from klea_utils.mcp.schemas import ToolInfo
 from mcp.types import TextContent
 
@@ -19,6 +26,7 @@ class FakeMCPClient:
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
+        self.timeouts: list[float | None] = []
 
     async def __aenter__(self):
         return self
@@ -26,8 +34,9 @@ class FakeMCPClient:
     async def __aexit__(self, exc_type, exc_value, traceback):
         return False
 
-    async def call_tool(self, name, arguments, raise_on_error=False):
+    async def call_tool(self, name, arguments, raise_on_error=False, timeout=None):
         self.calls.append((name, arguments))
+        self.timeouts.append(timeout)
         return CallToolResult(content=[], structured_content=None, meta=None)
 
 
@@ -181,8 +190,9 @@ async def test_dispatch_without_tool_infos_skips_gates():
 
 async def test_one_tool_fails_others_succeed():
     class FailingClient(FakeMCPClient):
-        async def call_tool(self, name, arguments, raise_on_error=False):
+        async def call_tool(self, name, arguments, raise_on_error=False, timeout=None):
             self.calls.append((name, arguments))
+            self.timeouts.append(timeout)
             if name == "bad_tool":
                 raise RuntimeError("boom")
             return CallToolResult(content=[], structured_content=None, meta=None)
@@ -207,3 +217,65 @@ async def test_one_tool_fails_others_succeed():
         ("bad_tool", {"y": 2}),
         ("good2", {"z": 3}),
     ]
+
+
+def test_tool_call_timeout_env_override(monkeypatch):
+    monkeypatch.setenv(TOOL_CALL_TIMEOUT_ENV_VAR, "42")
+    assert tool_call_timeout_seconds() == 42.0
+
+
+def test_tool_call_timeout_invalid_env_falls_back(monkeypatch, caplog):
+    monkeypatch.setenv(TOOL_CALL_TIMEOUT_ENV_VAR, "nope")
+    with caplog.at_level(logging.WARNING):
+        assert tool_call_timeout_seconds() == DEFAULT_TOOL_CALL_TIMEOUT_SECONDS
+    assert TOOL_CALL_TIMEOUT_ENV_VAR in caplog.text
+
+
+def test_tool_call_timeout_non_finite_falls_back(monkeypatch):
+    for raw in ("inf", "nan"):
+        monkeypatch.setenv(TOOL_CALL_TIMEOUT_ENV_VAR, raw)
+        assert tool_call_timeout_seconds() == DEFAULT_TOOL_CALL_TIMEOUT_SECONDS
+
+
+def test_tool_call_timeout_can_be_disabled(monkeypatch):
+    for raw in ("0", "-1"):
+        monkeypatch.setenv(TOOL_CALL_TIMEOUT_ENV_VAR, raw)
+        assert tool_call_timeout_seconds() is None
+
+
+def test_tool_call_timeout_default(monkeypatch):
+    monkeypatch.delenv(TOOL_CALL_TIMEOUT_ENV_VAR, raising=False)
+    assert tool_call_timeout_seconds() == DEFAULT_TOOL_CALL_TIMEOUT_SECONDS
+
+
+async def test_dispatch_passes_resolved_timeout(monkeypatch):
+    monkeypatch.setenv(TOOL_CALL_TIMEOUT_ENV_VAR, "77")
+    client = FakeMCPClient()
+    await dispatch_tool_calls(client, [("a", {})])
+    assert client.timeouts == [77.0]
+
+
+async def test_dispatch_call_timeout_override():
+    client = FakeMCPClient()
+    await dispatch_tool_calls(client, [("a", {})], call_timeout=5.0)
+    assert client.timeouts == [5.0]
+
+
+async def test_dispatch_timeout_disabled_passes_none():
+    client = FakeMCPClient()
+    await dispatch_tool_calls(client, [("a", {})], call_timeout=0)
+    assert client.timeouts == [None]
+
+
+async def test_dispatch_timeout_becomes_error():
+    class TimeoutClient(FakeMCPClient):
+        async def call_tool(self, name, arguments, raise_on_error=False, timeout=None):
+            self.calls.append((name, arguments))
+            self.timeouts.append(timeout)
+            raise TimeoutError("timed out")
+
+    client = TimeoutClient()
+    results = await dispatch_tool_calls(client, [("slow", {})], call_timeout=3.0)
+
+    assert results[0].is_error is True
+    assert "timed out" in str(results[0].content)

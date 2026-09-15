@@ -260,6 +260,10 @@ Git log has the step-by-step edits. Omit routine work.
   unless `KLEA_ALLOW_ROOT_TOOLS` is set.  The guard lives in
   `klea_utils.mcp.registry.register_tools` (ADR-0038); third-party MCP
   servers are not covered and run with their own privileges.
+- Tool calls are bounded by a per-call wall-clock backstop in
+  `klea_utils.mcp.dispatch.dispatch_tool_calls` (default 900 s;
+  `KLEA_TOOL_CALL_TIMEOUT`, `0` disables).  Tools should still enforce their
+  own, tighter timeouts.
 
 ## CLI conventions
 
