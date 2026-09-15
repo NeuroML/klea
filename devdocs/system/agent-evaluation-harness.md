@@ -123,8 +123,9 @@ from silently absorbing scientific complexity.
 
 Status: deferred.  Do not implement until the general agent path has
 stabilised (see `agent-general-path-control-flow.md`).  Recorded here so
-the design is not lost.  Also needs a general `run_command` tool before
-taxonomy items 2 and 3 (single-tool action, multi-step coding) can run.
+the design is not lost.  The general `run_command` tool it needs (for
+taxonomy items 2 and 3: single-tool action, multi-step coding) now exists
+(ADR-0038, full-mode only).
 
 ## Decision
 

@@ -116,6 +116,14 @@ See `../adr/0037-tool-access-levels.md` for the trust model and the
 deferred roadmap (consent loop, sandbox-by-default, curated servers,
 credential scoping).
 
+Command execution (`run_command`, ADR-0038) is a special case.  It is
+`destructive`/`open_world`, so it is full-mode only, and its optional
+`working_directory` argument is checked like any other path -- but that check
+is **advisory** here: a shell command can ignore its working directory and
+touch any path, process, or host the server can reach.  OS sandboxing
+(layer 3) is the only boundary for command execution; the path argument is a
+convenience, not confinement.
+
 ## Standardised tool call state
 
 Both Klea Agent and Klea RAG use the shared `ToolCallSchema` /

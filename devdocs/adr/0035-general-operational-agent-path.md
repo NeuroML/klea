@@ -344,6 +344,9 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   is needed for scientific mode anyway, ADR-0029).  A general `run_command`
   tool (deferred) makes environment facts answerable via the task path.
 * A deterministic `read_only | full` access level is deferred to its own ADR.
+* Amended `2026-09-14`: both deferrals are now implemented -- the access
+  level in ADR-0037 (full-mode default) and the `run_command` tool in
+  ADR-0038 (destructive, full-mode only).
 
 The current mechanics live in
 `devdocs/system/agent-general-path-control-flow.md`.
