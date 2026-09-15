@@ -275,12 +275,12 @@
         </a>
         <div class="content-icon-container">
           <div class="view-this-page">
-  <a class="muted-link" href="https://github.com/NeuroML/neuroklea/blob/development/docs/developer-info.rst?plain=true" title="View this page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/blob/development/docs/developer-info.rst?plain=true" title="View this page">
     <svg><use href="#svg-eye"></use></svg>
     <span class="visually-hidden">View this page</span>
   </a>
 </div><div class="edit-this-page">
-  <a class="muted-link" href="https://github.com/NeuroML/neuroklea/edit/development/docs/developer-info.rst" rel="edit" title="Edit this page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/edit/development/docs/developer-info.rst" rel="edit" title="Edit this page">
     <svg><use href="#svg-pencil"></use></svg>
     <span class="visually-hidden">Edit this page</span>
   </a>
@@ -307,9 +307,9 @@ duplicating the diagrams and records here.</p>
 <section id="developer-docs-on-github">
 <h2>Developer docs on GitHub<a class="headerlink" href="#developer-docs-on-github" title="Link to this heading">¶</a></h2>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/README.md">devdocs index on GitHub</a>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/README.md">devdocs index on GitHub</a>
 – curated index of all developer notes (system docs and ADRs).</p></li>
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/tree/development/devdocs">devdocs/ on GitHub</a>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/tree/development/devdocs">devdocs/ on GitHub</a>
 – browse the full folder (<code class="docutils literal notranslate"><span class="pre">system/</span></code>, <code class="docutils literal notranslate"><span class="pre">adr/</span></code>, <code class="docutils literal notranslate"><span class="pre">.agents/</span></code>).</p></li>
 </ul>
 <p><code class="docutils literal notranslate"><span class="pre">devdocs/</span></code> is for contributors.  See <a class="reference internal" href="contributing.html"><span class="doc">Contributing</span></a> for workflow,
@@ -324,11 +324,12 @@ files on GitHub.</p>
 <h3>Level 1 – System Context<a class="headerlink" href="#level-1-system-context" title="Link to this heading">¶</a></h3>
 <p>The system context diagram shows Klea as a single system, the people who use
 it, and the external software systems it depends on.  Klea is developed as a
-general-purpose RAG + agentic assistant; neuroscience is the current motivating
-domain (via the <code class="docutils literal notranslate"><span class="pre">nml-mcp</span></code> server and the curated NeuroML vector stores), but
-the agent and RAG are domain-configurable and work for any domain.</p>
+general-purpose RAG + agentic assistant for scientific research, and is being
+tested as part of the BioFAIR Pathfinder project for neuroscience research
+(via the <code class="docutils literal notranslate"><span class="pre">nml-mcp</span></code> server and the curated NeuroML vector stores), but the
+agent and RAG are domain-configurable and work for any domain.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-system-context.md">System Context diagram (Level 1)</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-system-context.md">System Context diagram (Level 1)</a></p></li>
 </ul>
 </section>
 <section id="level-2-container">
@@ -338,7 +339,7 @@ independently deployable applications/services/datastores and the shared
 library – plus how they interact and connect to the external systems
 from Level 1.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-container.md">Container diagram (Level 2)</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-container.md">Container diagram (Level 2)</a></p></li>
 </ul>
 </section>
 <section id="level-3-component-rag">
@@ -348,7 +349,7 @@ its components – the graph nodes plus retrieval, MCP, and store
 interactions – and embeds the auto-generated LangGraph Mermaid source as
 its faithful core.</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-component-rag.md">RAG component diagram (Level 3)</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-component-rag.md">RAG component diagram (Level 3)</a></p></li>
 </ul>
 </section>
 <section id="deployment">
@@ -357,7 +358,7 @@ its faithful core.</p>
 run-time deployment nodes (developer workstation vs local vs container
 platform with HuggingFace Spaces as a nested node).</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/system/c4-deployment.md">Deployment diagram</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-deployment.md">Deployment diagram</a></p></li>
 </ul>
 <p>Further component (agent) and code views will be added to <code class="docutils literal notranslate"><span class="pre">devdocs/</span></code> as
 they are written.</p>
@@ -367,11 +368,11 @@ they are written.</p>
 <h2>Architecture Decision Records (ADRs)<a class="headerlink" href="#architecture-decision-records-adrs" title="Link to this heading">¶</a></h2>
 <p>ADRs are short, numbered records in MADR format in <code class="docutils literal notranslate"><span class="pre">devdocs/adr/</span></code>
 (<code class="docutils literal notranslate"><span class="pre">NNNN-&lt;slug&gt;.md</span></code>).  Each records context, options considered, outcome, and
-consequences.  See <a class="reference external" href="https://github.com/NeuroML/neuroklea/blob/development/devdocs/adr-template.md">adr-template.md</a>
+consequences.  See <a class="reference external" href="https://github.com/NeuroML/klea/blob/development/devdocs/adr-template.md">adr-template.md</a>
 for the template.</p>
 <p>Browse all ADRs on GitHub:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/tree/development/devdocs/adr">devdocs/adr/ on GitHub</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/tree/development/devdocs/adr">devdocs/adr/ on GitHub</a></p></li>
 </ul>
 </section>
 <section id="other-system-notes">
@@ -379,7 +380,7 @@ for the template.</p>
 <p>System and component contracts (Mermaid diagrams and data-flow notes)
 live in <code class="docutils literal notranslate"><span class="pre">devdocs/system/</span></code>:</p>
 <ul class="simple">
-<li><p><a class="reference external" href="https://github.com/NeuroML/neuroklea/tree/development/devdocs/system">devdocs/system/ on GitHub</a></p></li>
+<li><p><a class="reference external" href="https://github.com/NeuroML/klea/tree/development/devdocs/system">devdocs/system/ on GitHub</a></p></li>
 </ul>
 </section>
 </section>
