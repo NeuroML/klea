@@ -61,7 +61,7 @@ flowchart TB
     %% External systems
     llm["LLM Providers<br/>Ollama, OpenAI, HuggingFace,<br/>custom OpenAI-compatible"]
     vbackends["Vector Store Backends<br/>Chroma, Qdrant, pgvector engines"]
-    datasources["Data Sources<br/>Domain data (e.g. neuroscience:<br/>NeuroML-DB, OSB, docs.neuroml.org,<br/>ModelDB/DANDI/FigShare/GitHub, DOI)<br/>Reached ONLY via nml-mcp"]
+    datasources["Data Sources<br/>Domain data (nml-mcp example:<br/>NeuroML-DB, OSB, docs.neuroml.org,<br/>ModelDB/DANDI/FigShare/GitHub, DOI)<br/>Reached ONLY via nml-mcp"]
     biofair["BioFAIR Infrastructure<br/>UKRI life-sciences commons (to-be)<br/>Data Commons + Method Commons via APIs"]
     web["Web / Internet<br/>General web access"]
     sandbox["Sandbox Execution<br/>Local subprocess + Docker<br/>runs generated NeuroML / LEMS code"]

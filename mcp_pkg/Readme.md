@@ -1,10 +1,14 @@
 # NeuroML MCP
 
-Klea is a suite of AI tools for Neuroscience.
+Knowledge vaLidated Expert AI Assistant for scientific research.
 
-This package provides a Model Context Protocol (MCP) server for
-NeuroML tooling.  It exposes tools for model validation, OSB
-repository queries, NeuroML-DB lookups, web searches, and sandboxed
-code execution.
+This package provides the NeuroML-specific Model Context Protocol (MCP)
+server for Klea.
+
+It exposes tools for model validation, OSB repository queries, NeuroML-DB
+lookups, web searches, and sandboxed code execution.
+
+Funded by the [BioFAIR](https://biofair.uk/) Pathfinder project
+("Creating AI-enabled analysis pipelines for FAIR neuroscience data").
 
 Documentation: https://neuroklea.org

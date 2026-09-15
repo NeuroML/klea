@@ -44,7 +44,7 @@ html_show_sphinx = False
 # source. These work on GitHub Pages (not just ReadTheDocs) because Furo's
 # basic-ng source-link macro reads source_repository/source_branch directly.
 html_theme_options = {
-    "source_repository": "https://github.com/NeuroML/neuroklea",
+    "source_repository": "https://github.com/NeuroML/klea",
     "source_branch": "development",
     "source_directory": "docs",
 }
