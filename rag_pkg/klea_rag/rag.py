@@ -275,7 +275,7 @@ class RAG(BaseLangGraph):
             logger=self.logger,
             label="Running tools",
             mcp_client=self.mcp_client,
-            tools_meta={t.name: t.meta for t in (self.mcp_tools or []) if t.meta},
+            tool_infos=self._tools_by_name(),
         )
         self.workflow.add_node(
             self._tools_caller_node.label, self._tools_caller_node.execute

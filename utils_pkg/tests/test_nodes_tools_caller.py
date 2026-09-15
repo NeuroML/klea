@@ -12,7 +12,7 @@ import logging
 from typing import Any, cast
 
 from fastmcp.client.client import CallToolResult
-from klea_utils.mcp.schemas import ToolCallSchema
+from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.tools_caller import ToolsCallerNode
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 class MiniState(BaseModel):
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
+    access_level: str = "full"
 
 
 class FakeMCPClient:
@@ -41,7 +42,7 @@ class FakeMCPClient:
 
 def _make_node(
     client: FakeMCPClient | None = None,
-    tools_meta: dict | None = None,
+    tool_infos: dict | None = None,
     project_root: str | None = None,
     post_dispatch=None,
 ) -> ToolsCallerNode:
@@ -49,7 +50,7 @@ def _make_node(
         logger=logging.getLogger("test"),
         label="Running tools",
         mcp_client=client,
-        tools_meta=tools_meta,
+        tool_infos=tool_infos,
         project_root=project_root,
         post_dispatch=post_dispatch,
     )
@@ -153,7 +154,7 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     client = FakeMCPClient()
     node = _make_node(
         client=client,
-        tools_meta={"list_files": {"checkpaths": ["path"]}},
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
         project_root=str(root),
     )
     _record_stream(node, [])
@@ -167,6 +168,40 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     assert result.is_error
     assert "denied" in str(result.content)
     assert client.calls == []
+
+
+async def test_access_level_gate_denies_read_only():
+    """read_only denies a destructive tool at dispatch (ADR-0037)."""
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={
+            "read": ToolInfo(read_only=True),
+            "delete": ToolInfo(destructive=True),
+        },
+    )
+    _record_stream(node, [])
+
+    state = MiniState(
+        access_level="read_only",
+        tool_calls=[ToolCallSchema(tool="read"), ToolCallSchema(tool="delete")],
+    )
+    updates = await node.execute(state)
+
+    assert [r.is_error for r in updates["tool_results"]] == [False, True]
+    assert client.calls == [("read", {})]
+
+
+async def test_access_level_gate_full_allows():
+    client = FakeMCPClient()
+    node = _make_node(client=client, tool_infos={"delete": ToolInfo(destructive=True)})
+    _record_stream(node, [])
+
+    state = MiniState(access_level="full", tool_calls=[ToolCallSchema(tool="delete")])
+    updates = await node.execute(state)
+
+    assert [r.is_error for r in updates["tool_results"]] == [False]
+    assert client.calls == [("delete", {})]
 
 
 async def test_post_dispatch_callback_extras():

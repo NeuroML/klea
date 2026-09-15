@@ -15,7 +15,9 @@ from typing import Any
 from fastmcp.client.client import CallToolResult
 from pydantic import BaseModel
 
+from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.dispatch import dispatch_tool_calls
+from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
 
 
@@ -37,7 +39,7 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         logger: logging.Logger,
         label: str,
         mcp_client: Any | None,
-        tools_meta: dict[str, dict[str, Any]] | None = None,
+        tool_infos: dict[str, ToolInfo] | None = None,
         project_root: str | None = None,
         post_dispatch: Callable[[Any, list[CallToolResult]], dict[str, Any]]
         | None = None,
@@ -51,10 +53,11 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
             :func:`klea_utils.mcp.dispatch.dispatch_tool_calls`: fastmcp's
             ``call_tool`` signature does not cleanly match a structural
             protocol, so tests substitute a fake.
-        :param tools_meta: Mapping of tool name to the tool's ``meta`` dict,
-            used to look up ``checkpaths`` for the client-side permission
-            gate.  Built from the MCP client's listed tools by the
-            orchestrator.
+        :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, used
+            for the client-side gates (``meta`` ``checkpaths`` and the
+            ADR-0037 ``read_only``/``destructive`` capability).  Built by the
+            orchestrator from ``BaseLangGraph.tools_info``.  ``None`` disables
+            both gates.
         :param project_root: Boundary directory for the client-side permission
             gate.  Defaults to the current working directory.
         :param post_dispatch: Optional ``(state, results) -> state_updates``
@@ -63,7 +66,7 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         """
         super().__init__(logger=logger, label=label)
         self._mcp_client = mcp_client
-        self._tools_meta = tools_meta or {}
+        self._tool_infos = tool_infos
         self._project_root = project_root
         self._post_dispatch = post_dispatch
         #: Last state/results, set by ``execute`` for the streaming hooks.
@@ -84,11 +87,17 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
 
         if self._pre_exec(state):
             tool_calls = getattr(state, "tool_calls", [])
+            access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+            self.logger.debug(
+                f"{tool_calls = }\n{access_level = }\n"
+                f"tool_infos_configured = {self._tool_infos is not None}"
+            )
             results = await dispatch_tool_calls(
                 self._mcp_client,
                 [(tc.tool, tc.args) for tc in tool_calls],
-                self._tools_meta,
+                self._tool_infos,
                 self._project_root,
+                access_level=access_level,
             )
         else:
             self.logger.debug("No tool calls to dispatch; writing empty results")

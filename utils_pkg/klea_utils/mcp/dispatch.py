@@ -15,6 +15,8 @@ from typing import Any, cast
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
+from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
+from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.permission import check_tool_arguments_permissions
 
 logger = logging.getLogger(__name__)
@@ -33,17 +35,24 @@ def _denied_result(denials: list[str]) -> CallToolResult:
 async def dispatch_tool_calls(
     mcp_client: Any,
     tool_calls: list[tuple[str, dict[str, Any]]],
-    tools_meta: dict[str, dict[str, Any]] | None = None,
+    tool_infos: dict[str, ToolInfo] | None = None,
     project_root: str | None = None,
+    access_level: AccessLevel = DEFAULT_ACCESS_LEVEL,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
-    For each ``(tool, args)`` pair, the tool's ``meta`` (from ``tools_meta``)
-    is checked with :func:`check_tool_arguments_permissions` before the call
-    reaches the server; denied calls never touch the server and instead
-    produce a synthetic non-halting error result.  Allowed calls are
-    dispatched in parallel, and the returned list stays aligned with the
-    input *tool_calls* order.
+    For each ``(tool name, arguments)`` pair two gates run before the call
+    reaches the server, each producing a synthetic non-halting error when
+    denied:
+
+    * the path gate (:func:`check_tool_arguments_permissions`), reading a
+      tool's ``checkpaths`` from ``ToolInfo.meta``; and
+    * the tool access level (ADR-0037): a tool the level does not permit
+      (``read_only`` permits only explicitly read-only, non-destructive tools)
+      is rejected by :func:`check_tool_access`.
+
+    Allowed calls are dispatched in parallel, and the returned list stays
+    aligned with the input *tool_calls* order.
 
     :param mcp_client: MCP client used for ``call_tool``.  Its reentrant
         context is entered/exited by this helper.  Typed as ``Any`` because
@@ -52,33 +61,52 @@ async def dispatch_tool_calls(
         ToolTask`` return) that a structural protocol would not cleanly
         match; tests substitute a fake implementing the subset used here.
     :param tool_calls: ``(tool name, arguments)`` pairs to invoke.
-    :param tools_meta: Mapping of tool name to the tool's ``meta`` dict
-        (e.g. ``{t.name: t.meta for t in mcp_tools}``).  Path arguments
-        declared under ``checkpaths`` are permission-checked client-side.
-    :param project_root: Boundary directory for the permission gate.
-        Defaults to the current working directory.
+    :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, carrying
+        both the annotated ``read_only``/``destructive`` capability and (in
+        ``meta``) the ``checkpaths`` declarations.  ``None`` disables both
+        gates (backward compatible); for ``read_only`` a tool missing from the
+        map is denied (fail-closed).
+    :param project_root: Boundary directory for the path gate.  Defaults to
+        the current working directory.
+    :param access_level: Active tool access level (ADR-0037).
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
-    tools_meta = tools_meta or {}
     n = len(tool_calls)
     results: list[CallToolResult | None] = [None] * n
     pending: list[tuple[int, Any]] = []
+    logger.debug(
+        f"{len(tool_calls) = }\n"
+        f"{[name for name, _ in tool_calls] = }\n"
+        f"{access_level = }\n"
+        f"tool_gate_enabled = {tool_infos is not None}"
+    )
 
     async with mcp_client:
-        for i, (tool, args) in enumerate(tool_calls):
-            tool_meta = tools_meta.get(tool)
-            denials = check_tool_arguments_permissions(tool_meta, args, project_root)
+        for i, (tool_name, args) in enumerate(tool_calls):
+            tool_info = tool_infos.get(tool_name) if tool_infos is not None else None
+            denials = check_tool_arguments_permissions(
+                tool_info.meta if tool_info else None, args, project_root
+            )
+            if tool_infos is not None:
+                read_only = tool_info.read_only if tool_info else None
+                destructive = tool_info.destructive if tool_info else None
+                denial = check_tool_access(
+                    tool_name, read_only, destructive, access_level
+                )
+                if denial:
+                    denials.append(denial)
             if denials:
                 logger.warning(
-                    f"Denied tool call before dispatch\n{tool = }\n{denials = }"
+                    f"Denied tool call before dispatch\n{tool_name = }\n{denials = }"
                 )
                 results[i] = _denied_result(denials)
             else:
+                logger.debug(f"Dispatching tool call\n{tool_name = }\n{args = }")
                 pending.append(
                     (
                         i,
                         mcp_client.call_tool(
-                            name=tool,
+                            name=tool_name,
                             arguments=args,
                             raise_on_error=False,
                         ),
@@ -90,9 +118,9 @@ async def dispatch_tool_calls(
             gathered = await asyncio.gather(*coros, return_exceptions=True)
             for idx, res in zip(indices, gathered):
                 if isinstance(res, BaseException):
-                    tool, args = tool_calls[idx]
+                    tool_name, args = tool_calls[idx]
                     logger.warning(
-                        f"Tool call failed\n{tool = }\n{idx = }\n{args = }\n{res = }"
+                        f"Tool call failed\n{tool_name = }\n{idx = }\n{args = }\n{res = }"
                     )
                     results[idx] = CallToolResult(
                         content=[
@@ -114,4 +142,6 @@ async def dispatch_tool_calls(
         logger.error(f"dispatch left unfilled slots\n{offending = }")
         raise RuntimeError(f"dispatch internal error: unfilled results at {missing}")
 
+    failed = [i for i, r in enumerate(results) if r is not None and r.is_error]
+    logger.debug(f"Dispatch complete\n{len(results) = }\n{failed = }")
     return cast(list[CallToolResult], results)

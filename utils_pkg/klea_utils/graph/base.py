@@ -408,6 +408,25 @@ class BaseLangGraph(ABC):
         if default is not None:
             input_state["access_level"] = default
 
+    def _tools_by_name(self) -> dict[str, ToolInfo]:
+        """Return ``{tool_name: ToolInfo}`` flattened from ``tools_info``.
+
+        The per-domain map is flattened for the dispatch gate, so the
+        client-side path and access-level checks (ADR-0037) read one canonical
+        ``ToolInfo`` per tool.  Tool names are already server-prefixed when
+        several servers are configured, so a name repeated across domains is
+        the same tool with the same metadata.
+
+        :returns: Capability/metadata map keyed by tool name.
+        """
+        tools = {
+            name: info
+            for domain_tools in self.tools_info.values()
+            for name, info in domain_tools.items()
+        }
+        self.logger.debug(f"{sorted(tools) = }")
+        return tools
+
     async def _get_vector_stores(self) -> None:
         """Get vector stores"""
         emb = self.llm_models.get("embedding")

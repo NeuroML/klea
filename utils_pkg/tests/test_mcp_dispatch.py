@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.dispatch import dispatch_tool_calls
+from klea_utils.mcp.schemas import ToolInfo
 from mcp.types import TextContent
 
 
@@ -54,11 +55,11 @@ async def test_dispatch_denies_outside_project_without_calling(tmp_path):
     outside.touch()
 
     client = FakeMCPClient()
-    tools_meta = {"list_files": {"checkpaths": ["path"]}}
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
     results = await dispatch_tool_calls(
         client,
         [("list_files", {"path": str(outside)})],
-        tools_meta,
+        tools,
         str(root),
     )
 
@@ -75,7 +76,7 @@ async def test_dispatch_mixed_keeps_order(tmp_path):
     outside.touch()
 
     client = FakeMCPClient()
-    tools_meta = {"list_files": {"checkpaths": ["path"]}}
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
     results = await dispatch_tool_calls(
         client,
         [
@@ -83,7 +84,7 @@ async def test_dispatch_mixed_keeps_order(tmp_path):
             ("list_files", {"path": str(outside)}),
             ("other", {"n": 1}),
         ],
-        tools_meta,
+        tools,
         str(root),
     )
 
@@ -112,7 +113,7 @@ async def test_dispatch_leading_denied_keeps_order(tmp_path):
     outside.touch()
 
     client = FakeMCPClient()
-    tools_meta = {"list_files": {"checkpaths": ["path"]}}
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
     results = await dispatch_tool_calls(
         client,
         [
@@ -120,7 +121,7 @@ async def test_dispatch_leading_denied_keeps_order(tmp_path):
             ("list_files", {"path": str(root)}),
             ("other", {"n": 1}),
         ],
-        tools_meta,
+        tools,
         str(root),
     )
 
@@ -129,6 +130,53 @@ async def test_dispatch_leading_denied_keeps_order(tmp_path):
         ("list_files", {"path": str(root)}),
         ("other", {"n": 1}),
     ]
+
+
+async def test_dispatch_read_only_denies_destructive():
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client,
+        [("search", {}), ("delete", {})],
+        {"search": ToolInfo(read_only=True), "delete": ToolInfo(destructive=True)},
+        access_level="read_only",
+    )
+    assert [r.is_error for r in results] == [False, True]
+    assert client.calls == [("search", {})]
+    assert "delete" in str(results[1].content)
+
+
+async def test_dispatch_full_allows_destructive():
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client,
+        [("delete", {})],
+        {"delete": ToolInfo(destructive=True)},
+        access_level="full",
+    )
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("delete", {})]
+
+
+async def test_dispatch_read_only_denies_unannotated():
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client,
+        [("plain", {})],
+        {"plain": ToolInfo()},
+        access_level="read_only",
+    )
+    assert results[0].is_error
+    assert client.calls == []
+
+
+async def test_dispatch_without_tool_infos_skips_gates():
+    """With no tool-info map neither gate runs, even under read_only (compat)."""
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client, [("delete", {})], access_level="read_only"
+    )
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("delete", {})]
 
 
 async def test_one_tool_fails_others_succeed():

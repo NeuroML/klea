@@ -155,6 +155,25 @@ class TestBuildToolsInfoAnnotations:
         assert info["plain"].read_only is None
         assert info["plain"].destructive is None
 
+    def test_tools_by_name_flattened(self):
+        graph = ToyGraph()
+        graph.mcp_tools = [
+            self._tool("search", read_only=True),
+            self._tool("delete", destructive=True),
+            self._tool("plain"),
+        ]
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(mcpServers={"srv": {"url": "http://example.invalid/mcp"}})
+        }
+        graph._build_tools_info()
+
+        tools = graph._tools_by_name()
+
+        assert tools["search"].read_only is True
+        assert tools["delete"].destructive is True
+        assert tools["plain"].read_only is None
+        assert tools["plain"].destructive is None
+
     def _graph_with_overrides(self, tools, tool_access):
         graph = ToyGraph()
         graph.mcp_tools = tools

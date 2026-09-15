@@ -380,7 +380,7 @@ class KleaAgent(BaseLangGraph):
             logger=self.logger,
             label="Running tools",
             mcp_client=self.mcp_client,
-            tools_meta={t.name: t.meta for t in (self.mcp_tools or []) if t.meta},
+            tool_infos=self._tools_by_name(),
             post_dispatch=self._record_tool_round,
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
