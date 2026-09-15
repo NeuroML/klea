@@ -241,7 +241,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="api/utils/errors.html">Error types</a></li>
@@ -349,21 +348,17 @@ listed below — add them with e.g. <code class="docutils literal notranslate"><
 <td><p><code class="docutils literal notranslate"><span class="pre">langchain-ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code></p></td>
 <td><p>Ollama inference provider (local models)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">langchain-anthropic</span></code></p></td>
-<td><p>Anthropic provider (native <code class="docutils literal notranslate"><span class="pre">anthropic:</span></code> and custom <code class="docutils literal notranslate"><span class="pre">/messages</span></code> endpoints)</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ingest</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ingest</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">docling</span></code>, <code class="docutils literal notranslate"><span class="pre">typer</span></code>, <code class="docutils literal notranslate"><span class="pre">xxhash</span></code></p></td>
 <td><p>Document ingestion pipeline</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p>NiceGUI web UI frontend</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
-<td><p>All of the above except <code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
-<td><p>All optional extras (vector stores + inference providers + frontends); Anthropic stays opt-in</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
+<td><p>All of the above</p></td>
+<td><p>All optional extras (vector stores + inference providers + frontends)</p></td>
 </tr>
 </tbody>
 </table>
@@ -404,17 +399,13 @@ listed below — add them with e.g. <code class="docutils literal notranslate"><
 <td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[ollama]</span></code></p></td>
 <td><p>Ollama inference provider for RAG</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[anthropic]</span></code></p></td>
-<td><p>Anthropic provider for RAG (native and custom <code class="docutils literal notranslate"><span class="pre">/messages</span></code> endpoints)</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">nicegui</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea_utils[nicegui]</span></code></p></td>
 <td><p>NiceGUI web UI frontend</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
-<td><p>All vector store and inference provider extras except <code class="docutils literal notranslate"><span class="pre">anthropic</span></code></p></td>
-<td><p>All RAG optional extras; Anthropic stays opt-in</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">full</span></code></p></td>
+<td><p>All vector store and inference provider extras</p></td>
+<td><p>All RAG optional extras</p></td>
 </tr>
 </tbody>
 </table>
@@ -504,8 +495,8 @@ only a JSON config.</p>
 <li><p>A JSON configuration file selected by a <em>profile</em> name.</p>
 <p>Each JSON config is identified by a profile: <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">&lt;name&gt;</span></code> loads
 <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code>.  The file is looked up in the current directory first,
-then in the per-app config directory (<code class="docutils literal notranslate"><span class="pre">~/.config/klea-agent/</span></code> for the
-Agent, <code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  The
+then in the per-app config directory (<code class="docutils literal notranslate"><span class="pre">~/.config/klea/</span></code> for the Agent,
+<code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  The
 default profile is <code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code>, so <code class="docutils literal notranslate"><span class="pre">klea_agent.json</span></code>
 and <code class="docutils literal notranslate"><span class="pre">klea_rag.json</span></code> are loaded when no <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is given.</p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">template</span></code> on any CLI to scaffold a ready-to-fill config
@@ -561,17 +552,13 @@ to be installed:</p>
 
 <span class="c1"># For HuggingFace:</span>
 <span class="n">pip</span> <span class="n">install</span> <span class="n">klea</span><span class="o">-</span><span class="n">utils</span><span class="p">[</span><span class="n">huggingface</span><span class="p">]</span>
-
-<span class="c1"># For Anthropic (also enables custom /messages endpoints):</span>
-<span class="n">pip</span> <span class="n">install</span> <span class="n">klea</span><span class="o">-</span><span class="n">utils</span><span class="p">[</span><span class="n">anthropic</span><span class="p">]</span>
 </pre></div>
 </div>
 <p>See the <a class="reference external" href="https://docs.langchain.com/oss/python/integrations/providers/overview">LangChain provider docs</a>
 for other providers and their package names.  The needed extras
-(<code class="docutils literal notranslate"><span class="pre">huggingface</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>, <code class="docutils literal notranslate"><span class="pre">anthropic</span></code>) are documented in the extras
-tables above.</p>
+(<code class="docutils literal notranslate"><span class="pre">huggingface</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>) are documented in the extras tables above.</p>
 <p>Model names are prefixed according to their provider:</p>
-<ul>
+<ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">ollama:&lt;model_name&gt;:&lt;tag&gt;</span></code> for Ollama models</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;</span></code> for HuggingFace inference providers.
 The suffix <code class="docutils literal notranslate"><span class="pre">:local</span></code> selects the pipeline backend (runs the model
@@ -579,21 +566,10 @@ locally), while any other suffix (e.g. <code class="docutils literal notranslate
 HuggingFace Endpoints API.  HuggingFace models additionally require
 the <code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code> environment variable to be set (see
 <a class="reference external" href="https://huggingface.co/docs/hub/security-tokens">HuggingFace tokens</a>).</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">custom:&lt;model_name&gt;:&lt;url&gt;</span></code> for endpoints not covered by a native
-provider.  A bare base URL defaults to the OpenAI Chat Completions API
-(e.g. <code class="docutils literal notranslate"><span class="pre">custom:Qwen:https://inf01.example.com/v1/</span></code>); a full endpoint
-URL instead selects the wire API from its path (e.g. opencode Go serves
-different models on different endpoints):</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">.../chat/completions</span></code> – OpenAI Chat Completions;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">.../responses</span></code> – OpenAI Responses API;</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">.../v1/messages</span></code> – Anthropic Messages API (requires the
-<code class="docutils literal notranslate"><span class="pre">anthropic</span></code> extra).</p></li>
-</ul>
-<p><code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> supplies the key for every custom surface, including
-Anthropic (where it is copied to <code class="docutils literal notranslate"><span class="pre">anthropic_api_key</span></code>); an explicit
-per-chat <code class="docutils literal notranslate"><span class="pre">api_key</span></code> override takes precedence.</p>
-</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">custom:&lt;model_name&gt;:&lt;base_url&gt;</span></code> for OpenAI-compatible endpoints
+(e.g. <code class="docutils literal notranslate"><span class="pre">custom:Qwen:https://inf01.example.com/v1/</span></code>).  These use the
+<code class="docutils literal notranslate"><span class="pre">ChatOpenAI</span></code> provider under the hood and require the
+<code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> environment variable.</p></li>
 <li><p>Others (e.g. OpenAI, Anthropic) use their standard model names and
 environment variables as supported by LangChain.</p></li>
 </ul>
@@ -605,86 +581,6 @@ configures vector stores; BM25-only domains need no embedding model.  Note
 that vector stores load at startup from the embedding model, so an
 embedding model chosen per chat in the web UI cannot enable retrieval for
 stores – set <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code> before starting the server.</p>
-</section>
-<section id="environment-variables">
-<h3>Environment variables<a class="headerlink" href="#environment-variables" title="Link to this heading">¶</a></h3>
-<p>The environment variables Klea reads, and what they control:</p>
-<div class="table-wrapper colwidths-given docutils container">
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 36.0%" />
-<col style="width: 64.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Variable</p></th>
-<th class="head"><p>Purpose</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_ENV_FILE</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_ENV_FILE</span></code></p></td>
-<td><p>Path to the optional <code class="docutils literal notranslate"><span class="pre">k=v</span></code> env file (default <code class="docutils literal notranslate"><span class="pre">klea_agent.env</span></code> /
-<code class="docutils literal notranslate"><span class="pre">rag.env</span></code>).</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_APP_CONFIG_FILE</span></code></p></td>
-<td><p>JSON config file to load; <code class="docutils literal notranslate"><span class="pre">--profile</span></code> takes precedence when given.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_&lt;APP&gt;_&lt;ROLE&gt;_MODEL</span></code></p></td>
-<td><p>Per-role model defaults, e.g. <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_CHAT_MODEL</span></code>,
-<code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code> (see <a class="reference internal" href="#model-defaults">Model defaults</a>).</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code></p></td>
-<td><p>API key for OpenAI and for <code class="docutils literal notranslate"><span class="pre">custom:</span></code> endpoints (including the
-Anthropic surface).</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code></p></td>
-<td><p>API key for the native Anthropic provider.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code></p></td>
-<td><p>HuggingFace token for HuggingFace models/endpoints.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">GITHUB_TOKEN</span></code></p></td>
-<td><p>Optional GitHub token for the repository <code class="docutils literal notranslate"><span class="pre">github</span></code> tool (higher rate
-limits and private repositories).</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code></p></td>
-<td><p>Console log level (level name or number; see <a class="reference internal" href="#logging">Logging</a>).</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code></p></td>
-<td><p>Per-call wall-clock backstop for tool calls, in seconds (default
-<code class="docutils literal notranslate"><span class="pre">900</span></code>; <code class="docutils literal notranslate"><span class="pre">0</span></code> disables).</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code></p></td>
-<td><p>Allow Klea-authored tools to run as root; refused by default.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code></p></td>
-<td><p>Ceiling for <code class="docutils literal notranslate"><span class="pre">run_command</span></code>’s <code class="docutils literal notranslate"><span class="pre">timeout_seconds</span></code> in seconds
-(default <code class="docutils literal notranslate"><span class="pre">600</span></code>).</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_MODELS_DEV_URL</span></code></p></td>
-<td><p>Override the models.dev catalog URL (offline mirror / enterprise
-proxy).</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code></p></td>
-<td><p>Contact email sent to DOI services (Crossref, OpenAlex) during store
-ingestion, for their polite pool.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code></p></td>
-<td><p>Absolute directory for the web client’s per-session storage (see
-<a class="reference internal" href="#web-client-user-storage">Web client user storage</a>).</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RUNNING_IN_DOCKER</span></code></p></td>
-<td><p>Internal: skip graph-diagram export on startup (set by the container
-image).</p></td>
-</tr>
-</tbody>
-</table>
-</div>
-<p>These are shell/process environment variables.  Values set only in the env
-file do <strong>not</strong> reach spawned MCP server subprocesses (which inherit the
-process environment), so tool-related variables such as
-<code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code> and
-<code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code> must be exported in the environment that
-launches the app.</p>
 </section>
 </section>
 <section id="logging">
@@ -698,12 +594,7 @@ launches the app.</p>
 </ul>
 <p>The file captures DEBUG output for the Klea packages and third-party
 libraries, while the console shows INFO for Klea and INFO-or-above for
-third-party libraries.  The console level can be changed with the
-<code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code> environment variable (a case-insensitive level name such
-as <code class="docutils literal notranslate"><span class="pre">debug</span></code>, or a numeric level) or the shared <code class="docutils literal notranslate"><span class="pre">--debug</span></code> flag, which takes
-precedence and also exports the variable so spawned child processes inherit
-it.  The rotating file always captures DEBUG.  Each CLI uses its own
-<code class="docutils literal notranslate"><span class="pre">&lt;app&gt;</span></code> name:</p>
+third-party libraries.  Each CLI uses its own <code class="docutils literal notranslate"><span class="pre">&lt;app&gt;</span></code> name:</p>
 <div class="table-wrapper docutils container">
 <table class="docutils align-default">
 <thead>
@@ -721,8 +612,8 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> web client</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-rag-web/klea-rag-web.log</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea-agent</span></code> (Agent server / graph)</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">klea-agent/klea-agent.log</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> (Agent server / graph)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">klea/klea.log</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> TUI client</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-tui/klea-tui.log</span></code></p></td>
@@ -855,7 +746,6 @@ files have been recreated in the new location.</p>
 <li><a class="reference internal" href="#configuration">Configuration</a><ul>
 <li><a class="reference internal" href="#model-defaults">Model defaults</a></li>
 <li><a class="reference internal" href="#choosing-models">Choosing models</a></li>
-<li><a class="reference internal" href="#environment-variables">Environment variables</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#logging">Logging</a></li>

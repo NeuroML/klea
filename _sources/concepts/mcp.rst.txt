@@ -99,11 +99,10 @@ Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, list_files, read_file, download_file, run_command (each also has its scope + functional tags)
+   bundled  web_fetch, list_files, read_file, download_file (each also has its scope + functional tags)
 
    Web scope:   web_fetch (bundled), download_file (bundled, download)
    Local scope: list_files / read_file (bundled, files),
-                run_command (bundled, code),
                 run_python_code / run_lems_simulation (neuroml, code),
                 create_new_NeuroML_model (neuroml)
 
@@ -120,21 +119,6 @@ registered MCP tool; see the ``ToolInfo`` docstring and
 https://fastmcp.wiki/en/servers/tools#mcp-annotations.  So a generic MCP
 host connecting to a Klea server sees the read-only / destructive contract
 for free, without adopting Klea's tag vocabulary.
-
-``run_command`` executes a shell command and is therefore marked
-``destructive`` + ``open_world``: it is full-mode only (never offered or run
-under ``read_only``, see below), and its optional ``working_directory``
-argument is checked like any other path but does **not** confine the command
-(a shell can ``cd`` elsewhere or use absolute paths).  Commands default to a
-30-second timeout with a 600-second ceiling, overridable via
-``KLEA_RUN_COMMAND_MAX_TIMEOUT``.  See ADR-0038 for the design and its
-limits.
-
-Klea-authored tools (this one included) also refuse to run when the server
-process has root privileges (uid 0), unless the ``KLEA_ALLOW_ROOT_TOOLS``
-environment variable is set.  This catches accidental root deployments
-(containers default to root); third-party MCP servers are not covered and run
-with whatever privileges they are given.
 
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -174,60 +158,6 @@ called during graph execution.  When several MCP servers are configured,
 fastmcp prefixes tool names with the server name (e.g.
 ``NeuroML_list_files``) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.
-
-Each dispatched call also has a wall-clock **backstop** so a hung tool cannot
-stall the graph: the default is 900 seconds, overridable with the
-``KLEA_TOOL_CALL_TIMEOUT`` environment variable (``0`` disables it).  A call
-that exceeds it returns a non-halting error and is cancelled; tools should
-still enforce their own, tighter timeouts.
-
-Tool access levels
-------------------
-
-Klea can restrict which tools may be invoked.  The level is either
-``full`` (every tool) or ``read_only`` (only tools explicitly annotated
-``readOnlyHint: true`` and not ``destructiveHint: true``; a tool with no
-annotation is **not** permitted).  Disallowed tools are never shown to the
-model, and a call to one is rejected before it reaches the MCP server with
-a non-halting error the model can adapt to.  See ADR-0037 for the design
-and its trust limits.
-
-The default level is set in the app config:
-
-.. code-block:: json
-
-   {
-       "general": {
-           "access_level": "read_only"
-       }
-   }
-
-The agent defaults to ``full`` and accepts a per-request ``access_level``
-override in the chat API; the RAG is fixed at ``read_only`` (it only
-retrieves).  In the agent's web UI the level is a per-chat selector in the
-status pane (next to the operating mode), so it can be changed without
-editing the request payload; the effective level is projected back through
-the graph's ``context`` event.
-
-Because annotations are self-reported, tools that declare nothing are
-hidden under ``read_only``.  A deployment can declare the capability of a
-trusted tool explicitly, which takes precedence over its annotations:
-
-.. code-block:: json
-
-   {
-       "general": {
-           "tool_access": {
-               "my_server_search": {"read_only": true},
-               "my_server_fetch": {"read_only": false, "destructive": true}
-           }
-       }
-   }
-
-This is a least-privilege guard for trustworthy tools, not a sandbox: a
-server that misreports its annotations cannot be confined this way.  For
-servers Klea does not author, run them under OS-level isolation (see the
-MCP permissions notes in the development documentation).
 
 Writing tools for Klea
 ----------------------

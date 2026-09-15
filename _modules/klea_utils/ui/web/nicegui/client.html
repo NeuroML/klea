@@ -240,7 +240,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/errors.html">Error types</a></li>
@@ -364,7 +363,7 @@
                             <span class="p">]</span>
                     <span class="c1"># Session context (the agent's operating mode etc.,</span>
                     <span class="c1"># ADR-0032) is a projection of checkpointed graph state.</span>
-                    <span class="c1"># Restore it so the selector renders correctly before</span>
+                    <span class="c1"># Restore it so the badge/selector render correctly before</span>
                     <span class="c1"># the first streamed query, without app-specific knowledge.</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"GET /chat/</span><span class="si">%s</span><span class="s2">/</span><span class="si">%s</span><span class="s2">/context"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                     <span class="n">ctx_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
