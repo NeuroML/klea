@@ -384,10 +384,11 @@ external URLs / web APIs).</p></li>
 <p>Every tool also carries the <code class="docutils literal notranslate"><span class="pre">bundled</span></code> tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 <code class="docutils literal notranslate"><span class="pre">include_tags:</span> <span class="pre">[&quot;bundled&quot;]</span></code>.  Specific current assignments:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">download_file</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">download_file</span><span class="p">,</span> <span class="n">run_command</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
 
 <span class="n">Web</span> <span class="n">scope</span><span class="p">:</span>   <span class="n">web_fetch</span> <span class="p">(</span><span class="n">bundled</span><span class="p">),</span> <span class="n">download_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">download</span><span class="p">)</span>
 <span class="n">Local</span> <span class="n">scope</span><span class="p">:</span> <span class="n">list_files</span> <span class="o">/</span> <span class="n">read_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">),</span>
+             <span class="n">run_command</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">code</span><span class="p">),</span>
              <span class="n">run_python_code</span> <span class="o">/</span> <span class="n">run_lems_simulation</span> <span class="p">(</span><span class="n">neuroml</span><span class="p">,</span> <span class="n">code</span><span class="p">),</span>
              <span class="n">create_new_NeuroML_model</span> <span class="p">(</span><span class="n">neuroml</span><span class="p">)</span>
 </pre></div>
@@ -404,6 +405,17 @@ registered MCP tool; see the <code class="docutils literal notranslate"><span cl
 <a class="reference external" href="https://fastmcp.wiki/en/servers/tools#mcp-annotations">https://fastmcp.wiki/en/servers/tools#mcp-annotations</a>.  So a generic MCP
 host connecting to a Klea server sees the read-only / destructive contract
 for free, without adopting Klea’s tag vocabulary.</p>
+<p><code class="docutils literal notranslate"><span class="pre">run_command</span></code> executes a shell command and is therefore marked
+<code class="docutils literal notranslate"><span class="pre">destructive</span></code> + <code class="docutils literal notranslate"><span class="pre">open_world</span></code>: it is full-mode only (never offered or run
+under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>, see below), and its optional <code class="docutils literal notranslate"><span class="pre">working_directory</span></code>
+argument is checked like any other path but does <strong>not</strong> confine the command
+(a shell can <code class="docutils literal notranslate"><span class="pre">cd</span></code> elsewhere or use absolute paths).  See ADR-0038 for the
+design and its limits.</p>
+<p>Klea-authored tools (this one included) also refuse to run when the server
+process has root privileges (uid 0), unless the <code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code>
+environment variable is set.  This catches accidental root deployments
+(containers default to root); third-party MCP servers are not covered and run
+with whatever privileges they are given.</p>
 </section>
 <section id="the-bundled-tools-server">
 <h3>The bundled tools server<a class="headerlink" href="#the-bundled-tools-server" title="Link to this heading">¶</a></h3>
@@ -439,6 +451,44 @@ called during graph execution.  When several MCP servers are configured,
 fastmcp prefixes tool names with the server name (e.g.
 <code class="docutils literal notranslate"><span class="pre">NeuroML_list_files</span></code>) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.</p>
+</section>
+<section id="tool-access-levels">
+<h2>Tool access levels<a class="headerlink" href="#tool-access-levels" title="Link to this heading">¶</a></h2>
+<p>Klea can restrict which tools may be invoked.  The level is either
+<code class="docutils literal notranslate"><span class="pre">full</span></code> (every tool) or <code class="docutils literal notranslate"><span class="pre">read_only</span></code> (only tools explicitly annotated
+<code class="docutils literal notranslate"><span class="pre">readOnlyHint:</span> <span class="pre">true</span></code> and not <code class="docutils literal notranslate"><span class="pre">destructiveHint:</span> <span class="pre">true</span></code>; a tool with no
+annotation is <strong>not</strong> permitted).  Disallowed tools are never shown to the
+model, and a call to one is rejected before it reaches the MCP server with
+a non-halting error the model can adapt to.  See ADR-0037 for the design
+and its trust limits.</p>
+<p>The default level is set in the app config:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"general"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"access_level"</span><span class="p">:</span><span class="w"> </span><span class="s2">"read_only"</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>The agent defaults to <code class="docutils literal notranslate"><span class="pre">full</span></code> and accepts a per-request <code class="docutils literal notranslate"><span class="pre">access_level</span></code>
+override in the chat API; the RAG is fixed at <code class="docutils literal notranslate"><span class="pre">read_only</span></code> (it only
+retrieves).</p>
+<p>Because annotations are self-reported, tools that declare nothing are
+hidden under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>.  A deployment can declare the capability of a
+trusted tool explicitly, which takes precedence over its annotations:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"general"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">"tool_access"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">"my_server_search"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"read_only"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">},</span>
+<span class="w">            </span><span class="nt">"my_server_fetch"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"read_only"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span><span class="w"> </span><span class="nt">"destructive"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">}</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This is a least-privilege guard for trustworthy tools, not a sandbox: a
+server that misreports its annotations cannot be confined this way.  For
+servers Klea does not author, run them under OS-level isolation (see the
+MCP permissions notes in the development documentation).</p>
 </section>
 <section id="writing-tools-for-klea">
 <h2>Writing tools for Klea<a class="headerlink" href="#writing-tools-for-klea" title="Link to this heading">¶</a></h2>
@@ -764,6 +814,7 @@ those prefixes vary between deployments.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#how-klea-uses-the-tools">How Klea uses the tools</a></li>
+<li><a class="reference internal" href="#tool-access-levels">Tool access levels</a></li>
 <li><a class="reference internal" href="#writing-tools-for-klea">Writing tools for Klea</a></li>
 <li><a class="reference internal" href="#error-handling-iserror">Error handling (isError)</a></li>
 <li><a class="reference internal" href="#tool-description-length-and-style">Tool description length and style</a><ul>

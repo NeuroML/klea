@@ -323,11 +323,11 @@
     <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
     <span class="n">add_memory_to_prompt</span><span class="p">,</span>
     <span class="n">classify_llm_invocation_error</span><span class="p">,</span>
-    <span class="n">content_to_str</span><span class="p">,</span>
     <span class="n">estimate_input_tokens</span><span class="p">,</span>
     <span class="n">get_last_n_conversations</span><span class="p">,</span>
     <span class="n">get_provider_allowed_fields</span><span class="p">,</span>
     <span class="n">get_token_limit_param</span><span class="p">,</span>
+    <span class="n">is_output_empty</span><span class="p">,</span>
     <span class="n">is_output_truncated</span><span class="p">,</span>
     <span class="n">load_prompt</span><span class="p">,</span>
     <span class="n">parse_output_with_thought</span><span class="p">,</span>
@@ -340,6 +340,11 @@
 <span class="c1">#: Max times to retry an invoke that overflowed the context window, each</span>
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
 <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="c1">#: Max times to retry an invoke that returned an empty response.  Some</span>
+<span class="c1">#: providers (notably HuggingFace) intermittently return a successful but</span>
+<span class="c1">#: blank message; the retry is a plain re-invoke with no window change.</span>
+<span class="n">MAX_EMPTY_OUTPUT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_current_session_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
@@ -432,6 +437,11 @@
             <span class="k">return</span> <span class="kc">None</span>
 
 
+<span class="c1">#: User-facing fallback when an LLM produced no usable answer and the node</span>
+<span class="c1">#: has no more specific fallback of its own.</span>
+<span class="n">EMPTY_RESULT_FALLBACK</span> <span class="o">=</span> <span class="s2">"Something went wrong. Please retry."</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_empty_result</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return True if *result* carries no usable content.</span>
 
@@ -447,7 +457,7 @@
     <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span> <span class="ow">and</span> <span class="n">result</span> <span class="o">==</span> <span class="n">schema</span><span class="p">()</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">is_output_empty</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">False</span>
 
 
@@ -741,7 +751,6 @@
                     <span class="k">raise</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
-        <span class="c1"># TODO: can still be empty, eg: Huggingface. We should return something like "something went wrong. please retry".</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">output</span>
 
@@ -879,7 +888,7 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Invoke an LLM with adaptive retries on length-related failures.</span>
 
-<span class="sd">        Two retry behaviours, both bounded:</span>
+<span class="sd">        Three retry behaviours, all bounded:</span>
 
 <span class="sd">        * ``context_overflow`` errors (request rejected because input plus</span>
 <span class="sd">          the reserved output exceeds the window) retry up to</span>
@@ -893,6 +902,9 @@
 <span class="sd">          "length"``), or a raised ``length_truncation`` exception (some</span>
 <span class="sd">          SDKs, e.g. the OpenAI streaming / structured-output path, raise</span>
 <span class="sd">          instead of returning a truncated message).</span>
+<span class="sd">        * Empty responses (some providers, notably HuggingFace,</span>
+<span class="sd">          intermittently return a blank successful message) retry up to</span>
+<span class="sd">          :data:`MAX_EMPTY_OUTPUT_RETRIES` times with a plain re-invoke.</span>
 
 <span class="sd">        All other failures (rate limits, auth, model-not-found, ...) are</span>
 <span class="sd">        re-raised immediately.  Retrying stops early if resizing the</span>
@@ -905,6 +917,7 @@
 <span class="sd">        """</span>
         <span class="n">overflow_retries</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">truncation_retries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">empty_retries</span> <span class="o">=</span> <span class="mi">0</span>
 
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
@@ -946,6 +959,21 @@
                     <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
                     <span class="k">continue</span>
+                <span class="k">return</span> <span class="n">output</span>
+
+            <span class="k">if</span> <span class="n">is_output_empty</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">empty_retries</span> <span class="o">&lt;</span> <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">:</span>
+                    <span class="n">empty_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Empty LLM output, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
+                        <span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"Empty LLM output after </span><span class="si">%d</span><span class="s2"> retries; returning as-is"</span><span class="p">,</span>
+                    <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                <span class="p">)</span>
                 <span class="k">return</span> <span class="n">output</span>
 
             <span class="k">return</span> <span class="n">output</span>
@@ -1037,6 +1065,14 @@
                 <span class="sa">f</span><span class="s2">"Empty LLM output from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">: nothing usable was "</span>
                 <span class="sa">f</span><span class="s2">"produced (all-default structured result or blank message)"</span>
             <span class="p">)</span>
+            <span class="c1"># Structured nodes define a typed fail-closed default (e.g. the</span>
+            <span class="c1"># router's ``task`` route, the evaluator's ``need_replan``), so</span>
+            <span class="c1"># surface it instead of the empty instance.  Non-structured</span>
+            <span class="c1"># nodes keep the raw output: their ``_get_default_error_result``</span>
+            <span class="c1"># is not necessarily an ``AIMessage`` (the guard returns a bare</span>
+            <span class="c1"># ``str``), and user-facing ones supply their own fallback text.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
 
         <span class="k">return</span> <span class="n">result</span>
 

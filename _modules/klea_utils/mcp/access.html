@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
 
     <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>klea_utils.nodes.answer_general - Klea</title>
+        <title>klea_utils.mcp.access - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
@@ -285,160 +285,194 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for klea_utils.nodes.answer_general</h1><div class="highlight"><pre>
+          <h1>Source code for klea_utils.mcp.access</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Answer general question node</span>
+<span class="sd">Tool access levels for MCP tool invocation (ADR-0037).</span>
 
-<span class="sd">File: klea_utils/nodes/answer_general.py</span>
+<span class="sd">Classification is derived from the standard MCP ``ToolAnnotations``</span>
+<span class="sd">(``readOnlyHint`` / ``destructiveHint``) carried on ``ToolInfo``, with an</span>
+<span class="sd">optional operator override (``ToolAccessOverride``).  Levels are</span>
+<span class="sd">``read_only`` (only explicitly read-only, non-destructive tools) and</span>
+<span class="sd">``full`` (every tool); an unannotated tool fails closed in ``read_only``.</span>
+<span class="sd">See ``devdocs/adr/0037-tool-access-levels.md``.</span>
+
+<span class="sd">File: klea_utils/mcp/access.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">override</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">..llm</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">content_to_str</span><span class="p">,</span>
-    <span class="n">extract_llm_output_content</span><span class="p">,</span>
-    <span class="n">format_alert</span><span class="p">,</span>
-    <span class="n">prompt_value_to_messages</span><span class="p">,</span>
-    <span class="n">split_output_by_section</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">..nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeStreamData</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">EMPTY_RESULT_FALLBACK</span><span class="p">,</span> <span class="n">BaseLLMNode</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Tool invocation access levels (ADR-0037).</span>
+<span class="n">AccessLevel</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"read_only"</span><span class="p">,</span> <span class="s2">"full"</span><span class="p">]</span>
+
+<span class="c1">#: Default level: every tool is permitted (the pre-ADR-0037 behaviour).</span>
+<span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">:</span> <span class="n">AccessLevel</span> <span class="o">=</span> <span class="s2">"full"</span>
 
 
-<div class="viewcode-block" id="FallbackConfig">
-<a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.answer_general.FallbackConfig">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">FallbackConfig</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="n">enabled</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="n">warning</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></div>
+<div class="viewcode-block" id="ToolAccessOverride">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.ToolAccessOverride">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ToolAccessOverride</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Operator declaration of a tool's capability (ADR-0037).</span>
 
-
-
-<div class="viewcode-block" id="AnswerGeneral">
-<a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.answer_general.AnswerGeneral">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">AnswerGeneral</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">BaseModel</span><span class="p">]):</span>
-    <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
-    <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
-        <span class="s2">"max_output_tokens"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
-    <span class="p">}</span>
-<span class="w">    </span><span class="sd">"""Answer general (non-domain) questions using the LLM's training data.</span>
-
-<span class="sd">    Provides a conversational, user-friendly response. Optionally appends</span>
-<span class="sd">    conversation history for context and a fallback warning when configured.</span>
+<span class="sd">    Configured per tool under ``general.tool_access`` and applied over the</span>
+<span class="sd">    tool's own MCP annotations.  Either field may be left ``None`` to leave</span>
+<span class="sd">    the annotated value unchanged; the operator who writes the config is the</span>
+<span class="sd">    trust root for the declaration.</span>
 <span class="sd">    """</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
-        <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">llm_models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-        <span class="n">memory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="n">num_history_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10_000</span><span class="p">,</span>
-        <span class="n">fallback_config</span><span class="p">:</span> <span class="n">FallbackConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">):</span>
-<span class="w">        </span><span class="sd">"""Initialise the general answer node.</span>
+    <span class="n">read_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">destructive</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
-<span class="sd">        :param logger: Logger instance</span>
-<span class="sd">        :param label: Human-readable label for UI progress display</span>
-<span class="sd">        :param llm_models: ``{role: LLMModel}`` dict (from ``BaseLangGraph.llm_models``)</span>
-<span class="sd">        :param memory: Whether to include conversation history in the prompt</span>
-<span class="sd">        :param num_history_chars: Character budget for the recent verbatim</span>
-<span class="sd">            history messages injected between the system and human prompts.</span>
-<span class="sd">        :param fallback_config: Optional config for fallback warning text</span>
-<span class="sd">        """</span>
-        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
-            <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span>
-            <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span>
-            <span class="n">llm_models</span><span class="o">=</span><span class="n">llm_models</span><span class="p">,</span>
-            <span class="n">output_schema</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">memory</span><span class="o">=</span><span class="n">memory</span><span class="p">,</span>
+
+
+<div class="viewcode-block" id="resolve_capability">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.resolve_capability">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_capability</span><span class="p">(</span>
+    <span class="n">read_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">destructive</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">override</span><span class="p">:</span> <span class="n">ToolAccessOverride</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Apply an operator override over a tool's annotated capability.</span>
+
+<span class="sd">    Precedence is explicit ``tool_access`` override &gt; tool annotation &gt;</span>
+<span class="sd">    ``None`` (which fails closed downstream).  A ``None`` override field</span>
+<span class="sd">    leaves the annotated value unchanged.</span>
+
+<span class="sd">    :param read_only: Annotated read-only hint, or ``None``.</span>
+<span class="sd">    :param destructive: Annotated destructive hint, or ``None``.</span>
+<span class="sd">    :param override: Operator override, or ``None``.</span>
+<span class="sd">    :returns: The effective ``(read_only, destructive)`` pair.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">override</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">read_only</span><span class="p">,</span> <span class="n">destructive</span>
+    <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">read_only</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">read_only</span> <span class="o">=</span> <span class="n">override</span><span class="o">.</span><span class="n">read_only</span>
+    <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">destructive</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">destructive</span> <span class="o">=</span> <span class="n">override</span><span class="o">.</span><span class="n">destructive</span>
+    <span class="k">return</span> <span class="n">read_only</span><span class="p">,</span> <span class="n">destructive</span></div>
+
+
+
+<div class="viewcode-block" id="tool_permits">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.tool_permits">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tool_permits</span><span class="p">(</span>
+    <span class="n">read_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">destructive</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">access_level</span><span class="p">:</span> <span class="n">AccessLevel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *access_level* permits invoking this tool.</span>
+
+<span class="sd">    ``full`` permits every tool.  ``read_only`` permits a tool only when it</span>
+<span class="sd">    is explicitly read-only and not destructive; an unannotated tool</span>
+<span class="sd">    (``None``) is **not** permitted (fail-closed).</span>
+
+<span class="sd">    :param read_only: Tool's read-only capability.</span>
+<span class="sd">    :param destructive: Tool's destructive capability.</span>
+<span class="sd">    :param access_level: The active access level.</span>
+<span class="sd">    :returns: True when the tool may be invoked.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">access_level</span> <span class="o">==</span> <span class="s2">"full"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="n">read_only</span> <span class="ow">is</span> <span class="kc">True</span> <span class="ow">and</span> <span class="n">destructive</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">True</span></div>
+
+
+
+<div class="viewcode-block" id="filter_tools_info">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.filter_tools_info">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_tools_info</span><span class="p">(</span>
+    <span class="n">tools_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]],</span>
+    <span class="n">access_level</span><span class="p">:</span> <span class="n">AccessLevel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Return *tools_info* with tools disallowed by *access_level* removed.</span>
+
+<span class="sd">    Domains are preserved as keys even when all their tools are filtered out.</span>
+<span class="sd">    ``full`` returns the input unchanged; otherwise a new mapping is built.</span>
+
+<span class="sd">    :param tools_info: Per-domain ``{name: ToolInfo}`` mapping.</span>
+<span class="sd">    :param access_level: The active access level.</span>
+<span class="sd">    :returns: A filtered mapping (the input is not mutated).</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">access_level</span> <span class="o">==</span> <span class="s2">"full"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tools_info</span>
+    <span class="n">filtered</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">domain</span><span class="p">,</span> <span class="n">tools</span> <span class="ow">in</span> <span class="n">tools_info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">filtered</span><span class="p">[</span><span class="n">domain</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">name</span><span class="p">:</span> <span class="n">info</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">tools</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">tool_permits</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">read_only</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">destructive</span><span class="p">,</span> <span class="n">access_level</span><span class="p">)</span>
+        <span class="p">}</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span> <span class="k">for</span> <span class="n">tools</span> <span class="ow">in</span> <span class="n">tools_info</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="n">allowed</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span> <span class="k">for</span> <span class="n">tools</span> <span class="ow">in</span> <span class="n">filtered</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="n">dropped</span> <span class="o">=</span> <span class="n">total</span> <span class="o">-</span> <span class="n">allowed</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">total</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">allowed</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">dropped</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">filtered</span></div>
+
+
+
+<div class="viewcode-block" id="check_tool_access">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.check_tool_access">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">check_tool_access</span><span class="p">(</span>
+    <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">read_only</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">destructive</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">access_level</span><span class="p">:</span> <span class="n">AccessLevel</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a denial message when *tool* is not permitted, else ``None``.</span>
+
+<span class="sd">    Mirrors :func:`tool_permits` but returns a human-readable message for the</span>
+<span class="sd">    non-halting synthetic error result the caller produces (the ADR-0007</span>
+<span class="sd">    error contract) instead of raising.</span>
+
+<span class="sd">    :param tool: Tool name, used in the message.</span>
+<span class="sd">    :param read_only: Tool's read-only capability.</span>
+<span class="sd">    :param destructive: Tool's destructive capability.</span>
+<span class="sd">    :param access_level: The active access level.</span>
+<span class="sd">    :returns: A denial message, or ``None`` when the tool is permitted.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">tool_permits</span><span class="p">(</span><span class="n">read_only</span><span class="p">,</span> <span class="n">destructive</span><span class="p">,</span> <span class="n">access_level</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">reason</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">"it is annotated destructive"</span>
+        <span class="k">if</span> <span class="n">destructive</span> <span class="ow">is</span> <span class="kc">True</span>
+        <span class="k">else</span> <span class="s2">"it is not annotated read-only"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Tool '</span><span class="si">{</span><span class="n">tool</span><span class="si">}</span><span class="s2">' is not available with read-only access: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">. "</span>
+        <span class="s2">"Full access is required to invoke it."</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_access_level">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.access.resolve_access_level">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_access_level</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AccessLevel</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Coerce a value to a valid access level, defaulting to ``full``.</span>
+
+<span class="sd">    Used for untrusted inputs (env var strings); an unrecognised value is</span>
+<span class="sd">    logged and replaced with :data:`DEFAULT_ACCESS_LEVEL`.</span>
+
+<span class="sd">    :param value: Candidate value (e.g. from a request component or env).</span>
+<span class="sd">    :returns: The matching level, or :data:`DEFAULT_ACCESS_LEVEL`.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"read_only"</span><span class="p">,</span> <span class="s2">"full"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">AccessLevel</span><span class="p">,</span> <span class="n">candidate</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Unknown access level </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">; defaulting to </span><span class="si">{</span><span class="n">DEFAULT_ACCESS_LEVEL</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">num_history_chars</span> <span class="o">=</span> <span class="n">num_history_chars</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">fallback_config</span> <span class="o">=</span> <span class="n">fallback_config</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_prompt_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Format prompt with the user's query."""</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">query</span><span class="p">}</span>  <span class="c1"># type: ignore</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Extract answer, append fallback warning if configured, update messages."""</span>
-        <span class="n">answer</span> <span class="o">=</span> <span class="s2">""</span>
-
-        <span class="c1"># Add fallback warning if configured and query was domain-related.</span>
-        <span class="c1"># The RAG stores classified domains in ``query_domains`` (a list);</span>
-        <span class="c1"># a genuinely non-domain query is classified as ``["undefined"]``.</span>
-        <span class="c1"># Warn only when a real domain matched, i.e. the query fell back to</span>
-        <span class="c1"># training data after failed retrieval, not for plain general chat.</span>
-        <span class="c1"># Default to ``["undefined"]`` so states without the attribute</span>
-        <span class="c1"># (e.g. non-RAG graphs) never show the warning.</span>
-        <span class="n">fallback</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fallback_config</span>
-        <span class="k">if</span> <span class="n">fallback</span> <span class="ow">and</span> <span class="n">fallback</span><span class="o">.</span><span class="n">enabled</span> <span class="ow">and</span> <span class="n">fallback</span><span class="o">.</span><span class="n">warning</span><span class="p">:</span>
-            <span class="n">query_domains</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"query_domains"</span><span class="p">,</span> <span class="p">[</span><span class="s2">"undefined"</span><span class="p">])</span>
-            <span class="k">if</span> <span class="s2">"undefined"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">query_domains</span><span class="p">:</span>
-                <span class="n">answer</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n\n</span><span class="si">{</span><span class="n">format_alert</span><span class="p">(</span><span class="n">fallback</span><span class="o">.</span><span class="n">warning</span><span class="p">)</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">"</span>
-
-        <span class="n">content</span> <span class="o">=</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
-        <span class="n">_thought</span><span class="p">,</span> <span class="n">answer_text</span> <span class="o">=</span> <span class="n">split_output_by_section</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="s2">"&lt;think&gt;"</span><span class="p">,</span> <span class="s2">"&lt;/think&gt;"</span><span class="p">)</span>
-        <span class="c1"># An empty generation (the base retry budget was exhausted) must not</span>
-        <span class="c1"># surface as a blank reply to the user; fall back to a clear message.</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">answer_text</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-            <span class="n">answer_text</span> <span class="o">=</span> <span class="n">content_to_str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
-        <span class="n">answer</span> <span class="o">+=</span> <span class="n">answer_text</span>
-
-        <span class="n">messages</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-        <span class="n">result</span><span class="o">.</span><span class="n">content</span> <span class="o">=</span> <span class="n">answer</span>
-        <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-
-        <span class="k">return</span> <span class="p">{</span><span class="s2">"messages"</span><span class="p">:</span> <span class="n">messages</span><span class="p">,</span> <span class="s2">"message_for_user"</span><span class="p">:</span> <span class="n">answer</span><span class="p">}</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_default_error_result</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return the fallback message when the model produced no answer."""</span>
-        <span class="k">return</span> <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">EMPTY_RESULT_FALLBACK</span><span class="p">)</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return answer summary."""</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_state_updates</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">content_to_str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state_updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
-        <span class="n">char_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
-            <span class="n">heading</span><span class="o">=</span><span class="s2">"General Answer"</span><span class="p">,</span>
-            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Generated answer (</span><span class="si">{</span><span class="n">char_count</span><span class="si">}</span><span class="s2"> characters)"</span>
-            <span class="k">if</span> <span class="n">char_count</span>
-            <span class="k">else</span> <span class="s2">"No answer generated"</span><span class="p">,</span>
-            <span class="n">details</span><span class="o">=</span><span class="p">{</span><span class="s2">"character_count"</span><span class="p">:</span> <span class="n">char_count</span><span class="p">},</span>
-        <span class="p">)</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_debug</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return info + input/output triples."""</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_info</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="n">details</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">details</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-            <span class="p">{</span>
-                <span class="s2">"input_prompt"</span><span class="p">:</span> <span class="n">prompt_value_to_messages</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span><span class="p">),</span>
-                <span class="s2">"unprocessed_output"</span><span class="p">:</span> <span class="n">extract_llm_output_content</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_output</span><span class="p">),</span>
-            <span class="p">}</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
-            <span class="n">heading</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">heading</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span>
-        <span class="p">)</span></div>
+    <span class="k">return</span> <span class="n">DEFAULT_ACCESS_LEVEL</span></div>
 
 </pre></div>
         </article>

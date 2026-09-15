@@ -735,6 +735,34 @@
 
 
 
+<div class="viewcode-block" id="is_output_empty">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_output_empty">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_output_empty</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True if an LLM output carries no usable text content.</span>
+
+<span class="sd">    Some providers (notably HuggingFace) intermittently return a successful</span>
+<span class="sd">    response with blank content.  Handles both plain ``AIMessage`` outputs</span>
+<span class="sd">    and structured-output dicts (``{"raw": AIMessage, "parsed": ...}``); for</span>
+<span class="sd">    the structured form the ``raw`` message is inspected, so a blank raw</span>
+<span class="sd">    response is flagged even when the parser produced an all-default</span>
+<span class="sd">    instance.</span>
+
+<span class="sd">    :param output: The raw output from ``llm.invoke()``.</span>
+<span class="sd">    :returns: True when the output has no non-whitespace text.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
+            <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="c1"># No raw message to inspect: empty unless the parser still produced</span>
+        <span class="c1"># a non-None structured result.</span>
+        <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"parsed"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
 <div class="viewcode-block" id="get_token_limit_param">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.get_token_limit_param">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_token_limit_param</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
