@@ -96,6 +96,7 @@ def test_context_snapshot_projects_requested():
         "requested": "scientific",
         "assurance": "unverified",
         "note": "no source",
+        "access_level": "full",
     }
     # A pydantic ``Mode`` instance in the state snapshot is handled too
     # (the checkpoint may render nested models as-is or as dicts).
@@ -105,4 +106,19 @@ def test_context_snapshot_projects_requested():
         "requested": "general",
         "assurance": "unverified",
         "note": "",
+        "access_level": "full",
     }
+
+
+def test_context_snapshot_projects_access_level():
+    """The effective tool access level is projected for the frontend."""
+    from klea_agent.klea_agent import KleaAgent
+
+    agent = KleaAgent(checkpoint="inmemory")
+
+    snapshot = agent.context_snapshot({"access_level": "read_only"})
+    assert snapshot is not None
+    assert snapshot["access_level"] == "read_only"
+    snapshot = agent.context_snapshot({})
+    assert snapshot is not None
+    assert snapshot["access_level"] == "full"

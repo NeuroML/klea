@@ -233,9 +233,14 @@ class KleaAgent(BaseLangGraph):
         ``requested`` into the selector, keeping the re-request aligned
         with the user's last intent.
 
+        ``access_level`` (the effective tool access level, ADR-0037) is
+        projected for the same reason: it is a plain state field, so an
+        empty re-request would otherwise fall back to the config default
+        and change the level on the next query.
+
         :param state: The per-superstep state snapshot (a dict).
-        :returns: ``{"mode", "requested", "assurance", "note"}`` for the
-            frontend.
+        :returns: ``{"mode", "requested", "assurance", "note",
+            "access_level"}`` for the frontend.
         """
         mode_data = state.get("mode", {})
         if not isinstance(mode_data, dict):
@@ -245,6 +250,7 @@ class KleaAgent(BaseLangGraph):
             "requested": mode_data.get("requested", "general"),
             "assurance": mode_data.get("assurance", "unverified"),
             "note": mode_data.get("note", ""),
+            "access_level": state.get("access_level", "full"),
         }
 
     def _record_tool_round(
