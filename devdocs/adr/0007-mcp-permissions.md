@@ -186,6 +186,13 @@ LangGraph pause/input design is settled.  ``kanban`` board + ``permission.py``
 
 ## More Information
 
+* Amended ``2026-09-14``: the client-side caller now passes a single
+  ``{tool_name: ToolInfo}`` map to ``dispatch_tool_calls`` (and
+  ``ToolsCallerNode``), replacing the separate raw ``tools_meta`` map.
+  ``ToolInfo`` carries both the ``checkpaths`` metadata (in ``meta``) and
+  the ADR-0037 ``read_only``/``destructive`` capability, so the path gate
+  and the access-level gate share one classification.
+  ``check_tool_arguments_permissions`` is unchanged.
 * Design note promoted here: ``../system/mcp-permissions.md`` (current
   state, limits, opencode reference ``anomalyco/opencode
   2026-08`` ``packages/opencode/src/permission/index.ts`` and

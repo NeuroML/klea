@@ -150,12 +150,13 @@ hidden in `read_only` or force the whole run to `full`.
   the shared `ToolsPicker` (full descriptions) filter `tools_info` by the
   state's `access_level` before building their prompts, so a disallowed
   tool is never shown to the model.
-* **Dispatch (hard gate):** `ToolsCallerNode` passes the level and a
-  capability map to `dispatch_tool_calls`, which rejects a call to a
-  disallowed tool with the same synthetic `is_error` result used for
-  `checkpaths` denials (ADR-0007); the call never reaches the MCP server.
-  This covers a model naming a hidden tool and keeps the failure
-  non-halting.
+* **Dispatch (hard gate):** `ToolsCallerNode` passes the level and the
+  flattened `{tool_name: ToolInfo}` map (which already carries the
+  `read_only`/`destructive` capability and the `checkpaths` metadata) to
+  `dispatch_tool_calls`, which rejects a call to a disallowed tool with the
+  same synthetic `is_error` result used for `checkpaths` denials
+  (ADR-0007); the call never reaches the MCP server.  This covers a model
+  naming a hidden tool and keeps the failure non-halting.
 
 ### Trust model and limitations
 
