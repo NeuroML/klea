@@ -112,6 +112,10 @@ def filter_tools_info(
             for name, info in tools.items()
             if tool_permits(info.read_only, info.destructive, access_level)
         }
+    total = sum(len(tools) for tools in tools_info.values())
+    allowed = sum(len(tools) for tools in filtered.values())
+    dropped = total - allowed
+    logger.debug(f"{access_level = }\n{total = }\n{allowed = }\n{dropped = }")
     return filtered
 
 

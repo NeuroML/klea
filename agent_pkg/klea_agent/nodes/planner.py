@@ -86,6 +86,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         """
         access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
         tools_info = filter_tools_info(self._tools_info, access_level)
+        self.logger.debug(
+            f"{access_level = }\n"
+            f"disclosed_tools = "
+            f"{[name for domain in tools_info.values() for name in domain]}"
+        )
         parts = [
             info.short_description or info.description or ""
             for domain_tools in tools_info.values()

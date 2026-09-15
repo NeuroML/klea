@@ -93,6 +93,7 @@ def check_tool_arguments_permissions(
     if not checkpaths:
         return []
 
+    logger.debug(f"Checking declared path arguments\n{checkpaths = }\n{arguments = }")
     denials: list[str] = []
     for arg_name in checkpaths:
         if arg_name not in arguments:

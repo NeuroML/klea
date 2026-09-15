@@ -8,6 +8,8 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
+
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.tools_picker import ToolsPicker
 from pydantic import BaseModel, Field
@@ -19,6 +21,9 @@ class _TestState(BaseModel):
 
 def _make_picker() -> ToolsPicker:
     picker = object.__new__(ToolsPicker)
+    # ``__init__`` is skipped to avoid building the LLM node; supply the
+    # logger that every real node has (the node logs its disclosure).
+    picker.logger = logging.getLogger("test")
     picker._tools_info = {
         "NeuroML": {
             "get_models": ToolInfo(
