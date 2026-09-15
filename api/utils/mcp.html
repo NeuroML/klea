@@ -241,6 +241,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
@@ -437,9 +438,24 @@ is used as the tool name.</p>
 <p>File: klea_utils/mcp/dispatch.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">900.0</span></span><a class="headerlink" href="#klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS" title="Link to this definition">¶</a></dt>
+<dd><p>Default per-call wall-clock cap for tool calls.  A generous backstop that
+only fires when a tool hangs; individual tools own their semantic timeouts
+(e.g. <code class="docutils literal notranslate"><span class="pre">run_command</span></code>), so raise this above any tool’s own maximum.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">TOOL_CALL_TIMEOUT_ENV_VAR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'KLEA_TOOL_CALL_TIMEOUT'</span></span><a class="headerlink" href="#klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR" title="Link to this definition">¶</a></dt>
+<dd><p>Process environment variable overriding the backstop (seconds).  A value
+of <code class="docutils literal notranslate"><span class="pre">0</span></code> or less disables it.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.mcp.dispatch.dispatch_tool_calls">
-<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">dispatch_tool_calls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mcp_client</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_calls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_infos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.mcp.schemas.ToolInfo" title="klea_utils.mcp.schemas.ToolInfo"><span class="pre">ToolInfo</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">access_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'read_only'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'full'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'full'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">fastmcp.client.client.CallToolResult</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/dispatch.html#dispatch_tool_calls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.dispatch.dispatch_tool_calls" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">dispatch_tool_calls</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mcp_client</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_calls</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_infos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.mcp.schemas.ToolInfo" title="klea_utils.mcp.schemas.ToolInfo"><span class="pre">ToolInfo</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">access_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Literal" title="(in Python v3.14)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'read_only'</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="s"><span class="pre">'full'</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'full'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">call_timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">fastmcp.client.client.CallToolResult</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/dispatch.html#dispatch_tool_calls"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.dispatch.dispatch_tool_calls" title="Link to this definition">¶</a></dt>
 <dd><p>Gate and dispatch tool calls against an MCP server.</p>
 <p>For each <code class="docutils literal notranslate"><span class="pre">(tool</span> <span class="pre">name,</span> <span class="pre">arguments)</span></code> pair two gates run before the call
 reaches the server, each producing a synthetic non-halting error when
@@ -471,10 +487,29 @@ map is denied (fail-closed).</p></li>
 <li><p><strong>project_root</strong> – Boundary directory for the path gate.  Defaults to
 the current working directory.</p></li>
 <li><p><strong>access_level</strong> – Active tool access level (ADR-0037).</p></li>
+<li><p><strong>call_timeout</strong> – Per-call wall-clock timeout in seconds, as a backstop
+against a hung tool.  <code class="docutils literal notranslate"><span class="pre">None</span></code> (the default) resolves from
+<a class="reference internal" href="#klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR" title="klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR"><code class="xref py py-data docutils literal notranslate"><span class="pre">TOOL_CALL_TIMEOUT_ENV_VAR</span></code></a> / <a class="reference internal" href="#klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS" title="klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span></code></a>;
+<code class="docutils literal notranslate"><span class="pre">0</span></code> or less disables the backstop.  A timed-out call becomes a
+synthetic non-halting error.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>One <code class="xref py py-class docutils literal notranslate"><span class="pre">CallToolResult</span></code> per input call, in input order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.dispatch.tool_call_timeout_seconds">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">tool_call_timeout_seconds</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/dispatch.html#tool_call_timeout_seconds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.dispatch.tool_call_timeout_seconds" title="Link to this definition">¶</a></dt>
+<dd><p>Return the per-call tool timeout in seconds, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when disabled.</p>
+<p>Reads <a class="reference internal" href="#klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR" title="klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR"><code class="xref py py-data docutils literal notranslate"><span class="pre">TOOL_CALL_TIMEOUT_ENV_VAR</span></code></a>; an unset, non-numeric, or
+non-finite value falls back to <a class="reference internal" href="#klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS" title="klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span></code></a>,
+while a non-positive value disables the backstop.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>The timeout ceiling, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when disabled.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -622,6 +657,41 @@ is explicitly read-only and not destructive; an unannotated tool
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>True when the tool may be invoked.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.mcp.tool_result">
+<span id="tool-results"></span><h2>Tool results<a class="headerlink" href="#module-klea_utils.mcp.tool_result" title="Link to this heading">¶</a></h2>
+<p>Helper to map Klea dict results with an <code class="docutils literal notranslate"><span class="pre">error</span></code> field to MCP <code class="docutils literal notranslate"><span class="pre">isError</span></code>.</p>
+<p>File: klea_utils/mcp/tool_result.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_result.to_result">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_result.</span></span><span class="sig-name descname"><span class="pre">to_result</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">result</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">fastmcp.tools.ToolResult</span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/tool_result.html#to_result"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.tool_result.to_result" title="Link to this definition">¶</a></dt>
+<dd><p>Return a <code class="docutils literal notranslate"><span class="pre">ToolResult</span></code> with <code class="docutils literal notranslate"><span class="pre">is_error</span></code> derived from the <code class="docutils literal notranslate"><span class="pre">error</span></code> field.</p>
+<p>Klea tool implementations are framework-agnostic and signal failure via a
+non-empty <code class="docutils literal notranslate"><span class="pre">error</span></code> (or <code class="docutils literal notranslate"><span class="pre">Error</span></code> for legacy repository tools) string in
+their returned dict.  The MCP spec requires such failures to be reported
+as <code class="docutils literal notranslate"><span class="pre">isError:</span> <span class="pre">true</span></code> in the <code class="docutils literal notranslate"><span class="pre">CallToolResult</span></code> (see
+<code class="docutils literal notranslate"><span class="pre">mcp/types.py:CallToolResult</span></code> and the spec section
+<code class="docutils literal notranslate"><span class="pre">server/tools#Error</span> <span class="pre">Handling</span></code>); FastMCP only sets this when the tool
+explicitly returns <code class="docutils literal notranslate"><span class="pre">ToolResult(is_error=True)</span></code> or raises <code class="docutils literal notranslate"><span class="pre">ToolError</span></code>
+(see <code class="docutils literal notranslate"><span class="pre">fastmcp/tools/base.py:convert_result</span></code> and
+<code class="docutils literal notranslate"><span class="pre">mcp/server/lowlevel/server.py:_make_error_result</span></code>).</p>
+<p>This helper bridges the two: it preserves the dict as <code class="docutils literal notranslate"><span class="pre">structured_content</span></code>
+(so LLM remediation keeps full context) while marking <code class="docutils literal notranslate"><span class="pre">is_error</span></code> when
+the <code class="docutils literal notranslate"><span class="pre">error</span></code>/<code class="docutils literal notranslate"><span class="pre">Error</span></code> field is truthy.  It intentionally preserves the
+structured payload rather than raising <code class="docutils literal notranslate"><span class="pre">ToolError</span></code>, which would strip it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>result</strong> – Tool return dict containing at least an <code class="docutils literal notranslate"><span class="pre">error</span></code> key;
+legacy tools may use <code class="docutils literal notranslate"><span class="pre">Error</span></code> (capitalised).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">ToolResult</span></code> with <code class="docutils literal notranslate"><span class="pre">is_error</span></code> reflecting the error field.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1097,6 +1167,132 @@ Defaults to the current working directory.</p></li>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>dict with command, working_directory, returncode, stdout,
 stderr, truncated, error.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-klea_utils.mcp.tool_impls.sqlite_query">Read-only sqlite query implementation for Klea MCP tools.</p>
+<p>File: klea_utils/mcp/tool_impls/sqlite_query.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_LIMIT">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_LIMIT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></span><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_LIMIT" title="Link to this definition">¶</a></dt>
+<dd><p>Default maximum number of rows returned by <a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_query" title="klea_utils.mcp.tool_impls.sqlite_query.sqlite_query"><code class="xref py py-func docutils literal notranslate"><span class="pre">sqlite_query()</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_MAX_OPS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MAX_OPS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">25000000</span></span><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_MAX_OPS" title="Link to this definition">¶</a></dt>
+<dd><p>Default total sqlite VM-instruction budget for a single statement (the
+<code class="docutils literal notranslate"><span class="pre">max_ops</span></code> argument).  Generous so normal queries are never affected;
+it only bounds runaway or pathological (LLM-generated) SELECTs.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.MAX_LIMIT">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">MAX_LIMIT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">200</span></span><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.MAX_LIMIT" title="Link to this definition">¶</a></dt>
+<dd><p>Hard cap on the number of rows returned, whatever the caller asks for.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.PROGRESS_TICK">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">PROGRESS_TICK</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">100000</span></span><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.PROGRESS_TICK" title="Link to this definition">¶</a></dt>
+<dd><p>the handler fires roughly
+every <code class="docutils literal notranslate"><span class="pre">PROGRESS_TICK</span></code> virtual-machine instructions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Granularity of the progress-handler ticks</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.SQLITE_SUFFIXES">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">SQLITE_SUFFIXES</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'.db',</span> <span class="pre">'.sqlite',</span> <span class="pre">'.sqlite3'})</span></span><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.SQLITE_SUFFIXES" title="Link to this definition">¶</a></dt>
+<dd><p>File extensions accepted as sqlite databases.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.sqlite_query">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">sqlite_query</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">sql</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_ops</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">25000000</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/tool_impls/sqlite_query.html#sqlite_query"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_query" title="Link to this definition">¶</a></dt>
+<dd><p>Run a read-only SELECT query against a sqlite database.</p>
+<p>Framework-agnostic implementation shared across Klea MCP servers (and
+directly usable by agents).  The database is opened read-only
+(<code class="docutils literal notranslate"><span class="pre">mode=ro</span></code> plus <code class="docutils literal notranslate"><span class="pre">PRAGMA</span> <span class="pre">query_only</span></code>), so nothing can modify it even
+if validation is bypassed.  Only a single SELECT statement is allowed;
+other statements, statement separators, and unknown tables/columns
+return a clear error rather than raising.</p>
+<p>Use when:</p>
+<ul class="simple">
+<li><p>Answering a question from structured, tabular data stored in a
+sqlite database (exact values, LIKE patterns, ranges, aggregations).</p></li>
+<li><p>The data is not searchable as free text (that is what the vector/BM25
+stores are for).</p></li>
+</ul>
+<p>Do not use for:</p>
+<ul class="simple">
+<li><p>Free-text / semantic search over document collections.</p></li>
+<li><p>Anything that writes; this tool is read-only by construction.</p></li>
+</ul>
+<p>Example: sqlite_query(db_path=”data.db”, sql=”SELECT name, year FROM
+papers WHERE journal = ‘Nature’ ORDER BY year DESC”)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>db_path</strong> – Path to the sqlite database file (.sqlite/.sqlite3/.db),
+relative to the project root.</p></li>
+<li><p><strong>sql</strong> – A single SELECT statement (a trailing semicolon is allowed).</p></li>
+<li><p><strong>limit</strong> – Maximum number of rows to return (clamped to MAX_LIMIT).</p></li>
+<li><p><strong>project_root</strong> – Boundary directory the database path must resolve
+inside. Defaults to the current working directory.</p></li>
+<li><p><strong>max_ops</strong> – Total sqlite virtual-machine instruction budget for the
+statement, bounding how much CPU a query may consume.  <code class="docutils literal notranslate"><span class="pre">None</span></code>
+disables the budget.  Non-integer or non-positive values fall
+back to the default.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary with db_path, columns, rows, row_count, truncated, error.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.sqlite_query.sqlite_schema">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.sqlite_query.</span></span><span class="sig-name descname"><span class="pre">sqlite_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">db_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_ops</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">25000000</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/tool_impls/sqlite_query.html#sqlite_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Inspect the tables and columns of a sqlite database.</p>
+<p>Framework-agnostic implementation shared across Klea MCP servers (and
+directly usable by agents).  Returns the list of tables/views and, for
+each, its columns with their declared types, so a caller can write a
+valid query.  Intended for agent-style callers that can chain an
+inspection step before querying; a RAG wrapper of <a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_query" title="klea_utils.mcp.tool_impls.sqlite_query.sqlite_query"><code class="xref py py-func docutils literal notranslate"><span class="pre">sqlite_query()</span></code></a>
+usually embeds the schema in the tool description instead, since the
+RAG runs tools in a single pass and cannot take a separate look-up step.</p>
+<p>Use when:</p>
+<ul class="simple">
+<li><p>You need to know what tables and columns a database has before
+writing a query.</p></li>
+</ul>
+<p>Do not use for:</p>
+<ul class="simple">
+<li><p>Querying data (use sqlite_query instead).</p></li>
+</ul>
+<p>Example: sqlite_schema(db_path=”data.db”)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>db_path</strong> – Path to the sqlite database file (.sqlite/.sqlite3/.db),
+relative to the project root.</p></li>
+<li><p><strong>project_root</strong> – Boundary directory the database path must resolve
+inside. Defaults to the current working directory.</p></li>
+<li><p><strong>max_ops</strong> – Total sqlite virtual-machine instruction budget for the
+introspection statements.  <code class="docutils literal notranslate"><span class="pre">None</span></code> disables the budget.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dictionary with db_path, tables, error.  <code class="docutils literal notranslate"><span class="pre">tables</span></code> maps each
+table/view name to <code class="docutils literal notranslate"><span class="pre">{&quot;columns&quot;:</span> <span class="pre">[{&quot;name&quot;:</span> <span class="pre">...,</span> <span class="pre">&quot;type&quot;:</span> <span class="pre">...},</span> <span class="pre">...]}</span></code>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1736,7 +1932,10 @@ stderr, truncated, error.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.mcp.dispatch">Tool call dispatch</a><ul>
+<li><a class="reference internal" href="#klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">TOOL_CALL_TIMEOUT_ENV_VAR</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.dispatch.dispatch_tool_calls"><code class="docutils literal notranslate"><span class="pre">dispatch_tool_calls()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.dispatch.tool_call_timeout_seconds"><code class="docutils literal notranslate"><span class="pre">tool_call_timeout_seconds()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.mcp.access">Tool access levels</a><ul>
@@ -1751,6 +1950,10 @@ stderr, truncated, error.</p>
 <li><a class="reference internal" href="#klea_utils.mcp.access.resolve_access_level"><code class="docutils literal notranslate"><span class="pre">resolve_access_level()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.access.resolve_capability"><code class="docutils literal notranslate"><span class="pre">resolve_capability()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.access.tool_permits"><code class="docutils literal notranslate"><span class="pre">tool_permits()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.mcp.tool_result">Tool results</a><ul>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_result.to_result"><code class="docutils literal notranslate"><span class="pre">to_result()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.mcp.lifespan">HTTP session lifespan</a><ul>
@@ -1777,6 +1980,13 @@ stderr, truncated, error.</p>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.run_command.MAX_TIMEOUT_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">MAX_TIMEOUT_ENV_VAR</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.run_command.max_timeout_seconds"><code class="docutils literal notranslate"><span class="pre">max_timeout_seconds()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.run_command.run_command"><code class="docutils literal notranslate"><span class="pre">run_command()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_LIMIT"><code class="docutils literal notranslate"><span class="pre">DEFAULT_LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.DEFAULT_MAX_OPS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MAX_OPS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.MAX_LIMIT"><code class="docutils literal notranslate"><span class="pre">MAX_LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.PROGRESS_TICK"><code class="docutils literal notranslate"><span class="pre">PROGRESS_TICK</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.SQLITE_SUFFIXES"><code class="docutils literal notranslate"><span class="pre">SQLITE_SUFFIXES</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_query"><code class="docutils literal notranslate"><span class="pre">sqlite_query()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.sqlite_query.sqlite_schema"><code class="docutils literal notranslate"><span class="pre">sqlite_schema()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#repository-sources">Repository sources</a><ul>

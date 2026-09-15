@@ -241,6 +241,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -409,8 +410,10 @@ for free, without adopting Klea’s tag vocabulary.</p>
 <code class="docutils literal notranslate"><span class="pre">destructive</span></code> + <code class="docutils literal notranslate"><span class="pre">open_world</span></code>: it is full-mode only (never offered or run
 under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>, see below), and its optional <code class="docutils literal notranslate"><span class="pre">working_directory</span></code>
 argument is checked like any other path but does <strong>not</strong> confine the command
-(a shell can <code class="docutils literal notranslate"><span class="pre">cd</span></code> elsewhere or use absolute paths).  See ADR-0038 for the
-design and its limits.</p>
+(a shell can <code class="docutils literal notranslate"><span class="pre">cd</span></code> elsewhere or use absolute paths).  Commands default to a
+30-second timeout with a 600-second ceiling, overridable via
+<code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code>.  See ADR-0038 for the design and its
+limits.</p>
 <p>Klea-authored tools (this one included) also refuse to run when the server
 process has root privileges (uid 0), unless the <code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code>
 environment variable is set.  This catches accidental root deployments
@@ -451,6 +454,11 @@ called during graph execution.  When several MCP servers are configured,
 fastmcp prefixes tool names with the server name (e.g.
 <code class="docutils literal notranslate"><span class="pre">NeuroML_list_files</span></code>) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.</p>
+<p>Each dispatched call also has a wall-clock <strong>backstop</strong> so a hung tool cannot
+stall the graph: the default is 900 seconds, overridable with the
+<code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code> environment variable (<code class="docutils literal notranslate"><span class="pre">0</span></code> disables it).  A call
+that exceeds it returns a non-halting error and is cancelled; tools should
+still enforce their own, tighter timeouts.</p>
 </section>
 <section id="tool-access-levels">
 <h2>Tool access levels<a class="headerlink" href="#tool-access-levels" title="Link to this heading">¶</a></h2>

@@ -40,6 +40,13 @@ Tool access levels
    :members:
    :show-inheritance:
 
+Tool results
+------------
+
+.. automodule:: klea_utils.mcp.tool_result
+   :members:
+   :show-inheritance:
+
 HTTP session lifespan
 ---------------------
 
@@ -82,6 +89,10 @@ their httpx session via the lifespan context.
    :show-inheritance:
 
 .. automodule:: klea_utils.mcp.tool_impls.run_command
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.sqlite_query
    :members:
    :show-inheritance:
 

@@ -240,6 +240,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -364,7 +365,7 @@
                 <span class="k">if</span> <span class="n">collapsed</span>
                 <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_align</span><span class="si">}</span><span class="s2"> msg-expanded"</span>
             <span class="p">)</span>
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">text_cls</span><span class="p">):</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_cls</span><span class="si">}</span><span class="s2"> chat-markdown"</span><span class="p">):</span>
                 <span class="c1"># 'alerts' extra renders GitHub-style ``&gt; [!WARNING]`` blocks</span>
                 <span class="c1"># (used for the fallback / best-effort warnings) as callouts.</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
@@ -373,15 +374,15 @@
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">stamp</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">on_copy</span><span class="p">:</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"content_copy"</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round size=sm"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span>
-                        <span class="s2">"click"</span><span class="p">,</span> <span class="n">on_copy</span>
-                    <span class="p">)</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"content_copy"</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
+                        <span class="s2">"flat dense round size=sm"</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"icon-btn"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span> <span class="n">on_copy</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">on_expand</span><span class="p">:</span>
                     <span class="n">icon</span> <span class="o">=</span> <span class="s2">"expand_less"</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"expand_more"</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round size=sm"</span><span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span>
-                        <span class="s2">"click"</span><span class="p">,</span> <span class="n">on_expand</span>
-                    <span class="p">)</span></div>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round size=sm"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                        <span class="s2">"icon-btn"</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span> <span class="n">on_expand</span><span class="p">)</span></div>
 
 </pre></div>
         </article>
