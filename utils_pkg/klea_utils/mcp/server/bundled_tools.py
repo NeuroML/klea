@@ -17,6 +17,7 @@ from pydantic import Field
 from klea_utils.mcp.registry import tool_meta
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.download_file import download_file as download_file_impl
+from klea_utils.mcp.tool_impls.grep import grep as grep_impl
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
 from klea_utils.mcp.tool_impls.read_file import read_file as read_file_impl
 from klea_utils.mcp.tool_impls.run_command import (
@@ -212,6 +213,87 @@ async def read_file(
         offset=offset,
         limit=limit,
         max_chars=max_chars,
+    )
+    return to_result(result)
+
+
+@tool_meta(
+    ToolInfo(tags={BUNDLED_TAG, "local", "files"}, checkpaths=["path"], read_only=True)
+)
+async def grep(
+    pattern: Annotated[str, Field(min_length=1)],
+    path: Annotated[
+        str,
+        Field(
+            description=(
+                "Directory to search. Must be relative to the current working "
+                "directory and cannot contain '..' for security"
+            ),
+            min_length=1,
+        ),
+    ] = ".",
+    include: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Space separated glob patterns to restrict which files are "
+                "searched, e.g. '*.py' or '*.py *.md'. Omit to search all files"
+            )
+        ),
+    ] = None,
+    case_sensitive: Annotated[
+        bool, Field(description="Whether the search is case sensitive")
+    ] = True,
+    include_ignored: Annotated[
+        bool,
+        Field(
+            description=(
+                "Also search files ignored by .gitignore. Default false, which "
+                "skips ignored files (and skips .git/cache directories always)"
+            )
+        ),
+    ] = False,
+    max_results: Annotated[
+        int,
+        Field(description="Maximum number of matching lines to return", ge=1, le=1000),
+    ] = 100,
+) -> ToolResult:
+    """Search file contents for lines matching a regular expression.
+
+    Use this tool to find where a symbol, string, or pattern occurs in the
+    files under a directory.
+
+    Use when:
+    - Locating a definition, call site, or error message in the codebase.
+    - Searching the contents of many files without reading each one.
+
+    Do not use for:
+    - Listing files by name without searching their contents (use the list
+      files tool instead).
+    - Reading a whole file (use the read file tool instead).
+
+    Example: grep(pattern="def main", include="*.py")
+
+    Args:
+        pattern: Regular expression to search for.
+        path: Directory to search, relative to the project directory.
+        include: Space separated glob patterns restricting which files are
+            searched.
+        case_sensitive: Whether the search is case sensitive.
+        include_ignored: Also search .gitignore-ignored files.
+        max_results: Maximum number of matching lines to return.
+
+    Returns:
+        Dictionary with pattern, path, matches (path, line_number, line),
+        truncated, files_scanned, error.
+    """
+    result = await grep_impl(
+        pattern=pattern,
+        path=path,
+        include=include,
+        case_sensitive=case_sensitive,
+        include_ignored=include_ignored,
+        max_results=max_results,
     )
     return to_result(result)
 
