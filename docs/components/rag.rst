@@ -6,7 +6,7 @@ the general RAG ideas described in :doc:`../concepts/rag` as a
 configurable, multi-domain pipeline: each query is classified, retrieved
 from the matching domain's stores, answered from the retrieved context,
 and evaluated.  This page describes how the pipeline works; for a hands-on
-walkthrough see :doc:`../tutorials/create-and-use-rag`.
+walkthrough see :doc:`../guides/create-and-use-rag`.
 
 Pipeline
 --------
@@ -73,7 +73,7 @@ chunks were written to.  Retrieval looks stores up by name, so a
 mismatch silently returns no results.  For local Chroma stores the
 ``path`` points at the store folder; the database file inside it is
 always named ``chroma.sqlite3`` (see
-:doc:`../tutorials/create-and-use-rag`).  Chroma collections created by
+:doc:`../guides/create-and-use-rag`).  Chroma collections created by
 ``klea-stores-create`` use **cosine** HNSW distance, so the vector-store
 relevance score is a cosine similarity (and the retrieval
 ``score_threshold`` reads as a minimum cosine similarity).
@@ -183,7 +183,7 @@ still dominates the final ordering.
 
 To create a BM25 store alongside a vector store, pass
 ``--bm25-store`` to ``klea-stores-create`` (see
-:doc:`../tutorials/create-and-use-rag`), then add a ``bm25_stores``
+:doc:`../guides/create-and-use-rag`), then add a ``bm25_stores``
 entry to the domain config pointing at the written corpus file.
 
 After storing, ``klea-stores-create store-lint <corpus.pkl>`` reviews the
@@ -296,23 +296,23 @@ considerably, can be disabled with ``klea-stores-create --no-ocr`` (see
 for details).  Use ``klea-stores-create pre-check <dir>`` to classify
 which PDFs actually need OCR (based on whether they carry an embedded
 text layer) rather than guessing by publication year -- see
-:doc:`../tutorials/create-and-use-rag`.
+:doc:`../guides/create-and-use-rag`.
 
 Docling selects the inference accelerator automatically (CUDA, MPS, or
 CPU), but GPUs with a CUDA capability below 7.0 (e.g. a Quadro P1000)
 cannot run the Triton-compiled layout model.  Set the ``DOCLING_DEVICE``
 environment variable to ``cpu`` in that case (optionally raising
 ``DOCLING_NUM_THREADS`` above the default of 4 to use more CPU cores);
-see :doc:`../tutorials/create-and-use-rag` for a worked example.
+see :doc:`../guides/create-and-use-rag` for a worked example.
 
 See :doc:`../api/utils/biblio` for the Python API and
-:doc:`../tutorials/create-and-use-rag` for the ``chunk`` / ``store``
+:doc:`../guides/create-and-use-rag` for the ``chunk`` / ``store``
 workflow.
 
 .. seealso::
 
    * :doc:`../glossary` -- definitions of key terms
-   * :doc:`../tutorials/create-and-use-rag` -- walk through setting up a
+   * :doc:`../guides/create-and-use-rag` -- walk through setting up a
      RAG system end to end
    * :doc:`../cli/klea-rag-serve` -- server CLI reference
    * :doc:`../cli/klea-rag` -- client CLI reference (CLI, NiceGUI, Streamlit)
