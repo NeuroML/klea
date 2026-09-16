@@ -16,4 +16,4 @@ streaming, and per-request model switching.
 Funded by the [BioFAIR](https://biofair.uk/) Pathfinder project
 ("Creating AI-enabled analysis pipelines for FAIR neuroscience data").
 
-Documentation: https://neuroklea.org
+Documentation: https://klea.science

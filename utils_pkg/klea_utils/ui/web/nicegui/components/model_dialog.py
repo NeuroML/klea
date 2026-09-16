@@ -150,7 +150,7 @@ def attach_model_info(ctx: PageContext) -> None:
                             ).on(
                                 "click",
                                 lambda: ui.run_javascript(
-                                    "window.open('https://neuroklea.org/install.html#choosing-models', '_blank')"
+                                    "window.open('https://klea.science/install.html#choosing-models', '_blank')"
                                 ),
                             )
                             ui.tooltip("See the docs for model selection options")
