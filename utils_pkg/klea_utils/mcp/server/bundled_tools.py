@@ -29,6 +29,7 @@ from klea_utils.mcp.tool_impls.run_command import (
 )
 from klea_utils.mcp.tool_impls.run_command import run_command as run_command_impl
 from klea_utils.mcp.tool_impls.web_fetch import web_fetch as web_fetch_impl
+from klea_utils.mcp.tool_impls.write_file import write_file as write_file_impl
 from klea_utils.mcp.tool_result import to_result
 
 #: Common tags carried by every bundled tool, so "enable the common set"
@@ -307,6 +308,46 @@ async def read_file(
         max_chars=max_chars,
         line_numbers=line_numbers,
     )
+    return to_result(result)
+
+
+@tool_meta(
+    ToolInfo(
+        tags={BUNDLED_TAG, "local", "files"}, checkpaths=["path"], destructive=True
+    )
+)
+async def write_file(
+    path: Annotated[str, Field(min_length=1)],
+    content: Annotated[
+        str,
+        Field(description="Complete content to write to the file"),
+    ],
+) -> ToolResult:
+    """Create a new file or overwrite an existing one with the given content.
+
+    Use this tool to create a file, or to replace a file's entire contents.
+    The write is atomic and an existing file's mode is preserved.
+
+    Use when:
+    - Creating a new file.
+    - Replacing the whole content of a small file.
+
+    Do not use for:
+    - Reading a file (use the read file tool instead).
+    - Listing a directory (use the list files tool instead).
+
+    Example: write_file(path="notes.txt", content="hello world")
+
+    Args:
+        path: File path to write, relative to the project directory. Missing
+            parent directories are created.
+        content: Complete file content.
+
+    Returns:
+        Dictionary with path, created, bytes_written, additions, deletions,
+        diff, error.
+    """
+    result = write_file_impl(path=path, content=content)
     return to_result(result)
 
 

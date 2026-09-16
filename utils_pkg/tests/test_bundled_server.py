@@ -37,6 +37,7 @@ def test_all_bundled_wrappers_carry_bundled_tag():
         "list_files",
         "find_files",
         "read_file",
+        "write_file",
         "grep",
         "download_file",
         "run_command",
@@ -65,6 +66,12 @@ def test_find_files_tags_and_checkpaths():
     assert _tool_info(bundled_tools.find_files).checkpaths == ["path"]
 
 
+def test_write_file_tags_and_checkpaths():
+    assert _tags(bundled_tools.write_file) == {BUNDLED, "local", "files"}
+    assert _tool_info(bundled_tools.write_file).checkpaths == ["path"]
+    assert _tool_info(bundled_tools.write_file).destructive is True
+
+
 def test_grep_tags_and_checkpaths():
     assert _tags(bundled_tools.grep) == {BUNDLED, "local", "files"}
     assert _tool_info(bundled_tools.grep).checkpaths == ["path"]
@@ -90,6 +97,15 @@ def test_run_command_not_permitted_read_only():
     assert tool_permits(info.read_only, info.destructive, "full") is True
 
 
+def test_write_file_not_permitted_read_only():
+    """The destructive annotation excludes write_file from read_only (ADR-0037)."""
+    from klea_utils.mcp.access import tool_permits
+
+    info = _tool_info(bundled_tools.write_file)
+    assert tool_permits(info.read_only, info.destructive, "read_only") is False
+    assert tool_permits(info.read_only, info.destructive, "full") is True
+
+
 def test_context_wrapper_contract():
     """Web-fetching wrappers must declare the fastmcp Context to reach the
     lifespan-provided httpx session; file tools must not need one.  Note that
@@ -99,7 +115,14 @@ def test_context_wrapper_contract():
     for name in ("web_fetch", "download_file"):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
-    for name in ("list_files", "find_files", "read_file", "grep", "run_command"):
+    for name in (
+        "list_files",
+        "find_files",
+        "read_file",
+        "write_file",
+        "grep",
+        "run_command",
+    ):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" not in sig.parameters, name
 
@@ -112,6 +135,7 @@ async def test_bundle_server_registers_expected_tools():
         "list_files",
         "find_files",
         "read_file",
+        "write_file",
         "grep",
         "download_file",
         "run_command",
@@ -121,6 +145,7 @@ async def test_bundle_server_registers_expected_tools():
     assert (by_name["list_files"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["find_files"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["read_file"].meta or {}).get("checkpaths") == ["path"]
+    assert (by_name["write_file"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["grep"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["download_file"].meta or {}).get("checkpaths") == ["file_path"]
     assert (by_name["run_command"].meta or {}).get("checkpaths") == [
@@ -152,6 +177,12 @@ async def test_bundle_server_annotation_hints():
     assert command.annotations.destructiveHint is True
     assert command.annotations.openWorldHint is True
 
+    write = tools["write_file"]
+    assert write.annotations is not None
+    assert write.annotations.readOnlyHint is None
+    assert write.annotations.destructiveHint is True
+    assert write.annotations.openWorldHint is None
+
 
 async def test_bundle_server_serves_via_inprocess_client():
     from fastmcp import Client
@@ -164,6 +195,7 @@ async def test_bundle_server_serves_via_inprocess_client():
         "list_files",
         "find_files",
         "read_file",
+        "write_file",
         "grep",
         "download_file",
         "run_command",
