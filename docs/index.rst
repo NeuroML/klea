@@ -173,6 +173,7 @@ from the NeuroML community (see `all-contributors
    install
    tutorials/index
    concepts/index
+   components/index
    cookbook/index
    cli/index
    glossary
