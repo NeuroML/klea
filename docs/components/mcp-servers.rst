@@ -105,10 +105,10 @@ Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, list_files, read_file, download_file, run_command (each also has its scope + functional tags)
+   bundled  web_fetch, list_files, find_files, read_file, grep, download_file, run_command (each also has its scope + functional tags)
 
    Web scope:   web_fetch (bundled), download_file (bundled, download)
-   Local scope: list_files / read_file (bundled, files),
+   Local scope: list_files / find_files / read_file / grep (bundled, files),
                 run_command (bundled, code),
                 run_python_code / run_lems_simulation (neuroml, code),
                 create_new_NeuroML_model (neuroml)
@@ -134,11 +134,23 @@ environment variable is set.  This catches accidental root deployments
 (containers default to root); third-party MCP servers are not covered and run
 with whatever privileges they are given.
 
+``grep`` and ``find_files`` search file contents and file paths and are
+marked read-only, so they are available under both access levels.  When the
+optional ``search`` extra is installed (a pinned ripgrep binary built by
+Astral and installed as ``rg``), they use it; otherwise they fall back to an
+in-house walker.  The ripgrep backend honours ``.gitignore`` inside a git
+repository by default; a tool call can pass ``include_ignored: true`` to
+search gitignored files too.  The in-house fallback has no ``.gitignore``
+support, so it searches those files regardless.  Both backends skip
+version-control internals and tool caches (``.git``, ``.venv``,
+``node_modules``, ``__pycache__``, ...) and never follow symlinks out of the
+project.
+
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Klea ships a set of common tools (web fetch, file list/read, download)
-as a shared MCP server in ``klea_utils.mcp.server``.  Applications
+Klea ships a set of common tools (web fetch, file list/read/search,
+download) as a shared MCP server in ``klea_utils.mcp.server``.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP
 via the ``klea-mcp`` CLI for remote deployments.

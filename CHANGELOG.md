@@ -13,6 +13,7 @@
 - General `run_command` bundled tool: shell command execution (full-mode only, destructive) so environment and coding tasks are answerable via the agent's task path; the timeout ceiling is configurable via `KLEA_RUN_COMMAND_MAX_TIMEOUT` (ADR-0038).
 - Klea-authored MCP tools refuse to run when the server process is root (uid 0) unless `KLEA_ALLOW_ROOT_TOOLS` is set, with a startup warning; this covers the bundled and NeuroML servers (ADR-0038).
 - Per-call wall-clock backstop for tool calls (default 900 s, `KLEA_TOOL_CALL_TIMEOUT`; `0` disables) so a hung tool returns a non-halting error instead of stalling the graph.
+- Bundled read-only `grep` (regex content search) and `find_files` (path glob) tools; they use a pinned ripgrep binary when the new optional `search` extra (`astral-dev-toolchain-ripgrep`) is installed, otherwise an in-house walker. Both skip VCS/cache directories and symlinks, and the ripgrep backend honours `.gitignore` in a git repository unless the call passes `include_ignored: true`.
 
 ### Changed
 

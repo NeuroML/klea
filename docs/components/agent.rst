@@ -67,9 +67,11 @@ Tool access
 
 The agent defaults to the ``full`` tool access level, and the level can be
 changed per chat in the web UI's status pane.  Under ``read_only`` only
-tools annotated read-only are offered.  See :doc:`mcp-servers` for the
-access model and its sandboxing caveats; environment and coding requests
-are answerable in full mode through the bundled ``run_command`` tool.
+tools annotated read-only are offered, so file listing, reading and search
+(``grep`` / ``find_files``) stay available while destructive tools such as
+``run_command`` do not.  See :doc:`mcp-servers` for the access model and its
+sandboxing caveats; environment and coding requests are answerable in full
+mode through the bundled ``run_command`` tool.
 
 Status
 ------

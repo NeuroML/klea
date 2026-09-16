@@ -56,6 +56,9 @@ klea-utils extras
    * - ``nicegui``
      - ``nicegui``
      - NiceGUI web UI frontend
+   * - ``search``
+     - ``astral-dev-toolchain-ripgrep``
+     - Pinned ripgrep binary for the read-only ``grep`` / ``find_files`` tools (falls back to an in-house walker without it)
    * - ``full``
      - All of the above except ``anthropic``
      - All optional extras (vector stores + inference providers + frontends); Anthropic stays opt-in
