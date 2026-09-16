@@ -80,6 +80,7 @@ def read_file(
     limit: int | None = 2000,
     max_chars: int = 100_000,
     max_bytes: int = _DEFAULT_MAX_BYTES,
+    line_numbers: bool = True,
     project_root: str | None = None,
 ) -> dict[str, Any]:
     """Read a file and return a slice of its text content.
@@ -102,6 +103,9 @@ def read_file(
         line slice.
     :param max_bytes: Maximum file size in bytes to read; larger files are
         refused with an error.
+    :param line_numbers: Prefix each returned line with its line number
+        (default).  Set ``False`` to return the raw line text, e.g. to copy
+        a span into an edit tool's ``old_string``.
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
     :returns: dict with path, content, line_start, line_end, total_lines,
@@ -114,6 +118,7 @@ def read_file(
         f"{limit = }\n"
         f"{max_chars = }\n"
         f"{max_bytes = }\n"
+        f"{line_numbers = }\n"
         f"{project_root = }"
     )
 
@@ -215,11 +220,14 @@ def read_file(
     end = None if limit is None else start + limit
     sliced = lines[start:end]
 
-    numbered = [
-        f"{line_no}: {line}"
-        for line_no, line in zip(range(start + 1, start + len(sliced) + 1), sliced)
-    ]
-    content = "\n".join(numbered)
+    if line_numbers:
+        rendered = [
+            f"{line_no}: {line}"
+            for line_no, line in zip(range(start + 1, start + len(sliced) + 1), sliced)
+        ]
+    else:
+        rendered = sliced
+    content = "\n".join(rendered)
 
     line_start = start + 1
     line_end = start + len(sliced)

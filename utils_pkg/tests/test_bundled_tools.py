@@ -762,6 +762,19 @@ def test_read_file_paging(tmp_path):
     assert result["truncated"] is False
 
 
+def test_read_file_raw_no_line_numbers(tmp_path):
+    f = _write_lines(tmp_path, "t.txt", 5)
+    result = read_file(
+        str(f), offset=2, limit=2, line_numbers=False, project_root=str(tmp_path)
+    )
+    logger.debug(f"{result = }")
+    assert result["content"] == "line 2\nline 3"
+    assert result["line_start"] == 2
+    assert result["line_end"] == 3
+    assert result["total_lines"] == 5
+    assert result["error"] == ""
+
+
 def test_read_file_offset_past_eof(tmp_path):
     f = _write_lines(tmp_path, "t.txt", 3)
     result = read_file(str(f), offset=50, limit=5, project_root=str(tmp_path))

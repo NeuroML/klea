@@ -263,6 +263,15 @@ async def read_file(
         int,
         Field(description="Hard cap on characters of content to return", ge=1),
     ] = 100_000,
+    line_numbers: Annotated[
+        bool,
+        Field(
+            description=(
+                "Prefix each returned line with its line number (default true). "
+                "Set false to get raw line text, e.g. to copy into an edit"
+            )
+        ),
+    ] = True,
 ) -> ToolResult:
     """Read a file and return a slice of its text content.
 
@@ -285,6 +294,8 @@ async def read_file(
         offset: 1-indexed line to start reading from.
         limit: Maximum number of lines to return. None reads to the end.
         max_chars: Hard cap on characters of content to return.
+        line_numbers: Prefix each line with its line number; set false for raw
+            text to copy into an edit.
 
     Returns:
         Dictionary with content, line range, total_lines, truncated, error.
@@ -294,6 +305,7 @@ async def read_file(
         offset=offset,
         limit=limit,
         max_chars=max_chars,
+        line_numbers=line_numbers,
     )
     return to_result(result)
 
