@@ -249,7 +249,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -314,7 +313,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_llm_output_content</span><span class="p">,</span> <span class="n">prompt_value_to_messages</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span> <span class="n">filter_tools_info</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallsSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeStreamData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLLMNode</span>
@@ -322,7 +320,7 @@
 
 <div class="viewcode-block" id="ToolsPicker">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.tools_picker.ToolsPicker">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ToolsPicker</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">ToolCallsSchema</span><span class="p">]):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ToolsPicker</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">"""Node that selects MCP tools for the current step or query.</span>
 
 <span class="sd">    Shared by Klea Agent and Klea RAG.  The two applications differ only in</span>
@@ -392,31 +390,22 @@
 
 <span class="sd">        When the state carries ``query_domains`` (RAG), descriptions are</span>
 <span class="sd">        filtered to those domains; otherwise all tools are included (agent).</span>
-<span class="sd">        Tools the state's ``access_level`` does not permit are always excluded</span>
-<span class="sd">        (ADR-0037), so a disallowed tool is never disclosed to the model.</span>
 
 <span class="sd">        :param state: Current graph state.</span>
 <span class="sd">        :returns: Descriptions joined into one block, or ``""`` when none.</span>
 <span class="sd">        """</span>
-        <span class="n">access_level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">)</span>
-        <span class="n">tools_info</span> <span class="o">=</span> <span class="n">filter_tools_info</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_tools_info</span><span class="p">,</span> <span class="n">access_level</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-            <span class="sa">f</span><span class="s2">"disclosed_tools = "</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">domain</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">tools_info</span><span class="o">.</span><span class="n">values</span><span class="p">()</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">domain</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
-        <span class="p">)</span>
         <span class="n">domains</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"query_domains"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">domains</span><span class="p">:</span>
             <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
             <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">domains</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">tools_info</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">d</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tools_info</span><span class="p">:</span>
                     <span class="n">parts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
-                        <span class="n">info</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s2">""</span> <span class="k">for</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">tools_info</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+                        <span class="n">info</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s2">""</span> <span class="k">for</span> <span class="n">info</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tools_info</span><span class="p">[</span><span class="n">d</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
                     <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="n">info</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s2">""</span>
-                <span class="k">for</span> <span class="n">domain_tools</span> <span class="ow">in</span> <span class="n">tools_info</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+                <span class="k">for</span> <span class="n">domain_tools</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tools_info</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
                 <span class="k">for</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">domain_tools</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
             <span class="p">]</span>
         <span class="k">return</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
@@ -451,10 +440,8 @@
             <span class="n">variables</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">tool_results</span>
         <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">current_step</span><span class="p">()</span>
-            <span class="n">variables</span><span class="p">[</span><span class="s2">"current_step"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="n">current</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">current</span> <span class="k">else</span> <span class="s2">"(no plan)"</span>
-            <span class="p">)</span>
+            <span class="n">current_step_index</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">current_step_index</span>
+            <span class="n">variables</span><span class="p">[</span><span class="s2">"current_step"</span><span class="p">]</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">step_list</span><span class="p">[</span><span class="n">current_step_index</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">variables</span>
 
     <span class="nd">@override</span>

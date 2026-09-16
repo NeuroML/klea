@@ -249,7 +249,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -392,10 +391,8 @@
     <span class="n">fetch_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">model_config_dialog</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1"># App-defined content rendered inside the (refreshable) status pane,</span>
-    <span class="c1"># e.g. operating-mode or tool-access selectors (ADR-0030,</span>
-    <span class="c1"># ADR-0037).  Each app UI appends its own render callable; the status</span>
-    <span class="c1"># pane calls them in registration order.</span>
-    <span class="n">status_extras</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="c1"># e.g. an operating-mode selector/badge (ADR-0030).</span>
+    <span class="n">status_extra</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span></div>
 
 </pre></div>

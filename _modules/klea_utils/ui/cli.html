@@ -249,7 +249,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -387,7 +386,6 @@
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">single_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -417,7 +415,7 @@
                     <span class="n">url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
                     <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
                     <span class="n">single_query</span><span class="o">=</span><span class="n">single_query</span><span class="p">,</span>
-                    <span class="n">app_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
+                    <span class="n">app_prefix</span><span class="o">=</span><span class="s2">"klea"</span><span class="p">,</span>
                     <span class="n">app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="p">)</span>
@@ -512,7 +510,6 @@
     <span class="n">server_url_default</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -543,8 +540,6 @@
 <span class="sd">        talks to (e.g. ``"klea_rag.api.main:app"``)</span>
 <span class="sd">    :param tui_app_name: Log identity for the terminal client (e.g.</span>
 <span class="sd">        ``"klea-rag-tui"``)</span>
-<span class="sd">    :param tui_prefix: Prompt label prefix for the terminal client (e.g.</span>
-<span class="sd">        ``"klea-rag"``)</span>
 <span class="sd">    :param web_app_name: Log identity for the web client (e.g.</span>
 <span class="sd">        ``"klea-rag-web"``)</span>
 <span class="sd">    :param web_entry: Module string of the app's NiceGUI entry point</span>
@@ -610,7 +605,6 @@
             <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
             <span class="n">single_query</span><span class="o">=</span><span class="n">single_query</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span>
             <span class="n">tui_app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
-            <span class="n">tui_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
             <span class="n">app_module</span><span class="o">=</span><span class="n">app_module</span><span class="p">,</span>
             <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">,</span>
             <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
