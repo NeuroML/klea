@@ -300,25 +300,65 @@
           <section id="welcome-to-klea">
 <h1>Welcome to Klea<a class="headerlink" href="#welcome-to-klea" title="Link to this heading">¶</a></h1>
 <p>Knowledge vaLidated Expert AI Assistant for scientific research.</p>
+<p>Grounded, citation-backed answers over your own research sources.</p>
 <p>Klea is a suite of AI tools for scientific research: a general-purpose
 research agent, a generic RAG pipeline, and MCP servers for modelling and
 analysis.</p>
 <section id="why-klea">
 <h2>Why Klea<a class="headerlink" href="#why-klea" title="Link to this heading">¶</a></h2>
-<p>Klea is a general-purpose research agent for the research lifecycle,
-including literature review, hypothesis generation, planning, coding,
-pipeline execution, and analysis.  Because capabilities are supplied by MCP
-tools and domain-configurable knowledge stores rather than hard-coded, the
-same agent extends to new research tasks as tools are added.</p>
-<p>Klea enforces groundedness: answers are drawn from retrieved sources and
-checked by an evaluation loop, and each response records its provenance
-(the documents and tools it drew on) so researchers can inspect and verify
-the generated output.  When a query cannot be grounded in the available
-sources, Klea flags the fallback rather than presenting it as confident
-fact.</p>
+<p>Klea is a research assistant that grounds its answers in your own sources.
+Queries are answered from domain-configurable knowledge stores (documents,
+papers, databases) rather than the model’s memory alone: answers are checked
+by an evaluation loop, cite the documents they drew on, and record their
+provenance so researchers can inspect and verify the output.  When a query
+cannot be grounded in the available sources, Klea flags the fallback rather
+than presenting it as confident fact.</p>
+<p>On top of that grounded retrieval core sits a general-purpose research agent
+for the research lifecycle – literature review, hypothesis generation,
+planning, coding, pipeline execution, and analysis.  Because capabilities
+are supplied by MCP tools and domain-configurable knowledge stores rather
+than hard-coded, the same assistant extends to new research tasks as tools
+are added.  That focus on grounded, cited answers is what sets Klea apart
+from general-purpose chat and coding assistants.</p>
 <p><strong>Status:</strong> the RAG pipeline (<code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_utils</span></code>) is ready to use
 today.  The agent (<code class="docutils literal notranslate"><span class="pre">klea_agent</span></code>) is under active development, with an
 initial release planned.</p>
+</section>
+<section id="features">
+<h2>Features<a class="headerlink" href="#features" title="Link to this heading">¶</a></h2>
+<p><strong>Retrieval (RAG)</strong></p>
+<ul class="simple">
+<li><p>Multi-domain knowledge stores with automatic query classification and routing</p></li>
+<li><p>Grounded answers – retrieval plus an evaluation loop, with every response
+recording the sources and tools it drew on</p></li>
+<li><p>Hybrid retrieval combining dense vector search and BM25 keyword search, fused
+with Reciprocal Rank Fusion and a recency tiebreaker</p></li>
+<li><p>Pluggable vector stores: Chroma, Qdrant, and PGVector</p></li>
+<li><p>Document ingestion via Docling with OCR, automatic bibliographic metadata
+extraction (DOI resolution through Crossref, OpenAlex, and Semantic Scholar),
+and domain-scoped metadata filters</p></li>
+</ul>
+<p><strong>Agent (work in progress)</strong></p>
+<ul class="simple">
+<li><p>General-purpose research agent for literature review, hypothesis generation,
+planning, coding, pipeline execution, and analysis</p></li>
+<li><p>General and Scientific operating modes, with chat-versus-task routing and a
+planner – Scientific mode awaits a curated knowledge source</p></li>
+<li><p>A human plan-review step, currently auto-approved; interactive pause/resume
+is pending</p></li>
+<li><p>Capabilities supplied by MCP tools rather than hard-coded, so the agent
+extends as tools are added</p></li>
+<li><p>Tool access levels (<code class="docutils literal notranslate"><span class="pre">read_only</span></code> / <code class="docutils literal notranslate"><span class="pre">full</span></code>) and sandboxed command execution
+with a wall-clock backstop</p></li>
+</ul>
+<p><strong>Interfaces and models</strong></p>
+<ul class="simple">
+<li><p>CLI, FastAPI server, NiceGUI web UI, Streamlit, and TUI</p></li>
+<li><p>Bring-your-own LLM: OpenAI-compatible, Anthropic, HuggingFace, and custom
+endpoints, with runtime model switching and prompt caching</p></li>
+<li><p>NeuroML MCP tools: model validation, OSB and NeuroML-DB lookups, web search,
+and sandboxed code execution</p></li>
+</ul>
 </section>
 <section id="quickstart">
 <h2>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading">¶</a></h2>
@@ -464,6 +504,7 @@ from the NeuroML community (see <a class="reference external" href="https://gith
             <ul>
 <li><a class="reference internal" href="#">Welcome to Klea</a><ul>
 <li><a class="reference internal" href="#why-klea">Why Klea</a></li>
+<li><a class="reference internal" href="#features">Features</a></li>
 <li><a class="reference internal" href="#quickstart">Quickstart</a></li>
 <li><a class="reference internal" href="#prototype-deployments">Prototype Deployments</a></li>
 <li><a class="reference internal" href="#architecture">Architecture</a></li>

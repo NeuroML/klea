@@ -3,6 +3,8 @@ Welcome to Klea
 
 Knowledge vaLidated Expert AI Assistant for scientific research.
 
+Grounded, citation-backed answers over your own research sources.
+
 Klea is a suite of AI tools for scientific research: a general-purpose
 research agent, a generic RAG pipeline, and MCP servers for modelling and
 analysis.
@@ -10,22 +12,61 @@ analysis.
 Why Klea
 --------
 
-Klea is a general-purpose research agent for the research lifecycle,
-including literature review, hypothesis generation, planning, coding,
-pipeline execution, and analysis.  Because capabilities are supplied by MCP
-tools and domain-configurable knowledge stores rather than hard-coded, the
-same agent extends to new research tasks as tools are added.
+Klea is a research assistant that grounds its answers in your own sources.
+Queries are answered from domain-configurable knowledge stores (documents,
+papers, databases) rather than the model's memory alone: answers are checked
+by an evaluation loop, cite the documents they drew on, and record their
+provenance so researchers can inspect and verify the output.  When a query
+cannot be grounded in the available sources, Klea flags the fallback rather
+than presenting it as confident fact.
 
-Klea enforces groundedness: answers are drawn from retrieved sources and
-checked by an evaluation loop, and each response records its provenance
-(the documents and tools it drew on) so researchers can inspect and verify
-the generated output.  When a query cannot be grounded in the available
-sources, Klea flags the fallback rather than presenting it as confident
-fact.
+On top of that grounded retrieval core sits a general-purpose research agent
+for the research lifecycle -- literature review, hypothesis generation,
+planning, coding, pipeline execution, and analysis.  Because capabilities
+are supplied by MCP tools and domain-configurable knowledge stores rather
+than hard-coded, the same assistant extends to new research tasks as tools
+are added.  That focus on grounded, cited answers is what sets Klea apart
+from general-purpose chat and coding assistants.
 
 **Status:** the RAG pipeline (``klea_rag`` / ``klea_utils``) is ready to use
 today.  The agent (``klea_agent``) is under active development, with an
 initial release planned.
+
+Features
+--------
+
+**Retrieval (RAG)**
+
+* Multi-domain knowledge stores with automatic query classification and routing
+* Grounded answers -- retrieval plus an evaluation loop, with every response
+  recording the sources and tools it drew on
+* Hybrid retrieval combining dense vector search and BM25 keyword search, fused
+  with Reciprocal Rank Fusion and a recency tiebreaker
+* Pluggable vector stores: Chroma, Qdrant, and PGVector
+* Document ingestion via Docling with OCR, automatic bibliographic metadata
+  extraction (DOI resolution through Crossref, OpenAlex, and Semantic Scholar),
+  and domain-scoped metadata filters
+
+**Agent (work in progress)**
+
+* General-purpose research agent for literature review, hypothesis generation,
+  planning, coding, pipeline execution, and analysis
+* General and Scientific operating modes, with chat-versus-task routing and a
+  planner -- Scientific mode awaits a curated knowledge source
+* A human plan-review step, currently auto-approved; interactive pause/resume
+  is pending
+* Capabilities supplied by MCP tools rather than hard-coded, so the agent
+  extends as tools are added
+* Tool access levels (``read_only`` / ``full``) and sandboxed command execution
+  with a wall-clock backstop
+
+**Interfaces and models**
+
+* CLI, FastAPI server, NiceGUI web UI, Streamlit, and TUI
+* Bring-your-own LLM: OpenAI-compatible, Anthropic, HuggingFace, and custom
+  endpoints, with runtime model switching and prompt caching
+* NeuroML MCP tools: model validation, OSB and NeuroML-DB lookups, web search,
+  and sandboxed code execution
 
 Quickstart
 ----------
