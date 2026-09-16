@@ -17,6 +17,7 @@ from pydantic import Field
 from klea_utils.mcp.registry import tool_meta
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.download_file import download_file as download_file_impl
+from klea_utils.mcp.tool_impls.find_files import find_files as find_files_impl
 from klea_utils.mcp.tool_impls.grep import grep as grep_impl
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
 from klea_utils.mcp.tool_impls.read_file import read_file as read_file_impl
@@ -123,11 +124,15 @@ async def list_files(
     specific files.
 
     Use when:
+
     - Discovering what files exist in the working directory.
     - Finding files by name, type, or location.
 
     Do not use for:
+
     - Reading a file's contents (use the read file tool instead).
+    - Finding a file anywhere under a directory tree by path pattern (use
+      the find files tool instead).
 
     Example: ``list_files(path=".", pattern="*.py", recursive=True)``
 
@@ -151,6 +156,82 @@ async def list_files(
         include_files=include_files,
         include_directories=include_directories,
         recursive=recursive,
+        max_results=max_results,
+    )
+    return to_result(result)
+
+
+@tool_meta(
+    ToolInfo(tags={BUNDLED_TAG, "local", "files"}, checkpaths=["path"], read_only=True)
+)
+async def find_files(
+    pattern: Annotated[
+        str,
+        Field(
+            description=(
+                "Glob pattern matched against file paths, e.g. '*.py' or "
+                "'**/*.py'. Use '*' to list every file"
+            ),
+            min_length=1,
+        ),
+    ] = "*",
+    path: Annotated[
+        str,
+        Field(
+            description=(
+                "Directory to search. Must be relative to the current working "
+                "directory and cannot contain '..' for security"
+            ),
+            min_length=1,
+        ),
+    ] = ".",
+    include_ignored: Annotated[
+        bool,
+        Field(
+            description=(
+                "Also list files ignored by .gitignore. Default false, which "
+                "skips ignored files (and skips .git/cache directories always)"
+            )
+        ),
+    ] = False,
+    max_results: Annotated[
+        int,
+        Field(description="Maximum number of file paths to return", ge=1, le=10000),
+    ] = 100,
+) -> ToolResult:
+    """Find files by path pattern anywhere under a directory.
+
+    Use this tool to locate files by name or extension when you do not know
+    where they are in the tree.  It returns file paths only, without
+    contents or directory entries.
+
+    Use when:
+
+    - Finding files by name or extension across a project tree.
+    - Discovering where a file lives before reading it.
+
+    Do not use for:
+
+    - Listing the contents of a specific directory, including its
+      subdirectories (use the list files tool instead).
+    - Searching inside file contents (use the grep tool instead).
+
+    Example: ``find_files(pattern="**/*.py")``
+
+    Args:
+        pattern: Glob pattern matched against file paths; ``"*"`` lists all.
+        path: Directory to search, relative to the project directory.
+        include_ignored: Also list .gitignore-ignored files.
+        max_results: Maximum number of file paths to return.
+
+    Returns:
+        Dictionary with files (paths relative to the search directory),
+        truncated, error.
+    """
+    result = await find_files_impl(
+        pattern=pattern,
+        path=path,
+        include_ignored=include_ignored,
         max_results=max_results,
     )
     return to_result(result)
