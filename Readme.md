@@ -5,7 +5,7 @@ Knowledge vaLidated Expert AI Assistant for scientific research.
 Grounded, citation-backed answers over your own research sources.
 
 [![GitHub CI](https://github.com/NeuroML/klea/actions/workflows/ci.yml/badge.svg)](https://github.com/NeuroML/klea/actions/workflows/ci.yml)
-[![GitHub](https://img.shields.io/github/license/NeuroML/klea)](https://github.com/NeuroML/klea/blob/main/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![GitHub pull requests](https://img.shields.io/github/issues-pr/NeuroML/klea)](https://github.com/NeuroML/klea/pulls)
 [![GitHub issues](https://img.shields.io/github/issues/NeuroML/klea)](https://github.com/NeuroML/klea/issues)
 [![GitHub Org's stars](https://img.shields.io/github/stars/NeuroML?style=social)](https://github.com/NeuroML)
@@ -133,3 +133,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+## License
+
+Klea is released under the MIT License. See [LICENSE](LICENSE) for the full
+text. Copyright (c) 2025 The Klea authors.

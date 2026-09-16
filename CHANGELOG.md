@@ -20,6 +20,7 @@
 - `anthropic_api_key` and `huggingfacehub_api_token` are masked in log output.
 - Tool dispatch takes the per-tool `ToolInfo` (path metadata plus the read-only/destructive capability) instead of a raw metadata map.
 - RAG graphs run with `read_only` access: destructive tools are never offered or dispatched.
+- The project is now released under the MIT License (previously GPL-3.0-or-later); license text, package metadata, and docs were updated.
 
 ### Fixed
 
