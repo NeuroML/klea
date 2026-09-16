@@ -62,7 +62,7 @@ Check in order: (1) ``default_k`` / ``k_max`` too low, (2)
 ``max_refs_size`` truncating, (3) store ``name``/``path`` mismatch above,
 (4) source files not in a Docling-supported format, (5) hybrid retrieval
 not enabled where exact symbols matter (add a ``bm25_stores`` entry and
-merge results with RRF -- see :doc:`concepts/rag`).  Use
+merge results with RRF -- see :doc:`components/rag`).  Use
 ``_source_scores`` (vector cosine in ``[0, 1]`` vs BM25 raw score) and
 ``rerank_by_recency`` recency bias only as a tie-breaker.
 
@@ -75,7 +75,7 @@ only when that domain declares those fields (``value_type`` ``string``
 vs ``list`` matters).  A declared field only works when the underlying
 stores actually carry that metadata key; see the metadata enrichment notes
 in :doc:`tutorials/create-and-use-rag` and the extraction cascade in
-:doc:`concepts/rag`.  Person-name fields match partial names via
+:doc:`components/rag`.  Person-name fields match partial names via
 per-word variants (``Ankur Sinha`` matches ``Sinha``).
 
 Models and servers
@@ -155,7 +155,7 @@ year/filename mismatches, and whether top-level keys are actual source
 filenames.  A source file with no map entry is fatal (the full report
 is printed then the command exits non-zero); a map keyed by heading
 titles is flagged as stale.  Metadata map keys support heading-chain
-inheritance (full chain, suffix, ancestor) -- see :doc:`concepts/rag`.
+inheritance (full chain, suffix, ancestor) -- see :doc:`components/rag`.
 
 After storing, run ``store-lint <corpus.pkl>`` (printed for BM25
 automatically) to check for near-empty chunks, missing bibliographic
@@ -193,6 +193,6 @@ See also
 
 * :doc:`tutorials/create-and-use-rag` -- build, configure, query walkthrough
 * :doc:`install` -- dependency extras, model naming, :ref:`logging` table
-* :doc:`concepts/rag` -- pipeline, hybrid retrieval, metadata cascade
+* :doc:`components/rag` -- pipeline, hybrid retrieval, metadata cascade
 * :doc:`cli/klea-stores-create` -- full ingestion CLI reference
 * :doc:`cookbook/huggingface` -- Docker deploy specifics

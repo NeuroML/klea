@@ -425,7 +425,7 @@ Once the basic pipeline works, here are natural next steps:
    in ``<source_dir>/.klea-cache/``; copy it out to review.  Each file's
    ``DEFAULT`` entry is pre-filled automatically with bibliographic
    metadata (title, authors, keywords, DOI, URL) where it could be
-   extracted -- see :doc:`../concepts/rag` for the extraction cascade.
+   extracted -- see :doc:`../components/rag` for the extraction cascade.
    Review and correct the values (check the ``_metadata_complete`` flag),
    then ``klea-stores-create store --metadata-map <file>``.  See
    ``klea-stores-create --help`` for examples.  The reviewed map file may
@@ -486,7 +486,7 @@ Once the basic pipeline works, here are natural next steps:
    ``klea-stores-create store --bm25-store /path/to/corpus.pkl`` and add a
    ``bm25_stores`` entry to the domain config.  Retrieval then fuses
    semantic and lexical matches with Reciprocal Rank Fusion, which helps
-   with exact names, symbols, and terminology.  See :doc:`../concepts/rag`
+   with exact names, symbols, and terminology.  See :doc:`../components/rag`
    for details.
 
 Troubleshooting

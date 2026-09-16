@@ -1,7 +1,7 @@
 Deploying Klea RAG on HuggingFace Spaces
 ========================================
 
-Klea RAG is a :doc:`retrieval-augmented generation system <../concepts/rag>`
+Klea RAG is a :doc:`retrieval-augmented generation system <../components/rag>`
 that answers questions about your documents.  It can be deployed on `HuggingFace
 Spaces <https://huggingface.co/spaces>`_ using the ``sdk: docker``
 option, with everything needed (RAG pipeline, tool server, web interface)

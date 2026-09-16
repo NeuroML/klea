@@ -8,4 +8,8 @@ them, see :doc:`../concepts/index`.
 .. toctree::
    :maxdepth: 1
 
+   rag
+   mcp-servers
    web-ui
+   agent
+   utils

@@ -63,4 +63,4 @@ here as well.
 
    * :doc:`../tutorials/create-and-use-rag` -- build a RAG system and
      query it through this interface
-   * :doc:`../concepts/rag` -- the pipeline the inspect tab exposes
+   * :doc:`rag` -- the pipeline the inspect tab exposes
