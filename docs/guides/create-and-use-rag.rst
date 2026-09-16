@@ -1,7 +1,7 @@
 Create and use a RAG system
 ===========================
 
-This tutorial walks through the full lifecycle of a Klea RAG system:
+This guide walks through the full lifecycle of a Klea RAG system:
 preparing documents, building a vector store, configuring the RAG
 pipeline, and querying it.
 
@@ -48,7 +48,7 @@ Prerequisites
      ollama pull llama-guard3:1b
      ollama pull bge-m3:latest
 
-  This tutorial uses Ollama for all inference (chat, guard, and
+  This guide uses Ollama for all inference (chat, guard, and
   embeddings).  Klea supports other providers too -- see
   :doc:`../install` for HuggingFace, OpenAI, Anthropic, and other
   LangChain-compatible options.
@@ -62,7 +62,7 @@ images, and more (see `Docling supported formats
 <https://docling-project.github.io/docling/usage/supported_formats/>`_
 for the full list).
 
-For this tutorial we will refer to this directory as
+Here we will refer to this directory as
 ``<folder-of-files>``.
 
 Deciding whether a PDF needs OCR

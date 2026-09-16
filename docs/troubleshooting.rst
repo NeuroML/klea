@@ -2,7 +2,7 @@ Troubleshooting
 ===============
 
 This page collects common pitfalls for Klea RAG.  It is linked from the
-tutorial, install guide, and HuggingFace cookbook so you can find it
+RAG guide, install guide, and deployment guide so you can find it
 from any entry point.  For log file locations see :ref:`logging` in
 :doc:`install`; for store-creation diagnostics see
 :doc:`cli/klea-stores-create`.
@@ -49,7 +49,7 @@ backends.
 
 ``k`` and ``k_max`` control how many candidates each store fetches, but
 the fused results are then truncated to the global ``max_refs_size``
-character budget (:doc:`tutorials/create-and-use-rag`).  If chunks are
+character budget (:doc:`guides/create-and-use-rag`).  If chunks are
 small and many are needed, raising ``k`` helps only while budget
 remains.  Increase ``max_refs_size`` or reduce per-chunk tokens.
 
@@ -74,7 +74,7 @@ may produce ``{authors: "Sinha", year: {"$gte": 2020, "$lte": 2025}}``
 only when that domain declares those fields (``value_type`` ``string``
 vs ``list`` matters).  A declared field only works when the underlying
 stores actually carry that metadata key; see the metadata enrichment notes
-in :doc:`tutorials/create-and-use-rag` and the extraction cascade in
+in :doc:`guides/create-and-use-rag` and the extraction cascade in
 :doc:`components/rag`.  Person-name fields match partial names via
 per-word variants (``Ankur Sinha`` matches ``Sinha``).
 
@@ -191,8 +191,8 @@ HuggingFace Spaces
 See also
 --------
 
-* :doc:`tutorials/create-and-use-rag` -- build, configure, query walkthrough
+* :doc:`guides/create-and-use-rag` -- build, configure, query walkthrough
 * :doc:`install` -- dependency extras, model naming, :ref:`logging` table
 * :doc:`components/rag` -- pipeline, hybrid retrieval, metadata cascade
 * :doc:`cli/klea-stores-create` -- full ingestion CLI reference
-* :doc:`cookbook/huggingface` -- Docker deploy specifics
+* :doc:`guides/huggingface` -- Docker deploy specifics

@@ -37,8 +37,8 @@ streamable HTTP MCP endpoint:
        }
    }
 
-See :doc:`../tutorials/create-and-use-rag` for a full example and the
-:doc:`../cookbook/huggingface` cookbook for a deployed setup.
+See :doc:`../guides/create-and-use-rag` for a full example and the
+:doc:`../guides/huggingface` guide for a deployed setup.
 
 Adding your own MCP servers
 ---------------------------
