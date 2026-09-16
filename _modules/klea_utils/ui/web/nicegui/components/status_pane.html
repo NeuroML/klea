@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -344,14 +345,26 @@
 
         <span class="nd">@ui</span><span class="o">.</span><span class="n">refreshable</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">_status_pane</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">            </span><span class="sd">"""Render chat name, model info and state sections for the active chat."""</span>
-            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
-                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No chat found for </span><span class="si">%s</span><span class="s2">, status pane empty"</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>
-                <span class="k">return</span>
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-0"</span><span class="p">):</span>
-                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center w-full gap-0"</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">"""Render context controls, then chat state for the active chat.</span>
+
+<span class="sd">            The app-defined context controls (mode/access) render even before a</span>
+<span class="sd">            chat exists, so they can be set before the first message; they</span>
+<span class="sd">            attach to the chat once it is created.</span>
+<span class="sd">            """</span>
+            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-0 p-2"</span><span class="p">):</span>
+                <span class="c1"># App-defined context slots (e.g. operating-mode and</span>
+                <span class="c1"># tool-access selectors, ADR-0030/ADR-0037).  Rendered</span>
+                <span class="c1"># inside the refreshable pane, so they update on pane refresh.</span>
+                <span class="k">for</span> <span class="n">render</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">status_extras</span><span class="p">:</span>
+                    <span class="n">render</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="p">:</span>
+                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center mt-12"</span><span class="p">):</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                            <span class="s2">"State updates will appear here once you send a message"</span>
+                        <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xl text-grey-5 text-center"</span><span class="p">)</span>
+                    <span class="k">return</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center w-full gap-0 pt-2 pb-1"</span><span class="p">):</span>
                     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
                         <span class="s2">"text-sm font-bold mb-0"</span>
                     <span class="p">):</span>
@@ -369,16 +382,10 @@
                             <span class="n">icon</span><span class="o">=</span><span class="s2">"settings"</span><span class="p">,</span>
                             <span class="n">on_click</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span><span class="p">,</span>
                         <span class="p">)</span>
-                        <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round color=grey-9"</span><span class="p">)</span>
-                        <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
+                        <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round"</span><span class="p">)</span>
+                        <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm icon-btn"</span><span class="p">)</span>
                     <span class="p">):</span>
                         <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Choose models"</span><span class="p">)</span>
-
-                <span class="c1"># App-defined content slot (e.g. an operating-mode</span>
-                <span class="c1"># selector/badge, ADR-0030).  Rendered inside the</span>
-                <span class="c1"># refreshable pane, so it updates on pane refresh.</span>
-                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">status_extra</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">ctx</span><span class="o">.</span><span class="n">status_extra</span><span class="p">()</span>
 
                 <span class="n">model_info</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
                 <span class="k">if</span> <span class="n">model_info</span><span class="p">:</span>
@@ -430,7 +437,7 @@
             <span class="n">has_content</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">model_info</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">bool</span><span class="p">(</span><span class="n">sections</span><span class="p">)</span> <span class="ow">or</span> <span class="n">has_token_usage</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">has_content</span><span class="p">:</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"State updates will appear here"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                    <span class="s2">"text-sm text-gray-500"</span>
+                    <span class="s2">"text-sm text-grey-5"</span>
                 <span class="p">)</span>
                 <span class="k">return</span>
             <span class="k">if</span> <span class="n">sections</span><span class="p">:</span>

@@ -250,6 +250,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
@@ -548,7 +549,7 @@ bytes; <code class="docutils literal notranslate"><span class="pre">None</span><
 <span class="sig-name descname"><span class="pre">chunk_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_mem_limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">4294967296</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">worker_batch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/ingestion.html#StoresBuilder.chunk_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.ingestion.StoresBuilder.chunk_all" title="Link to this definition">¶</a></dt>
 <dd><p>Convert, chunk, and cache all files in memory-bounded workers.</p>
 <p>Uncached files are converted in short-lived subprocess workers
-(<code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.stores.chunk_worker</span></code>) so Docling’s
+(<a class="reference internal" href="#module-klea_utils.stores.chunk_worker" title="klea_utils.stores.chunk_worker"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.stores.chunk_worker</span></code></a>) so Docling’s
 per-conversion memory leak is reclaimed on worker exit; cache
 hits are handled in-process.  The chunks live in the on-disk
 cache – they are never accumulated in this process – so the run
@@ -651,6 +652,396 @@ written into its cache folder)</p></li>
 </dl>
 </dd></dl>
 
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.stores.precheck">
+<span id="ingestion-pre-checks"></span><h2>Ingestion pre-checks<a class="headerlink" href="#module-klea_utils.stores.precheck" title="Link to this heading">¶</a></h2>
+<p>Pre-check source directories to decide whether OCR is needed per PDF.</p>
+<p>File: klea_utils/stores/precheck.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">IMAGE_PAGE_CHAR_THRESHOLD</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">50</span></span><a class="headerlink" href="#klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD" title="Link to this definition">¶</a></dt>
+<dd><p>A page whose extracted text has fewer than this many non-whitespace
+characters is treated as an image page (a scan or a figure-only page).
+Text-based PDFs easily produce thousands of characters per page, while
+a scanned page yields near-zero (just embedded text stamps/watermarks).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.IMAGE_PAGE_FRACTION">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">IMAGE_PAGE_FRACTION</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></span><a class="headerlink" href="#klea_utils.stores.precheck.IMAGE_PAGE_FRACTION" title="Link to this definition">¶</a></dt>
+<dd><p>A PDF is classified as needing OCR when at least this fraction of its
+pages are image pages.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.NO_OCR_DIR_NAME">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">NO_OCR_DIR_NAME</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'no-ocr'</span></span><a class="headerlink" href="#klea_utils.stores.precheck.NO_OCR_DIR_NAME" title="Link to this definition">¶</a></dt>
+<dd><p>Output directory for text-based PDFs (and all non-PDF files).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.NO_PAGES_NEEDS_OCR">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">NO_PAGES_NEEDS_OCR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">True</span></span><a class="headerlink" href="#klea_utils.stores.precheck.NO_PAGES_NEEDS_OCR" title="Link to this definition">¶</a></dt>
+<dd><p>A PDF with no readable pages (e.g. zero pages) is conservatively
+classified as needing OCR – it is almost always a bad scan, and the
+safe default is to OCR it rather than silently store empty chunks.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.OCR_DIR_NAME">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">OCR_DIR_NAME</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'ocr'</span></span><a class="headerlink" href="#klea_utils.stores.precheck.OCR_DIR_NAME" title="Link to this definition">¶</a></dt>
+<dd><p>Output directory for scanned/image PDFs (OCR required).</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.PageStats">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">PageStats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">image_pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">total_chars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#PageStats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.PageStats" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Per-PDF page text statistics for the pre-check report.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.PageStats.image_pages">
+<span class="sig-name descname"><span class="pre">image_pages</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></span><a class="headerlink" href="#klea_utils.stores.precheck.PageStats.image_pages" title="Link to this definition">¶</a></dt>
+<dd><p>Number of pages that fell below <a class="reference internal" href="#klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD" title="klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD"><code class="xref py py-data docutils literal notranslate"><span class="pre">IMAGE_PAGE_CHAR_THRESHOLD</span></code></a>.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.PageStats.pages">
+<span class="sig-name descname"><span class="pre">pages</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></span><a class="headerlink" href="#klea_utils.stores.precheck.PageStats.pages" title="Link to this definition">¶</a></dt>
+<dd><p>Number of pages read from the PDF.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.PageStats.total_chars">
+<span class="sig-name descname"><span class="pre">total_chars</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></span><a class="headerlink" href="#klea_utils.stores.precheck.PageStats.total_chars" title="Link to this definition">¶</a></dt>
+<dd><p>Total non-whitespace characters extracted across all pages.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.PdfClassification">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">PdfClassification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">needs_ocr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stats</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.stores.precheck.PageStats" title="klea_utils.stores.precheck.PageStats"><span class="pre">PageStats</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#PdfClassification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.PdfClassification" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The OCR decision and statistics for a single PDF.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.classify_directory">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">classify_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><span class="pre">PdfClassification</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#classify_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.classify_directory" title="Link to this definition">¶</a></dt>
+<dd><p>Classify every PDF under <em>source_dir</em>.</p>
+<p>Recursively walks <code class="docutils literal notranslate"><span class="pre">**/*.pdf</span></code>, skipping the chunk cache and the
+<code class="docutils literal notranslate"><span class="pre">ocr</span></code>/<code class="docutils literal notranslate"><span class="pre">no-ocr</span></code> organise output directories (generated artifacts,
+not source documents – see <code class="xref py py-data docutils literal notranslate"><span class="pre">_SKIP_DIR_NAMES</span></code>).</p>
+<p>Logs progress at <code class="docutils literal notranslate"><span class="pre">INFO</span></code> roughly every 10% of PDFs (every file for
+small corpora) so a long pre-check does not sit silently before the
+final report prints.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>source_dir</strong> – Directory to walk recursively</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Mapping of PDF path to its <a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><code class="xref py py-class docutils literal notranslate"><span class="pre">PdfClassification</span></code></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.classify_pdf">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">classify_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><span class="pre">PdfClassification</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#classify_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.classify_pdf" title="Link to this definition">¶</a></dt>
+<dd><p>Decide whether a PDF needs OCR, based on its embedded text layer.</p>
+<p>Reads the PDF with pypdfium2 (already a Docling dependency) and counts
+non-whitespace characters per page.  A page under
+<a class="reference internal" href="#klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD" title="klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD"><code class="xref py py-data docutils literal notranslate"><span class="pre">IMAGE_PAGE_CHAR_THRESHOLD</span></code></a> characters is an image page; a PDF
+with at least <a class="reference internal" href="#klea_utils.stores.precheck.IMAGE_PAGE_FRACTION" title="klea_utils.stores.precheck.IMAGE_PAGE_FRACTION"><code class="xref py py-data docutils literal notranslate"><span class="pre">IMAGE_PAGE_FRACTION</span></code></a> image pages needs OCR.
+Text-based (born-digital) PDFs carry a full text layer and classify as
+no-OCR; scanned/image PDFs have almost none and classify as needs-OCR.</p>
+<p>A PDF that cannot be read (missing, corrupt, or pypdfium2 unavailable)
+is conservatively classified as needing OCR.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>path</strong> – Path to the PDF file</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><code class="xref py py-class docutils literal notranslate"><span class="pre">PdfClassification</span></code></a> with the decision and stats</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.format_precheck_report">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">format_precheck_report</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">classifications</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><span class="pre">PdfClassification</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#format_precheck_report"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.format_precheck_report" title="Link to this definition">¶</a></dt>
+<dd><p>Render a <a class="reference internal" href="#klea_utils.stores.precheck.classify_directory" title="klea_utils.stores.precheck.classify_directory"><code class="xref py py-func docutils literal notranslate"><span class="pre">classify_directory()</span></code></a> result as compact text.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>classifications</strong> – Mapping from <a class="reference internal" href="#klea_utils.stores.precheck.classify_directory" title="klea_utils.stores.precheck.classify_directory"><code class="xref py py-func docutils literal notranslate"><span class="pre">classify_directory()</span></code></a></p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Multi-line summary of the classification outcome</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.precheck.organise_directory">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.precheck.</span></span><span class="sig-name descname"><span class="pre">organise_directory</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">classifications</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification" title="klea_utils.stores.precheck.PdfClassification"><span class="pre">PdfClassification</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/precheck.html#organise_directory"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.precheck.organise_directory" title="Link to this definition">¶</a></dt>
+<dd><p>Copy classified files into <code class="docutils literal notranslate"><span class="pre">ocr/</span></code> and <code class="docutils literal notranslate"><span class="pre">no-ocr/</span></code> subdirectories.</p>
+<p>Copies (never moves) files so the researcher’s original bibliography
+directory is left untouched.  Scanned/image PDFs go to <code class="docutils literal notranslate"><span class="pre">ocr/</span></code>;
+text-based PDFs go to <code class="docutils literal notranslate"><span class="pre">no-ocr/</span></code>.  Non-PDF files (which never need
+OCR) are also copied to <code class="docutils literal notranslate"><span class="pre">no-ocr/</span></code> so a single <code class="docutils literal notranslate"><span class="pre">chunk</span> <span class="pre">no-ocr/</span></code> pass
+ingests them alongside the text PDFs.</p>
+<p>Re-running is idempotent: existing output directories are reused and
+files are overwritten, and <a class="reference internal" href="#klea_utils.stores.precheck.classify_directory" title="klea_utils.stores.precheck.classify_directory"><code class="xref py py-func docutils literal notranslate"><span class="pre">classify_directory()</span></code></a> skips the output
+dirs so copies are never re-classified.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source_dir</strong> – Directory containing the source documents</p></li>
+<li><p><strong>classifications</strong> – Optional precomputed classifications (from
+<a class="reference internal" href="#klea_utils.stores.precheck.classify_directory" title="klea_utils.stores.precheck.classify_directory"><code class="xref py py-func docutils literal notranslate"><span class="pre">classify_directory()</span></code></a>); computed if not given</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(ocr_dir,</span> <span class="pre">no_ocr_dir)</span></code> the two output directory paths</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.stores.postcheck">
+<span id="ingestion-post-checks"></span><h2>Ingestion post-checks<a class="headerlink" href="#module-klea_utils.stores.postcheck" title="Link to this heading">¶</a></h2>
+<p>LLM-free linting of a stored BM25/vector corpus (post-store check).</p>
+<p>File: klea_utils/stores/postcheck.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.MAX_LISTED">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">MAX_LISTED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20</span></span><a class="headerlink" href="#klea_utils.stores.postcheck.MAX_LISTED" title="Link to this definition">¶</a></dt>
+<dd><p>How many short chunks / missing-metadata files to list before truncating
+the report (the rest are counted in the summary line).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.MIN_CHUNK_CHARS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">MIN_CHUNK_CHARS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20</span></span><a class="headerlink" href="#klea_utils.stores.postcheck.MIN_CHUNK_CHARS" title="Link to this definition">¶</a></dt>
+<dd><p>A chunk whose <code class="docutils literal notranslate"><span class="pre">page_content</span></code> has fewer than this many characters is
+flagged as suspicious – typically a failed conversion or an OCR miss
+on a scanned PDF.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.PER_ANCHOR_SAMPLES">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">PER_ANCHOR_SAMPLES</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></span><a class="headerlink" href="#klea_utils.stores.postcheck.PER_ANCHOR_SAMPLES" title="Link to this definition">¶</a></dt>
+<dd><p>Contiguous chunks shown at each sampling location.  The user reviews a
+small run of consecutive chunks per location rather than one isolated
+chunk, to check that chunking stays coherent across boundaries.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.REQUIRED_METADATA_KEYS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">REQUIRED_METADATA_KEYS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('file_name',</span> <span class="pre">'title',</span> <span class="pre">'year',</span> <span class="pre">'doi')</span></span><a class="headerlink" href="#klea_utils.stores.postcheck.REQUIRED_METADATA_KEYS" title="Link to this definition">¶</a></dt>
+<dd><p>Metadata keys that, when absent from a chunk, suggest the file’s
+DEFAULT entry did not apply or extraction failed.  <code class="docutils literal notranslate"><span class="pre">file_name</span></code> is
+machine-set so its presence is expected; the others come from the map.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.SAMPLE_TEXT_WIDTH">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">SAMPLE_TEXT_WIDTH</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">200</span></span><a class="headerlink" href="#klea_utils.stores.postcheck.SAMPLE_TEXT_WIDTH" title="Link to this definition">¶</a></dt>
+<dd><p>Maximum characters of <code class="docutils literal notranslate"><span class="pre">page_content</span></code> shown per sample chunk.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.format_chunk_sample">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">format_chunk_sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">doc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">langchain_core.documents.Document</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">width</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">200</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/postcheck.html#format_chunk_sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.postcheck.format_chunk_sample" title="Link to this definition">¶</a></dt>
+<dd><p>Render one chunk for human review: truncated text + metadata line.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>doc</strong> – A stored chunk document</p></li>
+<li><p><strong>width</strong> – Maximum characters of <code class="docutils literal notranslate"><span class="pre">page_content</span></code> to show</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Multi-line sample text</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.format_store_lint_report">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">format_store_lint_report</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">report</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">langchain_core.documents.Document</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/postcheck.html#format_store_lint_report"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.postcheck.format_store_lint_report" title="Link to this definition">¶</a></dt>
+<dd><p>Render a <a class="reference internal" href="#klea_utils.stores.postcheck.lint_store" title="klea_utils.stores.postcheck.lint_store"><code class="xref py py-func docutils literal notranslate"><span class="pre">lint_store()</span></code></a> report as compact text.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>report</strong> – Report dict from <a class="reference internal" href="#klea_utils.stores.postcheck.lint_store" title="klea_utils.stores.postcheck.lint_store"><code class="xref py py-func docutils literal notranslate"><span class="pre">lint_store()</span></code></a></p></li>
+<li><p><strong>samples</strong> – List of sample windows (each a list of
+<code class="xref py py-class docutils literal notranslate"><span class="pre">Document</span></code>) to print, from <a class="reference internal" href="#klea_utils.stores.postcheck.select_sample_windows" title="klea_utils.stores.postcheck.select_sample_windows"><code class="xref py py-func docutils literal notranslate"><span class="pre">select_sample_windows()</span></code></a></p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Multi-line report, including the given sample windows</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.lint_store">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">lint_store</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">docs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">langchain_core.documents.Document</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/postcheck.html#lint_store"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.postcheck.lint_store" title="Link to this definition">¶</a></dt>
+<dd><p>Return a structured report of issues in a stored chunk corpus.</p>
+<p>Runs only deterministic checks (no LLM): a corpus summary, suspicious
+chunks (near-empty text, missing bibliographic metadata), and
+structural problems (chunks without a <code class="docutils literal notranslate"><span class="pre">file_name</span></code>, invalid types).
+<em>docs</em> is the unpickled BM25 corpus (a list of
+<code class="xref py py-class docutils literal notranslate"><span class="pre">langchain_core.documents.Document</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>docs</strong> – List of stored chunk documents</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A dict with <code class="docutils literal notranslate"><span class="pre">total</span></code>, <code class="docutils literal notranslate"><span class="pre">files</span></code>, <code class="docutils literal notranslate"><span class="pre">chunks_per_file</span></code>,
+<code class="docutils literal notranslate"><span class="pre">total_chars</span></code>, <code class="docutils literal notranslate"><span class="pre">empty</span></code> (list of <code class="docutils literal notranslate"><span class="pre">(file_name,</span> <span class="pre">chars)</span></code>),
+<code class="docutils literal notranslate"><span class="pre">missing_metadata</span></code> (<code class="docutils literal notranslate"><span class="pre">{file_name:</span> <span class="pre">[missing</span> <span class="pre">keys]}</span></code>),
+<code class="docutils literal notranslate"><span class="pre">no_file_name</span></code> (count of chunks lacking <code class="docutils literal notranslate"><span class="pre">file_name</span></code>),
+<code class="docutils literal notranslate"><span class="pre">invalid_content</span></code> (count of non-string <code class="docutils literal notranslate"><span class="pre">page_content</span></code>), and
+<code class="docutils literal notranslate"><span class="pre">invalid_year</span></code> (count of non-int <code class="docutils literal notranslate"><span class="pre">year</span></code>)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.postcheck.select_sample_windows">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.postcheck.</span></span><span class="sig-name descname"><span class="pre">select_sample_windows</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">docs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">langchain_core.documents.Document</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">anchors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">per_anchor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><span class="pre">langchain_core.documents.Document</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/postcheck.html#select_sample_windows"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.postcheck.select_sample_windows" title="Link to this definition">¶</a></dt>
+<dd><p>Pick <code class="docutils literal notranslate"><span class="pre">anchors</span></code> evenly-spaced windows of contiguous chunks to review.</p>
+<p>Each window is <code class="docutils literal notranslate"><span class="pre">per_anchor</span></code> consecutive chunks starting at an anchor
+position, so the user sees a small coherent run at several different
+places in the corpus (early/middle/late) rather than the first few
+chunks.  Anchor starts are evenly spaced across the whole corpus and
+avoid the very first/last chunk, giving roughly 25% / 50% / 75% for
+three anchors.</p>
+<p>For a corpus smaller than one window, a single window of the whole
+corpus is returned.  The selection is deterministic – no RNG – so
+re-runs show the same samples for easy comparison.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>docs</strong> – List of stored chunk documents</p></li>
+<li><p><strong>anchors</strong> – Number of sampling locations (<code class="docutils literal notranslate"><span class="pre">--samples</span></code>)</p></li>
+<li><p><strong>per_anchor</strong> – Contiguous chunks to show at each location</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of windows (each a list of <code class="xref py py-class docutils literal notranslate"><span class="pre">Document</span></code>); empty
+when <code class="docutils literal notranslate"><span class="pre">anchors</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> or the corpus is empty</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.stores.chunk_worker">
+<span id="chunk-workers"></span><h2>Chunk workers<a class="headerlink" href="#module-klea_utils.stores.chunk_worker" title="Link to this heading">¶</a></h2>
+<p>Subprocess chunking workers – isolate Docling’s per-conversion memory leak</p>
+<p>File: klea_utils/stores/chunk_worker.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.chunk_worker.ChunkItemResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.chunk_worker.</span></span><span class="sig-name descname"><span class="pre">ChunkItemResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_hash</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_headings_entry</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/chunk_worker.html#ChunkItemResult"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.chunk_worker.ChunkItemResult" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Outcome of converting one file inside a worker.</p>
+<p><code class="docutils literal notranslate"><span class="pre">status</span></code> is one of:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ok</span></code> – converted and cached; <em>file_headings_entry</em> holds the
+file’s metadata-map template entry</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">zero_chunks</span></code> – converted but produced no chunks (scanned PDF)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">failed</span></code> – conversion raised; <em>error</em> has the message</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">deferred</span></code> – not processed because the worker hit its RSS cap;
+<em>file_path</em> lets the parent re-dispatch it to a fresh worker</p></li>
+</ul>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.chunk_worker.ChunkWorkerConfig">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.chunk_worker.</span></span><span class="sig-name descname"><span class="pre">ChunkWorkerConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_tokens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">tokenizer_model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">do_ocr</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mem_limit_bytes</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/chunk_worker.html#ChunkWorkerConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.chunk_worker.ChunkWorkerConfig" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Picklable configuration handed to one conversion worker batch.</p>
+<p>The parent’s <code class="xref py py-class docutils literal notranslate"><span class="pre">StoresBuilder</span></code> is not picklable (it holds the
+Docling converter, chunker, resolver, etc.), so the worker rebuilds
+its own from these plain fields.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.chunk_worker.convert_batch_worker">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.chunk_worker.</span></span><span class="sig-name descname"><span class="pre">convert_batch_worker</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkWorkerConfig" title="klea_utils.stores.chunk_worker.ChunkWorkerConfig"><span class="pre">ChunkWorkerConfig</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">items</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">queue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkItemResult" title="klea_utils.stores.chunk_worker.ChunkItemResult"><span class="pre">ChunkItemResult</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/chunk_worker.html#convert_batch_worker"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.chunk_worker.convert_batch_worker" title="Link to this definition">¶</a></dt>
+<dd><p>Convert and cache <em>items</em> in this process, one per result.</p>
+<p>Runs in a spawned child for real chunking (with <em>queue</em> and
+<em>current_file</em> for observability), or directly in the parent under
+tests (<code class="docutils literal notranslate"><span class="pre">queue</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code> and results are returned).  Rebuilds
+its own <code class="xref py py-class docutils literal notranslate"><span class="pre">StoresBuilder</span></code>, so Docling’s per-conversion memory
+leak (unreclaimable in-process; see docling-project/docling#2788) is
+confined to this process and reclaimed by the OS when it exits.</p>
+<p>Before each file, if the process RSS exceeds <em>config.mem_limit_bytes</em>
+the remaining items are returned as <code class="docutils literal notranslate"><span class="pre">deferred</span></code> (the parent re-runs
+them in a fresh worker).  On platforms where RSS is unavailable the
+cap is skipped and the parent’s fixed batch size bounds the worker
+instead.</p>
+<p>When <em>queue</em> is given (spawned worker), each <a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkItemResult" title="klea_utils.stores.chunk_worker.ChunkItemResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">ChunkItemResult</span></code></a>
+is put on the queue incrementally so the parent can log progress and,
+on worker death, knows which file was being processed via
+<em>current_file</em> and which results were already completed.  In that
+mode this function returns <code class="docutils literal notranslate"><span class="pre">None</span></code>.  Without a queue it returns the
+list – this path exists only for unit tests (in-process direct
+calls) so they stay simple and hermetic.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>config</strong> – Worker configuration</p></li>
+<li><p><strong>items</strong> – <code class="docutils literal notranslate"><span class="pre">(absolute_file_path,</span> <span class="pre">file_hash)</span></code> tuples to process</p></li>
+<li><p><strong>queue</strong> – Queue for incremental puts (spawned worker) or
+<code class="docutils literal notranslate"><span class="pre">None</span></code> (in-process unit tests only)</p></li>
+<li><p><strong>current_file</strong> – Shared <code class="docutils literal notranslate"><span class="pre">Value</span></code> for the file currently being
+processed, or <code class="docutils literal notranslate"><span class="pre">None</span></code> (unit tests omit it)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of results when <code class="docutils literal notranslate"><span class="pre">queue</span></code> is <code class="docutils literal notranslate"><span class="pre">None</span></code> (tests), else
+<code class="docutils literal notranslate"><span class="pre">None</span></code> (spawned worker)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.chunk_worker.dispatch_conversion_batches">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.chunk_worker.</span></span><span class="sig-name descname"><span class="pre">dispatch_conversion_batches</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">parent_logger</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Logger" title="(in Python v3.14)"><span class="pre">Logger</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkWorkerConfig" title="klea_utils.stores.chunk_worker.ChunkWorkerConfig"><span class="pre">ChunkWorkerConfig</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">items</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">batch_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkItemResult" title="klea_utils.stores.chunk_worker.ChunkItemResult"><span class="pre">ChunkItemResult</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/chunk_worker.html#dispatch_conversion_batches"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.chunk_worker.dispatch_conversion_batches" title="Link to this definition">¶</a></dt>
+<dd><p>Convert <em>items</em> by spawning a fresh worker process per batch.</p>
+<p>A fresh process per batch is deliberate: Docling leaks memory per
+conversion that cannot be freed in-process, so each worker’s leak is
+reclaimed when it exits.  A worker stops at whichever comes first –
+its RSS cap (<code class="docutils literal notranslate"><span class="pre">config.mem_limit_bytes</span></code>) or <em>batch_size</em> – marking
+the unprocessed tail <code class="docutils literal notranslate"><span class="pre">deferred</span></code>; the parent re-dispatches those to
+a fresh worker.  On platforms where RSS is unavailable only
+<em>batch_size</em> bounds a worker.  A worker that dies without returning
+results (e.g. OOM-killed) has its whole batch marked <code class="docutils literal notranslate"><span class="pre">failed</span></code> and
+the run continues – those files are simply re-converted on a later
+run.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>parent_logger</strong> – Logger for dispatch progress/errors</p></li>
+<li><p><strong>config</strong> – Worker configuration</p></li>
+<li><p><strong>items</strong> – <code class="docutils literal notranslate"><span class="pre">(absolute_file_path,</span> <span class="pre">file_hash)</span></code> items to convert</p></li>
+<li><p><strong>batch_size</strong> – Max items handed to any single worker</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Flattened <a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkItemResult" title="klea_utils.stores.chunk_worker.ChunkItemResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">ChunkItemResult</span></code></a> for every item</p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -1830,6 +2221,44 @@ budget</p>
 <li><a class="reference internal" href="#klea_utils.stores.ingestion.StoresBuilder.write_heading_template"><code class="docutils literal notranslate"><span class="pre">StoresBuilder.write_heading_template()</span></code></a></li>
 </ul>
 </li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.stores.precheck">Ingestion pre-checks</a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.IMAGE_PAGE_CHAR_THRESHOLD"><code class="docutils literal notranslate"><span class="pre">IMAGE_PAGE_CHAR_THRESHOLD</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.IMAGE_PAGE_FRACTION"><code class="docutils literal notranslate"><span class="pre">IMAGE_PAGE_FRACTION</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.NO_OCR_DIR_NAME"><code class="docutils literal notranslate"><span class="pre">NO_OCR_DIR_NAME</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.NO_PAGES_NEEDS_OCR"><code class="docutils literal notranslate"><span class="pre">NO_PAGES_NEEDS_OCR</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.OCR_DIR_NAME"><code class="docutils literal notranslate"><span class="pre">OCR_DIR_NAME</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.PageStats"><code class="docutils literal notranslate"><span class="pre">PageStats</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.PageStats.image_pages"><code class="docutils literal notranslate"><span class="pre">PageStats.image_pages</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.PageStats.pages"><code class="docutils literal notranslate"><span class="pre">PageStats.pages</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.PageStats.total_chars"><code class="docutils literal notranslate"><span class="pre">PageStats.total_chars</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.PdfClassification"><code class="docutils literal notranslate"><span class="pre">PdfClassification</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.classify_directory"><code class="docutils literal notranslate"><span class="pre">classify_directory()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.classify_pdf"><code class="docutils literal notranslate"><span class="pre">classify_pdf()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.format_precheck_report"><code class="docutils literal notranslate"><span class="pre">format_precheck_report()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.precheck.organise_directory"><code class="docutils literal notranslate"><span class="pre">organise_directory()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.stores.postcheck">Ingestion post-checks</a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.MAX_LISTED"><code class="docutils literal notranslate"><span class="pre">MAX_LISTED</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.MIN_CHUNK_CHARS"><code class="docutils literal notranslate"><span class="pre">MIN_CHUNK_CHARS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.PER_ANCHOR_SAMPLES"><code class="docutils literal notranslate"><span class="pre">PER_ANCHOR_SAMPLES</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.REQUIRED_METADATA_KEYS"><code class="docutils literal notranslate"><span class="pre">REQUIRED_METADATA_KEYS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.SAMPLE_TEXT_WIDTH"><code class="docutils literal notranslate"><span class="pre">SAMPLE_TEXT_WIDTH</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.format_chunk_sample"><code class="docutils literal notranslate"><span class="pre">format_chunk_sample()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.format_store_lint_report"><code class="docutils literal notranslate"><span class="pre">format_store_lint_report()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.lint_store"><code class="docutils literal notranslate"><span class="pre">lint_store()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.postcheck.select_sample_windows"><code class="docutils literal notranslate"><span class="pre">select_sample_windows()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.stores.chunk_worker">Chunk workers</a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkItemResult"><code class="docutils literal notranslate"><span class="pre">ChunkItemResult</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.chunk_worker.ChunkWorkerConfig"><code class="docutils literal notranslate"><span class="pre">ChunkWorkerConfig</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.chunk_worker.convert_batch_worker"><code class="docutils literal notranslate"><span class="pre">convert_batch_worker()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.chunk_worker.dispatch_conversion_batches"><code class="docutils literal notranslate"><span class="pre">dispatch_conversion_batches()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.stores.map_lint">Metadata map linting</a><ul>

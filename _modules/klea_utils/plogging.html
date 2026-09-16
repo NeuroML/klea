@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/errors.html">Error types</a></li>
@@ -516,6 +517,14 @@
 
 
 
+<span class="c1">#: Default keys whose values are masked in logs by :func:`mask_sensitive`.</span>
+<span class="c1">#: Covers the generic ``api_key`` plus the provider-specific field names Klea</span>
+<span class="c1">#: may copy it into (Anthropic, HuggingFace).</span>
+<span class="n">DEFAULT_SENSITIVE_KEYS</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"api_key"</span><span class="p">,</span> <span class="s2">"anthropic_api_key"</span><span class="p">,</span> <span class="s2">"huggingfacehub_api_token"</span><span class="p">}</span>
+<span class="p">)</span>
+
+
 <div class="viewcode-block" id="mask_sensitive">
 <a class="viewcode-back" href="../../api/utils/plogging.html#klea_utils.plogging.mask_sensitive">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">mask_sensitive</span><span class="p">(</span>
@@ -531,10 +540,10 @@
 
 <span class="sd">    :param data: The dict to sanitize.</span>
 <span class="sd">    :param sensitive_keys: Keys whose values should be masked.</span>
-<span class="sd">        Defaults to ``{"api_key"}``.</span>
+<span class="sd">        Defaults to :data:`DEFAULT_SENSITIVE_KEYS`.</span>
 <span class="sd">    :returns: New dict with masked values.</span>
 <span class="sd">    """</span>
-    <span class="n">keys</span> <span class="o">=</span> <span class="n">sensitive_keys</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"api_key"</span><span class="p">}</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">sensitive_keys</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">(</span><span class="n">DEFAULT_SENSITIVE_KEYS</span><span class="p">)</span>
     <span class="n">safe</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>

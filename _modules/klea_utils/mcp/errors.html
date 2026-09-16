@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -321,6 +322,18 @@
 
 <span class="sd">    Carries a user-facing message that tools report through their ``error``</span>
 <span class="sd">    result field.</span>
+<span class="sd">    """</span></div>
+
+
+
+<div class="viewcode-block" id="FileEditError">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.errors.FileEditError">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">FileEditError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Raised when a file cannot be read or written by the editing tools.</span>
+
+<span class="sd">    Carries a user-facing message that the write/edit tool implementations</span>
+<span class="sd">    report through their ``error`` result field (e.g. a missing file, a</span>
+<span class="sd">    binary or non-UTF-8 file, or an atomic-write failure).</span>
 <span class="sd">    """</span></div>
 
 </pre></div>

@@ -250,6 +250,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -400,10 +401,11 @@ external URLs / web APIs).</p></li>
 <p>Every tool also carries the <code class="docutils literal notranslate"><span class="pre">bundled</span></code> tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 <code class="docutils literal notranslate"><span class="pre">include_tags:</span> <span class="pre">[&quot;bundled&quot;]</span></code>.  Specific current assignments:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">download_file</span><span class="p">,</span> <span class="n">run_command</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">find_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">grep</span><span class="p">,</span> <span class="n">write_file</span><span class="p">,</span> <span class="n">edit_file</span><span class="p">,</span> <span class="n">download_file</span><span class="p">,</span> <span class="n">run_command</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
 
 <span class="n">Web</span> <span class="n">scope</span><span class="p">:</span>   <span class="n">web_fetch</span> <span class="p">(</span><span class="n">bundled</span><span class="p">),</span> <span class="n">download_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">download</span><span class="p">)</span>
-<span class="n">Local</span> <span class="n">scope</span><span class="p">:</span> <span class="n">list_files</span> <span class="o">/</span> <span class="n">read_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">),</span>
+<span class="n">Local</span> <span class="n">scope</span><span class="p">:</span> <span class="n">list_files</span> <span class="o">/</span> <span class="n">find_files</span> <span class="o">/</span> <span class="n">read_file</span> <span class="o">/</span> <span class="n">grep</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">),</span>
+             <span class="n">write_file</span> <span class="o">/</span> <span class="n">edit_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">destructive</span><span class="p">),</span>
              <span class="n">run_command</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">code</span><span class="p">),</span>
              <span class="n">run_python_code</span> <span class="o">/</span> <span class="n">run_lems_simulation</span> <span class="p">(</span><span class="n">neuroml</span><span class="p">,</span> <span class="n">code</span><span class="p">),</span>
              <span class="n">create_new_NeuroML_model</span> <span class="p">(</span><span class="n">neuroml</span><span class="p">)</span>
@@ -427,11 +429,33 @@ process has root privileges (uid 0), unless the <code class="docutils literal no
 environment variable is set.  This catches accidental root deployments
 (containers default to root); third-party MCP servers are not covered and run
 with whatever privileges they are given.</p>
+<p><code class="docutils literal notranslate"><span class="pre">grep</span></code> and <code class="docutils literal notranslate"><span class="pre">find_files</span></code> search file contents and file paths and are
+marked read-only, so they are available under both access levels.  When the
+optional <code class="docutils literal notranslate"><span class="pre">search</span></code> extra is installed (a pinned ripgrep binary built by
+Astral and installed as <code class="docutils literal notranslate"><span class="pre">rg</span></code>), they use it; otherwise they fall back to an
+in-house walker.  The ripgrep backend honours <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code> inside a git
+repository by default; a tool call can pass <code class="docutils literal notranslate"><span class="pre">include_ignored:</span> <span class="pre">true</span></code> to
+search gitignored files too.  The in-house fallback has no <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code>
+support, so it searches those files regardless.  Both backends skip
+version-control internals and tool caches (<code class="docutils literal notranslate"><span class="pre">.git</span></code>, <code class="docutils literal notranslate"><span class="pre">.venv</span></code>,
+<code class="docutils literal notranslate"><span class="pre">node_modules</span></code>, <code class="docutils literal notranslate"><span class="pre">__pycache__</span></code>, …) and never follow symlinks out of the
+project.</p>
+<p><code class="docutils literal notranslate"><span class="pre">write_file</span></code> and <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> modify files and are therefore marked
+<code class="docutils literal notranslate"><span class="pre">destructive</span></code>: like <code class="docutils literal notranslate"><span class="pre">run_command</span></code> they are full-mode only, and never
+offered or run under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>.  <code class="docutils literal notranslate"><span class="pre">write_file</span></code> creates a file or
+replaces a whole file (creating parent directories); <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> replaces an
+exact span of an existing file, requiring the match to be unique unless
+<code class="docutils literal notranslate"><span class="pre">replace_all</span></code> is set.  When an exact match fails, <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> tries a
+bounded replacer chain (line-trimmed, block-anchor, whitespace-normalised,
+indentation-flexible, context-aware) before refusing, and reports which
+matcher fired.  Both tools write atomically and preserve the file’s mode,
+line endings and BOM; <code class="docutils literal notranslate"><span class="pre">read_file</span></code> accepts <code class="docutils literal notranslate"><span class="pre">line_numbers:</span> <span class="pre">false</span></code> to return
+raw text suitable for an <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> <code class="docutils literal notranslate"><span class="pre">old_string</span></code>.  See ADR-0039.</p>
 </section>
 <section id="the-bundled-tools-server">
 <h3>The bundled tools server<a class="headerlink" href="#the-bundled-tools-server" title="Link to this heading">¶</a></h3>
-<p>Klea ships a set of common tools (web fetch, file list/read, download)
-as a shared MCP server in <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.server</span></code>.  Applications
+<p>Klea ships a set of common tools (web fetch, file list/read/search/edit,
+download) as a shared MCP server in <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.server</span></code>.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP
 via the <code class="docutils literal notranslate"><span class="pre">klea-mcp</span></code> CLI for remote deployments.</p>

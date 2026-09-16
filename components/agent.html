@@ -250,6 +250,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -369,9 +370,13 @@ within the model’s context window.</p>
 <h2>Tool access<a class="headerlink" href="#tool-access" title="Link to this heading">¶</a></h2>
 <p>The agent defaults to the <code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level, and the level can be
 changed per chat in the web UI’s status pane.  Under <code class="docutils literal notranslate"><span class="pre">read_only</span></code> only
-tools annotated read-only are offered.  See <a class="reference internal" href="mcp-servers.html"><span class="doc">MCP servers</span></a> for the
-access model and its sandboxing caveats; environment and coding requests
-are answerable in full mode through the bundled <code class="docutils literal notranslate"><span class="pre">run_command</span></code> tool.</p>
+tools annotated read-only are offered, so file listing, reading and search
+(<code class="docutils literal notranslate"><span class="pre">read_file</span></code> / <code class="docutils literal notranslate"><span class="pre">grep</span></code> / <code class="docutils literal notranslate"><span class="pre">find_files</span></code>) stay available while destructive
+tools such as <code class="docutils literal notranslate"><span class="pre">run_command</span></code> and the file editors (<code class="docutils literal notranslate"><span class="pre">write_file</span></code> /
+<code class="docutils literal notranslate"><span class="pre">edit_file</span></code>) do not.  See <a class="reference internal" href="mcp-servers.html"><span class="doc">MCP servers</span></a> for the access model and its
+sandboxing caveats; environment and coding requests are answerable in full
+mode through the bundled <code class="docutils literal notranslate"><span class="pre">run_command</span></code>, <code class="docutils literal notranslate"><span class="pre">write_file</span></code> and <code class="docutils literal notranslate"><span class="pre">edit_file</span></code>
+tools.</p>
 </section>
 <section id="status">
 <h2>Status<a class="headerlink" href="#status" title="Link to this heading">¶</a></h2>
