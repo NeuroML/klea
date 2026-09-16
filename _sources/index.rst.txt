@@ -71,10 +71,10 @@ Features
 Quickstart
 ----------
 
-New to Klea? Start with installation and the end-to-end RAG tutorial:
+New to Klea? Start with installation and the end-to-end RAG guide:
 
 * :doc:`install` -- install Klea (PyPI or from source, with optional extras)
-* :doc:`tutorials/create-and-use-rag` -- build your first vector store, configure a domain, and query it
+* :doc:`guides/create-and-use-rag` -- build your first vector store, configure a domain, and query it
 
 Prototype Deployments
 ---------------------
@@ -91,51 +91,11 @@ They are not production deployments.
 Architecture
 ------------
 
-The project is organised as a monorepo with four installable packages:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Directory
-     - Package
-     - CLI
-     - Purpose
-   * - ``utils_pkg``
-     - ``klea_utils``
-     - ``klea-stores-create``
-     - Shared utilities, vector store management, base graph classes
-   * - ``rag_pkg``
-     - ``klea_rag``
-     - ``klea-rag``, ``klea-rag-serve``
-     - Generic RAG pipeline with multi-domain support
-   * - ``agent_pkg``
-     - ``klea_agent``
-     - ``klea``, ``klea-serve``
-     - General-purpose research agent (coding, workflows, analysis, hypotheses)
-   * - ``mcp_pkg``
-     - ``neuroml_mcp``
-     - ``nml-mcp``
-     - MCP server for NeuroML tooling
-
-Each package is built on a shared foundation in ``klea_utils``, which
-provides configurable LLM setup (with runtime model switching), vector
-store abstraction (Chroma / PGVector / Qdrant), and the
-:class:`~klea_utils.graph.base.BaseLangGraph` orchestrator framework.
-Web interfaces are available via NiceGUI (primary) and Streamlit.
-
-``klea_agent`` is the main application: a general-purpose research agent
-with General and Scientific operating modes.  ``klea_rag`` is an additional
-component, primarily consumed by ``klea_agent`` as a retrieval/RAG service.
-
-C4 architecture model
----------------------
-
-Klea is developed as a general-purpose RAG + agentic assistant for
-scientific research and is not tied to any single domain.  The neuroscience
-support comes from the domain-specific ``nml-mcp`` server and the curated
-NeuroML vector stores.  The full C4 model (system context, containers,
-components, deployment) is maintained as developer documentation: see
-:doc:`developer-info`.
+Klea is a monorepo of four installable packages: ``klea_utils`` (the shared
+framework), ``klea_rag`` (the RAG pipeline), ``klea_agent`` (the research
+agent), and ``neuroml_mcp`` (the NeuroML MCP server).  See
+:doc:`components/index` for what each component does and how they fit
+together.
 
 Funding
 -------
@@ -171,9 +131,9 @@ from the NeuroML community (see `all-contributors
    :hidden:
 
    install
-   tutorials/index
    concepts/index
-   cookbook/index
+   components/index
+   guides/index
    cli/index
    glossary
    troubleshooting
@@ -184,6 +144,7 @@ from the NeuroML community (see `all-contributors
 
    contributing
    developer-info
+   developer-guides/index
    api/index
 
 .. toctree::

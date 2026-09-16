@@ -1,0 +1,662 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="API Reference" href="../api/index.html"><link rel="prev" title="Developer guides" href="index.html">
+
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+        <title>Writing MCP tools - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  
+  <span class="sidebar-brand-text">Klea</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" checked="" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/api.html">API</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-tui.html">UI — TUI / REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../code-of-conduct.html">Code of Conduct</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/blob/development/docs/developer-guides/writing-mcp-tools.rst?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/edit/development/docs/developer-guides/writing-mcp-tools.rst" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="writing-mcp-tools">
+<h1>Writing MCP tools<a class="headerlink" href="#writing-mcp-tools" title="Link to this heading">¶</a></h1>
+<p>This guide covers how Klea expects MCP tools to be written: the
+<em>docstring-first</em> description convention, the <code class="docutils literal notranslate"><span class="pre">isError</span></code> contract, and
+guidance on description length and style.  For configuring MCP servers in
+a deployment see <a class="reference internal" href="../components/mcp-servers.html"><span class="doc">MCP servers</span></a>; for the filesystem
+permission model see the MCP permissions notes in the development
+documentation.</p>
+<section id="docstring-first-convention">
+<h2>Docstring-first convention<a class="headerlink" href="#docstring-first-convention" title="Link to this heading">¶</a></h2>
+<p>Klea expects MCP tool functions to follow a <em>docstring-first</em> convention,
+so that the LLM-facing description stays concise and parameter details are
+available in the tool schema:</p>
+<ol class="arabic simple">
+<li><p><strong>Tool description</strong> – the opening text block of the function
+docstring (what the tool does, when to use / not use it, and one short
+example).  Keep this block focused; it is what the tool picker shows
+the LLM.</p></li>
+<li><p><strong>Parameters</strong> – describe each parameter in a Google-style <code class="docutils literal notranslate"><span class="pre">Args:</span></code>
+section.  fastmcp parses these into the tool’s input schema, and Klea
+renders them as compact one-line parameter entries (name, type,
+required flag, description).</p></li>
+<li><p><strong>Do not</strong> set the tool description to the raw full docstring.  Klea
+shows the opening text block as the description and the
+<code class="docutils literal notranslate"><span class="pre">Args:</span></code>-derived schema as the parameter list, so duplicating the
+<code class="docutils literal notranslate"><span class="pre">Args:</span></code>/<code class="docutils literal notranslate"><span class="pre">Returns:</span></code> prose in the description wastes prompt tokens.</p></li>
+<li><p><strong>Return value</strong> – framework-agnostic implementation helpers
+(<code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_impls.*</span></code>) return a plain <code class="docutils literal notranslate"><span class="pre">dict</span></code> that signals
+failure with a non-empty <code class="docutils literal notranslate"><span class="pre">error</span></code> field (or legacy <code class="docutils literal notranslate"><span class="pre">Error</span></code>).  Every
+<strong>FastMCP wrapper</strong> (functions decorated with <code class="docutils literal notranslate"><span class="pre">&#64;tool_meta</span></code>) must return
+<code class="docutils literal notranslate"><span class="pre">ToolResult</span></code> via <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_result.to_result</span></code> so the MCP
+<code class="docutils literal notranslate"><span class="pre">CallToolResult.isError</span></code> flag is set correctly while preserving the
+full <code class="docutils literal notranslate"><span class="pre">structured_content</span></code> for the LLM to repair.  Returning a bare
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> or <code class="docutils literal notranslate"><span class="pre">str</span></code> always yields <code class="docutils literal notranslate"><span class="pre">isError:</span> <span class="pre">false</span></code> (see
+<code class="docutils literal notranslate"><span class="pre">fastmcp/tools/base.py:convert_result</span></code>).</p></li>
+</ol>
+<p>Framework-agnostic implementation (not an MCP tool – reused in tests and
+direct Python calls):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># klea_utils/mcp/tool_impls/list_files.py -- plain dict, tested directly</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">list_files</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"*"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""List files with optional pattern filtering.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: Directory to list.</span>
+<span class="sd">        pattern: Glob pattern.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with matching files, truncated flag, and error string</span>
+<span class="sd">        (empty on success, non-empty on permission / not-found failure).</span>
+<span class="sd">    """</span>
+    <span class="o">...</span>
+</pre></div>
+</div>
+<p>FastMCP wrapper – the only form registered with <code class="docutils literal notranslate"><span class="pre">&#64;tool_meta</span></code> and exposed
+to clients (MCP spec <code class="docutils literal notranslate"><span class="pre">server/tools#Error</span> <span class="pre">Handling</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Context</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool_meta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_files</span> <span class="k">as</span> <span class="n">list_files_impl</span>
+
+<span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"List files and directories"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_files</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"*"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""List files and directories with filtering and metadata.</span>
+
+<span class="sd">    Use this tool to explore the local file system structure and find</span>
+<span class="sd">    specific files.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Discovering what files exist in the working directory.</span>
+<span class="sd">    - Finding files by name, type, or location.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading a file's contents (use the read file tool instead).</span>
+
+<span class="sd">    Example: list_files(path=".", pattern="*.py", recursive=True)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: Directory path to list.</span>
+<span class="sd">        pattern: Space separated file patterns to filter files by type.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ToolResult with structured_content dict (matching files, truncated</span>
+<span class="sd">        flag) and error field; isError is true exactly when error is</span>
+<span class="sd">        non-empty.  Preserve the dict shape so the LLM can remediate</span>
+<span class="sd">        (vs raising ToolError which would strip structured_content).</span>
+<span class="sd">    """</span>
+    <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="n">list_files_impl</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Example with web data (same pattern – <code class="docutils literal notranslate"><span class="pre">Error</span></code> is also honoured for legacy
+repository tools, see <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_result.to_result</span></code>):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"Find models on NeuroML-db"</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_models_from_neuromldb</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span> <span class="n">search_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">num</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span> <span class="n">download</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search and optionally download cell and ion channel models from</span>
+<span class="sd">    NeuroML-DB.</span>
+
+<span class="sd">    Use this tool when you need example cell or ion channel models, or</span>
+<span class="sd">    want to download models for local use.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Finding example cell and ion channel models.</span>
+<span class="sd">    - Downloading models for use in your project.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Creating or editing NeuroML models (use the model template tool</span>
+<span class="sd">      instead).</span>
+<span class="sd">    - Running simulations (use the simulation tools instead).</span>
+
+<span class="sd">    Example: get_models_from_neuromldb(search_query="cerebellum", download=True)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        search_query: search term for querying NeuroML-DB.</span>
+<span class="sd">        num: number of search results to get (clamped to 1-20).</span>
+<span class="sd">        download: set to true to also download the models.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ToolResult whose structured_content is the model dictionary (with</span>
+<span class="sd">        an error field on failure); isError is true exactly when that</span>
+<span class="sd">        error field is non-empty.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">search_query</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">return</span> <span class="n">to_result</span><span class="p">({</span><span class="s2">"Error"</span><span class="p">:</span> <span class="s2">"search_query must be a non-empty string"</span><span class="p">})</span>
+    <span class="n">models</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_search_neuromldb</span><span class="p">(</span><span class="n">search_query</span><span class="p">,</span> <span class="n">num</span><span class="p">,</span> <span class="n">download</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">models</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Tool functions are registered by the <code class="docutils literal notranslate"><span class="pre">&#64;tool_meta</span></code> decoration (see
+<code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.registry.register_tools</span></code>): any <code class="docutils literal notranslate"><span class="pre">&#64;tool_meta(ToolInfo(</span>
+<span class="pre">title=...,</span> <span class="pre">tags=...))</span></code>-decorated function in a registered module becomes
+a tool named after the function.  Helper functions without the decoration
+are ignored.  Validation constraints (e.g. <code class="docutils literal notranslate"><span class="pre">Field(min_length=1)</span></code>) may be
+added to parameter annotations and are preserved in the schema.</p>
+</section>
+<section id="error-handling-iserror">
+<h2>Error handling (isError)<a class="headerlink" href="#error-handling-iserror" title="Link to this heading">¶</a></h2>
+<p>The <a class="reference external" href="https://modelcontextprotocol.io/specification/2025-06-18/server/tools#Error%20Handling">MCP specification</a>
+distinguishes <em>protocol errors</em> (<code class="docutils literal notranslate"><span class="pre">error:</span> <span class="pre">{code,</span> <span class="pre">message}</span></code>) from <em>tool
+execution errors</em> (<code class="docutils literal notranslate"><span class="pre">result:</span> <span class="pre">{content:</span> <span class="pre">[TextContent(error)],</span> <span class="pre">isError:</span> <span class="pre">true}</span></code>
+for API failure / invalid input / business logic).  Klea’s
+<code class="docutils literal notranslate"><span class="pre">error</span></code>/<code class="docutils literal notranslate"><span class="pre">Error</span></code> field is the second category and <strong>must</strong> be
+<code class="docutils literal notranslate"><span class="pre">isError:</span> <span class="pre">true</span></code>.  <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_result.to_result</span></code> bridges the
+two: it preserves the full <code class="docutils literal notranslate"><span class="pre">dict</span></code> as <code class="docutils literal notranslate"><span class="pre">structured_content</span></code> (so the LLM
+keeps <code class="docutils literal notranslate"><span class="pre">columns</span></code>, <code class="docutils literal notranslate"><span class="pre">rows</span></code>, <code class="docutils literal notranslate"><span class="pre">known</span> <span class="pre">tables</span></code> hints for repair) while
+marking <code class="docutils literal notranslate"><span class="pre">is_error</span></code> from the trimmed <code class="docutils literal notranslate"><span class="pre">error</span></code>/<code class="docutils literal notranslate"><span class="pre">Error</span></code> string.  Raising
+<code class="docutils literal notranslate"><span class="pre">ToolError</span></code> would strip <code class="docutils literal notranslate"><span class="pre">structured_content</span></code> and <code class="docutils literal notranslate"><span class="pre">return</span> <span class="pre">{&quot;error&quot;:</span>
+<span class="pre">&quot;...&quot;</span> <span class="pre">}</span></code> as a bare <code class="docutils literal notranslate"><span class="pre">dict</span></code> would always yield <code class="docutils literal notranslate"><span class="pre">isError:</span> <span class="pre">false</span></code> via
+<code class="docutils literal notranslate"><span class="pre">fastmcp/tools/base.py:convert_result</span></code>.</p>
+<p>Clients that consume results – <code class="docutils literal notranslate"><span class="pre">klea_utils.tools.textualize_tool_results</span></code>
+(<code class="docutils literal notranslate"><span class="pre">if</span> <span class="pre">result.is_error:</span> <span class="pre">**Error:**</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">klea_utils.nodes.tools_caller.ToolsCallerNode</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.dispatch</span></code>
+(<code class="docutils literal notranslate"><span class="pre">success_count</span> <span class="pre">=</span> <span class="pre">sum(not</span> <span class="pre">r.is_error)</span></code>; permission denials via
+<code class="docutils literal notranslate"><span class="pre">_denied_result(is_error=True)</span></code>) – strictly respect the wire
+<code class="docutils literal notranslate"><span class="pre">is_error</span></code> flag, not the dict’s <code class="docutils literal notranslate"><span class="pre">error</span></code> string.  Third-party servers
+that still return a bare <code class="docutils literal notranslate"><span class="pre">dict</span></code> with <code class="docutils literal notranslate"><span class="pre">{&quot;error&quot;:</span> <span class="pre">&quot;...&quot;}</span></code> will appear as
+success (a code block) until they return a properly structured
+<code class="docutils literal notranslate"><span class="pre">ToolResult</span></code> – via <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_result.to_result</span></code> for Klea
+servers or any equivalent <code class="docutils literal notranslate"><span class="pre">ToolResult(content=[...],</span> <span class="pre">is_error=True)</span></code>
+construction.  This visibility is intentional per ADR-0003; the server
+must be fixed rather than papered over client-side.  See
+<code class="docutils literal notranslate"><span class="pre">devdocs/adr/0003-mcp-iserror-compliance.md</span></code> on GitHub for options
+considered and verification.</p>
+<p>The wrapper contract in short:</p>
+<ul class="simple">
+<li><p>Impl <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_impls.*</span></code>: <code class="docutils literal notranslate"><span class="pre">-&gt;</span> <span class="pre">dict</span></code> (with <code class="docutils literal notranslate"><span class="pre">error:</span> <span class="pre">&quot;&quot;</span></code> on
+success) – testable without MCP.</p></li>
+<li><p>Wrapper <code class="docutils literal notranslate"><span class="pre">&#64;tool_meta(ToolInfo(...))</span></code>: <code class="docutils literal notranslate"><span class="pre">-&gt;</span> <span class="pre">ToolResult</span></code>, <code class="docutils literal notranslate"><span class="pre">return</span>
+<span class="pre">to_result(dict)</span></code> on every path (success and failure) – the only path
+that sets <code class="docutils literal notranslate"><span class="pre">isError:</span> <span class="pre">true</span></code> without losing <code class="docutils literal notranslate"><span class="pre">structured_content</span></code>.</p></li>
+</ul>
+</section>
+<section id="tool-description-length-and-style">
+<h2>Tool description length and style<a class="headerlink" href="#tool-description-length-and-style" title="Link to this heading">¶</a></h2>
+<p>The tool description is what the model uses to decide which tool to call,
+so it is worth writing carefully.  A good rule of thumb is that a
+description should read like a short, structured “how to use this tool”
+note: roughly 100-250 tokens per tool.  This keeps the whole tool list
+small enough to scale while still giving smaller models the guidance they
+need to pick the right tool.  Sources consulted:</p>
+<ul class="simple">
+<li><p><strong>Anthropic</strong> – “Define tools”
+(<a class="reference external" href="https://docs.claude.com/en/docs/agents-and-tools/tool-use/define-tools">https://docs.claude.com/en/docs/agents-and-tools/tool-use/define-tools</a>)
+calls the description “by far the most important factor in tool
+performance” and recommends <em>at least 3-4 sentences</em> covering what the
+tool does, when it should (and should not) be used, what each parameter
+means, and any important caveats or limitations.  Descriptions are input
+tokens, so they count against the context window on every request.</p></li>
+<li><p><strong>OpenAI</strong> – “Function calling”
+(<a class="reference external" href="https://platform.openai.com/docs/guides/function-calling">https://platform.openai.com/docs/guides/function-calling</a>) recommends
+clearly describing the purpose of each function and parameter and
+including examples and edge cases, and suggests shortening descriptions
+when under token pressure and keeping fewer than ~20 tools available at
+once.</p></li>
+<li><p><strong>MCP specification</strong> – “Tools”
+(<a class="reference external" href="https://modelcontextprotocol.io/specification/2025-06-18/server/tools">https://modelcontextprotocol.io/specification/2025-06-18/server/tools</a>)
+defines <code class="docutils literal notranslate"><span class="pre">description</span></code> as a “human-readable description of
+functionality” and gives no length guidance, so the length is up to the
+server author.</p></li>
+<li><p><strong>opencode</strong> (an open-source agentic coding tool,
+<a class="reference external" href="https://github.com/sst/opencode">https://github.com/sst/opencode</a>) keeps its core tool descriptions terse
+(~50-125 tokens) but ships richer, structured descriptions for its CLI
+tools (~100-600 tokens) that open with a one-sentence summary and use
+“Use when” / “Do NOT use” bullet sections and examples.  Its guidance:
+<em>“Keep the tool description concise; the full schema documentation
+remains in the signature.”</em></p></li>
+</ul>
+<p>Klea’s docstring-first convention (above) is a middle ground that keeps
+descriptions small enough to scale:</p>
+<ul class="simple">
+<li><p>One-sentence summary on the first line.</p></li>
+<li><p>A short “Use this tool to …” sentence.</p></li>
+<li><p>“Use when:” and “Do not use for:” bullet sections with cross-tool
+pointers, so smaller models can pick the right tool.</p></li>
+<li><p>One concrete “Example:” line.</p></li>
+<li><p>Parameter descriptions in a Google-style <code class="docutils literal notranslate"><span class="pre">Args:</span></code> section (parsed into
+the schema by fastmcp) rather than in the description.</p></li>
+<li><p>No long procedural prose (template structure, next steps, error
+handling, performance notes): that adds tokens without helping tool
+selection.</p></li>
+</ul>
+<section id="reusable-template">
+<h3>Reusable template<a class="headerlink" href="#reusable-template" title="Link to this heading">¶</a></h3>
+<p>Copy this template when implementing a new tool; fill in the placeholders
+and keep the whole block to roughly 100-250 tokens.  The wrapper must
+return <code class="docutils literal notranslate"><span class="pre">ToolResult</span></code> via <code class="docutils literal notranslate"><span class="pre">to_result</span></code> (see above) – never a bare
+<code class="docutils literal notranslate"><span class="pre">dict</span></code> or <code class="docutils literal notranslate"><span class="pre">str</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
+
+<span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"&lt;Human title&gt;"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="s2">"&lt;domain&gt;"</span><span class="p">}))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tool_name</span><span class="o">&gt;</span><span class="p">(</span><span class="o">&lt;</span><span class="n">param</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">type</span><span class="o">&gt;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""&lt;One-sentence summary of what the tool does&gt;.</span>
+
+<span class="sd">    Use this tool to &lt;primary purpose&gt;.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - &lt;case where this tool is the right choice&gt;</span>
+<span class="sd">    - &lt;another concrete case&gt;</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - &lt;case better handled elsewhere&gt; (use the &lt;role&gt; tool instead)</span>
+
+<span class="sd">    Example: &lt;tool_name&gt;(&lt;param&gt;=&lt;value&gt;)</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        &lt;param&gt;: &lt;what the parameter means and how it affects behaviour&gt;.</span>
+<span class="sd">        &lt;param2&gt;: &lt;description&gt;. Defaults to &lt;default&gt; if not specified.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ToolResult with structured_content dict and error field; isError</span>
+<span class="sd">        is true when error is non-empty.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">impl_call</span><span class="o">&gt;</span><span class="p">(</span><span class="o">&lt;</span><span class="n">param</span><span class="o">&gt;=&lt;</span><span class="n">param</span><span class="o">&gt;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Use generic role references (“use the file reading tool”) rather than
+exact tool names in the “Do not use for” pointers, because fastmcp
+prefixes tool names with the server name (<code class="docutils literal notranslate"><span class="pre">NeuroML_list_files</span></code>) and
+those prefixes vary between deployments.</p>
+<div class="admonition seealso">
+<p class="admonition-title">See also</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="../components/mcp-servers.html"><span class="doc">MCP servers</span></a> – configuring MCP servers and
+tool access levels in a deployment</p></li>
+<li><p><a class="reference internal" href="../concepts/mcp.html"><span class="doc">MCP</span></a> – the MCP standard itself</p></li>
+</ul>
+</div>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../api/index.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">API Reference</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Developer guides</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Writing MCP tools</a><ul>
+<li><a class="reference internal" href="#docstring-first-convention">Docstring-first convention</a></li>
+<li><a class="reference internal" href="#error-handling-iserror">Error handling (isError)</a></li>
+<li><a class="reference internal" href="#tool-description-length-and-style">Tool description length and style</a><ul>
+<li><a class="reference internal" href="#reusable-template">Reusable template</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

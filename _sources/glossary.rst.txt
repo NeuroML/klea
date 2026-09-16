@@ -47,5 +47,6 @@ Glossary
 
 .. seealso::
 
-   * :doc:`concepts/rag` -- an introduction to RAG and how Klea
-     implements it
+   * :doc:`concepts/rag` -- an introduction to retrieval-augmented
+     generation
+   * :doc:`components/rag` -- how Klea implements it

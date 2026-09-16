@@ -4,7 +4,7 @@ Bibliographic metadata extraction (``klea\_utils.biblio``)
 Automatic extraction of bibliographic metadata (title, authors,
 keywords, DOI, URL) from ingested documents, used to pre-fill the
 per-file ``DEFAULT`` entries of ``metadata-map.template.json``.  See
-:doc:`../../concepts/rag` for a description of the extraction cascade.
+:doc:`../../components/rag` for a description of the extraction cascade.
 
 The modules in this package are reusable utilities: the PDF, regex and
 DOI-resolution parts do not depend on Docling and can be used on their
