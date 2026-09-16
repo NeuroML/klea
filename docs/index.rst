@@ -153,3 +153,4 @@ from the NeuroML community (see `all-contributors
 
    getting-help
    code-of-conduct
+   license
