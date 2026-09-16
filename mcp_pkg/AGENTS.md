@@ -90,8 +90,8 @@ neuroml_mcp/
   block as the description and the `Args:`-derived schema as compact
   parameter lines, so duplicated prose just wastes prompt tokens.
   Rationale and sources (Anthropic, OpenAI, MCP spec, opencode) plus a
-  reusable template: `docs/concepts/mcp.rst` ("Tool description length and
-  style").
+  reusable template: `docs/developer-guides/writing-mcp-tools.rst`
+  ("Tool description length and style").
 
 ### Sandbox Implementation
 - Inherit from `AsyncSandbox` abstract base class

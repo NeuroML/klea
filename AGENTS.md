@@ -146,7 +146,7 @@ Copyright format: `# Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT c
 MCP tool auto-discovery: any function ending `_tool` is registered.
 
 MCP server support + tool description guidance (docstring-first convention,
-length/style, reusable template): `docs/concepts/mcp.rst`.
+length/style, reusable template): `docs/developer-guides/writing-mcp-tools.rst`.
 
 `BaseLangGraph` lives at `utils_pkg/klea_utils/graph/base.py` -- shared
 setup -> MCP client -> vector stores -> compile graph template method.

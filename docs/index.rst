@@ -185,6 +185,7 @@ from the NeuroML community (see `all-contributors
 
    contributing
    developer-info
+   developer-guides/index
    api/index
 
 .. toctree::
