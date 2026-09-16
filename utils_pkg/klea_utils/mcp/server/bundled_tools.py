@@ -264,15 +264,17 @@ async def grep(
     files under a directory.
 
     Use when:
+
     - Locating a definition, call site, or error message in the codebase.
     - Searching the contents of many files without reading each one.
 
     Do not use for:
+
     - Listing files by name without searching their contents (use the list
       files tool instead).
     - Reading a whole file (use the read file tool instead).
 
-    Example: grep(pattern="def main", include="*.py")
+    Example: ``grep(pattern="def main", include="*.py")``
 
     Args:
         pattern: Regular expression to search for.
