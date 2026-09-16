@@ -36,6 +36,7 @@ def test_all_bundled_wrappers_carry_bundled_tag():
         "web_fetch",
         "list_files",
         "read_file",
+        "grep",
         "download_file",
         "run_command",
     }
@@ -56,6 +57,11 @@ def test_list_files_tags_and_checkpaths():
 def test_read_file_tags_and_checkpaths():
     assert _tags(bundled_tools.read_file) == {BUNDLED, "local", "files"}
     assert _tool_info(bundled_tools.read_file).checkpaths == ["path"]
+
+
+def test_grep_tags_and_checkpaths():
+    assert _tags(bundled_tools.grep) == {BUNDLED, "local", "files"}
+    assert _tool_info(bundled_tools.grep).checkpaths == ["path"]
 
 
 def test_download_file_tags_and_checkpaths():
@@ -87,7 +93,7 @@ def test_context_wrapper_contract():
     for name in ("web_fetch", "download_file"):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
-    for name in ("list_files", "read_file", "run_command"):
+    for name in ("list_files", "read_file", "grep", "run_command"):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" not in sig.parameters, name
 
@@ -99,6 +105,7 @@ async def test_bundle_server_registers_expected_tools():
         "web_fetch",
         "list_files",
         "read_file",
+        "grep",
         "download_file",
         "run_command",
     }
@@ -106,6 +113,7 @@ async def test_bundle_server_registers_expected_tools():
         assert BUNDLED in t.tags
     assert (by_name["list_files"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["read_file"].meta or {}).get("checkpaths") == ["path"]
+    assert (by_name["grep"].meta or {}).get("checkpaths") == ["path"]
     assert (by_name["download_file"].meta or {}).get("checkpaths") == ["file_path"]
     assert (by_name["run_command"].meta or {}).get("checkpaths") == [
         "working_directory"
@@ -118,7 +126,7 @@ async def test_bundle_server_annotation_hints():
     marked destructive + open world."""
     tools = {t.name: t for t in await bundle_server.list_tools()}
 
-    for name in ("web_fetch", "list_files", "read_file"):
+    for name in ("web_fetch", "list_files", "read_file", "grep"):
         ann = tools[name].annotations
         assert ann is not None, name
         assert ann.readOnlyHint is True, name
@@ -147,6 +155,7 @@ async def test_bundle_server_serves_via_inprocess_client():
         "web_fetch",
         "list_files",
         "read_file",
+        "grep",
         "download_file",
         "run_command",
     } <= set(names)
