@@ -392,6 +392,25 @@ For a graphical interface, launch the NiceGUI web UI:
 The web UI uses NiceGUI and requires the ``[nicegui]`` extra, while the
 CLI mode has no extra dependencies.
 
+The interface has a **chat** tab and an **inspect** tab.  The inspect tab
+is the transparency view: it shows the pipeline steps taken for each
+answer, with their timings and structured details.  See
+:doc:`../components/web-ui` for a walkthrough of the interface.
+
+.. figure:: /_static/images/20260916-klea-rag-chat.png
+   :alt: Klea RAG web interface chat tab showing a question and a cited answer
+   :width: 80%
+   :align: center
+
+   The chat tab.
+
+.. figure:: /_static/images/20260916-klea-rag-inspection.png
+   :alt: Klea RAG web interface inspect tab showing the per-step pipeline trace
+   :width: 80%
+   :align: center
+
+   The inspect tab, showing the per-step trace behind the answer.
+
 Both methods use the server at ``http://127.0.0.1:8005`` by default.
 Use ``--server`` to point at a different address.
 
