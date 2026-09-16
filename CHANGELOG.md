@@ -14,6 +14,8 @@
 - Klea-authored MCP tools refuse to run when the server process is root (uid 0) unless `KLEA_ALLOW_ROOT_TOOLS` is set, with a startup warning; this covers the bundled and NeuroML servers (ADR-0038).
 - Per-call wall-clock backstop for tool calls (default 900 s, `KLEA_TOOL_CALL_TIMEOUT`; `0` disables) so a hung tool returns a non-halting error instead of stalling the graph.
 - Bundled read-only `grep` (regex content search) and `find_files` (path glob) tools; they use a pinned ripgrep binary when the new optional `search` extra (`astral-dev-toolchain-ripgrep`) is installed, otherwise an in-house walker. Both skip VCS/cache directories and symlinks, and the ripgrep backend honours `.gitignore` in a git repository unless the call passes `include_ignored: true`.
+- Bundled `write_file` (create/overwrite a whole file) and `edit_file` (exact search/replace with `replace_all`) tools, full-mode only and destructive; writes are atomic and preserve mode, line endings and BOM. `edit_file` falls back to a bounded replacer chain (line-trimmed, block-anchor, whitespace-normalised, indentation-flexible, context-aware) before refusing, and reports the matcher used (ADR-0039).
+- `read_file` gains a `line_numbers` option (default true); set it false to get raw text for an `edit_file` `old_string`.
 
 ### Changed
 

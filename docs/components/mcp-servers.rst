@@ -105,10 +105,11 @@ Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, list_files, find_files, read_file, grep, download_file, run_command (each also has its scope + functional tags)
+   bundled  web_fetch, list_files, find_files, read_file, grep, write_file, edit_file, download_file, run_command (each also has its scope + functional tags)
 
    Web scope:   web_fetch (bundled), download_file (bundled, download)
    Local scope: list_files / find_files / read_file / grep (bundled, files),
+                write_file / edit_file (bundled, files, destructive),
                 run_command (bundled, code),
                 run_python_code / run_lems_simulation (neuroml, code),
                 create_new_NeuroML_model (neuroml)
@@ -146,10 +147,22 @@ version-control internals and tool caches (``.git``, ``.venv``,
 ``node_modules``, ``__pycache__``, ...) and never follow symlinks out of the
 project.
 
+``write_file`` and ``edit_file`` modify files and are therefore marked
+``destructive``: like ``run_command`` they are full-mode only, and never
+offered or run under ``read_only``.  ``write_file`` creates a file or
+replaces a whole file (creating parent directories); ``edit_file`` replaces an
+exact span of an existing file, requiring the match to be unique unless
+``replace_all`` is set.  When an exact match fails, ``edit_file`` tries a
+bounded replacer chain (line-trimmed, block-anchor, whitespace-normalised,
+indentation-flexible, context-aware) before refusing, and reports which
+matcher fired.  Both tools write atomically and preserve the file's mode,
+line endings and BOM; ``read_file`` accepts ``line_numbers: false`` to return
+raw text suitable for an ``edit_file`` ``old_string``.  See ADR-0039.
+
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Klea ships a set of common tools (web fetch, file list/read/search,
+Klea ships a set of common tools (web fetch, file list/read/search/edit,
 download) as a shared MCP server in ``klea_utils.mcp.server``.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP

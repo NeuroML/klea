@@ -107,7 +107,7 @@ def block_anchor_replacer(content: str, old_string: str) -> Iterator[str]:
        mistaken for the target.
     3. Each candidate is scored by the average per-line similarity of its
        middle lines against the search block's middle lines
-       (:func:`difflib.SequenceMatcher`).  A lone candidate must clear
+       (:class:`difflib.SequenceMatcher`).  A lone candidate must clear
        :data:`SINGLE_CANDIDATE_SIMILARITY`; with several, the best-scoring
        candidate wins if it clears :data:`MULTIPLE_CANDIDATES_SIMILARITY`.
 
