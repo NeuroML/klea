@@ -240,7 +240,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -318,14 +317,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">create_model</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">KleaRunContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span><span class="p">,</span> <span class="n">resolve_user_agent</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">AccessLevel</span><span class="p">,</span>
-    <span class="n">ToolAccessOverride</span><span class="p">,</span>
-    <span class="n">resolve_access_level</span><span class="p">,</span>
-    <span class="n">resolve_capability</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.privilege</span><span class="w"> </span><span class="kn">import</span> <span class="n">warn_if_root</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMModel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.paths</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_config_dir</span><span class="p">,</span> <span class="n">init_dir</span><span class="p">,</span> <span class="n">resolve_app_config_path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetrieverConfig</span>
@@ -466,8 +458,6 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">checkpointer</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">AsyncSqliteSaver</span> <span class="o">|</span> <span class="n">InMemorySaver</span> <span class="o">=</span> <span class="kc">None</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">paths</span> <span class="o">=</span> <span class="n">PlatformDirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph_name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
-        <span class="c1">#: Klea identity sent to OpenAI-compatible endpoints (User-Agent).</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span> <span class="o">=</span> <span class="n">resolve_user_agent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">graph_name</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">config_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 
@@ -618,9 +608,6 @@
                 <span class="n">domain_servers</span><span class="p">[</span><span class="n">domain</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">mcpServers</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
                 <span class="n">num_servers</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">mcpServers</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
 
-        <span class="c1"># Operator capability overrides (ADR-0037), applied over annotations.</span>
-        <span class="n">access_overrides</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_access_overrides</span><span class="p">()</span>
-
         <span class="k">for</span> <span class="n">domain</span><span class="p">,</span> <span class="n">server_names</span> <span class="ow">in</span> <span class="n">domain_servers</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">domain_tools_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
             <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">mcp_tools</span><span class="p">:</span>
@@ -634,90 +621,13 @@
                 <span class="c1"># convention (summary + Use when / Do not use for bullets +</span>
                 <span class="c1"># one example; params via Args:), see build_tool_description</span>
                 <span class="c1"># and docs/concepts/mcp.rst.</span>
-                <span class="n">full_description</span><span class="p">,</span> <span class="n">short_description</span> <span class="o">=</span> <span class="n">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
-                <span class="c1"># Carry the standard MCP annotations so the tool access level</span>
-                <span class="c1"># (ADR-0037) can classify the tool client-side; an absent</span>
-                <span class="c1"># annotation stays ``None`` (fail-closed in read_only).  A</span>
-                <span class="c1"># configured ``general.tool_access`` override takes precedence.</span>
-                <span class="n">annotations</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s2">"annotations"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">read_only</span><span class="p">,</span> <span class="n">destructive</span> <span class="o">=</span> <span class="n">resolve_capability</span><span class="p">(</span>
-                    <span class="nb">getattr</span><span class="p">(</span><span class="n">annotations</span><span class="p">,</span> <span class="s2">"readOnlyHint"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-                    <span class="nb">getattr</span><span class="p">(</span><span class="n">annotations</span><span class="p">,</span> <span class="s2">"destructiveHint"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-                    <span class="n">access_overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
-                <span class="p">)</span>
                 <span class="n">domain_tools_info</span><span class="p">[</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">ToolInfo</span><span class="p">(</span>
                     <span class="n">title</span><span class="o">=</span><span class="n">t</span><span class="o">.</span><span class="n">title</span><span class="p">,</span>
-                    <span class="n">description</span><span class="o">=</span><span class="n">full_description</span><span class="p">,</span>
-                    <span class="n">short_description</span><span class="o">=</span><span class="n">short_description</span><span class="p">,</span>
+                    <span class="n">description</span><span class="o">=</span><span class="n">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">),</span>
                     <span class="n">meta</span><span class="o">=</span><span class="n">clean_tool_meta</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">meta</span><span class="p">),</span>
-                    <span class="n">read_only</span><span class="o">=</span><span class="n">read_only</span><span class="p">,</span>
-                    <span class="n">destructive</span><span class="o">=</span><span class="n">destructive</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">tools_info</span><span class="p">[</span><span class="n">domain</span><span class="p">]</span> <span class="o">=</span> <span class="n">domain_tools_info</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">tools_info</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_tool_access_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolAccessOverride</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Return the configured per-tool capability overrides (ADR-0037).</span>
-
-<span class="sd">        Reads ``app_config.general.tool_access``; returns an empty mapping</span>
-<span class="sd">        when the app config does not declare it.</span>
-
-<span class="sd">        :returns: ``{tool_name: ToolAccessOverride}``.</span>
-<span class="sd">        """</span>
-        <span class="n">general</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"app_config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s2">"general"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">overrides</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">general</span><span class="p">,</span> <span class="s2">"tool_access"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span> <span class="k">if</span> <span class="n">overrides</span> <span class="k">else</span> <span class="p">{}</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_configured_access_level</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AccessLevel</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return the config-declared access level, or ``None``.</span>
-
-<span class="sd">        Reads ``app_config.general.access_level``.  Apps that do not declare</span>
-<span class="sd">        the field (e.g. RAG, whose level is fixed) return ``None`` so the</span>
-<span class="sd">        state default applies.</span>
-
-<span class="sd">        :returns: The configured level, or ``None`` when unset.</span>
-<span class="sd">        """</span>
-        <span class="n">general</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"app_config"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span> <span class="s2">"general"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">raw</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">general</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="k">return</span> <span class="n">resolve_access_level</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_access_level_default</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">input_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Seed the config access level unless the request overrides it.</span>
-
-<span class="sd">        Precedence is request (``extra_state``) &gt; ``general.access_level`` &gt;</span>
-<span class="sd">        the state field default.  Mutates *input_state* in place.</span>
-
-<span class="sd">        :param input_state: The initial-state dict being built for the run.</span>
-<span class="sd">        :param extra_state: The caller's per-run state extras, or ``None``.</span>
-<span class="sd">        """</span>
-        <span class="k">if</span> <span class="n">extra_state</span> <span class="ow">and</span> <span class="n">extra_state</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"access_level"</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span>
-        <span class="n">default</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_configured_access_level</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">input_state</span><span class="p">[</span><span class="s2">"access_level"</span><span class="p">]</span> <span class="o">=</span> <span class="n">default</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_tools_by_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Return ``{tool_name: ToolInfo}`` flattened from ``tools_info``.</span>
-
-<span class="sd">        The per-domain map is flattened for the dispatch gate, so the</span>
-<span class="sd">        client-side path and access-level checks (ADR-0037) read one canonical</span>
-<span class="sd">        ``ToolInfo`` per tool.  Tool names are already server-prefixed when</span>
-<span class="sd">        several servers are configured, so a name repeated across domains is</span>
-<span class="sd">        the same tool with the same metadata.</span>
-
-<span class="sd">        :returns: Capability/metadata map keyed by tool name.</span>
-<span class="sd">        """</span>
-        <span class="n">tools</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="n">name</span><span class="p">:</span> <span class="n">info</span>
-            <span class="k">for</span> <span class="n">domain_tools</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tools_info</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
-            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">info</span> <span class="ow">in</span> <span class="n">domain_tools</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-        <span class="p">}</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">tools</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">tools</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_get_vector_stores</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Get vector stores"""</span>
@@ -852,15 +762,6 @@
 <span class="sd">        """</span>
         <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm_models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
             <span class="n">entry</span><span class="o">.</span><span class="n">provider_defaults</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider_defaults_for_role</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_user_agent</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Set the resolved Klea User-Agent on each ``LLMModel``.</span>
-
-<span class="sd">        Gives every role the app identity sent to OpenAI-compatible endpoints</span>
-<span class="sd">        (``klea-agent/&lt;version&gt;`` / ``klea-rag/&lt;version&gt;``).</span>
-<span class="sd">        """</span>
-        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">llm_models</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
-            <span class="n">entry</span><span class="o">.</span><span class="n">user_agent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_check_required_models</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Warn at startup when required model roles have no default model.</span>
@@ -1098,13 +999,11 @@
 <span class="sd">        #. ``_post_setup()``</span>
 <span class="sd">        """</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_setup</span><span class="p">()</span>
-        <span class="n">warn_if_root</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="p">)</span>
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_setup_checkpointer</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_setup_models</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_env</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_model_names</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_apply_provider_defaults</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_user_agent</span><span class="p">()</span>
         <span class="c1"># ``llm_models`` is now fully populated (roles, model names, required</span>
         <span class="c1"># flags, provider defaults) -- log the resolved config once.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
@@ -1196,7 +1095,6 @@
         <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
         <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
             <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="n">final_state</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span>
             <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
         <span class="p">)</span>
@@ -1237,7 +1135,6 @@
         <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
         <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
             <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span>
             <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
         <span class="p">):</span>
@@ -1279,7 +1176,6 @@
         <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
         <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
             <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">res</span></div>
 
@@ -1339,7 +1235,6 @@
         <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
         <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
             <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="n">stream</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream_events</span><span class="p">(</span>
             <span class="n">input_state</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
