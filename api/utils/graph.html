@@ -250,6 +250,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
@@ -572,6 +573,12 @@ schema generated from <code class="docutils literal notranslate"><span class="pr
 </ol>
 </dd></dl>
 
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.graph.base.BaseLangGraph.user_agent">
+<span class="sig-name descname"><span class="pre">user_agent</span></span><a class="headerlink" href="#klea_utils.graph.base.BaseLangGraph.user_agent" title="Link to this definition">¶</a></dt>
+<dd><p>Klea identity sent to OpenAI-compatible endpoints (User-Agent).</p>
+</dd></dl>
+
 </dd></dl>
 
 <section id="module-klea_utils.graph.schemas">
@@ -593,6 +600,17 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 
 </dd></dl>
 
+</section>
+<section id="shared-base-state">
+<h2>Shared base state<a class="headerlink" href="#shared-base-state" title="Link to this heading">¶</a></h2>
+<p>All application graph states subclass
+<code class="docutils literal notranslate"><span class="pre">klea_utils.graph.state.BaseGraphSchema</span></code> (<code class="docutils literal notranslate"><span class="pre">utils_pkg/klea_utils/graph/state.py</span></code>),
+which holds the fields the shared nodes and the streaming layer rely on:
+<code class="docutils literal notranslate"><span class="pre">query</span></code>, <code class="docutils literal notranslate"><span class="pre">messages</span></code>, <code class="docutils literal notranslate"><span class="pre">guard_decision</span></code>, <code class="docutils literal notranslate"><span class="pre">context_summary</span></code>,
+<code class="docutils literal notranslate"><span class="pre">summarised_till</span></code>, <code class="docutils literal notranslate"><span class="pre">message_for_user</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_results</span></code>
+and the reduced <code class="docutils literal notranslate"><span class="pre">usage_metrics</span></code>.  Applications add their own fields (the
+agent’s <code class="docutils literal notranslate"><span class="pre">mode</span></code>/<code class="docutils literal notranslate"><span class="pre">plan</span></code>/…; the RAG’s <code class="docutils literal notranslate"><span class="pre">query_domains</span></code> and reference
+material).</p>
 </section>
 <section id="module-klea_utils.graph.reducers">
 <span id="reducers"></span><h2>Reducers<a class="headerlink" href="#module-klea_utils.graph.reducers" title="Link to this heading">¶</a></h2>
@@ -740,6 +758,7 @@ probe-verified), so the shared nodes must never see <code class="docutils litera
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.run_graph_invoke_state"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.run_graph_invoke_state()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.run_graph_stream"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.run_graph_stream()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.setup"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.setup()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.user_agent"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.user_agent</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.graph.schemas">Shared state schemas</a><ul>
@@ -749,6 +768,7 @@ probe-verified), so the shared nodes must never see <code class="docutils litera
 </li>
 </ul>
 </li>
+<li><a class="reference internal" href="#shared-base-state">Shared base state</a></li>
 <li><a class="reference internal" href="#module-klea_utils.graph.reducers">Reducers</a><ul>
 <li><a class="reference internal" href="#klea_utils.graph.reducers.add_token_usage"><code class="docutils literal notranslate"><span class="pre">add_token_usage()</span></code></a></li>
 </ul>

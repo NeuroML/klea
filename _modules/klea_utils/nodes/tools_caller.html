@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -312,7 +313,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">dispatch_tool_calls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLangGraphNode</span><span class="p">,</span> <span class="n">NodeStreamData</span>
 
 
@@ -336,7 +339,7 @@
         <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
         <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">mcp_client</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">tools_meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">post_dispatch</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
         <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -350,10 +353,11 @@
 <span class="sd">            :func:`klea_utils.mcp.dispatch.dispatch_tool_calls`: fastmcp's</span>
 <span class="sd">            ``call_tool`` signature does not cleanly match a structural</span>
 <span class="sd">            protocol, so tests substitute a fake.</span>
-<span class="sd">        :param tools_meta: Mapping of tool name to the tool's ``meta`` dict,</span>
-<span class="sd">            used to look up ``checkpaths`` for the client-side permission</span>
-<span class="sd">            gate.  Built from the MCP client's listed tools by the</span>
-<span class="sd">            orchestrator.</span>
+<span class="sd">        :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, used</span>
+<span class="sd">            for the client-side gates (``meta`` ``checkpaths`` and the</span>
+<span class="sd">            ADR-0037 ``read_only``/``destructive`` capability).  Built by the</span>
+<span class="sd">            orchestrator from ``BaseLangGraph.tools_info``.  ``None`` disables</span>
+<span class="sd">            both gates.</span>
 <span class="sd">        :param project_root: Boundary directory for the client-side permission</span>
 <span class="sd">            gate.  Defaults to the current working directory.</span>
 <span class="sd">        :param post_dispatch: Optional ``(state, results) -&gt; state_updates``</span>
@@ -362,7 +366,7 @@
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="o">=</span> <span class="n">mcp_client</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_tools_meta</span> <span class="o">=</span> <span class="n">tools_meta</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="o">=</span> <span class="n">tool_infos</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span> <span class="o">=</span> <span class="n">project_root</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span> <span class="o">=</span> <span class="n">post_dispatch</span>
         <span class="c1">#: Last state/results, set by ``execute`` for the streaming hooks.</span>
@@ -374,22 +378,32 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Gate and dispatch the tool calls in ``state.tool_calls``.</span>
 
+<span class="sd">        Always writes ``tool_results`` -- an empty list when there is nothing</span>
+<span class="sd">        to dispatch -- so a previous batch's results are never left in state</span>
+<span class="sd">        and re-evaluated.</span>
+
 <span class="sd">        :param state: Current graph state (must carry ``tool_calls``).</span>
 <span class="sd">        :returns: ``{"tool_results": [...]}`` plus any callback extras.</span>
 <span class="sd">        """</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Pre-exec check failed, skipping execution"</span><span class="p">)</span>
-            <span class="k">return</span> <span class="p">{}</span>
-
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">()</span>
 
-        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
-        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
-            <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_tools_meta</span><span class="p">,</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
-        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
+            <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="n">access_level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_calls</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"tool_infos_configured = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
+                <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
+                <span class="n">access_level</span><span class="o">=</span><span class="n">access_level</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No tool calls to dispatch; writing empty results"</span><span class="p">)</span>
+            <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">results</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="o">=</span> <span class="n">state</span>

@@ -1,0 +1,855 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+        <title>klea_utils.stores.chunk_worker - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  
+  <span class="sidebar-brand-text">Klea</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI — TUI / REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../code-of-conduct.html">Code of Conduct</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.stores.chunk_worker</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Subprocess chunking workers -- isolate Docling's per-conversion memory leak</span>
+
+<span class="sd">File: klea_utils/stores/chunk_worker.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">ctypes</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">multiprocessing</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">queue</span><span class="w"> </span><span class="kn">import</span> <span class="n">Empty</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.ingestion</span><span class="w"> </span><span class="kn">import</span> <span class="n">StoresBuilder</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: How often (seconds) the parent polls a worker's result queue while it</span>
+<span class="c1">#: runs, and the overall cap before a worker is considered hung and</span>
+<span class="c1">#: killed (its batch is then marked failed and the run continues).</span>
+<span class="n">_WORKER_POLL_INTERVAL</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">_WORKER_TIMEOUT_SECONDS</span> <span class="o">=</span> <span class="mi">4</span> <span class="o">*</span> <span class="mi">3600</span>
+
+
+<div class="viewcode-block" id="ChunkWorkerConfig">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.chunk_worker.ChunkWorkerConfig">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChunkWorkerConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Picklable configuration handed to one conversion worker batch.</span>
+
+<span class="sd">    The parent's :class:`StoresBuilder` is not picklable (it holds the</span>
+<span class="sd">    Docling converter, chunker, resolver, etc.), so the worker rebuilds</span>
+<span class="sd">    its own from these plain fields.</span>
+<span class="sd">    """</span>
+
+    <span class="n">source_path</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">tokenizer_model</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">do_ocr</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">mem_limit_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">log_level</span><span class="p">:</span> <span class="nb">int</span></div>
+
+
+
+<div class="viewcode-block" id="ChunkItemResult">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.chunk_worker.ChunkItemResult">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChunkItemResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Outcome of converting one file inside a worker.</span>
+
+<span class="sd">    ``status`` is one of:</span>
+
+<span class="sd">    * ``ok`` -- converted and cached; *file_headings_entry* holds the</span>
+<span class="sd">      file's metadata-map template entry</span>
+<span class="sd">    * ``zero_chunks`` -- converted but produced no chunks (scanned PDF)</span>
+<span class="sd">    * ``failed`` -- conversion raised; *error* has the message</span>
+<span class="sd">    * ``deferred`` -- not processed because the worker hit its RSS cap;</span>
+<span class="sd">      *file_path* lets the parent re-dispatch it to a fresh worker</span>
+<span class="sd">    """</span>
+
+    <span class="n">file_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">file_hash</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">file_headings_entry</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">error</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">file_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_current_rss_bytes</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return this process's current RSS in bytes, or ``None`` if unknown.</span>
+
+<span class="sd">    Read from ``/proc/self/status`` (Linux).  On other platforms, or when</span>
+<span class="sd">    the file is unreadable, returns ``None`` so callers fall back to</span>
+<span class="sd">    batch-size-bounded batching instead of a memory cap.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">"/proc/self/status"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"VmRSS:"</span><span class="p">):</span>
+                    <span class="c1"># Line is "VmRSS:    &lt;kB&gt;".</span>
+                    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span> <span class="o">*</span> <span class="mi">1024</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">):</span>
+        <span class="k">pass</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_over_mem_limit</span><span class="p">(</span><span class="n">mem_limit_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return ``True`` when this process's RSS exceeds *mem_limit_bytes*."""</span>
+    <span class="k">if</span> <span class="n">mem_limit_bytes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">rss</span> <span class="o">=</span> <span class="n">_current_rss_bytes</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">rss</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">rss</span> <span class="o">&gt;</span> <span class="n">mem_limit_bytes</span>
+
+
+<div class="viewcode-block" id="convert_batch_worker">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.chunk_worker.convert_batch_worker">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">convert_batch_worker</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ChunkWorkerConfig</span><span class="p">,</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
+    <span class="n">queue</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">current_file</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Convert and cache *items* in this process, one per result.</span>
+
+<span class="sd">    Runs in a spawned child for real chunking (with *queue* and</span>
+<span class="sd">    *current_file* for observability), or directly in the parent under</span>
+<span class="sd">    tests (``queue`` is ``None`` and results are returned).  Rebuilds</span>
+<span class="sd">    its own :class:`StoresBuilder`, so Docling's per-conversion memory</span>
+<span class="sd">    leak (unreclaimable in-process; see docling-project/docling#2788) is</span>
+<span class="sd">    confined to this process and reclaimed by the OS when it exits.</span>
+
+<span class="sd">    Before each file, if the process RSS exceeds *config.mem_limit_bytes*</span>
+<span class="sd">    the remaining items are returned as ``deferred`` (the parent re-runs</span>
+<span class="sd">    them in a fresh worker).  On platforms where RSS is unavailable the</span>
+<span class="sd">    cap is skipped and the parent's fixed batch size bounds the worker</span>
+<span class="sd">    instead.</span>
+
+<span class="sd">    When *queue* is given (spawned worker), each :class:`ChunkItemResult`</span>
+<span class="sd">    is put on the queue incrementally so the parent can log progress and,</span>
+<span class="sd">    on worker death, knows which file was being processed via</span>
+<span class="sd">    *current_file* and which results were already completed.  In that</span>
+<span class="sd">    mode this function returns ``None``.  Without a queue it returns the</span>
+<span class="sd">    list -- this path exists only for unit tests (in-process direct</span>
+<span class="sd">    calls) so they stay simple and hermetic.</span>
+
+<span class="sd">    :param config: Worker configuration</span>
+<span class="sd">    :param items: ``(absolute_file_path, file_hash)`` tuples to process</span>
+<span class="sd">    :param queue: Queue for incremental puts (spawned worker) or</span>
+<span class="sd">        ``None`` (in-process unit tests only)</span>
+<span class="sd">    :param current_file: Shared ``Value`` for the file currently being</span>
+<span class="sd">        processed, or ``None`` (unit tests omit it)</span>
+<span class="sd">    :returns: List of results when ``queue`` is ``None`` (tests), else</span>
+<span class="sd">        ``None`` (spawned worker)</span>
+<span class="sd">    """</span>
+    <span class="c1"># Configure console logging exactly as the parent CLI does: root at</span>
+    <span class="c1"># INFO (so third-party DEBUG from httpcore/httpx/transformers stays</span>
+    <span class="c1"># off) with only the Klea namespaces raised to the requested level.</span>
+    <span class="c1"># The worker is a separate process, so it must configure its own</span>
+    <span class="c1"># loggers; reusing the shared helper keeps output format and level</span>
+    <span class="c1"># behaviour consistent with the parent.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">setup_root_logger</span>
+
+    <span class="n">setup_root_logger</span><span class="p">(</span><span class="s2">"klea-stores-create"</span><span class="p">,</span> <span class="n">stderr_level</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">log_level</span><span class="p">)</span>
+    <span class="n">worker_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"klea-stores-create.ChunkWorker"</span><span class="p">)</span>
+    <span class="n">builder</span> <span class="o">=</span> <span class="n">StoresBuilder</span><span class="p">(</span>
+        <span class="n">embedding_model</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+        <span class="n">logger</span><span class="o">=</span><span class="n">worker_logger</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">max_tokens</span><span class="p">,</span>
+        <span class="n">tokenizer_model</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">tokenizer_model</span><span class="p">,</span>
+        <span class="n">do_ocr</span><span class="o">=</span><span class="n">config</span><span class="o">.</span><span class="n">do_ocr</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">builder</span><span class="o">.</span><span class="n">_ensure_tokenizer</span><span class="p">()</span>
+    <span class="n">source_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">source_path</span><span class="p">)</span>
+    <span class="n">resolver</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_make_resolver</span><span class="p">(</span><span class="n">source_path</span><span class="p">)</span>
+
+    <span class="n">results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit</span><span class="p">(</span><span class="n">r</span><span class="p">:</span> <span class="n">ChunkItemResult</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">queue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_set_current</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">current_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">current_file</span><span class="o">.</span><span class="n">get_lock</span><span class="p">():</span>
+                    <span class="n">encoded</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">encode</span><span class="p">()[:</span><span class="mi">4095</span><span class="p">]</span>
+                    <span class="c1"># c_char array: pad with nulls so stale tail is cleared</span>
+                    <span class="n">current_file</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">encoded</span> <span class="o">+</span> <span class="sa">b</span><span class="s2">"</span><span class="se">\x00</span><span class="s2">"</span> <span class="o">*</span> <span class="p">(</span><span class="mi">4096</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">encoded</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001, S110</span>
+                <span class="k">pass</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">ctr</span><span class="p">,</span> <span class="p">(</span><span class="n">file_path_str</span><span class="p">,</span> <span class="n">file_hash</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">_set_current</span><span class="p">(</span><span class="n">file_path_str</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_over_mem_limit</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">mem_limit_bytes</span><span class="p">):</span>
+                <span class="n">worker_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Worker RSS exceeded limit; deferring "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">ctr</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> remaining files to a fresh worker"</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">remaining_path</span><span class="p">,</span> <span class="n">remaining_hash</span> <span class="ow">in</span> <span class="n">items</span><span class="p">[</span><span class="n">ctr</span> <span class="o">-</span> <span class="mi">1</span> <span class="p">:]:</span>
+                    <span class="n">_emit</span><span class="p">(</span>
+                        <span class="n">ChunkItemResult</span><span class="p">(</span>
+                            <span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">remaining_path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="n">file_hash</span><span class="o">=</span><span class="n">remaining_hash</span><span class="p">,</span>
+                            <span class="n">status</span><span class="o">=</span><span class="s2">"deferred"</span><span class="p">,</span>
+                            <span class="n">file_path</span><span class="o">=</span><span class="n">remaining_path</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="k">break</span>
+
+            <span class="n">file_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">file_path_str</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">docs</span><span class="p">,</span> <span class="n">extracted</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_convert_and_chunk</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">resolver</span><span class="p">)</span>
+                <span class="n">builder</span><span class="o">.</span><span class="n">_save_to_cache</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">extracted</span><span class="p">,</span> <span class="n">source_path</span><span class="p">,</span> <span class="n">file_hash</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+                <span class="n">worker_logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Failed to process </span><span class="si">{</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                <span class="n">_emit</span><span class="p">(</span>
+                    <span class="n">ChunkItemResult</span><span class="p">(</span>
+                        <span class="n">file_name</span><span class="o">=</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                        <span class="n">file_hash</span><span class="o">=</span><span class="n">file_hash</span><span class="p">,</span>
+                        <span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">,</span>
+                        <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">docs</span><span class="p">:</span>
+                <span class="n">worker_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"No chunks produced for </span><span class="si">{</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">. This usually "</span>
+                    <span class="sa">f</span><span class="s2">"means the PDF is scanned/image-based and its text "</span>
+                    <span class="sa">f</span><span class="s2">"could not be extracted with OCR disabled. Re-run "</span>
+                    <span class="sa">f</span><span class="s2">"with OCR enabled (drop --no-ocr) or run "</span>
+                    <span class="sa">f</span><span class="s2">"'klea-stores-create pre-check' to classify it."</span>
+                <span class="p">)</span>
+                <span class="c1"># Even with no chunks the template needs the DEFAULT entry</span>
+                <span class="c1"># (extracted metadata such as PDF Info), so build it.</span>
+                <span class="n">entry</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_build_file_headings_entry</span><span class="p">(</span>
+                    <span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">extracted</span><span class="p">,</span> <span class="n">docs</span>
+                <span class="p">)</span>
+                <span class="n">_emit</span><span class="p">(</span>
+                    <span class="n">ChunkItemResult</span><span class="p">(</span>
+                        <span class="n">file_name</span><span class="o">=</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                        <span class="n">file_hash</span><span class="o">=</span><span class="n">file_hash</span><span class="p">,</span>
+                        <span class="n">status</span><span class="o">=</span><span class="s2">"zero_chunks"</span><span class="p">,</span>
+                        <span class="n">file_headings_entry</span><span class="o">=</span><span class="n">entry</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">entry</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">_build_file_headings_entry</span><span class="p">(</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">extracted</span><span class="p">,</span> <span class="n">docs</span><span class="p">)</span>
+            <span class="n">_emit</span><span class="p">(</span>
+                <span class="n">ChunkItemResult</span><span class="p">(</span>
+                    <span class="n">file_name</span><span class="o">=</span><span class="n">file_path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">file_hash</span><span class="o">=</span><span class="n">file_hash</span><span class="p">,</span>
+                    <span class="n">status</span><span class="o">=</span><span class="s2">"ok"</span><span class="p">,</span>
+                    <span class="n">file_headings_entry</span><span class="o">=</span><span class="n">entry</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># Flush any buffered DOI resolutions written by this worker so</span>
+        <span class="c1"># later workers see them.  The resolver is protocol-typed (only</span>
+        <span class="c1"># ``resolve`` is guaranteed), so close defensively.</span>
+        <span class="n">close</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">resolver</span><span class="p">,</span> <span class="s2">"close"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">close</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">close</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">queue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">results</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_worker_and_put</span><span class="p">(</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ChunkWorkerConfig</span><span class="p">,</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
+    <span class="n">queue</span><span class="p">:</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">Queue</span><span class="p">,</span>
+    <span class="n">current_file</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Spawn entry point: run the worker and put its results on *queue*.</span>
+
+<span class="sd">    The worker puts one :class:`ChunkItemResult` per file incrementally</span>
+<span class="sd">    (see :func:`convert_batch_worker`); a final ``None`` sentinel marks</span>
+<span class="sd">    completion.  Exceptions are caught so the parent's polling logic can</span>
+<span class="sd">    distinguish a crash (no sentinel) from success.</span>
+
+<span class="sd">    :param current_file: Shared ``Value`` that the worker updates with the</span>
+<span class="sd">        file currently being processed, for observability on death</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">convert_batch_worker</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">current_file</span><span class="p">)</span>
+        <span class="c1"># In-process tests call convert_batch_worker without a queue and</span>
+        <span class="c1"># get a list back; in that mode _run_worker_and_put is not used.</span>
+        <span class="c1"># In incremental (spawned) mode convert_batch_worker puts per file</span>
+        <span class="c1"># itself and returns None, so nothing more to do here.</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Fallback for non-incremental callers: put the whole list</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>
+                <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+        <span class="c1"># The process is about to exit; the parent's polling/kill logic</span>
+        <span class="c1"># handles a missing sentinel.  Log for the record.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Chunk worker crashed before returning results: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># Sentinel so the parent knows the worker finished its puts.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001, S110</span>
+            <span class="k">pass</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_one_worker</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ChunkWorkerConfig</span><span class="p">,</span>
+    <span class="n">batch</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Spawn one worker process for *batch* and collect its results.</span>
+
+<span class="sd">    The worker puts one :class:`ChunkItemResult` per file incrementally,</span>
+<span class="sd">    so even if it dies mid-batch the parent retains the prefix and can</span>
+<span class="sd">    attribute the failure to the next file (via the shared</span>
+<span class="sd">    ``current_file`` value and the count of received results).  Returns</span>
+<span class="sd">    ``None`` only when the worker died before putting anything.</span>
+
+<span class="sd">    Returns ``None`` when the worker died without returning results</span>
+<span class="sd">    (e.g. it was OOM-killed) or exceeded the run-time cap; the caller</span>
+<span class="sd">    then marks the batch as failed and the run continues.  Extracted as</span>
+<span class="sd">    its own function so the parent's batching/deferral logic can be</span>
+<span class="sd">    tested by monkeypatching it instead of exercising real spawns.</span>
+<span class="sd">    """</span>
+    <span class="c1"># Shared value so the parent can read which file the worker was on</span>
+    <span class="c1"># when it died (even for fatal signals that bypass Python-level</span>
+    <span class="c1"># exception handling).</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">current_file</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Value</span><span class="p">(</span><span class="n">ctypes</span><span class="o">.</span><span class="n">c_char</span> <span class="o">*</span> <span class="mi">4096</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"</span><span class="se">\x00</span><span class="s2">"</span> <span class="o">*</span> <span class="mi">4096</span><span class="p">,</span> <span class="n">lock</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+        <span class="n">current_file</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">queue</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Queue</span><span class="p">()</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">Process</span><span class="p">(</span>
+        <span class="n">target</span><span class="o">=</span><span class="n">_run_worker_and_put</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">batch</span><span class="p">,</span> <span class="n">queue</span><span class="p">,</span> <span class="n">current_file</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">process</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+
+    <span class="n">batch_results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">started</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+    <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">item</span> <span class="o">=</span> <span class="n">queue</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">_WORKER_POLL_INTERVAL</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">item</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Sentinel: worker finished its puts.</span>
+                <span class="k">break</span>
+            <span class="n">batch_results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+            <span class="c1"># Per-file progress while the worker is still running; this</span>
+            <span class="c1"># is the incremental counterpart to the batch range log in</span>
+            <span class="c1"># dispatch_conversion_batches and restores the (X/Y) feel</span>
+            <span class="c1"># that was lost when conversion moved to subprocesses.</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Completed </span><span class="si">{</span><span class="n">item</span><span class="o">.</span><span class="n">file_name</span><span class="si">}</span><span class="s2"> "</span>
+                <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2"> in batch) - </span><span class="si">{</span><span class="n">item</span><span class="o">.</span><span class="n">status</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">except</span> <span class="n">Empty</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">process</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+                <span class="c1"># Worker died mid-batch.  Attribute the failure to the</span>
+                <span class="c1"># file it was processing (via shared value or count).</span>
+                <span class="n">cur</span> <span class="o">=</span> <span class="s2">""</span>
+                <span class="k">if</span> <span class="n">current_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="k">with</span> <span class="n">current_file</span><span class="o">.</span><span class="n">get_lock</span><span class="p">():</span>
+                            <span class="n">raw</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">current_file</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\x00</span><span class="s2">"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="n">cur</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+                    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001, S110</span>
+                        <span class="k">pass</span>
+                <span class="n">exitcode</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">exitcode</span>
+                <span class="n">sig</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" (signal </span><span class="si">{</span><span class="o">-</span><span class="n">exitcode</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">exitcode</span> <span class="ow">and</span> <span class="n">exitcode</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">""</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Worker pid </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="si">}</span><span class="s2"> died (exitcode=</span><span class="si">{</span><span class="n">exitcode</span><span class="si">}{</span><span class="n">sig</span><span class="si">}</span><span class="s2">) "</span>
+                    <span class="sa">f</span><span class="s2">"while processing </span><span class="si">{</span><span class="n">cur</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="n">batch</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)][</span><span class="mi">0</span><span class="p">]</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">'unknown'</span><span class="si">}</span><span class="s2">; "</span>
+                    <span class="sa">f</span><span class="s2">"collected </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2"> results before death"</span>
+                <span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">started</span> <span class="o">&gt;</span> <span class="n">_WORKER_TIMEOUT_SECONDS</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Worker pid </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="si">}</span><span class="s2"> exceeded the "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_WORKER_TIMEOUT_SECONDS</span><span class="si">}</span><span class="s2">s cap; killing it"</span>
+                <span class="p">)</span>
+                <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+                <span class="n">process</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+                <span class="k">break</span>
+
+    <span class="n">process</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">process</span><span class="o">.</span><span class="n">is_alive</span><span class="p">():</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Worker pid </span><span class="si">{</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="si">}</span><span class="s2"> did not exit after producing results; killing it"</span>
+        <span class="p">)</span>
+        <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
+        <span class="n">process</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">batch_results</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">batch_results</span>
+
+
+<div class="viewcode-block" id="dispatch_conversion_batches">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.chunk_worker.dispatch_conversion_batches">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">dispatch_conversion_batches</span><span class="p">(</span>
+    <span class="n">parent_logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">ChunkWorkerConfig</span><span class="p">,</span>
+    <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]],</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Convert *items* by spawning a fresh worker process per batch.</span>
+
+<span class="sd">    A fresh process per batch is deliberate: Docling leaks memory per</span>
+<span class="sd">    conversion that cannot be freed in-process, so each worker's leak is</span>
+<span class="sd">    reclaimed when it exits.  A worker stops at whichever comes first --</span>
+<span class="sd">    its RSS cap (``config.mem_limit_bytes``) or *batch_size* -- marking</span>
+<span class="sd">    the unprocessed tail ``deferred``; the parent re-dispatches those to</span>
+<span class="sd">    a fresh worker.  On platforms where RSS is unavailable only</span>
+<span class="sd">    *batch_size* bounds a worker.  A worker that dies without returning</span>
+<span class="sd">    results (e.g. OOM-killed) has its whole batch marked ``failed`` and</span>
+<span class="sd">    the run continues -- those files are simply re-converted on a later</span>
+<span class="sd">    run.</span>
+
+<span class="sd">    :param parent_logger: Logger for dispatch progress/errors</span>
+<span class="sd">    :param config: Worker configuration</span>
+<span class="sd">    :param items: ``(absolute_file_path, file_hash)`` items to convert</span>
+<span class="sd">    :param batch_size: Max items handed to any single worker</span>
+<span class="sd">    :returns: Flattened :class:`ChunkItemResult` for every item</span>
+<span class="sd">    """</span>
+    <span class="n">ctx</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">get_context</span><span class="p">(</span><span class="s2">"spawn"</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ChunkItemResult</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">pending</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">items</span><span class="p">)</span>
+    <span class="c1"># Files that have already been retried once after a worker death;</span>
+    <span class="c1"># a second death for the same file means it is poison and should be</span>
+    <span class="c1"># marked failed instead of re-queued again.</span>
+    <span class="n">retried</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">batch_no</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">while</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="n">batch_no</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="n">pending</span><span class="p">[:</span><span class="n">batch_size</span><span class="p">]</span>
+        <span class="n">pending</span> <span class="o">=</span> <span class="n">pending</span><span class="p">[</span><span class="n">batch_size</span><span class="p">:]</span>
+
+        <span class="c1"># Overall progress (X/Y) so the user sees where the run is,</span>
+        <span class="c1"># even though conversion happens in subprocesses.</span>
+        <span class="n">batch_start</span> <span class="o">=</span> <span class="n">total</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">pending</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">batch_end</span> <span class="o">=</span> <span class="n">total</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">pending</span><span class="p">)</span>
+        <span class="n">parent_logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Processing files </span><span class="si">{</span><span class="n">batch_start</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">batch_end</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">total</span><span class="si">}</span><span class="s2"> "</span>
+            <span class="sa">f</span><span class="s2">"(batch #</span><span class="si">{</span><span class="n">batch_no</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2"> files) -- "</span>
+            <span class="sa">f</span><span class="s2">"spawning conversion worker"</span>
+        <span class="p">)</span>
+        <span class="n">batch_results</span> <span class="o">=</span> <span class="n">_run_one_worker</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">batch_results</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Worker died before putting anything (e.g. OOM-killed at</span>
+            <span class="c1"># startup).  Re-queue once for a transient failure; on a</span>
+            <span class="c1"># second death for the same files they are poison.</span>
+            <span class="n">to_retry</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">file_path_str</span><span class="p">,</span> <span class="n">file_hash</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">file_hash</span> <span class="ow">in</span> <span class="n">retried</span><span class="p">:</span>
+                    <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">ChunkItemResult</span><span class="p">(</span>
+                            <span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">file_path_str</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="n">file_hash</span><span class="o">=</span><span class="n">file_hash</span><span class="p">,</span>
+                            <span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">,</span>
+                            <span class="n">error</span><span class="o">=</span><span class="s2">"worker died repeatedly (possible poison file)"</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">to_retry</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">file_path_str</span><span class="p">,</span> <span class="n">file_hash</span><span class="p">))</span>
+                    <span class="n">retried</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_hash</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">to_retry</span><span class="p">:</span>
+                <span class="n">parent_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Conversion worker #</span><span class="si">{</span><span class="n">batch_no</span><span class="si">}</span><span class="s2"> produced no results; "</span>
+                    <span class="sa">f</span><span class="s2">"re-queuing </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">to_retry</span><span class="p">)</span><span class="si">}</span><span class="s2"> files for retry"</span>
+                <span class="p">)</span>
+                <span class="c1"># Isolate the suspected file (first in batch) to the front</span>
+                <span class="c1"># so a second crash confirms it.</span>
+                <span class="n">pending</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">to_retry</span>
+            <span class="k">continue</span>
+
+        <span class="c1"># Worker died mid-batch: it put a prefix incrementally before</span>
+        <span class="c1"># dying.  The missing tail was not put; re-queue it.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">):</span>
+            <span class="n">missing</span> <span class="o">=</span> <span class="n">batch</span><span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span> <span class="p">:]</span>
+            <span class="n">to_retry</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">file_path_str</span><span class="p">,</span> <span class="n">file_hash</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">file_hash</span> <span class="ow">in</span> <span class="n">retried</span><span class="p">:</span>
+                    <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                        <span class="n">ChunkItemResult</span><span class="p">(</span>
+                            <span class="n">file_name</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">file_path_str</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                            <span class="n">file_hash</span><span class="o">=</span><span class="n">file_hash</span><span class="p">,</span>
+                            <span class="n">status</span><span class="o">=</span><span class="s2">"failed"</span><span class="p">,</span>
+                            <span class="n">error</span><span class="o">=</span><span class="s2">"worker died repeatedly mid-batch"</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">to_retry</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">file_path_str</span><span class="p">,</span> <span class="n">file_hash</span><span class="p">))</span>
+                    <span class="n">retried</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">file_hash</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">to_retry</span><span class="p">:</span>
+                <span class="n">parent_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Worker #</span><span class="si">{</span><span class="n">batch_no</span><span class="si">}</span><span class="s2"> died after </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch_results</span><span class="p">)</span><span class="si">}</span><span class="s2">/"</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="si">}</span><span class="s2"> files; re-queuing </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">to_retry</span><span class="p">)</span><span class="si">}</span><span class="s2"> "</span>
+                    <span class="sa">f</span><span class="s2">"remaining files"</span>
+                <span class="p">)</span>
+                <span class="n">pending</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">to_retry</span>
+            <span class="c1"># Fall through to handle the prefix that was completed;</span>
+            <span class="c1"># deferred handling below will still apply if any.</span>
+
+        <span class="c1"># Re-dispatch the deferred tail to a fresh worker (clean memory);</span>
+        <span class="c1"># the deferred results themselves are not reported -- those files</span>
+        <span class="c1"># are covered by the re-run.</span>
+        <span class="n">deferred</span> <span class="o">=</span> <span class="p">[</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">batch_results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">status</span> <span class="o">==</span> <span class="s2">"deferred"</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">file_path</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">deferred</span><span class="p">:</span>
+            <span class="n">parent_logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Worker #</span><span class="si">{</span><span class="n">batch_no</span><span class="si">}</span><span class="s2"> deferred </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">deferred</span><span class="p">)</span><span class="si">}</span><span class="s2"> files to a "</span>
+                <span class="sa">f</span><span class="s2">"fresh worker (memory cap)"</span>
+            <span class="p">)</span>
+            <span class="n">pending</span><span class="p">[:</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">file_path</span><span class="p">,</span> <span class="n">r</span><span class="o">.</span><span class="n">file_hash</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">deferred</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">file_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="p">]</span>
+        <span class="n">results</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">r</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">batch_results</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">status</span> <span class="o">!=</span> <span class="s2">"deferred"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">results</span></div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

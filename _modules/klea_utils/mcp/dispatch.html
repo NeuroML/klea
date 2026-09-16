@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -307,14 +308,78 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextContent</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span> <span class="n">AccessLevel</span><span class="p">,</span> <span class="n">check_tool_access</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_tool_arguments_permissions</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Default per-call wall-clock cap for tool calls.  A generous backstop that</span>
+<span class="c1">#: only fires when a tool hangs; individual tools own their semantic timeouts</span>
+<span class="c1">#: (e.g. ``run_command``), so raise this above any tool's own maximum.</span>
+<span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span> <span class="o">=</span> <span class="mf">900.0</span>
+
+<span class="c1">#: Process environment variable overriding the backstop (seconds).  A value</span>
+<span class="c1">#: of ``0`` or less disables it.</span>
+<span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span> <span class="o">=</span> <span class="s2">"KLEA_TOOL_CALL_TIMEOUT"</span>
+
+
+<div class="viewcode-block" id="tool_call_timeout_seconds">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.dispatch.tool_call_timeout_seconds">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tool_call_timeout_seconds</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the per-call tool timeout in seconds, or ``None`` when disabled.</span>
+
+<span class="sd">    Reads :data:`TOOL_CALL_TIMEOUT_ENV_VAR`; an unset, non-numeric, or</span>
+<span class="sd">    non-finite value falls back to :data:`DEFAULT_TOOL_CALL_TIMEOUT_SECONDS`,</span>
+<span class="sd">    while a non-positive value disables the backstop.</span>
+
+<span class="sd">    :returns: The timeout ceiling, or ``None`` when disabled.</span>
+<span class="sd">    """</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid </span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">raw</span><span class="si">!r}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"using </span><span class="si">{</span><span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span><span class="si">}</span><span class="s2"> s"</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid (non-finite) </span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">raw</span><span class="si">!r}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"using </span><span class="si">{</span><span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span><span class="si">}</span><span class="s2"> s"</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> disables the tool-call timeout"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_timeout_error</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *exc* represents a tool-call timeout.</span>
+
+<span class="sd">    fastmcp surfaces a read timeout as an ``McpError`` whose text mentions the</span>
+<span class="sd">    timeout, so both ``TimeoutError`` and a text check are covered.</span>
+
+<span class="sd">    :param exc: The exception raised by the tool call.</span>
+<span class="sd">    :returns: True when the exception looks like a timeout.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s2">"timed out"</span> <span class="ow">in</span> <span class="n">text</span> <span class="ow">or</span> <span class="s2">"timeout"</span> <span class="ow">in</span> <span class="n">text</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_denied_result</span><span class="p">(</span><span class="n">denials</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">CallToolResult</span><span class="p">:</span>
@@ -332,17 +397,25 @@
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">dispatch_tool_calls</span><span class="p">(</span>
     <span class="n">mcp_client</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
     <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]],</span>
-    <span class="n">tools_meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">access_level</span><span class="p">:</span> <span class="n">AccessLevel</span> <span class="o">=</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span>
+    <span class="n">call_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Gate and dispatch tool calls against an MCP server.</span>
 
-<span class="sd">    For each ``(tool, args)`` pair, the tool's ``meta`` (from ``tools_meta``)</span>
-<span class="sd">    is checked with :func:`check_tool_arguments_permissions` before the call</span>
-<span class="sd">    reaches the server; denied calls never touch the server and instead</span>
-<span class="sd">    produce a synthetic non-halting error result.  Allowed calls are</span>
-<span class="sd">    dispatched in parallel, and the returned list stays aligned with the</span>
-<span class="sd">    input *tool_calls* order.</span>
+<span class="sd">    For each ``(tool name, arguments)`` pair two gates run before the call</span>
+<span class="sd">    reaches the server, each producing a synthetic non-halting error when</span>
+<span class="sd">    denied:</span>
+
+<span class="sd">    * the path gate (:func:`check_tool_arguments_permissions`), reading a</span>
+<span class="sd">      tool's ``checkpaths`` from ``ToolInfo.meta``; and</span>
+<span class="sd">    * the tool access level (ADR-0037): a tool the level does not permit</span>
+<span class="sd">      (``read_only`` permits only explicitly read-only, non-destructive tools)</span>
+<span class="sd">      is rejected by :func:`check_tool_access`.</span>
+
+<span class="sd">    Allowed calls are dispatched in parallel, and the returned list stays</span>
+<span class="sd">    aligned with the input *tool_calls* order.</span>
 
 <span class="sd">    :param mcp_client: MCP client used for ``call_tool``.  Its reentrant</span>
 <span class="sd">        context is entered/exited by this helper.  Typed as ``Any`` because</span>
@@ -351,35 +424,64 @@
 <span class="sd">        ToolTask`` return) that a structural protocol would not cleanly</span>
 <span class="sd">        match; tests substitute a fake implementing the subset used here.</span>
 <span class="sd">    :param tool_calls: ``(tool name, arguments)`` pairs to invoke.</span>
-<span class="sd">    :param tools_meta: Mapping of tool name to the tool's ``meta`` dict</span>
-<span class="sd">        (e.g. ``{t.name: t.meta for t in mcp_tools}``).  Path arguments</span>
-<span class="sd">        declared under ``checkpaths`` are permission-checked client-side.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission gate.</span>
-<span class="sd">        Defaults to the current working directory.</span>
+<span class="sd">    :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, carrying</span>
+<span class="sd">        both the annotated ``read_only``/``destructive`` capability and (in</span>
+<span class="sd">        ``meta``) the ``checkpaths`` declarations.  ``None`` disables both</span>
+<span class="sd">        gates (backward compatible); for ``read_only`` a tool missing from the</span>
+<span class="sd">        map is denied (fail-closed).</span>
+<span class="sd">    :param project_root: Boundary directory for the path gate.  Defaults to</span>
+<span class="sd">        the current working directory.</span>
+<span class="sd">    :param access_level: Active tool access level (ADR-0037).</span>
+<span class="sd">    :param call_timeout: Per-call wall-clock timeout in seconds, as a backstop</span>
+<span class="sd">        against a hung tool.  ``None`` (the default) resolves from</span>
+<span class="sd">        :data:`TOOL_CALL_TIMEOUT_ENV_VAR` / :data:`DEFAULT_TOOL_CALL_TIMEOUT_SECONDS`;</span>
+<span class="sd">        ``0`` or less disables the backstop.  A timed-out call becomes a</span>
+<span class="sd">        synthetic non-halting error.</span>
 <span class="sd">    :returns: One :class:`CallToolResult` per input call, in input order.</span>
 <span class="sd">    """</span>
-    <span class="n">tools_meta</span> <span class="o">=</span> <span class="n">tools_meta</span> <span class="ow">or</span> <span class="p">{}</span>
     <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span>
     <span class="n">results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
     <span class="n">pending</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">timeout</span> <span class="o">=</span> <span class="n">call_timeout</span> <span class="k">if</span> <span class="n">call_timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tool_call_timeout_seconds</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">timeout</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">timeout</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">name</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">tool_calls</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"tool_gate_enabled = </span><span class="si">{</span><span class="n">tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">timeout</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
 
     <span class="k">async</span> <span class="k">with</span> <span class="n">mcp_client</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">):</span>
-            <span class="n">tool_meta</span> <span class="o">=</span> <span class="n">tools_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tool</span><span class="p">)</span>
-            <span class="n">denials</span> <span class="o">=</span> <span class="n">check_tool_arguments_permissions</span><span class="p">(</span><span class="n">tool_meta</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">tool_name</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">):</span>
+            <span class="n">tool_info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tool_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">denials</span> <span class="o">=</span> <span class="n">check_tool_arguments_permissions</span><span class="p">(</span>
+                <span class="n">tool_info</span><span class="o">.</span><span class="n">meta</span> <span class="k">if</span> <span class="n">tool_info</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">project_root</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">read_only</span> <span class="o">=</span> <span class="n">tool_info</span><span class="o">.</span><span class="n">read_only</span> <span class="k">if</span> <span class="n">tool_info</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="n">destructive</span> <span class="o">=</span> <span class="n">tool_info</span><span class="o">.</span><span class="n">destructive</span> <span class="k">if</span> <span class="n">tool_info</span> <span class="k">else</span> <span class="kc">None</span>
+                <span class="n">denial</span> <span class="o">=</span> <span class="n">check_tool_access</span><span class="p">(</span>
+                    <span class="n">tool_name</span><span class="p">,</span> <span class="n">read_only</span><span class="p">,</span> <span class="n">destructive</span><span class="p">,</span> <span class="n">access_level</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">denial</span><span class="p">:</span>
+                    <span class="n">denials</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">denial</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">denials</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">"Denied tool call before dispatch</span><span class="se">\n</span><span class="si">{</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">denials</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"Denied tool call before dispatch</span><span class="se">\n</span><span class="si">{</span><span class="n">tool_name</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">denials</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
                 <span class="p">)</span>
                 <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_denied_result</span><span class="p">(</span><span class="n">denials</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dispatching tool call</span><span class="se">\n</span><span class="si">{</span><span class="n">tool_name</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">args</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
                 <span class="n">pending</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                     <span class="p">(</span>
                         <span class="n">i</span><span class="p">,</span>
                         <span class="n">mcp_client</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span>
-                            <span class="n">name</span><span class="o">=</span><span class="n">tool</span><span class="p">,</span>
+                            <span class="n">name</span><span class="o">=</span><span class="n">tool_name</span><span class="p">,</span>
                             <span class="n">arguments</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
                             <span class="n">raise_on_error</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                            <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
                         <span class="p">),</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
@@ -389,17 +491,20 @@
             <span class="n">gathered</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">coros</span><span class="p">,</span> <span class="n">return_exceptions</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indices</span><span class="p">,</span> <span class="n">gathered</span><span class="p">):</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">BaseException</span><span class="p">):</span>
-                    <span class="n">tool</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">tool_calls</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                    <span class="n">tool_name</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">tool_calls</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"Tool call failed</span><span class="se">\n</span><span class="si">{</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">idx</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">args</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">res</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"Tool call failed</span><span class="se">\n</span><span class="si">{</span><span class="n">tool_name</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">idx</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">args</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">res</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
                     <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">_is_timeout_error</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="ow">and</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"Tool '</span><span class="si">{</span><span class="n">tool_name</span><span class="si">}</span><span class="s2">' timed out after </span><span class="si">{</span><span class="n">timeout</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2"> s "</span>
+                            <span class="s2">"and was cancelled; the server-side operation may "</span>
+                            <span class="s2">"still be running."</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span>
                     <span class="n">results</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">CallToolResult</span><span class="p">(</span>
-                        <span class="n">content</span><span class="o">=</span><span class="p">[</span>
-                            <span class="n">TextContent</span><span class="p">(</span>
-                                <span class="nb">type</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span>
-                                <span class="n">text</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-                            <span class="p">)</span>
-                        <span class="p">],</span>
+                        <span class="n">content</span><span class="o">=</span><span class="p">[</span><span class="n">TextContent</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="p">)],</span>
                         <span class="n">structured_content</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                         <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                         <span class="n">is_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
@@ -413,6 +518,8 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"dispatch left unfilled slots</span><span class="se">\n</span><span class="si">{</span><span class="n">offending</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"dispatch internal error: unfilled results at </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
+    <span class="n">failed</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dispatch complete</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">failed</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span> <span class="n">results</span><span class="p">)</span></div>
 
 </pre></div>

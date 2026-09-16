@@ -250,6 +250,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
 <li class="toctree-l3 current current-page"><a class="current reference internal" href="#">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
@@ -311,6 +312,14 @@
 <p>File: klea_utils/plogging.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.plogging.DEFAULT_SENSITIVE_KEYS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_SENSITIVE_KEYS</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'anthropic_api_key',</span> <span class="pre">'api_key',</span> <span class="pre">'huggingfacehub_api_token'})</span></span><a class="headerlink" href="#klea_utils.plogging.DEFAULT_SENSITIVE_KEYS" title="Link to this definition">¶</a></dt>
+<dd><p>Default keys whose values are masked in logs by <a class="reference internal" href="#klea_utils.plogging.mask_sensitive" title="klea_utils.plogging.mask_sensitive"><code class="xref py py-func docutils literal notranslate"><span class="pre">mask_sensitive()</span></code></a>.
+Covers the generic <code class="docutils literal notranslate"><span class="pre">api_key</span></code> plus the provider-specific field names Klea
+may copy it into (Anthropic, HuggingFace).</p>
+</dd></dl>
+
 <dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.plogging.KLEA_LOG_LEVEL_ENV">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">KLEA_LOG_LEVEL_ENV</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'KLEA_LOG_LEVEL'</span></span><a class="headerlink" href="#klea_utils.plogging.KLEA_LOG_LEVEL_ENV" title="Link to this definition">¶</a></dt>
@@ -390,7 +399,7 @@ Recurses into nested dicts, so e.g. <code class="docutils literal notranslate"><
 <dd class="field-odd"><ul class="simple">
 <li><p><strong>data</strong> – The dict to sanitize.</p></li>
 <li><p><strong>sensitive_keys</strong> – Keys whose values should be masked.
-Defaults to <code class="docutils literal notranslate"><span class="pre">{&quot;api_key&quot;}</span></code>.</p></li>
+Defaults to <a class="reference internal" href="#klea_utils.plogging.DEFAULT_SENSITIVE_KEYS" title="klea_utils.plogging.DEFAULT_SENSITIVE_KEYS"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_SENSITIVE_KEYS</span></code></a>.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -526,6 +535,7 @@ logging.</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Logging</a><ul>
+<li><a class="reference internal" href="#klea_utils.plogging.DEFAULT_SENSITIVE_KEYS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_SENSITIVE_KEYS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.KLEA_LOG_LEVEL_ENV"><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL_ENV</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.KLEA_LOG_NAMESPACES"><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_NAMESPACES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.LoggerInfoFilter"><code class="docutils literal notranslate"><span class="pre">LoggerInfoFilter</span></code></a><ul>

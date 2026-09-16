@@ -249,6 +249,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/errors.html">Error types</a></li>
@@ -413,11 +414,14 @@
 
 <div class="viewcode-block" id="build_tool_description">
 <a class="viewcode-back" href="../../api/utils/tools.html#klea_utils.tools.build_tool_description">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n">Tool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Build the compact LLM-facing description for an MCP tool.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n">Tool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Build the full and compact LLM-facing descriptions for an MCP tool.</span>
 
-<span class="sd">    Used to populate :class:`klea_utils.mcp.schemas.ToolInfo.description`</span>
-<span class="sd">    so the tool picker's prompt stays small as more tools are added.</span>
+<span class="sd">    Returns a ``(full, short)`` tuple.  :class:`klea_utils.mcp.schemas.ToolInfo`</span>
+<span class="sd">    stores both: the **full** form (heading + docstring + compact parameter</span>
+<span class="sd">    list) is what the tool picker needs to emit calls, while the **short** form</span>
+<span class="sd">    (heading + docstring only) is for planner-style nodes that reason about</span>
+<span class="sd">    which tools exist without the argument detail (tiered disclosure).</span>
 
 <span class="sd">    Klea expects MCP tool descriptions to follow the *docstring-first*</span>
 <span class="sd">    convention (see ``docs/concepts/mcp.rst``, "Tool description length and</span>
@@ -439,10 +443,14 @@
     <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"## </span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">description</span><span class="p">:</span>
         <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">description</span><span class="p">)</span>
+    <span class="n">short</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+
+    <span class="n">full_parts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
     <span class="n">params</span> <span class="o">=</span> <span class="n">_format_tool_parameters</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">inputSchema</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">params</span><span class="p">:</span>
-        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
-    <span class="k">return</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span></div>
+        <span class="n">full_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+    <span class="n">full</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">full_parts</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">full</span><span class="p">,</span> <span class="n">short</span></div>
 
 
 
