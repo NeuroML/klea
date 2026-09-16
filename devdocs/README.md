@@ -78,5 +78,6 @@ Structure:
 | `adr/0036-grounding-enforcement-general-vs-scientific.md` | ADR-0036: Grounding enforcement: optional in general mode, mandatory in scientific mode |
 | `adr/0037-tool-access-levels.md` | ADR-0037: Tool access levels (read_only \| full) from MCP annotations, with documented trust limits |
 | `adr/0038-run-command-tool.md` | ADR-0038: General shell command tool (`run_command`): full-mode only, advisory path checking |
+| `adr/0039-file-editing-tools.md` | ADR-0039: File editing tools: whole-file write plus exact search/replace with bounded replacer recovery |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

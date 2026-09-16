@@ -1,9 +1,9 @@
 # Edit-format strategy for coding tools
 
-Status: strategy note, not an ADR.  Input to the Stage 1 bundled-tool
-design (``shell``/``edit``/``write``/``glob``/``grep``).  Promotable to
-an ADR later if it grows to govern more than tool design (e.g. a
-per-model format auto-selection mechanism).
+Status: evidence note for ``devdocs/adr/0039-file-editing-tools.md``, which
+records the decision.  Retained for the detailed benchmark and reference-agent
+discussion behind the chosen tools (``write_file`` + ``edit_file``); the
+emission mechanism itself is fixed by ADR-0034.
 
 ## Context
 
