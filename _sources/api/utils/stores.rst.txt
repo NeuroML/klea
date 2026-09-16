@@ -22,27 +22,6 @@ Ingestion
    :members:
    :show-inheritance:
 
-Ingestion pre-checks
---------------------
-
-.. automodule:: klea_utils.stores.precheck
-   :members:
-   :show-inheritance:
-
-Ingestion post-checks
----------------------
-
-.. automodule:: klea_utils.stores.postcheck
-   :members:
-   :show-inheritance:
-
-Chunk workers
--------------
-
-.. automodule:: klea_utils.stores.chunk_worker
-   :members:
-   :show-inheritance:
-
 Metadata map linting
 --------------------
 

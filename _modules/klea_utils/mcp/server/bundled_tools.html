@@ -249,7 +249,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/errors.html">Error types</a></li>
@@ -318,13 +317,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.download_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">download_file</span> <span class="k">as</span> <span class="n">download_file_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_files</span> <span class="k">as</span> <span class="n">list_files_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.read_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_file</span> <span class="k">as</span> <span class="n">read_file_impl</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">DEFAULT_MAX_OUTPUT_CHARS</span><span class="p">,</span>
-    <span class="n">DEFAULT_MAX_TIMEOUT_SECONDS</span><span class="p">,</span>
-    <span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="p">,</span>
-    <span class="n">MAX_TIMEOUT_ENV_VAR</span><span class="p">,</span>
-<span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_command</span> <span class="k">as</span> <span class="n">run_command_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_fetch</span> <span class="k">as</span> <span class="n">web_fetch_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
 
@@ -574,88 +566,6 @@
             <span class="p">}</span>
         <span class="p">)</span>
     <span class="k">return</span> <span class="n">to_result</span><span class="p">({</span><span class="s2">"saved_to"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">target</span><span class="p">),</span> <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">})</span></div>
-
-
-
-<div class="viewcode-block" id="run_command">
-<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.run_command">[docs]</a>
-<span class="nd">@tool_meta</span><span class="p">(</span>
-    <span class="n">ToolInfo</span><span class="p">(</span>
-        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"code"</span><span class="p">},</span>
-        <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"working_directory"</span><span class="p">],</span>
-        <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-    <span class="p">)</span>
-<span class="p">)</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_command</span><span class="p">(</span>
-    <span class="n">command</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">str</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span>
-            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-                <span class="s2">"Shell command string to run. Pipes, '&amp;&amp;' and redirection are "</span>
-                <span class="s2">"supported."</span>
-            <span class="p">),</span>
-            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-        <span class="p">),</span>
-    <span class="p">],</span>
-    <span class="n">working_directory</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span>
-            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-                <span class="s2">"Directory to run the command in; must be inside the project "</span>
-                <span class="s2">"directory. Defaults to the project directory."</span>
-            <span class="p">),</span>
-        <span class="p">),</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">timeout_seconds</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">float</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span>
-            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Seconds before the command is killed. Defaults to "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">; the maximum is set by the "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> environment variable (default "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">DEFAULT_MAX_TIMEOUT_SECONDS</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">)."</span>
-            <span class="p">),</span>
-            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-        <span class="p">),</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="p">,</span>
-    <span class="n">max_output_chars</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">int</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum characters captured per output stream"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_OUTPUT_CHARS</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Run a shell command and return its exit status and output.</span>
-
-<span class="sd">    Use this tool to inspect or act on the workspace: print the working</span>
-<span class="sd">    directory, list processes, run a build or test, or invoke a script.</span>
-
-<span class="sd">    Use when:</span>
-<span class="sd">    - You need a fact about the environment (working directory, host, date).</span>
-<span class="sd">    - You need to run a build, test, or script in the project.</span>
-
-<span class="sd">    Do not use for:</span>
-<span class="sd">    - Reading a file (use the read file tool instead).</span>
-<span class="sd">    - Listing a directory (use the list files tool instead).</span>
-
-<span class="sd">    Example: run_command(command="pwd &amp;&amp; ls", working_directory=".")</span>
-
-<span class="sd">    Args:</span>
-<span class="sd">        command: Shell command string to run.</span>
-<span class="sd">        working_directory: Directory to run in; must be inside the project.</span>
-<span class="sd">        timeout_seconds: Seconds before the command is killed.</span>
-<span class="sd">        max_output_chars: Maximum characters captured per output stream.</span>
-
-<span class="sd">    Returns:</span>
-<span class="sd">        Dictionary with command, working_directory, returncode, stdout,</span>
-<span class="sd">        stderr, truncated, error.</span>
-<span class="sd">    """</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_command_impl</span><span class="p">(</span>
-        <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span>
-        <span class="n">working_directory</span><span class="o">=</span><span class="n">working_directory</span><span class="p">,</span>
-        <span class="n">timeout_seconds</span><span class="o">=</span><span class="n">timeout_seconds</span><span class="p">,</span>
-        <span class="n">max_output_chars</span><span class="o">=</span><span class="n">max_output_chars</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

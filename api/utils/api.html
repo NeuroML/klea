@@ -250,7 +250,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
@@ -796,7 +795,7 @@ an optional <code class="docutils literal notranslate"><span class="pre">metadat
 <p>Session-context projection endpoint.</p>
 <p>Returns the session context for a chat – the app-defined projection of
 <em>checkpointed graph state</em> via <code class="xref py py-meth docutils literal notranslate"><span class="pre">BaseLangGraph.context_snapshot()</span></code>
-(ADR-0032) – so frontends can restore the mode selector on
+(ADR-0032) – so frontends can restore the mode badge / selector on
 hydration without waiting for the next streamed query.</p>
 <p>Design: the mode lives in checkpointed graph state, which is the single
 source of truth (ADR-0030 / ADR-0032).  This endpoint reads it from the

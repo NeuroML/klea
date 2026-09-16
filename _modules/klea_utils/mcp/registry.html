@@ -249,7 +249,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -307,7 +306,6 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">functools</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModuleType</span>
@@ -316,46 +314,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastMCP</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolAnnotations</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.privilege</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">ALLOW_ROOT_ENV_VAR</span><span class="p">,</span>
-    <span class="n">allow_root_tools</span><span class="p">,</span>
-    <span class="n">root_denial_message</span><span class="p">,</span>
-    <span class="n">running_as_root</span><span class="p">,</span>
-    <span class="n">warn_if_root</span><span class="p">,</span>
-<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_wrap_with_root_guard</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Wrap a tool so it refuses to run as root unless explicitly allowed.</span>
-
-<span class="sd">    The guard runs at call time (the process uid is fixed, but the override</span>
-<span class="sd">    env var is read per call).  ``functools.wraps`` preserves the signature,</span>
-<span class="sd">    docstring and annotations so fastmcp still derives the tool schema and</span>
-<span class="sd">    injects ``Context``; the wrapper also tolerates synchronous tools.</span>
-
-<span class="sd">    :param fn: The registered tool function.</span>
-<span class="sd">    :returns: An async wrapper that applies the root guard then calls *fn*.</span>
-<span class="sd">    """</span>
-
-    <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_guarded</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">running_as_root</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">allow_root_tools</span><span class="p">():</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">"Refusing to run tool </span><span class="si">%s</span><span class="s2"> as root (uid 0); set </span><span class="si">%s</span><span class="s2">=1 to override"</span><span class="p">,</span>
-                <span class="n">fn</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
-                <span class="n">ALLOW_ROOT_ENV_VAR</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="k">return</span> <span class="n">to_result</span><span class="p">({</span><span class="s2">"error"</span><span class="p">:</span> <span class="n">root_denial_message</span><span class="p">()})</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">fn</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isawaitable</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">result</span>
-        <span class="k">return</span> <span class="n">result</span>
-
-    <span class="k">return</span> <span class="n">_guarded</span>
 
 
 <div class="viewcode-block" id="register_tools">
@@ -375,7 +336,6 @@
 <span class="sd">    :param modules: list of modules with tool function definitions</span>
 
 <span class="sd">    """</span>
-    <span class="n">warn_if_root</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span>
     <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">modules</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">fname</span><span class="p">,</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">fn</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
@@ -432,7 +392,7 @@
             <span class="k">if</span> <span class="n">annotations_kwargs</span><span class="p">:</span>
                 <span class="n">kwargs</span><span class="p">[</span><span class="s2">"annotations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">ToolAnnotations</span><span class="p">(</span><span class="o">**</span><span class="n">annotations_kwargs</span><span class="p">)</span>
 
-            <span class="n">mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">(</span><span class="n">_wrap_with_root_guard</span><span class="p">(</span><span class="n">fn</span><span class="p">),</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="n">mcp</span><span class="o">.</span><span class="n">tool</span><span class="p">(</span><span class="n">fn</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Registered MCP tool: </span><span class="si">{</span><span class="n">fname</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
 
