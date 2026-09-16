@@ -18,9 +18,6 @@ from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
 
-#: Maximum size of the unified diff returned in the result.
-MAX_DIFF_CHARS = 20_000
-
 
 def _result(
     path: str,
@@ -112,10 +109,9 @@ def write_file(
         created = True
 
     new_text = file_ops.normalize_newlines(content_text)
-    additions, deletions = file_ops.diff_counts(old_text, new_text)
-    diff = file_ops.unified_diff(old_text, new_text, path=str(the_path))
-    if len(diff) > MAX_DIFF_CHARS:
-        diff = diff[:MAX_DIFF_CHARS] + "\n... (diff truncated)"
+    diff, additions, deletions = file_ops.diff_payload(
+        old_text, new_text, str(the_path)
+    )
 
     try:
         file_ops.write_whole_text(

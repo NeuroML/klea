@@ -262,3 +262,24 @@ def diff_counts(old_text: str, new_text: str) -> tuple[int, int]:
         if tag in ("replace", "insert"):
             additions += j2 - j1
     return additions, deletions
+
+
+#: Maximum size of the unified diff returned in a tool result.
+MAX_DIFF_CHARS = 20_000
+
+
+def diff_payload(old_text: str, new_text: str, path: str = "") -> tuple[str, int, int]:
+    """Return ``(diff, additions, deletions)`` for a change.
+
+    The diff is truncated to :data:`MAX_DIFF_CHARS`.
+
+    :param old_text: Original text.
+    :param new_text: Updated text.
+    :param path: Label used for both sides of the diff.
+    :returns: Unified diff text plus the added and removed line counts.
+    """
+    additions, deletions = diff_counts(old_text, new_text)
+    diff = unified_diff(old_text, new_text, path=path)
+    if len(diff) > MAX_DIFF_CHARS:
+        diff = diff[:MAX_DIFF_CHARS] + "\n... (diff truncated)"
+    return diff, additions, deletions

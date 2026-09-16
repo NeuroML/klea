@@ -17,6 +17,7 @@ from pydantic import Field
 from klea_utils.mcp.registry import tool_meta
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.download_file import download_file as download_file_impl
+from klea_utils.mcp.tool_impls.edit_file import edit_file as edit_file_impl
 from klea_utils.mcp.tool_impls.find_files import find_files as find_files_impl
 from klea_utils.mcp.tool_impls.grep import grep as grep_impl
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
@@ -335,6 +336,7 @@ async def write_file(
     Do not use for:
     - Reading a file (use the read file tool instead).
     - Listing a directory (use the list files tool instead).
+    - Making a small change to an existing file (use the edit file tool instead).
 
     Example: write_file(path="notes.txt", content="hello world")
 
@@ -348,6 +350,63 @@ async def write_file(
         diff, error.
     """
     result = write_file_impl(path=path, content=content)
+    return to_result(result)
+
+
+@tool_meta(
+    ToolInfo(
+        tags={BUNDLED_TAG, "local", "files"}, checkpaths=["path"], destructive=True
+    )
+)
+async def edit_file(
+    path: Annotated[str, Field(min_length=1)],
+    old_string: Annotated[
+        str,
+        Field(min_length=1, description="Exact text to replace"),
+    ],
+    new_string: Annotated[str, Field(description="Replacement text")],
+    replace_all: Annotated[
+        bool,
+        Field(description="Replace every occurrence instead of requiring one"),
+    ] = False,
+) -> ToolResult:
+    """Replace an exact span of text in an existing file.
+
+    Use this tool for targeted changes.  To supply ``old_string``, first read
+    the file with ``read_file(line_numbers=false)`` so the text matches
+    exactly, including whitespace and indentation.
+
+    Use when:
+
+    - Changing a small part of an existing file.
+    - Updating one occurrence, or every occurrence with ``replace_all``.
+
+    Do not use for:
+
+    - Creating a file or replacing its entire content (use the write file
+      tool instead).
+    - Reading a file (use the read file tool instead).
+
+    Example: edit_file(path="a.py", old_string="x = 1", new_string="x = 2")
+
+    Args:
+        path: File path to edit, relative to the project directory.
+        old_string: Exact text to replace; must occur once unless
+            ``replace_all`` is set.
+        new_string: Replacement text.
+        replace_all: Replace every occurrence (default: require a unique
+            match).
+
+    Returns:
+        Dictionary with path, replacements, additions, deletions, matcher,
+        diff, error.
+    """
+    result = edit_file_impl(
+        path=path,
+        old_string=old_string,
+        new_string=new_string,
+        replace_all=replace_all,
+    )
     return to_result(result)
 
 
