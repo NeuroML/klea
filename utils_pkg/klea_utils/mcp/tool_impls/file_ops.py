@@ -122,17 +122,27 @@ def read_whole_text(
     :returns: A :class:`TextFile` with normalised metadata.
     """
     the_path = Path(path)
+    logger.debug(f"Reading whole text file\n{the_path = }\n{max_bytes = }")
     if not the_path.exists():
+        logger.debug(f"File not found: {the_path}")
         raise FileEditError(f"File not found: {the_path}")
     if not the_path.is_file():
+        logger.debug(f"Not a regular file: {the_path}")
         raise FileEditError(f"Not a regular file: {the_path}")
 
     try:
         stat_result = the_path.stat()
     except OSError as exc:
+        logger.warning(f"Could not stat {the_path}: {exc}")
         raise FileEditError(f"Could not stat file: {exc}") from exc
 
     if stat_result.st_size > max_bytes:
+        logger.debug(
+            f"File too large to edit\n"
+            f"{the_path = }\n"
+            f"{stat_result.st_size = }\n"
+            f"{max_bytes = }"
+        )
         raise FileEditError(
             f"File too large to edit: {stat_result.st_size} bytes (limit {max_bytes})"
         )
@@ -140,21 +150,33 @@ def read_whole_text(
     try:
         data = the_path.read_bytes()
     except OSError as exc:
+        logger.warning(f"Could not read {the_path}: {exc}")
         raise FileEditError(f"Could not read file: {exc}") from exc
 
     if is_binary(data):
+        logger.debug(f"Cannot edit binary file: {the_path}")
         raise FileEditError(f"Cannot edit binary file: {the_path}")
 
     try:
         decoded = data.decode("utf-8")
     except UnicodeDecodeError as exc:
+        logger.debug(f"File is not valid UTF-8 text: {the_path}")
         raise FileEditError(f"File is not valid UTF-8 text: {the_path}") from exc
 
     text, bom = split_bom(decoded)
+    newline = detect_newline(text)
+    logger.debug(
+        f"Read whole text file\n"
+        f"{the_path = }\n"
+        f"{len(decoded) = }\n"
+        f"{bom = }\n"
+        f"{newline = }\n"
+        f"{stat_result.st_mode = }"
+    )
     return TextFile(
         text=text,
         bom=bom,
-        newline=detect_newline(text),
+        newline=newline,
         mode=stat_result.st_mode,
     )
 
@@ -185,13 +207,24 @@ def write_whole_text(
         fails.
     """
     the_path = Path(path)
+    logger.debug(
+        f"Writing whole text file\n"
+        f"{the_path = }\n"
+        f"{len(text) = }\n"
+        f"{bom = }\n"
+        f"{newline = }\n"
+        f"{mode = }\n"
+        f"{create_parents = }"
+    )
     if the_path.is_dir():
+        logger.warning(f"Path is a directory: {the_path}")
         raise FileEditError(f"Path is a directory: {the_path}")
 
     if create_parents:
         try:
             the_path.parent.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
+            logger.warning(f"Could not create directory for {the_path}: {exc}")
             raise FileEditError(f"Could not create directory: {exc}") from exc
 
     if mode is None:
@@ -205,6 +238,7 @@ def write_whole_text(
     try:
         data = payload.encode("utf-8")
     except UnicodeEncodeError as exc:
+        logger.warning(f"Content is not valid UTF-8 text: {exc}")
         raise FileEditError(f"Content is not valid UTF-8 text: {exc}") from exc
 
     try:
@@ -212,6 +246,7 @@ def write_whole_text(
             dir=str(the_path.parent), prefix=f".{the_path.name}.", suffix=".tmp"
         )
     except OSError as exc:
+        logger.warning(f"Could not create temporary file for {the_path}: {exc}")
         raise FileEditError(f"Could not write file: {exc}") from exc
 
     try:
@@ -222,6 +257,7 @@ def write_whole_text(
     except OSError as exc:
         with contextlib.suppress(OSError):
             os.unlink(tmp_name)
+        logger.warning(f"Could not write {the_path}: {exc}")
         raise FileEditError(f"Could not write file: {exc}") from exc
 
     logger.debug(f"Wrote {the_path} ({len(data)} bytes, mode {oct(mode)})")
@@ -280,6 +316,10 @@ def diff_payload(old_text: str, new_text: str, path: str = "") -> tuple[str, int
     """
     additions, deletions = diff_counts(old_text, new_text)
     diff = unified_diff(old_text, new_text, path=path)
-    if len(diff) > MAX_DIFF_CHARS:
+    truncated = len(diff) > MAX_DIFF_CHARS
+    if truncated:
         diff = diff[:MAX_DIFF_CHARS] + "\n... (diff truncated)"
+    logger.debug(
+        f"Built diff payload\n{path = }\n{additions = }\n{deletions = }\n{truncated = }"
+    )
     return diff, additions, deletions

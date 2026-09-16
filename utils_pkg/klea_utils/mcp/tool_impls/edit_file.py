@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.errors import FileEditError, PermissionDeniedError
-from klea_utils.mcp.tool_impls import file_ops
+from klea_utils.mcp.tool_impls import edit_replacers, file_ops
 from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
@@ -51,63 +51,6 @@ def _result(
     }
 
 
-def _apply_edit(
-    content: str,
-    old_string: str,
-    new_string: str,
-    replace_all: bool,
-) -> tuple[str, int, str, str]:
-    """Apply a single exact replacement to *content*.
-
-    Works on LF-normalised text.  Returns the updated text, the number of
-    replacements, the matcher name, and an error message (empty on success).
-
-    :param content: File content (LF-normalised).
-    :param old_string: Span to replace (LF-normalised).
-    :param new_string: Replacement span (LF-normalised).
-    :param replace_all: Replace every occurrence instead of requiring one.
-    :returns: ``(updated, replacements, matcher, error)``.
-    """
-    if old_string == "":
-        return (
-            content,
-            0,
-            "",
-            (
-                "old_string must not be empty; use write_file to create or "
-                "overwrite a file."
-            ),
-        )
-    if old_string == new_string:
-        return content, 0, "", "old_string and new_string are identical."
-
-    count = content.count(old_string)
-    if count == 0:
-        return (
-            content,
-            0,
-            "",
-            (
-                "Could not find old_string in the file. It must match exactly, "
-                "including whitespace and indentation."
-            ),
-        )
-    if count > 1 and not replace_all:
-        return (
-            content,
-            0,
-            "",
-            (
-                f"Found {count} matches for old_string. Provide more surrounding "
-                "context to make it unique, or set replace_all."
-            ),
-        )
-
-    if replace_all:
-        return content.replace(old_string, new_string), count, "exact", ""
-    return content.replace(old_string, new_string, 1), 1, "exact", ""
-
-
 def edit_file(
     path: str,
     old_string: str,
@@ -120,9 +63,12 @@ def edit_file(
     Framework-agnostic implementation shared across Klea MCP servers.  Apps
     wrap this in an MCP tool (see ``klea_utils.mcp.server.bundled_tools``).
 
-    Matching normalises line endings; the file's own line ending, BOM and
-    mode are preserved on write, which is atomic.  Unless *replace_all* is
-    set, *old_string* must occur exactly once.
+    Matching normalises line endings and, when an exact match fails, tries the
+    bounded replacer chain in :mod:`klea_utils.mcp.tool_impls.edit_replacers`
+    (line-trimmed, block-anchor, whitespace-normalised, indentation-flexible,
+    context-aware).  The file's own line ending, BOM and mode are preserved on
+    write, which is atomic.  Unless *replace_all* is set, the matched span must
+    be unique.
 
     :param path: File path to edit; must resolve inside *project_root*.
     :param old_string: Exact text to replace (must not be empty).
@@ -158,13 +104,21 @@ def edit_file(
     content = file_ops.normalize_newlines(doc.text)
     old_norm = file_ops.normalize_newlines(old_string)
     new_norm = file_ops.normalize_newlines(new_string)
+    logger.debug(
+        f"Loaded file for edit\n"
+        f"{len(content) = }\n"
+        f"{doc.bom = }\n"
+        f"{doc.newline = }\n"
+        f"{doc.mode = }"
+    )
 
-    updated, replacements, matcher, error = _apply_edit(
+    updated, replacements, matcher, error = edit_replacers.apply_edit(
         content, old_norm, new_norm, replace_all
     )
     if error:
-        logger.debug(f"Edit rejected: {error}")
+        logger.debug(f"Edit rejected\n{path = }\n{error = }")
         return _result(str(the_path), error=error)
+    logger.debug(f"Edit matched\n{matcher = }\n{replacements = }\n{len(updated) = }")
 
     diff, additions, deletions = file_ops.diff_payload(content, updated, str(the_path))
 

@@ -181,3 +181,20 @@ def test_edit_file_reports_diff(tmp_path):
     assert "+B" in result["diff"]
     assert result["additions"] == 1
     assert result["deletions"] == 1
+
+
+def test_edit_file_falls_back_to_line_trimmed(tmp_path):
+    target = tmp_path / "a.py"
+    target.write_text("def f():\n    x = 1\n    return x\n")
+
+    result = edit_file(
+        str(target),
+        "x = 1\nreturn x",
+        "    x = 2\n    return x",
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    assert result["error"] == ""
+    assert result["matcher"] == "line-trimmed"
+    assert target.read_text() == "def f():\n    x = 2\n    return x\n"

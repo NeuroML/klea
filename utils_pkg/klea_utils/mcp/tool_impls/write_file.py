@@ -109,6 +109,15 @@ def write_file(
         created = True
 
     new_text = file_ops.normalize_newlines(content_text)
+    logger.debug(
+        f"Write plan\n"
+        f"{the_path = }\n"
+        f"{created = }\n"
+        f"{bom = }\n"
+        f"{newline = }\n"
+        f"{len(old_text) = }\n"
+        f"{len(new_text) = }"
+    )
     diff, additions, deletions = file_ops.diff_payload(
         old_text, new_text, str(the_path)
     )

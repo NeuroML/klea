@@ -90,8 +90,8 @@ Further details:
 * ``old_string`` may not be empty, and ``old_string`` must differ from
   ``new_string``.
 * When exact matching fails, a bounded replacer chain is tried in order:
-  line-trimmed, block-anchor (first/last-line anchors plus Levenshtein
-  middle-line similarity), whitespace-normalised, indentation-flexible, and
+  line-trimmed, block-anchor (first/last-line anchors plus
+  :class:`difflib.SequenceMatcher` middle-line similarity), whitespace-normalised, indentation-flexible, and
   context-aware.  Every candidate must still satisfy the uniqueness and
   proportional-match checks, and the replacer that matched is logged.
 * Line endings (CRLF/LF) are normalised for matching and re-applied on
