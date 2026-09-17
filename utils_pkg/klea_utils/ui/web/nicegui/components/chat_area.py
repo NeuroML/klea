@@ -59,7 +59,7 @@ def _render_messages(ctx: PageContext) -> None:
                 ChatBubble(
                     text=linkify_md(text),
                     stamp=stamp,
-                    is_user=is_user,
+                    role="user" if is_user else "agent",
                     collapsed=collapsed,
                     idx=idx,
                     on_copy=lambda t=text: ui.run_javascript(

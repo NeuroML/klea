@@ -37,8 +37,8 @@ def attach_input(ctx: PageContext) -> None:
     with ui.row().classes("w-full no-wrap items-end py-4"):
         text = (
             ui.textarea(placeholder="Start a conversation")
-            .props("rounded outlined input-class=mx-3 autogrow")
-            .classes("flex-grow")
+            .props("outlined autogrow")
+            .classes("flex-grow chat-input")
         )
         ctx.text = text
 
@@ -74,6 +74,9 @@ def attach_input(ctx: PageContext) -> None:
 
             background_tasks.create(stream.run_stream(ctx, query, current))
 
+        # Send button inside the field, anchored to the bottom-right: the
+        # textarea autogrows upward as the message gets longer while the
+        # button stays on its last line (the Gemini pattern).
         with (
             text.add_slot("append"),
             ui.button(icon="send", on_click=send).props(

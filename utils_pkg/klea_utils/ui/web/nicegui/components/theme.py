@@ -67,6 +67,14 @@ def _add_css_overrides() -> None:
         "border-radius: 0.25rem; "
         "word-break: break-word; }"
     )
+    # Chat input: match the transcript blocks' corner radius (the ``rounded``
+    # prop is a pill, so it is not used).  The textarea autogrows upward as the
+    # message gets longer (Quasar handles that), capped at 40vh before it
+    # scrolls, and the send button in the ``append`` slot is anchored to the
+    # bottom-right so it stays on the textarea's last line.
+    ui.add_css(".chat-input .q-field__control { border-radius: 0.5rem; }")
+    ui.add_css(".chat-input .q-field__native { max-height: 40vh; overflow: auto; }")
+    ui.add_css(".chat-input .q-field__append { align-self: flex-end; }")
     # Status-pane context controls (operating mode / tool access).  Quasar's
     # ``flat`` buttons have no border and its fixed grey palette is hard to see
     # on the dark drawer, so the inactive option is drawn as an outline whose
@@ -96,6 +104,8 @@ def _add_css_overrides() -> None:
         "    --klea-muted: #757575;\n"
         "    --klea-hint: #9e9e9e;\n"
         "    --klea-surface: #e0e0e0;\n"
+        "    --klea-bubble-user: #e8f0fe;\n"
+        "    --klea-bubble-tool: #f0f0f0;\n"
         "  }\n"
         "  body.body--dark {\n"
         # Quasar brand token: lighten ``primary`` so primary-tinted widgets (the
@@ -112,6 +122,8 @@ def _add_css_overrides() -> None:
         # Footer stays a distinct, slightly darker bar (mirrors light mode,
         # where the footer is darker than the page).
         "    --klea-surface: #161616;\n"
+        "    --klea-bubble-user: #1e2a3a;\n"
+        "    --klea-bubble-tool: #262626;\n"
         "  }\n"
         # Neutral interactive icons and the inactive segmented option; the
         # outline border follows the text colour (Quasar draws
@@ -126,6 +138,13 @@ def _add_css_overrides() -> None:
         # Bar surfaces (footer, ...): Quasar sets no footer background, so the
         # app pins one explicitly; this keeps it theme-aware.
         "  .footer-bar { background: var(--klea-surface) !important; }\n"
+        # Chat transcript blocks (web-theming: semantic class + token).  All
+        # three roles span the full chat width; only the surface distinguishes
+        # them, so the user's prompt reads as a tinted block, the agent's reply
+        # as plain document text, and a tool round as a neutral block.
+        "  .chat-bubble--user { background: var(--klea-bubble-user); }\n"
+        "  .chat-bubble--agent { background: transparent; }\n"
+        "  .chat-bubble--tool { background: var(--klea-bubble-tool); }\n"
         # Quasar's grey text classes use fixed literals, so map the ones we use
         # onto the tokens in dark mode.
         "  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }\n"

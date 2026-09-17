@@ -1,5 +1,5 @@
 """
-Chat message bubble widget.
+Chat message block widget.
 
 File: klea_utils/ui/web/nicegui/components/chat_bubble.py
 
@@ -9,19 +9,25 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from nicegui import ui
 
+#: Recognised transcript roles; anything else falls back to ``agent``.
+_ROLES = ("user", "agent", "tool")
+
 
 class ChatBubble(ui.element):
-    """A custom chat message bubble with built-in actions.
+    """A full-width chat transcript block with built-in actions.
 
-    Replaces ``ui.chat_message`` with full control over the layout.
-    Each bubble has collapsible text content, a timestamp, a copy
-    button, and an expand / collapse toggle -- all flowing naturally
-    inside the bubble (no CSS hacks).
+    All roles span the full chat width (opencode-style); the surface colour
+    distinguishes them (semantic ``chat-bubble--<role>`` classes in
+    ``theme.py``), so user blocks read as tinted prompts, agent blocks as
+    plain document text, and tool blocks as neutral blocks.  Each block has
+    an optional header, collapsible text content, a timestamp, a copy
+    button, and an expand / collapse toggle -- all flowing naturally inside
+    the block (no CSS hacks).
 
     Usage inside a ``@ui.refreshable``::
 
         ChatBubble(
-            text="Hello", stamp="12:00", is_user=True,
+            text="Hello", stamp="12:00", role="user",
             collapsed=False, idx=0,
             on_expand=lambda: print("toggle"),
             on_copy=lambda: print("copy"),
@@ -32,54 +38,50 @@ class ChatBubble(ui.element):
         self,
         text: str,
         stamp: str,
-        is_user: bool,
+        role: str,
         collapsed: bool,
         idx: int,
+        header: str = "",
         on_expand=None,
         on_copy=None,
     ) -> None:
-        """Build the bubble.
+        """Build the block.
 
-        :param text: Message text (rendered as HTML).
+        :param text: Message text (rendered as markdown).
         :param stamp: Timestamp string.
-        :param is_user: ``True`` for user messages, ``False`` for bot.
+        :param role: ``"user"``, ``"agent"`` or ``"tool"``; unknown values
+            fall back to ``"agent"``.
         :param collapsed: ``True`` if the text is collapsed to 4 lines.
         :param idx: Message index (used for expand/collapse tracking).
+        :param header: Optional small bold header, e.g. a tool block's
+            name and change counts.
         :param on_expand: Callable with no args, fired on expand/collapse click.
         :param on_copy: Callable with no args, fired on copy click.
         """
         super().__init__("div")
 
-        bg = (
-            "bg-green-50 dark:bg-green-900"
-            if is_user
-            else "bg-blue-50 dark:bg-blue-900"
-        )
-        corner = "rounded-br-sm" if is_user else "rounded-bl-sm"
-        align = "items-end" if is_user else "items-start"
-        text_align = "text-right" if is_user else "text-left"
-        bubble_w = "max-w-[85%]" if is_user else "w-full"
-        bottom_align = "justify-end" if is_user else "justify-start"
+        if role not in _ROLES:
+            role = "agent"
 
-        self.classes(f"w-full flex flex-col {align}")
+        self.classes("w-full flex flex-col")
 
         with (
             self,
             ui.element("div").classes(
-                f"flex flex-col rounded-2xl {bg} {corner} p-3 gap-1 {bubble_w}"
+                "flex w-full flex-col rounded-lg p-3 gap-1 "
+                f"chat-bubble chat-bubble--{role}"
             ),
         ):
-            text_cls = (
-                f"{text_align} msg-collapsed"
-                if collapsed
-                else f"{text_align} msg-expanded"
-            )
-            with ui.element("div").classes(f"{text_cls} chat-markdown"):
+            if header:
+                ui.label(header).classes("text-xs font-bold text-grey-6")
+
+            text_cls = "msg-collapsed" if collapsed else "msg-expanded"
+            with ui.element("div").classes(f"text-left {text_cls} chat-markdown"):
                 # 'alerts' extra renders GitHub-style ``> [!WARNING]`` blocks
                 # (used for the fallback / best-effort warnings) as callouts.
                 ui.markdown(text, extras=["fenced-code-blocks", "tables", "alerts"])
 
-            with ui.row().classes(f"flex flex-row {bottom_align} items-center gap-1"):
+            with ui.row().classes("flex flex-row justify-start items-center gap-1"):
                 ui.label(stamp).classes("text-xs text-grey-5")
 
                 if on_copy:
