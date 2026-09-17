@@ -47,7 +47,7 @@ class PageContext:
     :param user_id: Opaque persistent user identifier.
     :param title: Bold application title in the header bar.
     :param subtitle: Optional smaller text shown next to *title*.
-    :param disclaimer: Optional text shown below the chat input.
+    :param disclaimer: Optional text shown in the footer.
     :param footer_text: HTML content for the footer bar.
     :param chat_id: Active chat conversation identifier.
     """

@@ -23,6 +23,7 @@ from klea_utils.ui.web.nicegui.components import (
     bootstrap,
     chat_area,
     chat_list,
+    footer,
     header,
     initial_load,
     input_area,
@@ -65,7 +66,7 @@ def setup_layout(
     :param user_id: Opaque persistent user identifier.
     :param title: Bold application title in the header bar.
     :param subtitle: Optional smaller text shown next to *title*.
-    :param disclaimer: Optional text shown below the chat input.
+    :param disclaimer: Optional text shown in the footer.
     :param footer_text: HTML content for the footer bar.
     """
     ctx = PageContext(
@@ -139,9 +140,8 @@ def setup_layout(
     # to become ready on HF (cold container).
     initial_load.attach_initial_load(ctx)
 
-    # ---- Footer ----
-    with ui.footer().classes("footer-bar text-xs py-1"):
-        ui.html(footer_text).classes("w-full text-center text-grey-6")
+    # ---- Footer (disclaimer + footer text) ----
+    footer.attach_footer(ctx)
 
 
 def run_rag_web(
@@ -165,7 +165,7 @@ def run_rag_web(
         browser tab).
     :param server_url: Base URL of the backend API server.
     :param subtitle: Optional smaller text shown next to *title*.
-    :param disclaimer: Optional text shown below the chat input.
+    :param disclaimer: Optional text shown in the footer.
     :param footer_text: HTML content for the footer bar.
     :param reload: When ``True``, enable NiceGUI's file-watch hot reload.
     :param nicegui_url: ``host:port`` to bind the NiceGUI web server to.

@@ -335,7 +335,7 @@ def make_client_app(
             "Answers use LLM technology and may be incorrect. Please re-confirm.",
             "--disclaimer",
             "-c",
-            help="Disclaimer text shown below the chat area",
+            help="Disclaimer text shown in the footer",
         ),
         footer_text: str = typer.Option(
             'Powered by <a href="https://github.com/neuroml/klea">Klea</a>',

@@ -97,13 +97,6 @@ def attach_input(ctx: PageContext) -> None:
         # Clicking the send icon inside the textarea also sends.
         text.on("click:append", send)
 
-    # The disclaimer is a full-width line BELOW the input row.  Keeping it
-    # inside the flex row would share the line with the ``flex-grow``
-    # textarea: as a ``w-full`` flex sibling it wins the space and squeezes
-    # the text box down to its content width.
-    if ctx.disclaimer:
-        ui.label(ctx.disclaimer).classes("text-xs text-grey-5 pb-2 w-full text-center")
-
     # Disable chat input until backend is ready; initial_load re-enables.
     try:
         text.disable()
