@@ -147,6 +147,46 @@ class PlanSchema(BaseModel):
             return self.step_list[index]
         return None
 
+    def validate_plan(self) -> list[str]:
+        """Return structural-consistency errors for this plan (empty if valid).
+
+        The Planner is the sole author of the plan (including per-step status
+        and ``current_step_index``); code does not mutate it.  This check
+        enforces the machine-checkable invariants so an inconsistent plan is
+        rejected and retried instead of silently corrupting execution:
+
+        * step numbers are positive and unique;
+        * ``depends_on`` references only step numbers present in this plan;
+        * ``current_step_index`` is within ``[-1, len-1]`` and points at the
+          first non-``done`` step (``len(step_list)`` when all are done).
+
+        :returns: A list of human-readable error strings.
+        """
+        errors: list[str] = []
+        numbers = [step.step_number for step in self.step_list]
+        seen: set[int] = set()
+        for number in numbers:
+            if number <= 0:
+                errors.append(f"step_number {number} must be positive")
+            if number in seen:
+                errors.append(f"duplicate step_number {number}")
+            seen.add(number)
+        for step in self.step_list:
+            for dep in step.depends_on:
+                if dep not in seen:
+                    errors.append(
+                        f"step {step.step_number} depends on {dep}, "
+                        "which is not a step in this plan"
+                    )
+        # ``current_step_index`` may legitimately be ``len`` when all steps
+        # are done; ``-1`` is accepted as "no current step" for an empty plan.
+        if not (-1 <= self.current_step_index <= len(self.step_list)):
+            errors.append(
+                f"current_step_index {self.current_step_index} is out of range "
+                f"for {len(self.step_list)} step(s)"
+            )
+        return errors
+
 
 class GoalSchema(BaseModel):
     goal: str = ""
