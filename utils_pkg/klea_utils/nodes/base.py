@@ -40,6 +40,7 @@ from ..llm import (
     get_last_n_conversations,
     get_provider_allowed_fields,
     get_token_limit_param,
+    is_empty_structured_parse_error,
     is_output_empty,
     is_output_truncated,
     load_prompt,
@@ -662,6 +663,21 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         self.logger.warning(message)
                         continue
                     raise
+
+                # A blank structured response makes the parser raise instead
+                # of returning an empty message, so route it into the same
+                # empty-retry budget a plain blank response gets.
+                if (
+                    is_empty_structured_parse_error(exc)
+                    and empty_retries < MAX_EMPTY_OUTPUT_RETRIES
+                ):
+                    empty_retries += 1
+                    self.logger.warning(
+                        "Empty structured LLM output, retrying (%d/%d)",
+                        empty_retries,
+                        MAX_EMPTY_OUTPUT_RETRIES,
+                    )
+                    continue
                 raise
 
             if is_output_truncated(output):

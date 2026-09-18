@@ -23,6 +23,7 @@ from klea_utils.nodes.base import (
     TRUNCATION_LINEAR_STEP,
     BaseLLMNode,
 )
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.prompt_values import StringPromptValue
 from langgraph.runtime import Runtime
@@ -607,3 +608,176 @@ class TestInvokeWithRetries:
 
         assert wrapped.ainvoke.await_count == 1
         assert inst.ainvoke.await_count == 0
+
+    async def test_empty_structured_output_retries_then_succeeds(self):
+        """A blank structured response is re-invoked instead of failing.
+
+        On the structured path the parser raises for a blank response rather
+        than returning it, so the empty-retry budget must be applied on the
+        exception path (HuggingFace intermittently blanks under rate limiting).
+        """
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(
+            side_effect=[
+                OutputParserException(
+                    "Invalid json output: \nFor troubleshooting, visit: "
+                    "https://docs.langchain.com/oss/python/langchain/errors/"
+                    "OUTPUT_PARSING_FAILURE "
+                ),
+                AIMessage(content='{"answer": "ok"}'),
+            ]
+        )
+
+        node = make_node(inst, output_schema=_OutputSchema)
+        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        assert wrapped.ainvoke.await_count == 2
+        assert out.content == '{"answer": "ok"}'
+
+    async def test_empty_structured_output_exhausts_retries(self):
+        """Persistent blank structured responses retry, then re-raise."""
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(
+            side_effect=OutputParserException("Invalid json output: \n")
+        )
+
+        node = make_node(inst, output_schema=_OutputSchema)
+        try:
+            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        except OutputParserException:
+            pass
+        else:
+            raise AssertionError("expected OutputParserException")
+
+        assert wrapped.ainvoke.await_count == 1 + MAX_EMPTY_OUTPUT_RETRIES
+
+    async def test_nonempty_invalid_json_not_retried_as_empty(self):
+        """A non-empty invalid payload is a schema mismatch, not an empty retry."""
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(
+            side_effect=OutputParserException("Invalid json output: {not json}")
+        )
+
+        node = make_node(inst, output_schema=_OutputSchema)
+        try:
+            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        except OutputParserException:
+            pass
+        else:
+            raise AssertionError("expected OutputParserException")
+
+        assert wrapped.ainvoke.await_count == 1
+
+
+class _ValidatingNode(_MinimalLLMNode):
+    """Node that rejects the first result then accepts (validation-retry test)."""
+
+    model_type = "chat"
+    max_validation_retries = 2
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calls = 0
+        self.feedback_seen = []
+
+    def _get_prompt_variables(self, state):
+        self.feedback_seen.append(self._validation_feedback)
+        return {"x": "y"}
+
+    def _get_system_prompt(self, state):
+        return "system"
+
+    def _get_human_prompt(self, state):
+        return "human"
+
+    def _pre_exec_stream(self):
+        pass
+
+    def _post_exec_stream(self):
+        pass
+
+    async def _invoke_llm(self, llm, prompt, config):
+        self.calls += 1
+        return AIMessage(content="raw")
+
+    def _process_output(self, output):
+        return self.calls
+
+    def _validate_result(self, result, state):
+        # Reject the first result, accept the second.
+        return "bad plan" if result == 1 else None
+
+    def _update_state(self, result, state):
+        return {"accepted": result}
+
+    def _get_default_error_result(self):
+        return 0
+
+
+class TestValidationRetryLoop:
+    """execute() re-invokes on a validation failure with feedback."""
+
+    def setup_method(self):
+        self._catalog_patcher = mock.patch(
+            "klea_utils.llm.get_catalog_model_limits", return_value=None
+        )
+        self._catalog_patcher.start()
+
+    def teardown_method(self):
+        self._catalog_patcher.stop()
+
+    async def test_retries_until_valid(self):
+        node = _ValidatingNode(
+            logger=logger,
+            label="test",
+            llm_models={
+                "chat": LLMModel(instance=mock.Mock(), model_name="openai:gpt-4o")
+            },
+            output_schema=None,
+        )
+        with (
+            _runtime_context(),
+            mock.patch("klea_utils.nodes.base._current_session_id", return_value=None),
+            mock.patch.object(
+                node, "_configure_llm", return_value=(mock.Mock(), make_config())
+            ),
+        ):
+            updates = await node.execute(_OutputSchema(answer="x"))
+
+        assert node.calls == 2
+        assert updates["accepted"] == 2
+        # The retry saw the validation error as feedback.
+        assert "bad plan" in node.feedback_seen
+
+    async def test_gives_up_after_max_retries(self):
+        class _AlwaysInvalid(_ValidatingNode):
+            def _validate_result(self, result, state):
+                return "still bad"
+
+        node = _AlwaysInvalid(
+            logger=logger,
+            label="test",
+            llm_models={
+                "chat": LLMModel(instance=mock.Mock(), model_name="openai:gpt-4o")
+            },
+            output_schema=None,
+        )
+        with (
+            _runtime_context(),
+            mock.patch("klea_utils.nodes.base._current_session_id", return_value=None),
+            mock.patch.object(
+                node, "_configure_llm", return_value=(mock.Mock(), make_config())
+            ),
+        ):
+            updates = await node.execute(_OutputSchema(answer="x"))
+
+        # 1 original + max_validation_retries re-invokes.
+        assert node.calls == 1 + _AlwaysInvalid.max_validation_retries
+        # The final (still invalid) result is accepted fail-closed.
+        assert updates["accepted"] == node.calls

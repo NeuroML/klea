@@ -436,6 +436,36 @@ def is_output_empty(output: AIMessage | dict[str, Any]) -> bool:
     return False
 
 
+def is_empty_structured_parse_error(exc: BaseException) -> bool:
+    """Return True if *exc* is a structured-output parse error on blank text.
+
+    On the structured path, ``with_structured_output(...).ainvoke`` **raises**
+    :class:`OutputParserException` for a blank model response instead of
+    returning a dict, so :func:`is_output_empty` never sees it and the
+    empty-response retry in ``BaseLLMNode._invoke_with_retries`` is skipped.
+    LangChain's parsers phrase the failure as ``"Invalid json output: ..."``
+    followed by the (here empty) raw text, so match that shape rather than
+    treating every parser error as retryable: a non-empty invalid payload is
+    a real schema mismatch that should not be retried.
+
+    :param exc: The exception raised by the structured-output invoke.
+    :returns: True when the parser failed because the response was blank.
+    """
+    if not isinstance(exc, OutputParserException):
+        return False
+    text = str(exc)
+    marker = "invalid json output:"
+    lower = text.lower()
+    if marker not in lower:
+        return False
+    payload = text[lower.index(marker) + len(marker) :]
+    # Strip the LangChain troubleshooting URL/whitespace before judging.
+    payload = re.split(
+        r"for troubleshooting", payload, maxsplit=1, flags=re.IGNORECASE
+    )[0]
+    return not payload.strip()
+
+
 def get_token_limit_param(provider: str) -> str:
     """Return the max-output token parameter name for a provider.
 

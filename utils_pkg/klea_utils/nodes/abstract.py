@@ -256,6 +256,15 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     ``self.model_defaults`` in ``__init__``.
     """
 
+    max_validation_retries: ClassVar[int] = 0
+    """How many times ``execute`` re-invokes on a validation failure.
+
+    A node overrides :meth:`_validate_result` to reject structurally invalid
+    output; when it returns an error, ``execute`` re-invokes the model with
+    the error exposed as the ``validation_feedback`` prompt variable, up to
+    this many retries.  Default ``0`` disables the loop.
+    """
+
     _last_state: TState | None = None
     """The state passed to the most recent :meth:`execute` call."""
 
@@ -286,6 +295,9 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                 f"but llm_models only has keys: {list(self.llm_models)}"
             ) from None
         self._output_schema = output_schema
+        #: Validation error from the most recent ``_validate_result`` failure,
+        #: exposed to the prompt as ``validation_feedback`` on a retry.
+        self._validation_feedback: str = ""
 
     @final
     async def execute(self, state: TState) -> dict[str, Any]:
@@ -307,6 +319,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         self._last_state_updates = None
         self._final_state = None
         self._token_usage: TokenUsage | None = None
+        self._validation_feedback: str = ""
 
         self.logger.debug(f"{state =}")
 
@@ -323,18 +336,49 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             self._last_system_prompt, self._last_human_prompt
         )
         self._last_variables = self._get_prompt_variables(state)
-        self._last_prompt = self._invoke_prompt(
-            self._last_template, self._last_variables
-        )
-        chars_sent = len(self._last_prompt.to_string())
-        self.logger.debug(f"{chars_sent = } characters sent to LLM")
         self._last_llm, self._last_config = self._configure_llm()
-        self._last_output = await self._invoke_llm(
-            self._last_llm, self._last_prompt, self._last_config
-        )
-        chars_received = len(extract_llm_output_content(self._last_output))
-        self.logger.debug(f"{chars_received = } characters received from LLM")
-        self._last_result = self._process_output(self._last_output)
+
+        # Validation-retry loop: a node may reject a structurally invalid
+        # result (``_validate_result``) and re-invoke with the reason exposed
+        # as ``validation_feedback``, up to ``max_validation_retries`` times.
+        # On the final attempt the invalid result is kept and handled by
+        # ``_update_state`` (fail-closed), so the loop always terminates.
+        attempt = 0
+        while True:
+            # Re-derive the variables each attempt so the node's own
+            # ``_get_prompt_variables`` (and any state it reads) stays the
+            # single source, then inject the validation feedback.
+            self._last_variables = self._get_prompt_variables(state)
+            self._last_variables["validation_feedback"] = self._validation_feedback
+            self._last_prompt = self._invoke_prompt(
+                self._last_template, self._last_variables
+            )
+            chars_sent = len(self._last_prompt.to_string())
+            self.logger.debug(f"{chars_sent = } characters sent to LLM")
+            self._last_output = await self._invoke_llm(
+                self._last_llm, self._last_prompt, self._last_config
+            )
+            chars_received = len(extract_llm_output_content(self._last_output))
+            self.logger.debug(f"{chars_received = } characters received from LLM")
+            self._last_result = self._process_output(self._last_output)
+            error = self._validate_result(self._last_result, state)
+            if not error or attempt >= self.max_validation_retries:
+                if error:
+                    self.logger.warning(
+                        "Validation failed after %d retries, accepting result: %s",
+                        attempt,
+                        error,
+                    )
+                break
+            attempt += 1
+            self._validation_feedback = error
+            self.logger.warning(
+                "Invalid node result, retrying (%d/%d): %s",
+                attempt,
+                self.max_validation_retries,
+                error,
+            )
+
         self._last_state_updates = self._update_state(self._last_result, state)
 
         # token calculations
@@ -528,6 +572,24 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     def _update_state(self, result: Any, state: TState) -> dict[str, Any]:
         """Update and return state dictionary"""
         ...
+
+    def _validate_result(self, result: Any, state: TState) -> str | None:
+        """Return a reason string when *result* is structurally invalid.
+
+        Called by :meth:`execute` after :meth:`_process_output`.  Returning a
+        non-``None`` string triggers a bounded re-invoke (see
+        :attr:`max_validation_retries`) with the reason exposed to the prompt
+        as ``validation_feedback``.  Use this for machine-checkable
+        consistency (for example a plan whose references do not resolve),
+        not for subjective quality.
+
+        Default: ``None`` (no validation).
+
+        :param result: The processed node result.
+        :param state: Current graph state.
+        :returns: An error description, or ``None`` when valid.
+        """
+        return None
 
     @abstractmethod
     def _get_default_error_result(self) -> Any:
