@@ -32,6 +32,8 @@ class FallbackConfig(BaseModel):
 
 class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
     model_type = "chat"
+    #: Free-text answer node: its token deltas are meaningful to stream.
+    stream_tokens = True
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
         "max_output_tokens": 2048,

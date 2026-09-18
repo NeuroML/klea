@@ -37,6 +37,7 @@ async def stream_events(
         progress    {"type": "progress", "node": "<label>"}
         inspect     {"type": "inspect", "node": "<label>", "data": {...}}
         token       {"type": "token", "content": "<chunk>", "node": "<label>"}
+                    (only for opted-in free-text nodes)
         usage       {"type": "usage", "node": "<label>", "data": {...}}
         context     {"type": "context", "data": {...}}  (graph-level session context)
         complete    {"type": "complete", "message_for_user": "<text>"}

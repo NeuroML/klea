@@ -95,6 +95,8 @@ class ToyGraph(BaseLangGraph):
             memory=False,
         )
         workflow.add_node(self._answer_node.label, self._answer_node.execute)
+        # The toy graph streams the free-text answer node's tokens.
+        self.token_stream_nodes.add(self._answer_node.label)
 
         self._fixed_node = FixedAnswer(
             logger=self.logger,
@@ -737,6 +739,14 @@ class TestRunContextForwarding:
         assert method == "astream_events"
         assert kwargs["context"] is ctx
         assert kwargs["version"] == "v3"
+
+
+def test_token_streaming_is_opt_in():
+    """Nodes default to no token streaming; free-text AnswerGeneral opts in."""
+    from klea_utils.nodes.abstract import AbstractLangGraphNode
+
+    assert AbstractLangGraphNode.stream_tokens is False
+    assert AnswerGeneral.stream_tokens is True
 
 
 if __name__ == "__main__":

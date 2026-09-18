@@ -182,6 +182,13 @@ class BaseLangGraph(ABC):
 
         self.graph: CompiledStateGraph[Any, Any, Any, Any] | None = None
 
+        #: Labels of nodes whose LLM token deltas should be forwarded as
+        #: ``token`` stream events.  A node opts in with
+        #: ``stream_tokens = True``; the app adds its label here at graph
+        #: build time.  Empty means no token events are emitted, so
+        #: structured-output nodes never flood the stream with JSON fragments.
+        self.token_stream_nodes: set[str] = set()
+
         self.mcp_config: MCPConfig | None = None
         self.mcp_client: Client | None = None
         self.mcp_tools: list[Tool] | None = None
@@ -989,7 +996,9 @@ class BaseLangGraph(ABC):
         ``{"type": "inspect", "node": "<label>", "data": {...}}``
             Inspection data from a node after execution (summary + details)
         ``{"type": "token", "content": "<chunk>", "node": "<label>"}``
-            LLM token chunk from the current node
+            LLM token chunk from the current node.  Emitted only for nodes in
+            :attr:`token_stream_nodes` (free-text answer nodes), not for
+            structured-output nodes.
         ``{"type": "usage", "node": "<label>", "data": {...}}``
             Per-node token usage (input / output / total tokens)
         ``{"type": "context", "data": {...}}``
@@ -1079,6 +1088,11 @@ class BaseLangGraph(ABC):
                     }
 
             elif method == "messages":
+                # Token deltas are only useful for user-facing free-text
+                # nodes; structured-output nodes emit JSON fragments and are
+                # not in ``token_stream_nodes`` (see its docstring).
+                if current_node not in self.token_stream_nodes:
+                    continue
                 data = event["params"]["data"]
                 for item in data:
                     if not isinstance(item, dict):

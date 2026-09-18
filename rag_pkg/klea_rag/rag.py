@@ -294,6 +294,9 @@ class RAG(BaseLangGraph):
         self.workflow.add_node(
             self._answer_general_node.label, self._answer_general_node.execute
         )
+        # Free-text answer node: stream its token deltas (see
+        # ``BaseLangGraph.token_stream_nodes``).
+        self.token_stream_nodes.add(self._answer_general_node.label)
 
         self._refuse_answer_node = FixedAnswer(
             logger=self.logger,

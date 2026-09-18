@@ -85,6 +85,13 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
     execute(state) method.
     """
 
+    #: Whether this node's LLM token deltas are forwarded as ``token`` stream
+    #: events.  Off by default: structured-output nodes emit JSON fragments,
+    #: which are useless to a live-streaming UI.  A node that produces
+    #: user-facing free text sets this True, and the orchestrator adds its
+    #: label to ``BaseLangGraph.token_stream_nodes``.
+    stream_tokens: ClassVar[bool] = False
+
     def __init__(self, logger: logging.Logger, label: str):
         """Initialise
 
