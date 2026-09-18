@@ -358,6 +358,28 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * Feedback is split by source: `evaluation` (LLM judge, structured) and
   `human_feedback` (review text); both reach the Planner, and run progress
   (query, plans, verdicts, answers) is recorded in `messages`.
+* **The Planner owns the whole plan; code does not mutate it** (amended
+  2026-09-18).  The Planner authors step statuses and `current_step_index`
+  as well as step content.  The earlier deterministic re-application of
+  completion markers by matching step numbers across plans was removed: on a
+  replan where the model renumbers or merges steps, a stale `done` number can
+  collide with a new step and force it `done`, leaving `current_step_index`
+  out of range while per-step outputs were cleared (an unrecoverable picker
+  loop).  Consistency is now enforced structurally: `PlanSchema.validate_plan()`
+  checks positive/unique step numbers, in-plan `depends_on` references and an
+  in-range `current_step_index`; a violation triggers a bounded re-invoke
+  through the generic node validation-retry loop (error exposed as
+  `validation_feedback`), then fails closed to `unplannable`.  Machine-checkable
+  invariants live in schema validation, not in prompt rules or positional
+  patches.
+* **`abort` records unreachability honestly** (amended 2026-09-18).  `abort` is
+  a first-class Evaluator verdict for a goal the observations already prove
+  unreachable (for example a read-only task whose required input does not
+  exist), routing straight to the failure answer instead of burning the replan
+  budget on a dead end.  The model's reason is carried into `failure_reason`;
+  only a budget-triggered abort is labelled as such.  Reachability is a
+  judgement against evidence, deliberately not a plan-similarity check (two
+  plans cannot be compared deterministically).
 * `AnswerFromResults` synthesises the final reply on success and explains the
   failure (from `failure_reason`) on `abort`/`unplannable`.
 * Residual risk: a router misroute (a reality question answered as chat).  The

@@ -90,6 +90,51 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan}``;
 ``Planner._update_state``: steps + review -> ``in_review``; steps ->
 ``in_progress``; no steps -> ``unplannable``.  It never answers the user.
 
+### Planner plan ownership (Design A)
+
+The Planner is the **sole author of the whole plan**, including each step's
+``status`` and the ``current_step_index``.  Code does **not** mutate the plan:
+there is no re-application of completion markers and no recomputation of the
+current step by matching step numbers across plans.  That positional matching
+was brittle -- on a replan the model may renumber or merge steps, so an old
+``done`` step ``1`` could collide with a new step ``1``, be wrongly forced
+``done``, and leave ``current_step_index`` past the end of the list while
+``step_outputs`` were cleared (observed: an unrecoverable picker loop).
+
+Instead:
+
+* the model is given the prior plan with its ``[DONE]`` markers and is
+  responsible for carrying completed steps forward and for setting
+  ``current_step_index`` (0-based index of the first non-``done`` step, or the
+  step count when all are done);
+* the returned ``PlannerOutput`` is validated **structurally** by
+  ``PlanSchema.validate_plan()`` (positive/unique step numbers, ``depends_on``
+  resolving inside the plan, in-range ``current_step_index``); ``Planner._validate_result``
+  surfaces any error;
+* a validation failure triggers a bounded re-invoke through the generic
+  ``AbstractLLMNode`` validation-retry loop (``max_validation_retries``;
+  the error is exposed to the prompt as ``validation_feedback``), after which
+  the invalid result is accepted fail-closed and ``_update_state`` routes it
+  to ``unplannable``.
+
+The general principle: machine-checkable consistency lives in schema
+validation + fail-closed handling, not in prompt rules or positional patches.
+
+### Planner policy on infeasible and read-only tasks
+
+Two related rules keep the Planner from inventing work:
+
+* **No write steps for read-only intent.**  A task whose intent is only to
+  read, inspect, or report must not contain create/edit/delete steps.  If the
+  requested artifact is absent, the plan surfaces the absence (report not
+  found, or ask for the path) instead of fabricating it.  Observed failure:
+  asked to read a missing file, an earlier planner added a step to create an
+  empty file so the "read" would succeed.
+* **Early exits have equal value.**  Identifying that a task is impossible or
+  has a missing dependency is as valuable as completing it.  When early
+  evidence shows the goal cannot be met, the Planner prefers reporting that
+  over adding steps that cannot succeed.
+
 ## Plan review (human-in-the-loop)
 
 ``AwaitReview`` is human evaluation of the plan, symmetric to the Evaluator's
@@ -149,7 +194,8 @@ and it is shared with RAG (ADR-0020).
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
 * ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``,
-  current step index, and the lifecycle ``status`` used for routing).
+  current step index, and the lifecycle ``status`` used for routing).  The
+  Planner authors all of it (Design A, above); code only validates structure.
 * ``step_outputs: dict[int, list[CallToolResult]]`` (per-step results).
 * ``tool_calls`` / ``tool_results`` (current batch; shared with RAG).
 * ``tool_retry_counts: dict[int, int]`` (consecutive tool-error batches per
@@ -191,6 +237,7 @@ level 2 verifier with provenance.
 | call-level (bad args, wrong tool, permission denied) | picker | re-pick with the error fed back |
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` N re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
+| goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
 | plan cannot be revised usefully | failure answer | ``plan_revisions``/``tool_rounds`` cap -> ``abort`` |
 
 Failure is attributed per call, not per round: successful calls in a round are
@@ -224,6 +271,24 @@ reported in ``reason``.  It never writes ``message_for_user``.  A final-step
 the picker past the end of the plan.  Scientific mode uses a separate,
 independent, epistemic verifier with the same judge-only contract.
 
+### Reachability and ``abort``
+
+``abort`` is a first-class verdict, not only the tool-round backstop.  When the
+observations already prove the goal is unreachable -- for example a required
+input does not exist and the task is read-only, so it must not be created -- the
+Evaluator returns ``abort`` directly, routing straight to ``AnswerFromResults``
+rather than re-entering the Planner.  Requiring ``need_replan`` for an
+unreachable goal burned the whole replan budget re-planning a dead end (observed:
+five identical replans before failing).
+
+Reachability is a *judgement against evidence*, which the Evaluator already
+makes; it is deliberately **not** implemented as a plan-similarity check.  There
+is no deterministic way to tell whether two plans are "the same" (wording, step
+count and tool choice vary between calls), so no such heuristic is used.  The
+Evaluator's ``abort`` reason is carried into ``failure_reason`` so the failure
+answer explains the real cause; only a budget-triggered abort is labelled as
+such in ``OperationalEvaluator._update_state``.
+
 ## Termination and budgets
 
 The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
@@ -233,8 +298,8 @@ the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
 ``plan_revisions`` escalate to a replan/``unplannable``; ``tool_rounds`` sets
 ``abort`` and the failure answer, so the act/eval loop always terminates.  The
 Evaluator prompt uses ``step_incomplete`` only when a specific further call is
-expected, and ``need_replan`` when the observations show no progress toward
-the criterion.
+expected, ``need_replan`` when the observations show no progress toward the
+criterion, and ``abort`` when they show the goal is unreachable (above).
 
 ## Answer synthesis
 
