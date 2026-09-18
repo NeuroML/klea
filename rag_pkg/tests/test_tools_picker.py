@@ -10,7 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
-from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
+from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.tools_picker import ToolsPicker
 from pydantic import BaseModel, Field
 
@@ -60,39 +60,3 @@ def test_get_tool_descriptions_no_domains_includes_all() -> None:
     descriptions = picker._get_tool_descriptions(_TestState())
 
     assert descriptions == "Find models.\n\nRun simulations.\n\nOther description."
-
-
-def test_get_status_uses_title_and_formats_arguments() -> None:
-    picker = _make_picker()
-    picker._last_state_updates = {
-        "tool_calls": [
-            ToolCallSchema(
-                tool="get_models",
-                args={
-                    "search_query": "cortical",
-                    "num": 5,
-                    "download": False,
-                },
-                reason="Find relevant models",
-            )
-        ]
-    }
-
-    status = picker._get_status()
-
-    assert status.display == (
-        "**Get models from NeuroML-db**\n\n"
-        "- `search_query`: `cortical`\n"
-        "- `num`: `5`\n"
-        "- `download`: `false`"
-    )
-    assert status.details == {}
-
-
-def test_get_status_falls_back_to_tool_name() -> None:
-    picker = _make_picker()
-    picker._last_state_updates = {"tool_calls": [ToolCallSchema(tool="unknown_tool")]}
-
-    status = picker._get_status()
-
-    assert status.display == "**unknown_tool**\n\n"

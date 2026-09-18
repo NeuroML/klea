@@ -158,3 +158,33 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         return NodeStreamData(
             heading=info.heading, summary=info.summary, details=details
         )
+
+    def _get_status(self) -> NodeStreamData | None:
+        """Return per-tool execution status for the status pane.
+
+        The status pane shows ground truth -- which tools actually ran and
+        whether each succeeded -- as a generic ``ok``/``error`` label per tool
+        (frontends may map the labels to icons).  The selected args, the
+        picker's reasons and the full results stay in the inspection pane
+        (``_get_debug``), and renderable outputs (e.g. diffs) surface in the
+        chat.  Returns ``None`` for a round with no calls so empty rounds
+        leave the pane unchanged.
+
+        :returns: A status section, or ``None`` when nothing was called.
+        """
+        assert self._last_state is not None
+        assert self._last_tool_results is not None
+        tool_calls = getattr(self._last_state, "tool_calls", [])
+        if not tool_calls:
+            return None
+        lines: list[str] = []
+        for tc, result in zip(tool_calls, self._last_tool_results, strict=False):
+            info = self._tool_infos.get(tc.tool) if self._tool_infos else None
+            title = info.title if info and info.title else tc.tool
+            label = "error" if result.is_error else "ok"
+            lines.append(f"- **{title}**: {label}")
+        return NodeStreamData(
+            heading="Tool Execution",
+            summary=f"Called {len(tool_calls)} tool(s)",
+            display="\n".join(lines),
+        )

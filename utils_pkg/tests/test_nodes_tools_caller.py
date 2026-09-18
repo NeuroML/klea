@@ -102,7 +102,7 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    assert event_types == ["progress", "info", "debug"]
+    assert event_types == ["progress", "info", "debug", "state"]
 
     info = events[1]["data"]
     assert info["summary"] == "Called 2 tool(s), 2 succeeded"
@@ -110,6 +110,8 @@ async def test_dispatches_and_returns_tool_results():
     assert info["details"]["failed_calls"] == 0
     debug = events[2]["data"]
     assert debug["details"]["tool_calls"][0]["tool"] == "a"
+    status = events[3]["data"]
+    assert status["display"] == "- **a**: ok\n- **b**: ok"
 
 
 async def test_streaming_uses_shared_hooks():
@@ -248,3 +250,31 @@ async def test_post_dispatch_can_update_plan_step():
 
     assert updates["plan"].step_list[0].status == "done"
     assert updates["plan"].current_step_index == 1
+
+
+def test_get_status_lists_tool_outcomes_with_titles():
+    """Status pane shows executed tools with a title and ok/error label."""
+    node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
+    node._last_state = MiniState(
+        tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
+    )
+    node._last_tool_results = [
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=False),
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=True),
+    ]
+
+    status = node._get_status()
+
+    assert status is not None
+    assert status.heading == "Tool Execution"
+    assert status.summary == "Called 2 tool(s)"
+    assert status.display == "- **Alpha tool**: ok\n- **b**: error"
+
+
+def test_get_status_none_without_tool_calls():
+    """An empty round emits no status section."""
+    node = _make_node()
+    node._last_state = MiniState()
+    node._last_tool_results = []
+
+    assert node._get_status() is None

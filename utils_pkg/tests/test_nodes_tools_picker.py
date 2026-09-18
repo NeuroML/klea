@@ -172,38 +172,3 @@ def test_prompt_variables_query_driven_for_rag_state():
     variables = picker._get_prompt_variables(RagLikeState(query_domains=["NeuroML"]))
     assert set(variables) == {"tools_description", "query", "observations"}
     assert variables["tools_description"] == "Find models.\n\nRun simulations."
-
-
-def test_get_status_uses_title_and_formats_arguments():
-    picker = _make_picker()
-    picker._last_state_updates = {
-        "tool_calls": [
-            ToolCallSchema(
-                tool="get_models",
-                args={
-                    "search_query": "cortical",
-                    "num": 5,
-                    "download": False,
-                },
-                reason="Find relevant models",
-            )
-        ]
-    }
-
-    status = picker._get_status()
-
-    assert status.display == (
-        "**Get models from NeuroML-db**\n\n"
-        "- `search_query`: `cortical`\n"
-        "- `num`: `5`\n"
-        "- `download`: `false`"
-    )
-
-
-def test_get_status_falls_back_to_tool_name():
-    picker = _make_picker()
-    picker._last_state_updates = {"tool_calls": [ToolCallSchema(tool="unknown_tool")]}
-
-    status = picker._get_status()
-
-    assert status.display == "**unknown_tool**\n\n"

@@ -8,7 +8,6 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, ClassVar, override
@@ -214,37 +213,4 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             ]
         return NodeStreamData(
             heading=info.heading, summary=info.summary, details=details
-        )
-
-    @override
-    def _get_status(self) -> NodeStreamData:
-        """Return human-readable selected tool calls."""
-        assert self._last_state_updates is not None
-        tool_calls = self._last_state_updates.get("tool_calls", [])
-
-        display_parts: list[str] = []
-        for tc in tool_calls:
-            tool_info = next(
-                (
-                    info
-                    for domain_tools in self._tools_info.values()
-                    if (info := domain_tools.get(tc.tool)) is not None
-                ),
-                None,
-            )
-            title = tool_info.title if tool_info and tool_info.title else tc.tool
-            display_parts.append(
-                "**{title}**\n\n{arguments}".format(
-                    title=title,
-                    arguments="\n".join(
-                        f"- `{key}`: "
-                        f"`{value if isinstance(value, str) else json.dumps(value)}`"
-                        for key, value in tc.args.items()
-                    ),
-                )
-            )
-        return NodeStreamData(
-            heading="Tool Selection",
-            summary=f"Tools selected: {len(tool_calls)}",
-            display="\n\n".join(display_parts),
         )
