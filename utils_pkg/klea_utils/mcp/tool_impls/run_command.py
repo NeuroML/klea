@@ -60,7 +60,9 @@ def _result(
     :param stdout: Captured standard output (possibly truncated).
     :param stderr: Captured standard error (possibly truncated).
     :param truncated: Whether either stream was truncated.
-    :param error: Empty on success; a message otherwise.
+    :param error: Empty when the command produced a result (any exit code);
+        a message only for call-level failures (timeout, denied working
+        directory, spawn failure) or a rejected argument.
     :returns: The result dict returned to the MCP wrapper.
     """
     return {
@@ -171,7 +173,10 @@ async def run_command(
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
     :returns: dict with command, working_directory, returncode, stdout,
-        stderr, truncated, error.
+        stderr, truncated, error.  A non-zero ``returncode`` is a normal
+        command result (many tools signal conditions with it); ``error`` is
+        set only when the command could not be run or was killed (timeout,
+        denied working directory, spawn failure).
     """
     logger.debug(
         f"Running command\n"
@@ -272,11 +277,12 @@ async def run_command(
         truncated = True
 
     returncode = process.returncode
-    error = "" if returncode == 0 else f"Command exited with status {returncode}."
-    if error:
-        logger.warning(f"Command failed ({returncode}): {command}")
-    else:
-        logger.debug(f"Command succeeded: {command}")
+    # A non-zero exit is a command *result*, not a tool failure: tools such as
+    # ``diff``/``grep``/``test`` use exit codes semantically.  ``error`` (and
+    # hence MCP ``isError`` via ``to_result``) is reserved for the command
+    # never producing a result (timeout/denied/spawn), handled above; the
+    # caller judges the outcome from ``returncode``/``stdout``/``stderr``.
+    logger.debug(f"Command finished ({returncode}): {command}")
 
     return _result(
         command,
@@ -285,5 +291,5 @@ async def run_command(
         stdout=stdout,
         stderr=stderr,
         truncated=truncated,
-        error=error,
+        error="",
     )

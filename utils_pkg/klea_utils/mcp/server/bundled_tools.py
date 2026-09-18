@@ -601,6 +601,12 @@ async def run_command(
     - Reading a file (use the read file tool instead).
     - Listing a directory (use the list files tool instead).
 
+    A non-zero exit code is a normal result, not an error: many tools signal
+    conditions with it (``diff``/``grep`` return 1 for differences/no match, a
+    failing test returns non-zero).  Judge the outcome from ``returncode`` and
+    ``stdout``; ``error`` is set only when the command could not be run or was
+    killed.
+
     Example: run_command(command="pwd && ls", working_directory=".")
 
     Args:
