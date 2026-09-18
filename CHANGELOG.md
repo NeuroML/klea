@@ -16,6 +16,8 @@
 - Bundled read-only `grep` (regex content search) and `find_files` (path glob) tools; they use a pinned ripgrep binary when the new optional `search` extra (`astral-dev-toolchain-ripgrep`) is installed, otherwise an in-house walker. Both skip VCS/cache directories and symlinks, and the ripgrep backend honours `.gitignore` in a git repository unless the call passes `include_ignored: true`.
 - Bundled `write_file` (create/overwrite a whole file) and `edit_file` (exact search/replace with `replace_all`) tools, full-mode only and destructive; writes are atomic and preserve mode, line endings and BOM. `edit_file` falls back to a bounded replacer chain (line-trimmed, block-anchor, whitespace-normalised, indentation-flexible, context-aware) before refusing, and reports the matcher used (ADR-0039).
 - `read_file` gains a `line_numbers` option (default true); set it false to get raw text for an `edit_file` `old_string`.
+- Rich stream contract (ADR-0040): `inspect` replaces the `info`/`debug` events (one event, summary shown and `details` collapsible); a `tool` event carries chat-renderable tool output (file-edit diffs, and MCP image/audio/resource blocks), rendered by MIME type with a text fallback; `NodeStreamData` gains `key` (shared status-pane sections) and `preformatted` (monospace `<pre>`); `token` streaming is now opt-in per node.
+- MCP tools accept an explicit `null` for a non-nullable optional argument (for example `max_chars: null`), treating it as "use the default" instead of failing validation.
 
 ### Changed
 
@@ -24,10 +26,13 @@
 - Tool dispatch takes the per-tool `ToolInfo` (path metadata plus the read-only/destructive capability) instead of a raw metadata map.
 - RAG graphs run with `read_only` access: destructive tools are never offered or dispatched.
 - The project is now released under the MIT License (previously GPL-3.0-or-later); license text, package metadata, and docs were updated.
+- `run_command` treats a non-zero exit as a normal command result (reported via `returncode`), not an MCP error; `isError` is reserved for a timeout, a denied working directory, or a spawn failure, so commands such as `diff`/`grep` no longer trigger retry/replan loops.
+- Web UI: the chat transcript uses full-width blocks (user tinted, agent plain, tool neutral), file-edit diffs render as their own blocks, code lines wrap instead of scrolling horizontally, the input is resizable, and the disclaimer and credits share one footer line.
 
 ### Fixed
 
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
+- Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
 
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
@@ -41,10 +46,13 @@
 - Deterministic loop budgets and a terminal failure answer, so a stuck run stops and explains instead of looping.
 - Per-request tool `access_level` (chat payload) plus `general.access_level` / `general.tool_access` config; the agent defaults to `full` (ADR-0037).
 - Environment and coding requests (working directory, builds, scripts) are now answerable in full mode via the bundled `run_command` tool instead of ending `unplannable` (ADR-0038).
+- Per-step observations record the tool that produced each result and whether the interface already displayed it, and the final reply avoids reprinting output the chat already showed.
+- Empty or unusable tool selections are retried a bounded number of times with feedback before the round proceeds to the evaluator.
 
 ### Changed
 
 - Tool selection: the picker prefers the planner's suggested tools and replans when none fit; per-step observations and run progress are kept in state and context.
+- Per-step observations, retry counters and status use the plan step's 1-based number, and per-step state is cleared when the planner writes a plan, so replans no longer merge stale outputs.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
 ### Fixed
