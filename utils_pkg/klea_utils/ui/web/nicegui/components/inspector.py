@@ -43,8 +43,16 @@ def attach_inspector_panel(ctx: PageContext) -> None:
 
     @ui.refreshable
     def _render_inspector_panel() -> None:
-        """Render the inspector entries for the active chat in the inspect tab."""
-        with ui.column().classes("w-full px-2 gap-0"):
+        """Render the inspector entries for the active chat in the inspect tab.
+
+        The entries live in their own ``ui.scroll_area`` so the tab's scroll
+        stays inside the pane (like the chat tab); without it the whole page
+        scrolls and the ``chat``/``inspect`` tab headings scroll away.
+        """
+        with (
+            ui.scroll_area().classes("w-full grow inspector-scroll-area"),
+            ui.column().classes("w-full px-2 gap-0"),
+        ):
             current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
             if not current_chat or not current_chat.get("inspector_entries"):
                 ui.label("No inspection data yet").classes("text-sm text-grey-5 py-8")
