@@ -19,13 +19,14 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Literal, cast
 
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.utils.function_calling import convert_to_json_schema
 from langgraph.runtime import get_runtime
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from klea_utils.graph.context import model_overrides_from_context
 from klea_utils.plogging import mask_sensitive
@@ -741,16 +742,14 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         if schema:
             # but answer is returned as message instead of json/dict
             if isinstance(output, AIMessage):
-                result, _ = parse_output_with_thought(output, schema)
-                if isinstance(result, dict):
-                    result = schema(**result)
+                result = self._parse_structured_message(output)
             else:
                 assert isinstance(output, dict)
                 if output["parsing_error"]:
                     self.logger.warning(
                         f"LLM parsing error, using fallback: {output['parsing_error']}"
                     )
-                    result, _ = parse_output_with_thought(output["raw"], schema)
+                    result = self._parse_structured_message(output["raw"])
                 else:
                     result = output["parsed"]
                     if isinstance(result, dict):
@@ -784,6 +783,38 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             if self.output_schema is not None:
                 result = self._get_default_error_result()
 
+        return result
+
+    def _parse_structured_message(self, message: AIMessage) -> Any:
+        """Parse a structured-output message, degrading to the typed default.
+
+        ``parse_output_with_thought`` can raise when the model returned blank
+        or unrecoverable text (for example a blank message that ``repair_json``
+        cannot turn into JSON).  Structured nodes define a typed fail-closed
+        default, so use it rather than letting the parser error escape the
+        node and abort the run.
+
+        :param message: The raw model message to parse.
+        :returns: A schema instance, or ``_get_default_error_result()`` on
+            parse/validation failure.
+        """
+        assert self.output_schema is not None
+        try:
+            result, _ = parse_output_with_thought(message, self.output_schema)
+        except (OutputParserException, ValidationError, ValueError, TypeError) as exc:
+            self.logger.warning(
+                f"Structured output could not be parsed; using default result: {exc}"
+            )
+            return self._get_default_error_result()
+        if isinstance(result, dict):
+            try:
+                return self.output_schema(**result)
+            except (ValidationError, ValueError, TypeError) as exc:
+                self.logger.warning(
+                    "Parsed output failed schema validation; using default "
+                    f"result: {exc}"
+                )
+                return self._get_default_error_result()
         return result
 
     def _invoke_prompt(

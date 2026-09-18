@@ -238,6 +238,43 @@ def test_process_output_no_warning_on_populated_result(caplog):
     assert "Empty LLM output" not in caplog.text
 
 
+def test_process_output_blank_message_uses_default(caplog):
+    """A blank structured message degrades to the typed default, no raise."""
+    node = _node(AnswerSchema)
+    with caplog.at_level(logging.WARNING):
+        result = node._process_output(AIMessage(content=""))
+    assert result == AnswerSchema(answer="fallback")
+    assert "could not be parsed" in caplog.text
+
+
+def test_process_output_parsing_error_blank_raw_uses_default(caplog):
+    """A parsing_error with a blank raw message degrades to the default."""
+    node = _node(AnswerSchema)
+    output = {
+        "parsed": None,
+        "parsing_error": "Invalid json output",
+        "raw": AIMessage(content=""),
+    }
+    with caplog.at_level(logging.WARNING):
+        result = node._process_output(output)
+    assert result == AnswerSchema(answer="fallback")
+    assert "using fallback" in caplog.text
+    assert "could not be parsed" in caplog.text
+
+
+def test_process_output_parsing_error_malformed_raw_uses_default(caplog):
+    """Unrecoverable non-JSON raw output also degrades to the default."""
+    node = _node(AnswerSchema)
+    output = {
+        "parsed": None,
+        "parsing_error": "Invalid json output",
+        "raw": AIMessage(content="not json at all"),
+    }
+    with caplog.at_level(logging.WARNING):
+        result = node._process_output(output)
+    assert result == AnswerSchema(answer="fallback")
+
+
 def test_llm_post_exec_stream_emits_usage_event():
     """AbstractLLMNode._post_exec_stream adds the LLM-specific usage event."""
     node = _node(AnswerSchema)
