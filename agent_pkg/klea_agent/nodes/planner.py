@@ -41,6 +41,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         "temperature": 0.01,
         "max_output_tokens": 4096,
     }
+    #: Re-invoke the model with the validation error when it returns a
+    #: structurally inconsistent plan (dangling dependencies, out-of-range
+    #: current index, duplicate numbers).  Bounded so the node always returns.
+    max_validation_retries: ClassVar[int] = 2
 
     def __init__(
         self,
@@ -123,21 +127,46 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "discovery": state.discovery_persistent,
             "observations": state.observations_text(),
             "tools_description": self._get_tool_descriptions(state),
+            "validation_feedback": self._validation_feedback or "(none)",
         }
+
+    @override
+    def _validate_result(
+        self, result: PlannerOutput, state: KleaAgentState
+    ) -> str | None:
+        """Reject a structurally inconsistent plan (see ``validate_plan``).
+
+        The Planner is the sole plan author; code does not repair its output.
+        An inconsistent plan is retried with the errors exposed to the prompt
+        as ``validation_feedback``.  An empty plan is not a structural error
+        (it routes to ``unplannable``); ``_update_state`` handles it.
+        """
+        if not isinstance(result, PlannerOutput) or not result.plan.step_list:
+            return None
+        errors = result.plan.validate_plan()
+        return "; ".join(errors) if errors else None
 
     @override
     def _update_state(
         self, result: PlannerOutput, state: KleaAgentState
     ) -> dict[str, Any]:
-        """Write the goal (locked) and the plan.
+        """Write the goal (locked) and the plan, trusting the model's plan.
+
+        Design (ADR-0035): the Planner is the **sole author** of the plan,
+        including each step's ``status`` and the ``current_step_index``.  Code
+        does not re-apply completion markers or recompute the pointer by
+        matching step numbers across plans (that positional matching was
+        brittle and corrupt on renumbering).  The model is given the prior
+        plan with its ``[DONE]`` markers and is responsible for carrying
+        completed steps forward; ``PlannerOutput`` is validated structurally
+        in :meth:`_validate_result` and retried if inconsistent.
 
         Goal handling (ADR-0035): the Planner is the sole goal writer, but it
         only sets the goal while it is unset, so a replan or review revision
         cannot move the success reference.  A freshly built ``PlanSchema`` is
-        written rather than mutating the previous one, and any steps already
-        ``done`` in the previous plan stay ``done``.  The Planner never answers
-        the user -- chat is handled by ``RouteDecision`` and the final reply by
-        ``AnswerFromResults``.
+        written rather than mutating the previous one.  The Planner never
+        answers the user -- chat is handled by ``RouteDecision`` and the final
+        reply by ``AnswerFromResults``.
         """
         update: dict[str, Any] = {"human_feedback": ""}
 
@@ -178,30 +207,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             self.logger.debug(f"{update = }")
             return update
 
-        # Re-apply completed steps from the previous plan (matched by number).
-        done_numbers = {
-            step.step_number for step in state.plan.step_list if step.status == "done"
-        }
-        for step in steps:
-            if step.step_number in done_numbers:
-                step.status = "done"
-
-        current = len(steps)
-        for index, step in enumerate(steps):
-            if step.status != "done":
-                current = index
-                break
-
         # The Planner decides whether the plan needs human review before it
         # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
-        # has been consumed by this LLM call and is cleared above.
+        # has been consumed by this LLM call and is cleared above.  The model's
+        # per-step statuses and ``current_step_index`` are used unchanged.
         status = "in_review" if result.plan.status == "in_review" else "in_progress"
-        plan = PlanSchema(step_list=steps, status=status, current_step_index=current)
+        plan = PlanSchema(
+            step_list=steps,
+            status=status,
+            current_step_index=result.plan.current_step_index,
+        )
         update["plan"] = plan
         # A replan replaces the step list: clear per-step execution state so
         # stale step keys cannot merge into (or trip the retry budgets of) the
-        # new plan's renumbered steps.  The LLM call above already saw the
-        # prior observations and feedback when it produced this plan.
+        # new plan's steps.  The LLM call above already saw the prior
+        # observations and feedback when it produced this plan.
         update["step_outputs"] = {}
         update["tool_retry_counts"] = {}
         update["step_attempt_counts"] = {}

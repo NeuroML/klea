@@ -73,8 +73,12 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
 
-    def test_completed_steps_are_reapplied(self):
-        """Steps already done in the old plan stay done in a fresh plan."""
+    def test_model_plan_statuses_are_used_verbatim(self):
+        """Design A: the Planner's per-step statuses/pointer are not mutated.
+
+        Code no longer re-applies completion markers by matching step numbers
+        across plans; the model returns the complete plan and owns its state.
+        """
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
@@ -89,9 +93,10 @@ class TestPlannerState(unittest.TestCase):
             PlannerOutput(
                 plan=PlanSchema(
                     step_list=[
-                        StepSchema(step_number=1, description="a"),
+                        StepSchema(step_number=1, description="a", status="done"),
                         StepSchema(step_number=2, description="b"),
-                    ]
+                    ],
+                    current_step_index=1,
                 )
             ),
             state,
@@ -100,6 +105,80 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(plan.step_list[0].status, "done")
         self.assertEqual(plan.step_list[1].status, "pending")
         self.assertEqual(plan.current_step_index, 1)
+
+    def test_renumbered_plan_is_not_force_marked_done(self):
+        """A renumbered fresh plan keeps the model's pending status.
+
+        Previously the old done step ``1`` collided with a renumbered new
+        step ``1`` and was wrongly forced ``done`` (leaving no current step).
+        """
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, status="done"),
+                    StepSchema(step_number=2, status="done"),
+                    StepSchema(step_number=3),
+                ],
+                status="in_progress",
+                current_step_index=2,
+            )
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlanSchema(
+                    step_list=[StepSchema(step_number=1, description="new")],
+                    current_step_index=0,
+                )
+            ),
+            state,
+        )
+        plan = update["plan"]
+        self.assertEqual(plan.step_list[0].status, "pending")
+        self.assertEqual(plan.current_step_index, 0)
+
+    def test_validate_result_rejects_dangling_dependency(self):
+        planner = self._planner()
+        output = PlannerOutput(
+            plan=PlanSchema(
+                step_list=[StepSchema(step_number=1, depends_on=[2])],
+                current_step_index=0,
+            )
+        )
+        error = planner._validate_result(output, KleaAgentState())
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("depends on 2", error)
+
+    def test_validate_result_rejects_out_of_range_index(self):
+        planner = self._planner()
+        output = PlannerOutput(
+            plan=PlanSchema(
+                step_list=[StepSchema(step_number=1, status="done")],
+                current_step_index=1,
+            )
+        )
+        error = planner._validate_result(output, KleaAgentState())
+        # index == len is valid when all steps are done
+        self.assertIsNone(error)
+
+        output.plan.current_step_index = 5
+        error = planner._validate_result(output, KleaAgentState())
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("out of range", error)
+
+    def test_validate_result_accepts_a_consistent_plan(self):
+        planner = self._planner()
+        output = PlannerOutput(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, status="done"),
+                    StepSchema(step_number=2, depends_on=[1]),
+                ],
+                current_step_index=1,
+            )
+        )
+        self.assertIsNone(planner._validate_result(output, KleaAgentState()))
 
     def test_in_review_status_is_kept(self):
         """A plan the Planner flags for review keeps ``in_review``."""

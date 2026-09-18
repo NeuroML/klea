@@ -28,6 +28,12 @@
 
 ---
 
+## Validation feedback
+
+{validation_feedback}
+
+---
+
 ## Project context
 
 ### Discovery
