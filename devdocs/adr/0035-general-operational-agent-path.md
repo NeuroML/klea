@@ -321,9 +321,28 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   reasoning happens in the router (chat), the Planner (decomposition), the
   picker (arguments) and the evaluator/answer synthesis.  The picker is the
   sole selector of the concrete call; the step's `suggested_tools` is a prior it
-  honours when they fit and deviates from (with a reason) when they do not.  An
-  empty selection means no suitable tool and routes to a replan.  The contract
-  is the step's success criteria, not the tool identity.
+  honours when they fit and deviates from (with a reason) when they do not.
+  The contract is the step's success criteria, not the tool identity.
+* **An empty picker selection is a picker failure, not a planner
+  failure** (amended 2026-09-18).  "Empty" means *no usable call*: an empty
+  list, or a list whose calls all have empty/whitespace names.  Such a
+  selection leaves the Planner little to change, so replanning would mostly
+  loop blindly.  Instead the picker is retried a bounded number of times (its
+  previous failure is fed back into the prompt); after the budget, the round
+  proceeds through the caller (which dispatches nothing usable) to the
+  Evaluator, whose `need_replan` carries the failure back to the Planner as
+  feedback.  There is deliberately **no** Planner-level retry for "no
+  suggested tools": the picker is the authority on suitability and may solve
+  such a step anyway; if it cannot, the Evaluator feedback path lets the
+  Planner revise the step or return `unplannable`.
+* **Invalid tool names never reach the server** (amended 2026-09-18).  A weak
+  model can emit an empty `tool` name or one outside the disclosed catalogue.
+  Dispatch rejects such calls with a synthetic `is_error` result (no server
+  call), so the failure is visible to the retry/evaluation loop.  Empty/
+  whitespace names are handled as picker failures (above) and retried before
+  dispatch; unknown-but-non-empty names are not retried by the picker but are
+  caught by dispatch, whose error Triage acts on.  The picker itself does not
+  filter, so the feedback is preserved.
 * Plan review uses a human-input node (`AwaitReview`) whose free-text feedback
   the Planner interprets; the Planner owns the `in_review -> in_progress`
   transition.  The first stage ships an auto-approve stub; real LangGraph
@@ -332,7 +351,10 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan),
   repeated non-advancing evaluations (`step_attempt_counts` -> replan),
   Planner entries (`plan_revisions` -> `unplannable`) and total picker+caller
-  rounds (`tool_rounds` -> `abort`).
+  rounds (`tool_rounds` -> `abort`).  Consecutive empty picker selections are
+  bounded in the picker node itself (`picker_attempts`, reset on a successful
+  pick or a step change); after the budget the empty round proceeds to the
+  Evaluator.
 * Feedback is split by source: `evaluation` (LLM judge, structured) and
   `human_feedback` (review text); both reach the Planner, and run progress
   (query, plans, verdicts, answers) is recorded in `messages`.

@@ -91,6 +91,21 @@ def _denied_result(denials: list[str]) -> CallToolResult:
     )
 
 
+def _unknown_tool_error(tool_name: str) -> CallToolResult:
+    """Build a non-halting error for an empty or unknown tool name.
+
+    A weak model can emit a well-formed but empty ``tool`` name, or a name
+    that is not in the disclosed catalogue.  Such a call is never dispatched
+    to the server; the error is returned instead so the failure is visible to
+    the retry/evaluation loop (which can feed it back to the picker).
+
+    :param tool_name: The offending tool name (possibly empty).
+    :returns: An ``is_error`` result explaining the rejection.
+    """
+    shown = tool_name if tool_name else "(empty)"
+    return _denied_result([f"Unknown tool: {shown!r} (not available to the picker)"])
+
+
 async def dispatch_tool_calls(
     mcp_client: Any,
     tool_calls: list[tuple[str, dict[str, Any]]],
@@ -101,10 +116,13 @@ async def dispatch_tool_calls(
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
-    For each ``(tool name, arguments)`` pair two gates run before the call
+    For each ``(tool name, arguments)`` pair a gate runs before the call
     reaches the server, each producing a synthetic non-halting error when
-    denied:
+    rejected:
 
+    * an invalid tool name (empty, or -- when *tool_infos* is given -- not in
+      the disclosed catalogue) is rejected without contacting the server, so
+      a hallucinated name cannot be dispatched; and
     * the path gate (:func:`check_tool_arguments_permissions`), reading a
       tool's ``checkpaths`` from ``ToolInfo.meta``; and
     * the tool access level (ADR-0037): a tool the level does not permit
@@ -152,6 +170,16 @@ async def dispatch_tool_calls(
 
     async with mcp_client:
         for i, (tool_name, args) in enumerate(tool_calls):
+            # Reject empty/unknown names before any gate or server call.  A
+            # known-name check is only possible when the catalogue is given;
+            # with ``tool_infos=None`` only the empty-name case is caught.
+            stripped = tool_name.strip()
+            if not stripped or (tool_infos is not None and stripped not in tool_infos):
+                logger.warning(
+                    f"Rejecting invalid tool name before dispatch\n{tool_name = }"
+                )
+                results[i] = _unknown_tool_error(tool_name)
+                continue
             tool_info = tool_infos.get(tool_name) if tool_infos is not None else None
             denials = check_tool_arguments_permissions(
                 tool_info.meta if tool_info else None, args, project_root

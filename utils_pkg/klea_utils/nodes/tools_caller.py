@@ -170,14 +170,19 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         assert self._last_state is not None
         assert self._last_tool_results is not None
         tool_calls = getattr(self._last_state, "tool_calls", [])
-        if not tool_calls:
-            return None
+        # Skip calls with no usable name: rendering the empty title would show
+        # a meaningless "****: error".  Their failure is still visible in the
+        # inspection pane and drives Triage.
         lines: list[str] = []
         for tc, result in zip(tool_calls, self._last_tool_results, strict=False):
+            if not tc.tool.strip():
+                continue
             info = self._tool_infos.get(tc.tool) if self._tool_infos else None
             title = info.title if info and info.title else tc.tool
             label = "error" if result.is_error else "ok"
             lines.append(f"- **{title}**: {label}")
+        if not lines:
+            return None
         return NodeStreamData(
             heading="Tool Execution",
             summary=f"Called {len(tool_calls)} tool(s)",

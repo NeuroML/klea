@@ -66,6 +66,8 @@ class AgentLikeState(BaseModel):
     tool_results: list[CallToolResult] = Field(default_factory=list)
     plan: PlanLike = Field(default_factory=PlanLike)
     access_level: str = "full"
+    picker_attempts: int = 0
+    picker_step: int = -1
 
 
 def _make_picker(**kwargs) -> ToolsPicker:
@@ -142,9 +144,10 @@ def test_pre_exec_skips_when_no_tools_for_domain():
 def test_update_state_writes_tool_calls():
     picker = _make_picker()
     calls = [ToolCallSchema(tool="get_models", args={"num": 3})]
-    assert picker._update_state(ToolCallsSchema(tool_calls=calls), RagLikeState()) == {
-        "tool_calls": calls
-    }
+    update = picker._update_state(ToolCallsSchema(tool_calls=calls), RagLikeState())
+    assert update["tool_calls"] == calls
+    # RAG-like state has no picker counter fields; they are simply absent.
+    assert "picker_attempts" not in update
 
 
 def test_default_error_result_is_empty_tool_calls():
@@ -163,12 +166,117 @@ def test_prompt_variables_superset_for_agent_state():
         "artefacts",
         "observations",
         "current_step",
+        "picker_feedback",
     } <= set(variables)
     assert variables["current_step"] == "do it"
+    assert variables["picker_feedback"] == ""
 
 
 def test_prompt_variables_query_driven_for_rag_state():
     picker = _make_picker()
     variables = picker._get_prompt_variables(RagLikeState(query_domains=["NeuroML"]))
-    assert set(variables) == {"tools_description", "query", "observations"}
+    assert set(variables) == {
+        "tools_description",
+        "query",
+        "observations",
+        "picker_feedback",
+    }
     assert variables["tools_description"] == "Find models.\n\nRun simulations."
+
+
+def test_empty_selection_counts_up_and_adds_feedback():
+    """Empty picks increment the state counter and set prompt feedback."""
+    picker = _make_picker()
+    state = AgentLikeState(plan=PlanLike(step_list=[Step()]))
+
+    update = picker._update_state(ToolCallsSchema(tool_calls=[]), state)
+    assert update["picker_attempts"] == 1
+    assert update["picker_step"] == 0
+
+    # The prompt feedback is derived from the incoming state counter.
+    state_after = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
+    )
+    assert (
+        "no usable tool call"
+        in picker._get_prompt_variables(state_after)["picker_feedback"]
+    )
+
+    update2 = picker._update_state(
+        ToolCallsSchema(tool_calls=[]),
+        AgentLikeState(
+            plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
+        ),
+    )
+    assert update2["picker_attempts"] == 2
+
+
+def test_non_empty_selection_resets_attempts_and_feedback():
+    picker = _make_picker()
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]), picker_attempts=2, picker_step=0
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), state
+    )
+    assert update["picker_attempts"] == 0
+    # The feedback is derived from the state that carried the reset.
+    post = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        picker_attempts=update["picker_attempts"],
+        picker_step=update["picker_step"],
+    )
+    assert picker._get_prompt_variables(post)["picker_feedback"] == ""
+
+
+def test_attempts_reset_when_step_changes():
+    picker = _make_picker()
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[]),
+        AgentLikeState(
+            plan=PlanLike(step_list=[Step()]), picker_attempts=3, picker_step=0
+        ),
+    )
+    assert update["picker_attempts"] == 4
+    assert update["picker_step"] == 0
+
+    # A new step (index 1) resets the counter to 1.
+    update2 = picker._update_state(
+        ToolCallsSchema(tool_calls=[]),
+        AgentLikeState(
+            plan=PlanLike(current_step_index=1, step_list=[Step(), Step()]),
+            picker_attempts=3,
+            picker_step=0,
+        ),
+    )
+    assert update2["picker_attempts"] == 1
+    assert update2["picker_step"] == 1
+
+
+def test_empty_name_list_counts_as_no_usable_call():
+    """A list whose calls all have empty/whitespace names is a failed pick."""
+    picker = _make_picker()
+    state = AgentLikeState(plan=PlanLike(step_list=[Step()]))
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="  ")]
+        ),
+        state,
+    )
+    assert update["picker_attempts"] == 1
+
+
+def test_one_usable_name_resets_attempts():
+    """A list with at least one non-empty name is a successful pick."""
+    picker = _make_picker()
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]), picker_attempts=2, picker_step=0
+    )
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="get_models")]
+        ),
+        state,
+    )
+    assert update["picker_attempts"] == 0

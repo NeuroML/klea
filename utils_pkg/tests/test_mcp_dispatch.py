@@ -85,7 +85,10 @@ async def test_dispatch_mixed_keeps_order(tmp_path):
     outside.touch()
 
     client = FakeMCPClient()
-    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+    tools = {
+        "list_files": ToolInfo(meta={"checkpaths": ["path"]}),
+        "other": ToolInfo(),
+    }
     results = await dispatch_tool_calls(
         client,
         [
@@ -114,6 +117,29 @@ async def test_dispatch_without_meta_skips_gate(tmp_path):
     assert client.calls == [("list_files", {"path": str(tmp_path)})]
 
 
+async def test_dispatch_rejects_unknown_and_empty_names():
+    """A hallucinated/empty name is rejected without a server call."""
+    client = FakeMCPClient()
+    tools = {"read": ToolInfo()}
+    results = await dispatch_tool_calls(
+        client,
+        [("read", {}), ("", {}), ("made_up", {})],
+        tools,
+    )
+    assert [r.is_error for r in results] == [False, True, True]
+    assert "Unknown tool" in str(results[1].content)
+    assert "Unknown tool" in str(results[2].content)
+    assert client.calls == [("read", {})]
+
+
+async def test_dispatch_empty_name_rejected_without_catalogue():
+    """Without a catalogue an empty name is still rejected."""
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(client, [("", {}), ("any", {})])
+    assert [r.is_error for r in results] == [True, False]
+    assert client.calls == [("any", {})]
+
+
 async def test_dispatch_leading_denied_keeps_order(tmp_path):
     """Leading denied must not shift later results (old insert bug)."""
     root = tmp_path / "root"
@@ -122,7 +148,10 @@ async def test_dispatch_leading_denied_keeps_order(tmp_path):
     outside.touch()
 
     client = FakeMCPClient()
-    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+    tools = {
+        "list_files": ToolInfo(meta={"checkpaths": ["path"]}),
+        "other": ToolInfo(),
+    }
     results = await dispatch_tool_calls(
         client,
         [

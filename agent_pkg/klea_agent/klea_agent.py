@@ -80,6 +80,9 @@ class KleaAgent(BaseLangGraph):
     ):
         """Initialise"""
         super().__init__(logging_level=logging_level, checkpoint=checkpoint)
+        #: Consecutive empty picker selections retried before the empty round
+        #: proceeds to the Evaluator (ADR-0035).
+        self._max_picker_retries = 2
 
     @override
     def _setup_models(self) -> None:
@@ -196,12 +199,23 @@ class KleaAgent(BaseLangGraph):
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).
 
-        An empty ``tool_calls`` means the picker found no available tool for the
-        current step; the Planner revises the plan rather than the caller
-        running nothing (which would loop).  The picker is the authority on
-        tool suitability, so the Evaluator is not involved.
+        A selection with no usable call -- an empty list, or a list whose calls
+        all have empty/whitespace names -- means the picker failed the step.
+        The picker is retried a bounded number of times (with feedback in its
+        prompt) before the round is allowed to proceed; after the budget, the
+        round goes to the caller (which dispatches nothing usable) and on to
+        the Evaluator, whose ``need_replan`` returns the failure to the Planner.
+        Unknown-but-non-empty names are not retried here: they reach dispatch,
+        which reports a clear error that Triage acts on.
+
+        :returns: ``dispatch`` | ``retry_picker``.
         """
-        return "dispatch" if state.tool_calls else "replan"
+        usable = any(tc.tool.strip() for tc in state.tool_calls)
+        if usable:
+            return "dispatch"
+        if state.picker_attempts <= self._max_picker_retries:
+            return "retry_picker"
+        return "dispatch"
 
     async def _mode_router_node(self, state: KleaAgentState) -> str:
         """Route mode decision: proceed normally or inform (ADR-0030).
@@ -498,7 +512,9 @@ class KleaAgent(BaseLangGraph):
             self._picker_router,
             {
                 "dispatch": self._tools_caller_node.label,
-                "replan": self._planner_node.label,
+                # Empty selection: re-pick (bounded) with feedback before the
+                # empty round proceeds to the Evaluator via the caller.
+                "retry_picker": self._tools_picker_node.label,
             },
         )
         self.workflow.add_conditional_edges(

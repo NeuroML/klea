@@ -168,6 +168,42 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     assert client.calls == []
 
 
+async def test_invalid_tool_names_rejected_without_server_call():
+    """Empty/unknown tool names never reach the server (weak-model guard)."""
+    client = FakeMCPClient()
+    node = _make_node(client=client, tool_infos={"read": ToolInfo()})
+    _record_stream(node, [])
+
+    state = MiniState(
+        tool_calls=[
+            ToolCallSchema(tool=""),
+            ToolCallSchema(tool="nonexistent", args={"x": 1}),
+            ToolCallSchema(tool="read"),
+        ]
+    )
+    updates = await node.execute(state)
+
+    results = updates["tool_results"]
+    assert [r.is_error for r in results] == [True, True, False]
+    assert "Unknown tool" in str(results[0].content)
+    assert "Unknown tool" in str(results[1].content)
+    # Only the valid call was dispatched, in its original position.
+    assert client.calls == [("read", {})]
+
+
+async def test_empty_tool_name_rejected_without_catalogue():
+    """With no catalogue, an empty name is still rejected before dispatch."""
+    client = FakeMCPClient()
+    node = _make_node(client=client, tool_infos=None)
+    _record_stream(node, [])
+
+    state = MiniState(tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="any")])
+    updates = await node.execute(state)
+
+    assert [r.is_error for r in updates["tool_results"]] == [True, False]
+    assert client.calls == [("any", {})]
+
+
 async def test_access_level_gate_denies_read_only():
     """read_only denies a destructive tool at dispatch (ADR-0037)."""
     client = FakeMCPClient()
@@ -272,5 +308,33 @@ def test_get_status_none_without_tool_calls():
     node = _make_node()
     node._last_state = MiniState()
     node._last_tool_results = []
+
+    assert node._get_status() is None
+
+
+def test_get_status_skips_empty_name_calls():
+    """A call with an empty name is not rendered as a meaningless '****: error'."""
+    node = _make_node(tool_infos={"read": ToolInfo(title="Read file")})
+    node._last_state = MiniState(
+        tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")]
+    )
+    node._last_tool_results = [
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=True),
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=False),
+    ]
+
+    status = node._get_status()
+
+    assert status is not None
+    assert status.display == "- **Read file**: ok"
+
+
+def test_get_status_none_when_all_names_empty():
+    """An all-empty-name round emits no status section."""
+    node = _make_node()
+    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="")])
+    node._last_tool_results = [
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=True)
+    ]
 
     assert node._get_status() is None

@@ -57,3 +57,9 @@ Your job is to pick the right tools to carry out a step in a larger plan.
 {current_step}
 
 ---
+
+## Feedback on your previous selection
+
+{picker_feedback}
+
+---

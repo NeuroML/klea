@@ -14,7 +14,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 import pytest
 from klea_agent.klea_agent import KleaAgent
+from klea_agent.schemas import KleaAgentState
 from klea_utils.llm import LLMModel
+from klea_utils.mcp.schemas import ToolCallSchema
 
 
 async def _compile(monkeypatch):
@@ -70,8 +72,8 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Awaiting review", "Planning") in edges
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
-    assert ("Selecting tools", "Running tools") in edges  # dispatch
-    assert ("Selecting tools", "Planning") in edges  # no tool -> replan
+    assert ("Selecting tools", "Running tools") in edges  # dispatch (incl. empty round)
+    assert ("Selecting tools", "Selecting tools") in edges  # empty pick -> retry
     assert ("Running tools", "Selecting tools") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
     assert ("Running tools", "Planning") in edges  # replan
@@ -93,3 +95,38 @@ async def test_general_path_has_no_scientific_or_exploration_stages(monkeypatch)
     lowered = {n.lower() for n in node_names}
     assert not any("retriev" in n for n in lowered)
     assert not any("verif" in n for n in lowered)
+
+
+@pytest.mark.asyncio
+async def test_picker_router_retries_bad_names(monkeypatch):
+    """No usable call (empty list or empty names) retries the picker.
+
+    Unknown-but-non-empty names are left to dispatch; only empty/whitespace
+    names and empty lists are picker failures.
+    """
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+
+    # Usable name -> dispatch regardless of the counter.
+    state.tool_calls = [ToolCallSchema(tool="run")]
+    state.picker_attempts = 5
+    assert await agent._picker_router(state) == "dispatch"
+
+    # Empty list within budget -> retry.
+    state.tool_calls = []
+    state.picker_attempts = 1
+    assert await agent._picker_router(state) == "retry_picker"
+
+    # Empty-name list within budget -> retry (same as an empty list).
+    state.tool_calls = [ToolCallSchema(tool="")]
+    state.picker_attempts = 1
+    assert await agent._picker_router(state) == "retry_picker"
+
+    # Budget exhausted -> dispatch the (empty) round to the Evaluator.
+    state.picker_attempts = agent._max_picker_retries + 1
+    assert await agent._picker_router(state) == "dispatch"
+
+    # An unknown-but-non-empty name is a dispatch concern, not a retry.
+    state.tool_calls = [ToolCallSchema(tool="made_up")]
+    state.picker_attempts = agent._max_picker_retries + 1
+    assert await agent._picker_router(state) == "dispatch"

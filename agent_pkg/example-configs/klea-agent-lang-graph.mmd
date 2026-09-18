@@ -39,12 +39,12 @@ graph TD;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
 	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
 	Running\20tools -. &nbsp;retry&nbsp; .-> Selecting\20tools;
-	Selecting\20tools -. &nbsp;replan&nbsp; .-> Planning;
 	Selecting\20tools -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
+	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc

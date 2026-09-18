@@ -154,14 +154,60 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["current_step"] = (
                 current.render(current=True) if current else "(no plan)"
             )
+        # Appended last (its own prompt section) so the stable prefix above
+        # stays cache-friendly; empty on a normal pick.  Derived from the
+        # incoming state (thread-isolated), not instance fields (ADR-0033).
+        attempts = int(getattr(state, "picker_attempts", 0) or 0)
+        variables["picker_feedback"] = (
+            "Your previous selection contained no usable tool call. "
+            "Only pick tools from the provided list; if the step cannot be "
+            "carried out with them, return an empty `tool_calls` list."
+            if attempts > 0
+            else ""
+        )
         return variables
 
     @override
     def _update_state(
         self, result: ToolCallsSchema, state: BaseModel
     ) -> dict[str, Any]:
-        """Update state with the selected tool calls."""
-        return {"tool_calls": result.tool_calls}
+        """Write the selected calls and the empty-selection retry counter.
+
+        A picker that returns no calls on a step it was asked to execute is a
+        picker failure, not a planner failure.  The counter is kept in graph
+        state (thread-isolated, ADR-0033), not on the shared node instance:
+        it increments on each consecutive empty selection and resets when a
+        non-empty selection is produced or the plan step changes.  The
+        orchestrator's picker router reads it to retry the picker a bounded
+        number of times before letting the empty round proceed to the
+        evaluator.
+        """
+        tool_calls = result.tool_calls
+        # The retry counter only exists on the agent state; RAG has no picker
+        # retry edge, so omit the keys there rather than writing unknown state.
+        if not hasattr(state, "picker_attempts"):
+            return {"tool_calls": tool_calls}
+        # An empty list and a list whose calls all have empty/whitespace names
+        # are the same failure: no usable tool call.  Unknown-but-non-empty
+        # names are left to dispatch (which reports a clear error).
+        usable = any(tc.tool.strip() for tc in tool_calls)
+        plan = getattr(state, "plan", None)
+        step = getattr(plan, "current_step_index", -1) if plan is not None else -1
+        prev_step = getattr(state, "picker_step", -1)
+        prev_attempts = int(getattr(state, "picker_attempts", 0) or 0)
+        if usable or step != prev_step:
+            attempts = 0 if usable else 1
+        else:
+            attempts = prev_attempts + 1
+        self.logger.debug(
+            f"{step = }\n{prev_step = }\n{prev_attempts = }\n"
+            f"{attempts = }\nusable = {usable}\nselected = {len(tool_calls)}"
+        )
+        return {
+            "tool_calls": tool_calls,
+            "picker_attempts": attempts,
+            "picker_step": step,
+        }
 
     @override
     def _get_default_error_result(self) -> ToolCallsSchema:
