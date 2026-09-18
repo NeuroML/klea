@@ -298,7 +298,7 @@
         <article role="main" id="furo-main-content">
           <h1>Source code for klea_utils.ui.web.nicegui.components.chat_bubble</h1><div class="highlight"><pre>
 <span></span><span class="sd">"""</span>
-<span class="sd">Chat message bubble widget.</span>
+<span class="sd">Chat message block widget.</span>
 
 <span class="sd">File: klea_utils/ui/web/nicegui/components/chat_bubble.py</span>
 
@@ -308,21 +308,58 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
+<span class="c1">#: Recognised transcript roles; anything else falls back to ``agent``.</span>
+<span class="n">_ROLES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">)</span>
+
+<span class="c1">#: MIME types rendered as a unified diff (``text/x-diff`` is the de-facto</span>
+<span class="c1">#: type; ``text/x-patch`` is git's).  Rendered as a fenced block, which</span>
+<span class="c1">#: markdown2/Pygments highlights with its diff lexer.</span>
+<span class="n">_DIFF_MIMES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"text/x-diff"</span><span class="p">,</span> <span class="s2">"text/x-patch"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_code_mime</span><span class="p">(</span><span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *mime* is rendered by ``ui.code`` (not markdown)."""</span>
+    <span class="k">return</span> <span class="n">mime</span> <span class="ow">in</span> <span class="n">_DIFF_MIMES</span> <span class="ow">or</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/x-"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_body</span><span class="p">(</span><span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a block body according to its MIME type.</span>
+
+<span class="sd">    Unknown/empty mime falls back to the preformatted ``text`` (markdown).</span>
+<span class="sd">    Diffs and code use NiceGUI's native ``ui.code`` (syntax highlighting and</span>
+<span class="sd">    a copy button); text uses ``ui.markdown``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">mime</span> <span class="ow">in</span> <span class="n">_DIFF_MIMES</span><span class="p">:</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="s2">"diff"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"tool-code"</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mime</span> <span class="o">==</span> <span class="s2">"text/markdown"</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">mime</span><span class="p">:</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"image/"</span><span class="p">,</span> <span class="s2">"audio/"</span><span class="p">)):</span>
+        <span class="c1"># Inline media rendering is deferred; show the text fallback note.</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
+    <span class="k">elif</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/x-"</span><span class="p">):</span>
+        <span class="n">language</span> <span class="o">=</span> <span class="n">mime</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">:]</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="n">language</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"tool-code"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
+
 
 <div class="viewcode-block" id="ChatBubble">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.widgets.ChatBubble">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ChatBubble</span><span class="p">(</span><span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""A custom chat message bubble with built-in actions.</span>
+<span class="w">    </span><span class="sd">"""A full-width chat transcript block with built-in actions.</span>
 
-<span class="sd">    Replaces ``ui.chat_message`` with full control over the layout.</span>
-<span class="sd">    Each bubble has collapsible text content, a timestamp, a copy</span>
-<span class="sd">    button, and an expand / collapse toggle -- all flowing naturally</span>
-<span class="sd">    inside the bubble (no CSS hacks).</span>
+<span class="sd">    All roles span the full chat width (opencode-style); the surface colour</span>
+<span class="sd">    distinguishes them (semantic ``chat-bubble--&lt;role&gt;`` classes in</span>
+<span class="sd">    ``theme.py``), so user blocks read as tinted prompts, agent blocks as</span>
+<span class="sd">    plain document text, and tool blocks as neutral blocks.  Each block has</span>
+<span class="sd">    an optional header, collapsible text content, a timestamp, a copy</span>
+<span class="sd">    button, and an expand / collapse toggle -- all flowing naturally inside</span>
+<span class="sd">    the block (no CSS hacks).</span>
 
 <span class="sd">    Usage inside a ``@ui.refreshable``::</span>
 
 <span class="sd">        ChatBubble(</span>
-<span class="sd">            text="Hello", stamp="12:00", is_user=True,</span>
+<span class="sd">            text="Hello", stamp="12:00", role="user",</span>
 <span class="sd">            collapsed=False, idx=0,</span>
 <span class="sd">            on_expand=lambda: print("toggle"),</span>
 <span class="sd">            on_copy=lambda: print("copy"),</span>
@@ -333,54 +370,62 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">is_user</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">collapsed</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
         <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="n">mime</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">on_expand</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">on_copy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Build the bubble.</span>
+<span class="w">        </span><span class="sd">"""Build the block.</span>
 
-<span class="sd">        :param text: Message text (rendered as HTML).</span>
+<span class="sd">        :param text: Message text (markdown); also the fallback body.</span>
 <span class="sd">        :param stamp: Timestamp string.</span>
-<span class="sd">        :param is_user: ``True`` for user messages, ``False`` for bot.</span>
+<span class="sd">        :param role: ``"user"``, ``"agent"`` or ``"tool"``; unknown values</span>
+<span class="sd">            fall back to ``"agent"``.</span>
 <span class="sd">        :param collapsed: ``True`` if the text is collapsed to 4 lines.</span>
 <span class="sd">        :param idx: Message index (used for expand/collapse tracking).</span>
+<span class="sd">        :param header: Optional small bold header, e.g. a tool block's</span>
+<span class="sd">            name and change counts.</span>
+<span class="sd">        :param mime: MIME type of ``data``; selects the renderer (``text/x-diff``</span>
+<span class="sd">            -&gt; coloured diff, ``text/x-&lt;lang&gt;`` -&gt; code, media deferred).</span>
+<span class="sd">        :param data: The renderable payload (text or base64).</span>
+<span class="sd">        :param meta: Extra entry metadata (path, language, ...); reserved for</span>
+<span class="sd">            renderers that need it.</span>
 <span class="sd">        :param on_expand: Callable with no args, fired on expand/collapse click.</span>
 <span class="sd">        :param on_copy: Callable with no args, fired on copy click.</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span>
 
-        <span class="n">bg</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="s2">"bg-green-50 dark:bg-green-900"</span>
-            <span class="k">if</span> <span class="n">is_user</span>
-            <span class="k">else</span> <span class="s2">"bg-blue-50 dark:bg-blue-900"</span>
-        <span class="p">)</span>
-        <span class="n">corner</span> <span class="o">=</span> <span class="s2">"rounded-br-sm"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"rounded-bl-sm"</span>
-        <span class="n">align</span> <span class="o">=</span> <span class="s2">"items-end"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"items-start"</span>
-        <span class="n">text_align</span> <span class="o">=</span> <span class="s2">"text-right"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"text-left"</span>
-        <span class="n">bubble_w</span> <span class="o">=</span> <span class="s2">"max-w-[85%]"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"w-full"</span>
-        <span class="n">bottom_align</span> <span class="o">=</span> <span class="s2">"justify-end"</span> <span class="k">if</span> <span class="n">is_user</span> <span class="k">else</span> <span class="s2">"justify-start"</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROLES</span><span class="p">:</span>
+            <span class="n">role</span> <span class="o">=</span> <span class="s2">"agent"</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"w-full flex flex-col </span><span class="si">{</span><span class="n">align</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full flex flex-col"</span><span class="p">)</span>
 
         <span class="k">with</span> <span class="p">(</span>
             <span class="bp">self</span><span class="p">,</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"flex flex-col rounded-2xl </span><span class="si">{</span><span class="n">bg</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">corner</span><span class="si">}</span><span class="s2"> p-3 gap-1 </span><span class="si">{</span><span class="n">bubble_w</span><span class="si">}</span><span class="s2">"</span>
+                <span class="s2">"flex w-full flex-col rounded-lg p-3 gap-1 "</span>
+                <span class="sa">f</span><span class="s2">"chat-bubble chat-bubble--</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">),</span>
         <span class="p">):</span>
-            <span class="n">text_cls</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_align</span><span class="si">}</span><span class="s2"> msg-collapsed"</span>
-                <span class="k">if</span> <span class="n">collapsed</span>
-                <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_align</span><span class="si">}</span><span class="s2"> msg-expanded"</span>
-            <span class="p">)</span>
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text_cls</span><span class="si">}</span><span class="s2"> chat-markdown"</span><span class="p">):</span>
-                <span class="c1"># 'alerts' extra renders GitHub-style ``&gt; [!WARNING]`` blocks</span>
-                <span class="c1"># (used for the fallback / best-effort warnings) as callouts.</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">header</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold text-grey-6"</span><span class="p">)</span>
 
-            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="sa">f</span><span class="s2">"flex flex-row </span><span class="si">{</span><span class="n">bottom_align</span><span class="si">}</span><span class="s2"> items-center gap-1"</span><span class="p">):</span>
+            <span class="n">text_cls</span> <span class="o">=</span> <span class="s2">"msg-collapsed"</span> <span class="k">if</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"msg-expanded"</span>
+            <span class="c1"># ``ui.markdown`` bodies get the chat markdown styling; ``ui.code``</span>
+            <span class="c1"># bodies render their own box, so adding ``chat-markdown`` there</span>
+            <span class="c1"># would stack our ``pre``/``code`` rules on top of it.</span>
+            <span class="n">classes</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"text-left </span><span class="si">{</span><span class="n">text_cls</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_code_mime</span><span class="p">(</span><span class="n">mime</span><span class="p">):</span>
+                <span class="n">classes</span> <span class="o">+=</span> <span class="s2">" chat-markdown"</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">classes</span><span class="p">):</span>
+                <span class="n">_render_body</span><span class="p">(</span><span class="n">mime</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex flex-row justify-start items-center gap-1"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">stamp</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
 
                 <span class="k">if</span> <span class="n">on_copy</span><span class="p">:</span>

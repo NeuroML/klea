@@ -314,6 +314,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">FastMCP</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.server.middleware</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallNext</span><span class="p">,</span> <span class="n">Middleware</span><span class="p">,</span> <span class="n">MiddlewareContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">types</span> <span class="k">as</span> <span class="n">mt</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolAnnotations</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.privilege</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -327,6 +329,59 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_schema_declares_null</span><span class="p">(</span><span class="n">prop</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether a JSON-schema property explicitly allows ``null``."""</span>
+    <span class="k">if</span> <span class="n">prop</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"null"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">option</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">option</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"null"</span>
+        <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="n">prop</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"anyOf"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_strip_null_optionals</span><span class="p">(</span><span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">"""Delete ``null`` values for non-nullable, non-required arguments.</span>
+
+<span class="sd">    Weak models frequently emit explicit ``null`` for optional tool arguments</span>
+<span class="sd">    (e.g. ``max_chars: null``), which Pydantic rejects for a non-Optional</span>
+<span class="sd">    field.  Dropping such a key before validation lets the function's own</span>
+<span class="sd">    default apply - the same as omitting it.  Arguments whose schema allows</span>
+<span class="sd">    ``null`` (e.g. ``limit: int | None``) or that are required are untouched.</span>
+
+<span class="sd">    :param schema: The tool's JSON input schema (``Tool.parameters``).</span>
+<span class="sd">    :param arguments: The request arguments, mutated in place.</span>
+<span class="sd">    """</span>
+    <span class="n">properties</span> <span class="o">=</span> <span class="p">(</span><span class="n">schema</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"properties"</span><span class="p">,</span> <span class="p">{})</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">required</span> <span class="o">=</span> <span class="nb">set</span><span class="p">((</span><span class="n">schema</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"required"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">prop</span> <span class="o">=</span> <span class="n">properties</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prop</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_schema_declares_null</span><span class="p">(</span><span class="n">prop</span><span class="p">):</span>
+            <span class="k">del</span> <span class="n">arguments</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_DropNullOptionalsMiddleware</span><span class="p">(</span><span class="n">Middleware</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Treat an explicit ``null`` for a non-nullable optional as its default.</span>
+
+<span class="sd">    Runs before argument validation, so ``{"max_chars": null}`` becomes an</span>
+<span class="sd">    omitted argument and the tool's default is used, rather than failing with</span>
+<span class="sd">    a validation error.  See :func:`_strip_null_optionals`.</span>
+<span class="sd">    """</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">on_call_tool</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">context</span><span class="p">:</span> <span class="n">MiddlewareContext</span><span class="p">[</span><span class="n">mt</span><span class="o">.</span><span class="n">CallToolRequestParams</span><span class="p">],</span>
+        <span class="n">call_next</span><span class="p">:</span> <span class="n">CallNext</span><span class="p">[</span><span class="n">mt</span><span class="o">.</span><span class="n">CallToolRequestParams</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">message</span>
+        <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">arguments</span> <span class="ow">and</span> <span class="n">context</span><span class="o">.</span><span class="n">fastmcp_context</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">tool</span> <span class="o">=</span> <span class="k">await</span> <span class="n">context</span><span class="o">.</span><span class="n">fastmcp_context</span><span class="o">.</span><span class="n">fastmcp</span><span class="o">.</span><span class="n">get_tool</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">tool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">_strip_null_optionals</span><span class="p">(</span><span class="n">tool</span><span class="o">.</span><span class="n">parameters</span><span class="p">,</span> <span class="n">message</span><span class="o">.</span><span class="n">arguments</span><span class="p">)</span>
+        <span class="k">return</span> <span class="k">await</span> <span class="n">call_next</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_wrap_with_root_guard</span><span class="p">(</span><span class="n">fn</span><span class="p">):</span>
@@ -371,11 +426,16 @@
 <span class="sd">    given module are registered, so an imported decorated function is not</span>
 <span class="sd">    picked up accidentally.</span>
 
+<span class="sd">    Also installs :class:`_DropNullOptionalsMiddleware`, which tolerates weak</span>
+<span class="sd">    models sending explicit ``null`` for optional arguments (treated as</span>
+<span class="sd">    "use the default").</span>
+
 <span class="sd">    :param mcp: FastMCP server to register the tools on.</span>
 <span class="sd">    :param modules: list of modules with tool function definitions</span>
 
 <span class="sd">    """</span>
     <span class="n">warn_if_root</span><span class="p">(</span><span class="n">logger</span><span class="p">)</span>
+    <span class="n">mcp</span><span class="o">.</span><span class="n">add_middleware</span><span class="p">(</span><span class="n">_DropNullOptionalsMiddleware</span><span class="p">())</span>
     <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">modules</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">fname</span><span class="p">,</span> <span class="n">fn</span> <span class="ow">in</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">):</span>
             <span class="k">if</span> <span class="n">fn</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">!=</span> <span class="n">module</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>

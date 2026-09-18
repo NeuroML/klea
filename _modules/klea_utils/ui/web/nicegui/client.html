@@ -363,13 +363,16 @@
                         <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
                         <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
                             <span class="n">current_chat</span><span class="p">[</span><span class="s2">"messages"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-                                <span class="p">(</span>
-                                    <span class="n">msg</span><span class="p">[</span><span class="s2">"content"</span><span class="p">],</span>
-                                    <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="s2">"created_at"</span><span class="p">])</span>
+                                <span class="p">{</span>
+                                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">msg</span><span class="p">[</span><span class="s2">"content"</span><span class="p">],</span>
+                                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="s2">"created_at"</span><span class="p">])</span>
                                     <span class="o">.</span><span class="n">astimezone</span><span class="p">()</span>
                                     <span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">),</span>
-                                    <span class="n">msg</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">,</span>
-                                <span class="p">)</span>
+                                    <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span>
+                                    <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="s2">"role"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"user"</span>
+                                    <span class="k">else</span> <span class="s2">"agent"</span><span class="p">,</span>
+                                    <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+                                <span class="p">}</span>
                                 <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">msg_resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
                             <span class="p">]</span>
                     <span class="c1"># Session context (the agent's operating mode etc.,</span>

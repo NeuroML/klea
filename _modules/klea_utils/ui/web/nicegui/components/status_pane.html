@@ -457,7 +457,18 @@
                         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="n">node_label</span><span class="p">))</span>
                     <span class="n">display</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">display</span><span class="p">:</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">linkify_md</span><span class="p">(</span><span class="n">display</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs w-full"</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preformatted"</span><span class="p">):</span>
+                            <span class="c1"># Aligned/literal content (e.g. the plan): a plain</span>
+                            <span class="c1"># code block, so columns line up and ``_``/``*`` in</span>
+                            <span class="c1"># tool names are not parsed as markdown.  No</span>
+                            <span class="c1"># language is passed (no syntax highlighting), and</span>
+                            <span class="c1"># ``nicegui-code-noformat`` strips the code-box</span>
+                            <span class="c1"># styling.</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">display</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                                <span class="s2">"text-xs w-full nicegui-code-noformat"</span>
+                            <span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">linkify_md</span><span class="p">(</span><span class="n">display</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs w-full"</span><span class="p">)</span>
                     <span class="n">summary</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">summary</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">display</span><span class="p">:</span>
                         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6 mb-1 w-full"</span><span class="p">)</span>

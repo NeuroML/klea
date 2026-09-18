@@ -440,11 +440,11 @@ verbatim to the graph run (see <a class="reference internal" href="#klea_utils.g
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;progress&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;}</span></code></dt><dd><p>When the graph enters a new node (via <code class="docutils literal notranslate"><span class="pre">write_custom_stream</span></code>)</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;info&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>Structured summary data from a node after execution</p>
+<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;inspect&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>Inspection data from a node after execution (summary + details)</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;debug&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>Full data dump from a node after execution</p>
-</dd>
-<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;token&quot;,</span> <span class="pre">&quot;content&quot;:</span> <span class="pre">&quot;&lt;chunk&gt;&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;}</span></code></dt><dd><p>LLM token chunk from the current node</p>
+<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;token&quot;,</span> <span class="pre">&quot;content&quot;:</span> <span class="pre">&quot;&lt;chunk&gt;&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;}</span></code></dt><dd><p>LLM token chunk from the current node.  Emitted only for nodes in
+<a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.token_stream_nodes" title="klea_utils.graph.base.BaseLangGraph.token_stream_nodes"><code class="xref py py-attr docutils literal notranslate"><span class="pre">token_stream_nodes</span></code></a> (free-text answer nodes), not for
+structured-output nodes.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;usage&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>Per-node token usage (input / output / total tokens)</p>
 </dd>
@@ -572,6 +572,16 @@ schema generated from <code class="docutils literal notranslate"><span class="pr
 <li><p><code class="docutils literal notranslate"><span class="pre">_create_graph()</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">_post_setup()</span></code></p></li>
 </ol>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.graph.base.BaseLangGraph.token_stream_nodes">
+<span class="sig-name descname"><span class="pre">token_stream_nodes</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#set" title="(in Python v3.14)"><span class="pre">set</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#klea_utils.graph.base.BaseLangGraph.token_stream_nodes" title="Link to this definition">¶</a></dt>
+<dd><p>Labels of nodes whose LLM token deltas should be forwarded as
+<code class="docutils literal notranslate"><span class="pre">token</span></code> stream events.  A node opts in with
+<code class="docutils literal notranslate"><span class="pre">stream_tokens</span> <span class="pre">=</span> <span class="pre">True</span></code>; the app adds its label here at graph
+build time.  Empty means no token events are emitted, so
+structured-output nodes never flood the stream with JSON fragments.</p>
 </dd></dl>
 
 <dl class="py attribute">
@@ -759,6 +769,7 @@ probe-verified), so the shared nodes must never see <code class="docutils litera
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.run_graph_invoke_state"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.run_graph_invoke_state()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.run_graph_stream"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.run_graph_stream()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.setup"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.setup()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.token_stream_nodes"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.token_stream_nodes</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.graph.base.BaseLangGraph.user_agent"><code class="docutils literal notranslate"><span class="pre">BaseLangGraph.user_agent</span></code></a></li>
 </ul>
 </li>

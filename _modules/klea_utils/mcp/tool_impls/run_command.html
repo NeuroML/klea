@@ -359,7 +359,9 @@
 <span class="sd">    :param stdout: Captured standard output (possibly truncated).</span>
 <span class="sd">    :param stderr: Captured standard error (possibly truncated).</span>
 <span class="sd">    :param truncated: Whether either stream was truncated.</span>
-<span class="sd">    :param error: Empty on success; a message otherwise.</span>
+<span class="sd">    :param error: Empty when the command produced a result (any exit code);</span>
+<span class="sd">        a message only for call-level failures (timeout, denied working</span>
+<span class="sd">        directory, spawn failure) or a rejected argument.</span>
 <span class="sd">    :returns: The result dict returned to the MCP wrapper.</span>
 <span class="sd">    """</span>
     <span class="k">return</span> <span class="p">{</span>
@@ -475,7 +477,10 @@
 <span class="sd">    :param project_root: Boundary directory for the permission check.</span>
 <span class="sd">        Defaults to the current working directory.</span>
 <span class="sd">    :returns: dict with command, working_directory, returncode, stdout,</span>
-<span class="sd">        stderr, truncated, error.</span>
+<span class="sd">        stderr, truncated, error.  A non-zero ``returncode`` is a normal</span>
+<span class="sd">        command result (many tools signal conditions with it); ``error`` is</span>
+<span class="sd">        set only when the command could not be run or was killed (timeout,</span>
+<span class="sd">        denied working directory, spawn failure).</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Running command</span><span class="se">\n</span><span class="s2">"</span>
@@ -576,11 +581,12 @@
         <span class="n">truncated</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="n">returncode</span> <span class="o">=</span> <span class="n">process</span><span class="o">.</span><span class="n">returncode</span>
-    <span class="n">error</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"Command exited with status </span><span class="si">{</span><span class="n">returncode</span><span class="si">}</span><span class="s2">."</span>
-    <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Command failed (</span><span class="si">{</span><span class="n">returncode</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Command succeeded: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="c1"># A non-zero exit is a command *result*, not a tool failure: tools such as</span>
+    <span class="c1"># ``diff``/``grep``/``test`` use exit codes semantically.  ``error`` (and</span>
+    <span class="c1"># hence MCP ``isError`` via ``to_result``) is reserved for the command</span>
+    <span class="c1"># never producing a result (timeout/denied/spawn), handled above; the</span>
+    <span class="c1"># caller judges the outcome from ``returncode``/``stdout``/``stderr``.</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Command finished (</span><span class="si">{</span><span class="n">returncode</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">_result</span><span class="p">(</span>
         <span class="n">command</span><span class="p">,</span>
@@ -589,7 +595,7 @@
         <span class="n">stdout</span><span class="o">=</span><span class="n">stdout</span><span class="p">,</span>
         <span class="n">stderr</span><span class="o">=</span><span class="n">stderr</span><span class="p">,</span>
         <span class="n">truncated</span><span class="o">=</span><span class="n">truncated</span><span class="p">,</span>
-        <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">,</span>
+        <span class="n">error</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 </pre></div>

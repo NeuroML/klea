@@ -336,6 +336,8 @@
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.answer_general.AnswerGeneral">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">AnswerGeneral</span><span class="p">(</span><span class="n">BaseLLMNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">BaseModel</span><span class="p">]):</span>
     <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
+    <span class="c1">#: Free-text answer node: its token deltas are meaningful to stream.</span>
+    <span class="n">stream_tokens</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
         <span class="s2">"max_output_tokens"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
@@ -419,9 +421,11 @@
         <span class="k">return</span> <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="n">EMPTY_RESULT_FALLBACK</span><span class="p">)</span>
 
     <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return answer summary."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_inspect</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the answer summary plus input/output prompt data."""</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_state_updates</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="n">result</span> <span class="o">=</span> <span class="n">content_to_str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state_updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
         <span class="n">char_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
@@ -429,26 +433,11 @@
             <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Generated answer (</span><span class="si">{</span><span class="n">char_count</span><span class="si">}</span><span class="s2"> characters)"</span>
             <span class="k">if</span> <span class="n">char_count</span>
             <span class="k">else</span> <span class="s2">"No answer generated"</span><span class="p">,</span>
-            <span class="n">details</span><span class="o">=</span><span class="p">{</span><span class="s2">"character_count"</span><span class="p">:</span> <span class="n">char_count</span><span class="p">},</span>
-        <span class="p">)</span>
-
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_debug</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return info + input/output triples."""</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_output</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_info</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
-        <span class="n">details</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">details</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
-            <span class="p">{</span>
+            <span class="n">details</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">"character_count"</span><span class="p">:</span> <span class="n">char_count</span><span class="p">,</span>
                 <span class="s2">"input_prompt"</span><span class="p">:</span> <span class="n">prompt_value_to_messages</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span><span class="p">),</span>
                 <span class="s2">"unprocessed_output"</span><span class="p">:</span> <span class="n">extract_llm_output_content</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_output</span><span class="p">),</span>
-            <span class="p">}</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
-            <span class="n">heading</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">heading</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span>
+            <span class="p">},</span>
         <span class="p">)</span></div>
 
 </pre></div>

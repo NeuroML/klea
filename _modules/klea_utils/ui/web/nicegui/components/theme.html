@@ -345,10 +345,9 @@
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-collapsed { max-height: 6em; overflow: hidden; }"</span><span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-expanded { max-height: none; }"</span><span class="p">)</span>
     <span class="c1"># Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a</span>
-    <span class="c1"># margin on ``&lt;pre&gt;``, so a long line would overflow the bubble and the</span>
-    <span class="c1"># page.  Keep the block inside the bubble and scroll it internally; the</span>
-    <span class="c1"># ``chat-markdown`` class scopes this to bubbles (the inspector and status</span>
-    <span class="c1"># panes have their own rules).</span>
+    <span class="c1"># margin on ``&lt;pre&gt;``; a long line would overflow the bubble and the page.</span>
+    <span class="c1"># The block is kept inside the bubble and its lines wrap (see the wrap</span>
+    <span class="c1"># rule below); ``overflow-x: auto`` remains as a fallback.</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".chat-markdown pre { "</span>
         <span class="s2">"margin: 0.5rem 0; "</span>
@@ -366,6 +365,31 @@
         <span class="s2">"border-radius: 0.25rem; "</span>
         <span class="s2">"word-break: break-word; }"</span>
     <span class="p">)</span>
+    <span class="c1"># Wrap long lines in chat code blocks - user/agent fenced code</span>
+    <span class="c1"># (``.chat-markdown pre``) and tool code boxes (``.tool-code``, a</span>
+    <span class="c1"># ``ui.code`` element) - so they stay within the bubble instead of</span>
+    <span class="c1"># producing a horizontal scrollbar.  The chat area itself still scrolls</span>
+    <span class="c1"># vertically.  ``overflow-wrap: anywhere`` also breaks long unbroken</span>
+    <span class="c1"># tokens (URLs, base64) that would otherwise overflow.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".chat-markdown pre, .chat-markdown pre code, "</span>
+        <span class="s2">".tool-code pre, .tool-code code, .tool-code .codehilite pre { "</span>
+        <span class="s2">"white-space: pre-wrap !important; "</span>
+        <span class="s2">"overflow-wrap: anywhere !important; "</span>
+        <span class="s2">"word-break: break-word !important; }"</span>
+    <span class="p">)</span>
+    <span class="c1"># Keep embedded media (future image/audio blocks) within the bubble.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".chat-bubble img, .chat-bubble video { max-width: 100%; height: auto; }"</span>
+    <span class="p">)</span>
+    <span class="c1"># Chat input: match the transcript blocks' corner radius (the ``rounded``</span>
+    <span class="c1"># prop is a pill, so it is not used).  The textarea autogrows upward as the</span>
+    <span class="c1"># message gets longer (Quasar handles that), capped at 40vh before it</span>
+    <span class="c1"># scrolls, and the send button in the ``append`` slot is anchored to the</span>
+    <span class="c1"># bottom-right so it stays on the textarea's last line.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__control { border-radius: 0.5rem; }"</span><span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__native { max-height: 40vh; overflow: auto; }"</span><span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__append { align-self: flex-end; }"</span><span class="p">)</span>
     <span class="c1"># Status-pane context controls (operating mode / tool access).  Quasar's</span>
     <span class="c1"># ``flat`` buttons have no border and its fixed grey palette is hard to see</span>
     <span class="c1"># on the dark drawer, so the inactive option is drawn as an outline whose</span>
@@ -395,6 +419,8 @@
         <span class="s2">"    --klea-muted: #757575;</span><span class="se">\n</span><span class="s2">"</span>
         <span class="s2">"    --klea-hint: #9e9e9e;</span><span class="se">\n</span><span class="s2">"</span>
         <span class="s2">"    --klea-surface: #e0e0e0;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-bubble-user: #e8f0fe;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-bubble-tool: #f0f0f0;</span><span class="se">\n</span><span class="s2">"</span>
         <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="s2">"  body.body--dark {</span><span class="se">\n</span><span class="s2">"</span>
         <span class="c1"># Quasar brand token: lighten ``primary`` so primary-tinted widgets (the</span>
@@ -411,6 +437,8 @@
         <span class="c1"># Footer stays a distinct, slightly darker bar (mirrors light mode,</span>
         <span class="c1"># where the footer is darker than the page).</span>
         <span class="s2">"    --klea-surface: #161616;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-bubble-user: #1e2a3a;</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    --klea-bubble-tool: #262626;</span><span class="se">\n</span><span class="s2">"</span>
         <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="c1"># Neutral interactive icons and the inactive segmented option; the</span>
         <span class="c1"># outline border follows the text colour (Quasar draws</span>
@@ -425,6 +453,13 @@
         <span class="c1"># Bar surfaces (footer, ...): Quasar sets no footer background, so the</span>
         <span class="c1"># app pins one explicitly; this keeps it theme-aware.</span>
         <span class="s2">"  .footer-bar { background: var(--klea-surface) !important; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="c1"># Chat transcript blocks (web-theming: semantic class + token).  All</span>
+        <span class="c1"># three roles span the full chat width; only the surface distinguishes</span>
+        <span class="c1"># them, so the user's prompt reads as a tinted block, the agent's reply</span>
+        <span class="c1"># as plain document text, and a tool round as a neutral block.</span>
+        <span class="s2">"  .chat-bubble--user { background: var(--klea-bubble-user); }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  .chat-bubble--agent { background: transparent; }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"  .chat-bubble--tool { background: var(--klea-bubble-tool); }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="c1"># Quasar's grey text classes use fixed literals, so map the ones we use</span>
         <span class="c1"># onto the tokens in dark mode.</span>
         <span class="s2">"  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }</span><span class="se">\n</span><span class="s2">"</span>
@@ -482,6 +517,36 @@
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".status-details[open] summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".status-details code { white-space: pre-wrap !important; word-break: break-all !important; }"</span>
+    <span class="p">)</span>
+    <span class="c1"># Preformatted status sections (e.g. the plan): a ``ui.code`` element whose</span>
+    <span class="c1"># visual "code box" is undone, so the content reads as plain pane text.</span>
+    <span class="c1"># ``nicegui-code-noformat`` targets the wrapper (which ``ui.code`` gives the</span>
+    <span class="c1"># ``nicegui-code`` class), cancelling its background, border, shadow,</span>
+    <span class="c1"># radius and copy button; the inner layers are cleared too and long lines</span>
+    <span class="c1"># wrap instead of scrolling.  The plan uses this; chat bubbles and the</span>
+    <span class="c1"># inspector/status JSON keep their normal code styling.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".nicegui-code-noformat { "</span>
+        <span class="s2">"background: transparent !important; "</span>
+        <span class="s2">"border: none !important; "</span>
+        <span class="s2">"box-shadow: none !important; "</span>
+        <span class="s2">"border-radius: 0 !important; "</span>
+        <span class="s2">"padding: 0.25rem 0 !important; }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".nicegui-code-noformat .nicegui-code-copy { display: none !important; }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".nicegui-code-noformat .nicegui-markdown, "</span>
+        <span class="s2">".nicegui-code-noformat pre, "</span>
+        <span class="s2">".nicegui-code-noformat pre code, "</span>
+        <span class="s2">".nicegui-code-noformat .codehilite, "</span>
+        <span class="s2">".nicegui-code-noformat .highlight { "</span>
+        <span class="s2">"white-space: pre-wrap !important; "</span>
+        <span class="s2">"word-break: break-word !important; "</span>
+        <span class="s2">"background: transparent !important; "</span>
+        <span class="s2">"padding: 0 !important; "</span>
+        <span class="s2">"margin: 0 !important; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".status-entry .nicegui-markdown { overflow: hidden !important; height: auto !important; overflow-wrap: break-word !important; word-break: break-word !important; }"</span>

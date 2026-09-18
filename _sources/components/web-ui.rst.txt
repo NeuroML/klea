@@ -8,16 +8,20 @@ linked from the :doc:`home page <../index>`.
 
 The layout has three parts: a left drawer listing chat sessions, a centre
 panel with two tabs (**chat** and **inspect**), and a right drawer with
-per-chat state (the *status pane*).
+per-chat state (the *status pane*).  A single footer line carries the
+disclaimer and the "Powered by" note.
 
 Chat
 ----
 
 The chat tab is where questions are asked.  Answers stream in as they are
 generated, and each answer is grounded in the retrieved sources rather
-than the model's memory alone.  The input box sits at the bottom; use the
-left drawer to start a new chat or switch between existing ones, and the
-status pane to choose the model for the chat.
+than the model's memory alone.  Messages render as full-width blocks: the
+user's prompt is tinted, the agent's reply is plain text, and file changes
+the agent makes appear as their own diff blocks before the reply.  Long
+lines wrap, and the input box sits at the bottom (drag its corner to
+resize it).  Use the left drawer to start a new chat or switch between
+existing ones, and the status pane to choose the model for the chat.
 
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer

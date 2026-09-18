@@ -338,9 +338,10 @@
 <span class="sd">        name                Human-readable display name (auto-generated)</span>
 <span class="sd">        created             ``datetime.timestamp()`` of creation (float).</span>
 <span class="sd">        pinned              Whether the chat session is pinned to the top of the list.</span>
-<span class="sd">        messages            List of ``(text, stamp, is_user)`` tuples where</span>
-<span class="sd">                            *is_user* is ``True`` for user messages and</span>
-<span class="sd">                            ``False`` for bot / system messages.</span>
+<span class="sd">        messages            List of message dicts ``{"text", "stamp",</span>
+<span class="sd">                            "role", "header"}`` where *role* is ``"user"``,</span>
+<span class="sd">                            ``"agent"`` or ``"tool"`` and *header* is an</span>
+<span class="sd">                            optional small title (used by tool blocks).</span>
 <span class="sd">        inspector_entries   List of dicts with info/debug events for the most</span>
 <span class="sd">                            recent query in this chat session.</span>
 <span class="sd">        inspector_expanded  Set of indices into *inspector_entries* that are</span>

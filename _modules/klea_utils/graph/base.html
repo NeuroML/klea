@@ -483,6 +483,13 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="p">:</span> <span class="n">CompiledStateGraph</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
+        <span class="c1">#: Labels of nodes whose LLM token deltas should be forwarded as</span>
+        <span class="c1">#: ``token`` stream events.  A node opts in with</span>
+        <span class="c1">#: ``stream_tokens = True``; the app adds its label here at graph</span>
+        <span class="c1">#: build time.  Empty means no token events are emitted, so</span>
+        <span class="c1">#: structured-output nodes never flood the stream with JSON fragments.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">token_stream_nodes</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">mcp_config</span><span class="p">:</span> <span class="n">MCPConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">mcp_client</span><span class="p">:</span> <span class="n">Client</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">mcp_tools</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Tool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -1310,12 +1317,12 @@
 
 <span class="sd">        ``{"type": "progress", "node": "&lt;label&gt;"}``</span>
 <span class="sd">            When the graph enters a new node (via ``write_custom_stream``)</span>
-<span class="sd">        ``{"type": "info", "node": "&lt;label&gt;", "data": {...}}``</span>
-<span class="sd">            Structured summary data from a node after execution</span>
-<span class="sd">        ``{"type": "debug", "node": "&lt;label&gt;", "data": {...}}``</span>
-<span class="sd">            Full data dump from a node after execution</span>
+<span class="sd">        ``{"type": "inspect", "node": "&lt;label&gt;", "data": {...}}``</span>
+<span class="sd">            Inspection data from a node after execution (summary + details)</span>
 <span class="sd">        ``{"type": "token", "content": "&lt;chunk&gt;", "node": "&lt;label&gt;"}``</span>
-<span class="sd">            LLM token chunk from the current node</span>
+<span class="sd">            LLM token chunk from the current node.  Emitted only for nodes in</span>
+<span class="sd">            :attr:`token_stream_nodes` (free-text answer nodes), not for</span>
+<span class="sd">            structured-output nodes.</span>
 <span class="sd">        ``{"type": "usage", "node": "&lt;label&gt;", "data": {...}}``</span>
 <span class="sd">            Per-node token usage (input / output / total tokens)</span>
 <span class="sd">        ``{"type": "context", "data": {...}}``</span>
@@ -1392,7 +1399,7 @@
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Progress: </span><span class="si">{</span><span class="n">current_node</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                         <span class="k">yield</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="n">current_node</span><span class="p">}</span>
 
-                <span class="k">elif</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"info"</span><span class="p">,</span> <span class="s2">"debug"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">):</span>
+                <span class="k">elif</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">):</span>
                     <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
                         <span class="k">continue</span>
@@ -1405,6 +1412,11 @@
                     <span class="p">}</span>
 
             <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s2">"messages"</span><span class="p">:</span>
+                <span class="c1"># Token deltas are only useful for user-facing free-text</span>
+                <span class="c1"># nodes; structured-output nodes emit JSON fragments and are</span>
+                <span class="c1"># not in ``token_stream_nodes`` (see its docstring).</span>
+                <span class="k">if</span> <span class="n">current_node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">token_stream_nodes</span><span class="p">:</span>
+                    <span class="k">continue</span>
                 <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"params"</span><span class="p">][</span><span class="s2">"data"</span><span class="p">]</span>
                 <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">data</span><span class="p">:</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>

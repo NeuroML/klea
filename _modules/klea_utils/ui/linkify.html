@@ -319,6 +319,11 @@
 <span class="c1">#: ``)``, which also tolerates balanced parentheses inside the URL.</span>
 <span class="n">_MARKDOWN_LINK_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\[[^\]]*\]\([^)]*\)"</span><span class="p">)</span>
 
+<span class="c1">#: A fenced-code delimiter line (`` ` `` or ``~``), optionally indented up to</span>
+<span class="c1">#: three spaces per CommonMark.  Content between an opening and matching</span>
+<span class="c1">#: closing fence is code and must not be linkified.</span>
+<span class="n">_FENCE_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"^( {0,3})(`{3,}|~{3,})"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="p">)</span>
+
 <span class="c1">#: URL detection engine.  Defaults enable "fuzzy" matching of bare domains</span>
 <span class="c1">#: and emails in addition to explicit http(s):// URLs.</span>
 <span class="n">_LINKIFY</span> <span class="o">=</span> <span class="n">LinkifyIt</span><span class="p">()</span>
@@ -330,12 +335,43 @@
 <span class="w">    </span><span class="sd">"""Convert bare URLs in markdown *text* to ``[url](url)`` links.</span>
 
 <span class="sd">    Existing ``[text](url)`` links are returned verbatim so they are not</span>
-<span class="sd">    re-wrapped.  Callers pass the result to a markdown renderer, which</span>
-<span class="sd">    turns the wrapped URLs into clickable anchors.</span>
+<span class="sd">    re-wrapped, and fenced code blocks (triple-backtick or tilde fences) are</span>
+<span class="sd">    left untouched: a URL in code would otherwise be wrapped and the literal</span>
+<span class="sd">    ``[url](url)`` shown inside the code span (fenced blocks are not parsed</span>
+<span class="sd">    as markdown links).  Callers pass the result to a markdown renderer,</span>
+<span class="sd">    which turns the wrapped URLs into clickable anchors.</span>
 
 <span class="sd">    :param text: Markdown source text</span>
 <span class="sd">    :returns: Text with bare URLs wrapped as ``[url](url)``</span>
 <span class="sd">    """</span>
+    <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">fence</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">_FENCE_RE</span><span class="o">.</span><span class="n">finditer</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+        <span class="c1"># Text before this delimiter is code when a fence is open, otherwise</span>
+        <span class="c1"># prose that may be linkified.</span>
+        <span class="n">segment</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">last</span> <span class="p">:</span> <span class="n">match</span><span class="o">.</span><span class="n">start</span><span class="p">()]</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">segment</span> <span class="k">if</span> <span class="n">fence</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_linkify_segment</span><span class="p">(</span><span class="n">segment</span><span class="p">))</span>
+        <span class="c1"># The delimiter line itself is always verbatim.</span>
+        <span class="n">line_end</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">end</span><span class="p">())</span>
+        <span class="n">line_end</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">if</span> <span class="n">line_end</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="k">else</span> <span class="n">line_end</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">start</span><span class="p">()</span> <span class="p">:</span> <span class="n">line_end</span><span class="p">])</span>
+        <span class="n">marker</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fence</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fence</span> <span class="o">=</span> <span class="n">marker</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># ``` or ~~~</span>
+        <span class="k">elif</span> <span class="n">marker</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">fence</span><span class="p">:</span>
+            <span class="n">fence</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">line_end</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">last</span><span class="p">:]</span>
+    <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">tail</span> <span class="k">if</span> <span class="n">fence</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_linkify_segment</span><span class="p">(</span><span class="n">tail</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_linkify_segment</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Wrap bare URLs in a code-FREE markdown segment."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text</span>
     <span class="n">result</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">last</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">_MARKDOWN_LINK_RE</span><span class="o">.</span><span class="n">finditer</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
@@ -343,8 +379,7 @@
         <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
         <span class="n">last</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">end</span><span class="p">()</span>
     <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_linkify_plain</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="n">last</span><span class="p">:]))</span>
-    <span class="k">return</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
-
+    <span class="k">return</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_linkify_plain</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

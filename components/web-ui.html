@@ -315,14 +315,18 @@ talks to the backend API.  It is started with <code class="docutils literal notr
 linked from the <a class="reference internal" href="../index.html"><span class="doc">home page</span></a>.</p>
 <p>The layout has three parts: a left drawer listing chat sessions, a centre
 panel with two tabs (<strong>chat</strong> and <strong>inspect</strong>), and a right drawer with
-per-chat state (the <em>status pane</em>).</p>
+per-chat state (the <em>status pane</em>).  A single footer line carries the
+disclaimer and the “Powered by” note.</p>
 <section id="chat">
 <h2>Chat<a class="headerlink" href="#chat" title="Link to this heading">¶</a></h2>
 <p>The chat tab is where questions are asked.  Answers stream in as they are
 generated, and each answer is grounded in the retrieved sources rather
-than the model’s memory alone.  The input box sits at the bottom; use the
-left drawer to start a new chat or switch between existing ones, and the
-status pane to choose the model for the chat.</p>
+than the model’s memory alone.  Messages render as full-width blocks: the
+user’s prompt is tinted, the agent’s reply is plain text, and file changes
+the agent makes appear as their own diff blocks before the reply.  Long
+lines wrap, and the input box sits at the bottom (drag its corner to
+resize it).  Use the left drawer to start a new chat or switch between
+existing ones, and the status pane to choose the model for the chat.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>

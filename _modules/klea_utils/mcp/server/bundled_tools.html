@@ -926,6 +926,12 @@
 <span class="sd">    - Reading a file (use the read file tool instead).</span>
 <span class="sd">    - Listing a directory (use the list files tool instead).</span>
 
+<span class="sd">    A non-zero exit code is a normal result, not an error: many tools signal</span>
+<span class="sd">    conditions with it (``diff``/``grep`` return 1 for differences/no match, a</span>
+<span class="sd">    failing test returns non-zero).  Judge the outcome from ``returncode`` and</span>
+<span class="sd">    ``stdout``; ``error`` is set only when the command could not be run or was</span>
+<span class="sd">    killed.</span>
+
 <span class="sd">    Example: run_command(command="pwd &amp;&amp; ls", working_directory=".")</span>
 
 <span class="sd">    Args:</span>

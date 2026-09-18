@@ -774,6 +774,39 @@
 
 
 
+<div class="viewcode-block" id="is_empty_structured_parse_error">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_empty_structured_parse_error">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True if *exc* is a structured-output parse error on blank text.</span>
+
+<span class="sd">    On the structured path, ``with_structured_output(...).ainvoke`` **raises**</span>
+<span class="sd">    :class:`OutputParserException` for a blank model response instead of</span>
+<span class="sd">    returning a dict, so :func:`is_output_empty` never sees it and the</span>
+<span class="sd">    empty-response retry in ``BaseLLMNode._invoke_with_retries`` is skipped.</span>
+<span class="sd">    LangChain's parsers phrase the failure as ``"Invalid json output: ..."``</span>
+<span class="sd">    followed by the (here empty) raw text, so match that shape rather than</span>
+<span class="sd">    treating every parser error as retryable: a non-empty invalid payload is</span>
+<span class="sd">    a real schema mismatch that should not be retried.</span>
+
+<span class="sd">    :param exc: The exception raised by the structured-output invoke.</span>
+<span class="sd">    :returns: True when the parser failed because the response was blank.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">OutputParserException</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+    <span class="n">marker</span> <span class="o">=</span> <span class="s2">"invalid json output:"</span>
+    <span class="n">lower</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">marker</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">lower</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">lower</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span> <span class="p">:]</span>
+    <span class="c1"># Strip the LangChain troubleshooting URL/whitespace before judging.</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
+        <span class="sa">r</span><span class="s2">"for troubleshooting"</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">maxsplit</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span>
+    <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="ow">not</span> <span class="n">payload</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+
+
 <div class="viewcode-block" id="get_token_limit_param">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.get_token_limit_param">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_token_limit_param</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

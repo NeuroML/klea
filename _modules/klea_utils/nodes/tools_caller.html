@@ -312,6 +312,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AudioContent</span><span class="p">,</span>
+    <span class="n">BlobResourceContents</span><span class="p">,</span>
+    <span class="n">EmbeddedResource</span><span class="p">,</span>
+    <span class="n">ImageContent</span><span class="p">,</span>
+    <span class="n">ResourceLink</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span>
@@ -332,7 +339,8 @@
 
 <span class="sd">    Applications that need extra post-dispatch state updates (e.g. the</span>
 <span class="sd">    agent's per-plan-step status) pass a *post_dispatch* callback that</span>
-<span class="sd">    receives the state and the results and returns additional state updates.</span>
+<span class="sd">    receives the state, the results, and a per-result "displayed" flag, and</span>
+<span class="sd">    returns additional state updates.</span>
 <span class="sd">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -342,7 +350,7 @@
         <span class="n">mcp_client</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">post_dispatch</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+        <span class="n">post_dispatch</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
         <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Initialise the tools caller node.</span>
@@ -361,9 +369,11 @@
 <span class="sd">            both gates.</span>
 <span class="sd">        :param project_root: Boundary directory for the client-side permission</span>
 <span class="sd">            gate.  Defaults to the current working directory.</span>
-<span class="sd">        :param post_dispatch: Optional ``(state, results) -&gt; state_updates``</span>
+<span class="sd">        :param post_dispatch: Optional ``(state, results, displayed) -&gt; state_updates``</span>
 <span class="sd">            callback for application-specific updates after dispatch.  The</span>
-<span class="sd">            state is passed untyped so app-specific state schemas fit.</span>
+<span class="sd">            state is passed untyped so app-specific state schemas fit, and</span>
+<span class="sd">            ``displayed`` is a per-result flag (aligned with *results*) for</span>
+<span class="sd">            results the node streamed a display event for.</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="o">=</span> <span class="n">mcp_client</span>
@@ -373,6 +383,9 @@
         <span class="c1">#: Last state/results, set by ``execute`` for the streaming hooks.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span><span class="p">:</span> <span class="n">BaseModel</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1">#: Per-result display flag from ``_post_exec_stream`` (aligned with</span>
+        <span class="c1">#: ``_last_tool_results``), passed to ``post_dispatch``.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_display_flags</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
 
 <div class="viewcode-block" id="ToolsCallerNode.execute">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.tools_caller.ToolsCallerNode.execute">[docs]</a>
@@ -413,7 +426,9 @@
 
         <span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tool_results"</span><span class="p">:</span> <span class="n">results</span><span class="p">}</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">:</span>
-            <span class="n">updates</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">results</span><span class="p">))</span>
+            <span class="n">updates</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_display_flags</span><span class="p">)</span>
+            <span class="p">)</span>
         <span class="k">return</span> <span class="n">updates</span></div>
 
 
@@ -421,11 +436,176 @@
 <span class="w">        </span><span class="sd">"""Run only when there are tool calls and a client to dispatch to."""</span>
         <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_info</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return a summary of the completed dispatch."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_post_exec_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit the shared events, then any chat-renderable tool output."""</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_post_exec_stream</span><span class="p">()</span>
+        <span class="n">entries</span><span class="p">,</span> <span class="n">flags</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_displays</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_last_display_flags</span> <span class="o">=</span> <span class="n">flags</span>
+        <span class="k">if</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"tools"</span><span class="p">:</span> <span class="n">entries</span><span class="p">}}</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_displays</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return the display entries and a per-result displayed flag.</span>
+
+<span class="sd">        The entries are the chat-renderable payloads (one per result at most);</span>
+<span class="sd">        the flags are aligned with ``self._last_tool_results`` so a caller can</span>
+<span class="sd">        record which results were streamed to the user.</span>
+<span class="sd">        """</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-        <span class="n">tool_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])]</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">per_result</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry_for</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">tc</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="n">flags</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">per_result</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">entry</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">per_result</span> <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">],</span> <span class="n">flags</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_tool_display_entries</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return chat-renderable per-tool entries for the last round.</span>
+
+<span class="sd">        Each entry is ``{tool, title, header, mime, data, meta, display}``:</span>
+<span class="sd">        ``mime`` is the single type vocabulary (mirroring MCP's ``mimeType``),</span>
+<span class="sd">        ``data`` the payload (text or base64), ``meta`` extras (path, language,</span>
+<span class="sd">        additions/deletions, uri, ...) and ``display`` a preformatted text</span>
+<span class="sd">        fallback for clients that cannot render ``mime``.</span>
+
+<span class="sd">        Sources, in order: typed MCP content blocks (``ImageContent`` /</span>
+<span class="sd">        ``AudioContent`` / ``EmbeddedResource`` / ``ResourceLink`` - the</span>
+<span class="sd">        standard, third-party-friendly path); then structured conventions</span>
+<span class="sd">        (``diff`` -&gt; ``text/x-diff``, ``code`` -&gt; ``text/x-&lt;language&gt;``,</span>
+<span class="sd">        ``display`` -&gt; ``text/markdown``); then a self-describing</span>
+<span class="sd">        ``display`` dict (``{"mime", "data", "meta"}``).  Plain ``TextContent``</span>
+<span class="sd">        is not surfaced (ours is the JSON dump).  Errors and results with</span>
+<span class="sd">        nothing to show are skipped.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_displays</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_entry_for</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">tc</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build a display entry for one call/result, or ``None``."""</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_content</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_structured</span><span class="p">(</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">entry</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_content</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span><span class="p">,</span> <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build an entry from a typed MCP content block, if any."""</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">content</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="p">(</span><span class="n">ImageContent</span><span class="p">,</span> <span class="n">AudioContent</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                    <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="p">{</span><span class="s2">"binary"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">EmbeddedResource</span><span class="p">):</span>
+                <span class="n">resource</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">resource</span>
+                <span class="n">mime</span> <span class="o">=</span> <span class="n">resource</span><span class="o">.</span><span class="n">mimeType</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">mime</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"uri"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">uri</span><span class="p">)}</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">BlobResourceContents</span><span class="p">):</span>
+                    <span class="n">meta</span><span class="p">[</span><span class="s2">"binary"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">resource</span><span class="o">.</span><span class="n">blob</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">resource</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ResourceLink</span><span class="p">)</span> <span class="ow">and</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                    <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="p">{</span><span class="s2">"uri"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">uri</span><span class="p">)}</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_structured</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">structured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build an entry from a structured result's display convention."""</span>
+        <span class="n">declared</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">declared</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># Self-describing hook for tools: {"mime", "data", "meta"}.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span>
+                <span class="n">title</span><span class="p">,</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">"text/markdown"</span><span class="p">),</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"diff"</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"path"</span><span class="p">,</span> <span class="n">tool</span><span class="p">)</span>
+            <span class="n">adds</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"additions"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">dels</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"deletions"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span>
+                <span class="n">title</span><span class="p">,</span>
+                <span class="s2">"text/x-diff"</span><span class="p">,</span>
+                <span class="n">structured</span><span class="p">[</span><span class="s2">"diff"</span><span class="p">],</span>
+                <span class="p">{</span><span class="s2">"path"</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="s2">"additions"</span><span class="p">:</span> <span class="n">adds</span><span class="p">,</span> <span class="s2">"deletions"</span><span class="p">:</span> <span class="n">dels</span><span class="p">},</span>
+                <span class="n">header</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> (+</span><span class="si">{</span><span class="n">adds</span><span class="si">}</span><span class="s2">/-</span><span class="si">{</span><span class="n">dels</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"code"</span><span class="p">):</span>
+            <span class="n">language</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"language"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+            <span class="n">mime</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"text/x-</span><span class="si">{</span><span class="n">language</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">language</span> <span class="k">else</span> <span class="s2">"text/plain"</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">structured</span><span class="p">[</span><span class="s2">"code"</span><span class="p">],</span> <span class="p">{</span><span class="s2">"language"</span><span class="p">:</span> <span class="n">language</span><span class="p">}</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">declared</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">declared</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="s2">"text/markdown"</span><span class="p">,</span> <span class="n">declared</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_entry</span><span class="p">(</span>
+        <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Assemble one display entry, including the text fallback."""</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"tool"</span><span class="p">:</span> <span class="n">tool</span><span class="p">,</span>
+            <span class="s2">"title"</span><span class="p">:</span> <span class="n">title</span><span class="p">,</span>
+            <span class="s2">"header"</span><span class="p">:</span> <span class="n">header</span> <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">title</span><span class="p">,</span>
+            <span class="s2">"mime"</span><span class="p">:</span> <span class="n">mime</span><span class="p">,</span>
+            <span class="s2">"data"</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span>
+            <span class="s2">"meta"</span><span class="p">:</span> <span class="n">meta</span> <span class="ow">or</span> <span class="p">{},</span>
+            <span class="s2">"display"</span><span class="p">:</span> <span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_fallback_display</span><span class="p">(</span><span class="n">mime</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_fallback_display</span><span class="p">(</span><span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a client-agnostic text rendering of a display entry."""</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mime</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"text/x-diff"</span><span class="p">,</span> <span class="s2">"text/x-patch"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"```diff</span><span class="se">\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="se">\n</span><span class="s2">```"</span>
+        <span class="k">if</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"image/"</span><span class="p">,</span> <span class="s2">"audio/"</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">mime</span><span class="si">}</span><span class="s2"> data, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="si">}</span><span class="s2"> bytes]"</span> <span class="k">if</span> <span class="n">text</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">mime</span><span class="si">}</span><span class="s2">]"</span>
+        <span class="k">if</span> <span class="n">mime</span> <span class="o">==</span> <span class="s2">"text/markdown"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">text</span>
+        <span class="k">if</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/x-"</span><span class="p">):</span>
+            <span class="n">language</span> <span class="o">=</span> <span class="n">mime</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"```</span><span class="si">{</span><span class="n">language</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="se">\n</span><span class="s2">```"</span>
+        <span class="k">return</span> <span class="n">text</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_inspect</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the inspection payload for the completed dispatch.</span>
+
+<span class="sd">        The inspection pane shows the dispatch summary plus the full tool</span>
+<span class="sd">        calls (arguments and reasons) and their results.  The status pane gets</span>
+<span class="sd">        a compact ``ok``/``error`` view from ``_get_status``; renderable</span>
+<span class="sd">        outputs (e.g. diffs) surface in the chat.</span>
+<span class="sd">        """</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">tool_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">]</span>
         <span class="n">success_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
             <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
@@ -435,32 +615,55 @@
                 <span class="s2">"total_calls"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">),</span>
                 <span class="s2">"successful_calls"</span><span class="p">:</span> <span class="n">success_count</span><span class="p">,</span>
                 <span class="s2">"failed_calls"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span> <span class="o">-</span> <span class="n">success_count</span><span class="p">,</span>
+                <span class="s2">"tool_calls"</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="p">{</span><span class="s2">"tool"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="s2">"arguments"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">reason</span><span class="p">}</span>
+                    <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span>
+                <span class="p">],</span>
+                <span class="s2">"tool_results"</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s2">"tool"</span><span class="p">:</span> <span class="n">tool_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"tool_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="s2">"is_error"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">,</span>
+                        <span class="s2">"content"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">content</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s2">"structured_content"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span>
+                    <span class="p">}</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span><span class="p">)</span>
+                <span class="p">],</span>
             <span class="p">},</span>
         <span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_debug</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return info plus the full tool calls and results."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_status</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return per-tool execution status for the status pane.</span>
+
+<span class="sd">        The status pane shows ground truth -- which tools actually ran and</span>
+<span class="sd">        whether each succeeded -- as a generic ``ok``/``error`` label per tool</span>
+<span class="sd">        (frontends may map the labels to icons).  The selected args, the</span>
+<span class="sd">        picker's reasons and the full results stay in the inspection pane</span>
+<span class="sd">        (``_get_inspect``), and renderable outputs (e.g. diffs) surface in the</span>
+<span class="sd">        chat.  Returns ``None`` for a round with no calls so empty rounds</span>
+<span class="sd">        leave the pane unchanged.</span>
+
+<span class="sd">        :returns: A status section, or ``None`` when nothing was called.</span>
+<span class="sd">        """</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
-        <span class="n">tool_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">]</span>
-        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_info</span><span class="p">()</span>
-        <span class="n">details</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">details</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-        <span class="n">details</span><span class="p">[</span><span class="s2">"tool_calls"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="p">{</span><span class="s2">"tool"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="s2">"arguments"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">reason</span><span class="p">}</span>
-            <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span>
-        <span class="p">]</span>
-        <span class="n">details</span><span class="p">[</span><span class="s2">"tool_results"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
-            <span class="p">{</span>
-                <span class="s2">"tool"</span><span class="p">:</span> <span class="n">tool_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"tool_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-                <span class="s2">"is_error"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">,</span>
-                <span class="s2">"content"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">content</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-                <span class="s2">"structured_content"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span>
-            <span class="p">}</span>
-            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span><span class="p">)</span>
-        <span class="p">]</span>
+        <span class="c1"># Skip calls with no usable name: rendering the empty title would show</span>
+        <span class="c1"># a meaningless "****: error".  Their failure is still visible in the</span>
+        <span class="c1"># inspection pane and drives Triage.</span>
+        <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tc</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_tool_results</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">continue</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="s2">"error"</span> <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span> <span class="k">else</span> <span class="s2">"ok"</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- **</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
-            <span class="n">heading</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">heading</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">info</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span>
+            <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Called </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="si">}</span><span class="s2"> tool(s)"</span><span class="p">,</span>
+            <span class="n">display</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
         <span class="p">)</span></div>
 
 </pre></div>

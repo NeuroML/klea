@@ -342,7 +342,7 @@
 <span class="sd">    ==============  =====================================================</span>
 <span class="sd">    ``"usage"``     token usage totals were incremented</span>
 <span class="sd">    ``"state"``     a status-pane section was stored</span>
-<span class="sd">    ``"debug"``     an inspector entry was buffered</span>
+<span class="sd">    ``"inspect"``   an inspection entry was buffered</span>
 <span class="sd">    ``"context"``   session context (e.g. the operating mode) was stored</span>
 <span class="sd">    ``"complete"``  the final assistant message was appended</span>
 <span class="sd">    ``"error"``     the backend signalled an error</span>
@@ -367,7 +367,7 @@
         <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"context"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{}))</span>
         <span class="k">return</span> <span class="s2">"context"</span>
 
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"debug"</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"inspect"</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
         <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">INSPECTOR_BUFFER_KEY</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
             <span class="p">{</span>
@@ -379,7 +379,7 @@
                 <span class="s2">"timing_seconds"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timing_seconds"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
             <span class="p">}</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="s2">"debug"</span>
+        <span class="k">return</span> <span class="s2">"inspect"</span>
 
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"usage"</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
@@ -395,19 +395,49 @@
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"state"</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
         <span class="n">node</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"state_sections"</span><span class="p">,</span> <span class="p">{})[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="c1"># Sections are keyed by ``data["key"]`` when set, else by node label,</span>
+        <span class="c1"># so nodes can share one section (e.g. a live plan updated by the</span>
+        <span class="c1"># Planner and the Evaluator) instead of each owning a duplicate.</span>
+        <span class="n">section_key</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"key"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">node</span>
+        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"state_sections"</span><span class="p">,</span> <span class="p">{})[</span><span class="n">section_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">"heading"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
             <span class="s2">"display"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
             <span class="s2">"summary"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
             <span class="s2">"details"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="s2">"preformatted"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preformatted"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
         <span class="p">}</span>
         <span class="k">return</span> <span class="s2">"state"</span>
 
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
         <span class="n">message</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
         <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">message</span><span class="p">,</span> <span class="n">stamp</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span> <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
+        <span class="p">)</span>
         <span class="k">return</span> <span class="s2">"complete"</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
+        <span class="c1"># Chat-renderable tool output (e.g. a file edit's diff).  One message</span>
+        <span class="c1"># per entry so each renders as its own full-width block, before the</span>
+        <span class="c1"># final answer.  ``mime`` selects the renderer; ``display`` is the</span>
+        <span class="c1"># text fallback.</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tools"</span><span class="p">,</span> <span class="p">[]):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
+                    <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span>
+                    <span class="s2">"header"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
+                    <span class="s2">"mime"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"data"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"meta"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"tool"</span>
 
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">"error"</span>
@@ -458,6 +488,8 @@
             <span class="n">action</span> <span class="o">=</span> <span class="n">apply_stream_event</span><span class="p">(</span><span class="n">current_chat</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">):</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
                 <span class="n">pg_row</span><span class="o">.</span><span class="n">delete</span><span class="p">()</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream complete"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>

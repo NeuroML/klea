@@ -393,6 +393,21 @@
     <span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_unknown_tool_error</span><span class="p">(</span><span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CallToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a non-halting error for an empty or unknown tool name.</span>
+
+<span class="sd">    A weak model can emit a well-formed but empty ``tool`` name, or a name</span>
+<span class="sd">    that is not in the disclosed catalogue.  Such a call is never dispatched</span>
+<span class="sd">    to the server; the error is returned instead so the failure is visible to</span>
+<span class="sd">    the retry/evaluation loop (which can feed it back to the picker).</span>
+
+<span class="sd">    :param tool_name: The offending tool name (possibly empty).</span>
+<span class="sd">    :returns: An ``is_error`` result explaining the rejection.</span>
+<span class="sd">    """</span>
+    <span class="n">shown</span> <span class="o">=</span> <span class="n">tool_name</span> <span class="k">if</span> <span class="n">tool_name</span> <span class="k">else</span> <span class="s2">"(empty)"</span>
+    <span class="k">return</span> <span class="n">_denied_result</span><span class="p">([</span><span class="sa">f</span><span class="s2">"Unknown tool: </span><span class="si">{</span><span class="n">shown</span><span class="si">!r}</span><span class="s2"> (not available to the picker)"</span><span class="p">])</span>
+
+
 <div class="viewcode-block" id="dispatch_tool_calls">
 <a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.dispatch.dispatch_tool_calls">[docs]</a>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">dispatch_tool_calls</span><span class="p">(</span>
@@ -405,10 +420,13 @@
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Gate and dispatch tool calls against an MCP server.</span>
 
-<span class="sd">    For each ``(tool name, arguments)`` pair two gates run before the call</span>
+<span class="sd">    For each ``(tool name, arguments)`` pair a gate runs before the call</span>
 <span class="sd">    reaches the server, each producing a synthetic non-halting error when</span>
-<span class="sd">    denied:</span>
+<span class="sd">    rejected:</span>
 
+<span class="sd">    * an invalid tool name (empty, or -- when *tool_infos* is given -- not in</span>
+<span class="sd">      the disclosed catalogue) is rejected without contacting the server, so</span>
+<span class="sd">      a hallucinated name cannot be dispatched; and</span>
 <span class="sd">    * the path gate (:func:`check_tool_arguments_permissions`), reading a</span>
 <span class="sd">      tool's ``checkpaths`` from ``ToolInfo.meta``; and</span>
 <span class="sd">    * the tool access level (ADR-0037): a tool the level does not permit</span>
@@ -456,6 +474,16 @@
 
     <span class="k">async</span> <span class="k">with</span> <span class="n">mcp_client</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">tool_name</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">):</span>
+            <span class="c1"># Reject empty/unknown names before any gate or server call.  A</span>
+            <span class="c1"># known-name check is only possible when the catalogue is given;</span>
+            <span class="c1"># with ``tool_infos=None`` only the empty-name case is caught.</span>
+            <span class="n">stripped</span> <span class="o">=</span> <span class="n">tool_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">stripped</span> <span class="ow">or</span> <span class="p">(</span><span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stripped</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tool_infos</span><span class="p">):</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"Rejecting invalid tool name before dispatch</span><span class="se">\n</span><span class="si">{</span><span class="n">tool_name</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                <span class="p">)</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_unknown_tool_error</span><span class="p">(</span><span class="n">tool_name</span><span class="p">)</span>
+                <span class="k">continue</span>
             <span class="n">tool_info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tool_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="n">denials</span> <span class="o">=</span> <span class="n">check_tool_arguments_permissions</span><span class="p">(</span>
                 <span class="n">tool_info</span><span class="o">.</span><span class="n">meta</span> <span class="k">if</span> <span class="n">tool_info</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">project_root</span>

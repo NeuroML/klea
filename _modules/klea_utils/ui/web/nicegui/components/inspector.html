@@ -344,8 +344,16 @@
 
     <span class="nd">@ui</span><span class="o">.</span><span class="n">refreshable</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_render_inspector_panel</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Render the inspector entries for the active chat in the inspect tab."""</span>
-        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full px-2 gap-0"</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Render the inspector entries for the active chat in the inspect tab.</span>
+
+<span class="sd">        The entries live in their own ``ui.scroll_area`` so the tab's scroll</span>
+<span class="sd">        stays inside the pane (like the chat tab); without it the whole page</span>
+<span class="sd">        scrolls and the ``chat``/``inspect`` tab headings scroll away.</span>
+<span class="sd">        """</span>
+        <span class="k">with</span> <span class="p">(</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">scroll_area</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full grow inspector-scroll-area"</span><span class="p">),</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full px-2 gap-0"</span><span class="p">),</span>
+        <span class="p">):</span>
             <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"No inspection data yet"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm text-grey-5 py-8"</span><span class="p">)</span>

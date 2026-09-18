@@ -736,6 +736,28 @@ switching to <code class="docutils literal notranslate"><span class="pre">max_ne
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.is_empty_structured_parse_error">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">is_empty_structured_parse_error</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#BaseException" title="(in Python v3.14)"><span class="pre">BaseException</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#is_empty_structured_parse_error"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.is_empty_structured_parse_error" title="Link to this definition">¶</a></dt>
+<dd><p>Return True if <em>exc</em> is a structured-output parse error on blank text.</p>
+<p>On the structured path, <code class="docutils literal notranslate"><span class="pre">with_structured_output(...).ainvoke</span></code> <strong>raises</strong>
+<code class="xref py py-class docutils literal notranslate"><span class="pre">OutputParserException</span></code> for a blank model response instead of
+returning a dict, so <a class="reference internal" href="#klea_utils.llm.is_output_empty" title="klea_utils.llm.is_output_empty"><code class="xref py py-func docutils literal notranslate"><span class="pre">is_output_empty()</span></code></a> never sees it and the
+empty-response retry in <code class="docutils literal notranslate"><span class="pre">BaseLLMNode._invoke_with_retries</span></code> is skipped.
+LangChain’s parsers phrase the failure as <code class="docutils literal notranslate"><span class="pre">&quot;Invalid</span> <span class="pre">json</span> <span class="pre">output:</span> <span class="pre">...&quot;</span></code>
+followed by the (here empty) raw text, so match that shape rather than
+treating every parser error as retryable: a non-empty invalid payload is
+a real schema mismatch that should not be retried.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>exc</strong> – The exception raised by the structured-output invoke.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True when the parser failed because the response was blank.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.llm.is_output_empty">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">is_output_empty</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AIMessage</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#is_output_empty"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.is_output_empty" title="Link to this definition">¶</a></dt>
 <dd><p>Return True if an LLM output carries no usable text content.</p>
@@ -1073,6 +1095,7 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <li><a class="reference internal" href="#klea_utils.llm.get_provider_allowed_fields"><code class="docutils literal notranslate"><span class="pre">get_provider_allowed_fields()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.get_recent_messages"><code class="docutils literal notranslate"><span class="pre">get_recent_messages()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.get_token_limit_param"><code class="docutils literal notranslate"><span class="pre">get_token_limit_param()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.is_empty_structured_parse_error"><code class="docutils literal notranslate"><span class="pre">is_empty_structured_parse_error()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_output_empty"><code class="docutils literal notranslate"><span class="pre">is_output_empty()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_output_truncated"><code class="docutils literal notranslate"><span class="pre">is_output_truncated()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.load_prompt"><code class="docutils literal notranslate"><span class="pre">load_prompt()</span></code></a></li>

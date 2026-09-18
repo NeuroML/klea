@@ -338,8 +338,8 @@
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full no-wrap items-end py-4"</span><span class="p">):</span>
         <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">textarea</span><span class="p">(</span><span class="n">placeholder</span><span class="o">=</span><span class="s2">"Start a conversation"</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"rounded outlined input-class=mx-3 autogrow"</span><span class="p">)</span>
-            <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex-grow"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outlined autogrow"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex-grow chat-input"</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">text</span>
 
@@ -369,12 +369,17 @@
                     <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span><span class="p">())</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
 
-            <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)[</span><span class="s2">"messages"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">query</span><span class="p">,</span> <span class="n">stamp</span><span class="p">,</span> <span class="kc">True</span><span class="p">))</span>
+            <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)[</span><span class="s2">"messages"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">query</span><span class="p">,</span> <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
+            <span class="p">)</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
 
             <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">stream</span><span class="o">.</span><span class="n">run_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">current</span><span class="p">))</span>
 
+        <span class="c1"># Send button inside the field, anchored to the bottom-right: the</span>
+        <span class="c1"># textarea autogrows upward as the message gets longer while the</span>
+        <span class="c1"># button stays on its last line (the Gemini pattern).</span>
         <span class="k">with</span> <span class="p">(</span>
             <span class="n">text</span><span class="o">.</span><span class="n">add_slot</span><span class="p">(</span><span class="s2">"append"</span><span class="p">),</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"send"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">send</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
@@ -394,13 +399,6 @@
         <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"keydown.enter.exact.prevent"</span><span class="p">,</span> <span class="n">handle_enter</span><span class="p">)</span>
         <span class="c1"># Clicking the send icon inside the textarea also sends.</span>
         <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click:append"</span><span class="p">,</span> <span class="n">send</span><span class="p">)</span>
-
-    <span class="c1"># The disclaimer is a full-width line BELOW the input row.  Keeping it</span>
-    <span class="c1"># inside the flex row would share the line with the ``flex-grow``</span>
-    <span class="c1"># textarea: as a ``w-full`` flex sibling it wins the space and squeezes</span>
-    <span class="c1"># the text box down to its content width.</span>
-    <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">disclaimer</span><span class="p">:</span>
-        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">disclaimer</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 pb-2 w-full text-center"</span><span class="p">)</span>
 
     <span class="c1"># Disable chat input until backend is ready; initial_load re-enables.</span>
     <span class="k">try</span><span class="p">:</span>

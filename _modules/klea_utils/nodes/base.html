@@ -318,13 +318,14 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputParserException</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptValue</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompts</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.runnables</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.utils.function_calling</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_json_schema</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_runtime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ValidationError</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">model_overrides_from_context</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
@@ -338,6 +339,7 @@
     <span class="n">get_last_n_conversations</span><span class="p">,</span>
     <span class="n">get_provider_allowed_fields</span><span class="p">,</span>
     <span class="n">get_token_limit_param</span><span class="p">,</span>
+    <span class="n">is_empty_structured_parse_error</span><span class="p">,</span>
     <span class="n">is_output_empty</span><span class="p">,</span>
     <span class="n">is_output_truncated</span><span class="p">,</span>
     <span class="n">load_prompt</span><span class="p">,</span>
@@ -962,6 +964,21 @@
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
                         <span class="k">continue</span>
                     <span class="k">raise</span>
+
+                <span class="c1"># A blank structured response makes the parser raise instead</span>
+                <span class="c1"># of returning an empty message, so route it into the same</span>
+                <span class="c1"># empty-retry budget a plain blank response gets.</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+                    <span class="ow">and</span> <span class="n">empty_retries</span> <span class="o">&lt;</span> <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span>
+                <span class="p">):</span>
+                    <span class="n">empty_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Empty structured LLM output, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
+                        <span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">continue</span>
                 <span class="k">raise</span>
 
             <span class="k">if</span> <span class="n">is_output_truncated</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
@@ -1042,16 +1059,14 @@
         <span class="k">if</span> <span class="n">schema</span><span class="p">:</span>
             <span class="c1"># but answer is returned as message instead of json/dict</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-                <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="n">result</span> <span class="o">=</span> <span class="n">schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsing_error"</span><span class="p">]:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s2">"LLM parsing error, using fallback: </span><span class="si">{</span><span class="n">output</span><span class="p">[</span><span class="s1">'parsing_error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
                     <span class="p">)</span>
-                    <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">],</span> <span class="n">schema</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">])</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">result</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsed"</span><span class="p">]</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -1085,6 +1100,38 @@
             <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
 
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_structured_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">AIMessage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Parse a structured-output message, degrading to the typed default.</span>
+
+<span class="sd">        ``parse_output_with_thought`` can raise when the model returned blank</span>
+<span class="sd">        or unrecoverable text (for example a blank message that ``repair_json``</span>
+<span class="sd">        cannot turn into JSON).  Structured nodes define a typed fail-closed</span>
+<span class="sd">        default, so use it rather than letting the parser error escape the</span>
+<span class="sd">        node and abort the run.</span>
+
+<span class="sd">        :param message: The raw model message to parse.</span>
+<span class="sd">        :returns: A schema instance, or ``_get_default_error_result()`` on</span>
+<span class="sd">            parse/validation failure.</span>
+<span class="sd">        """</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">OutputParserException</span><span class="p">,</span> <span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Structured output could not be parsed; using default result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"Parsed output failed schema validation; using default "</span>
+                    <span class="sa">f</span><span class="s2">"result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">result</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invoke_prompt</span><span class="p">(</span>
