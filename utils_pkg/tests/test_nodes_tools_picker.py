@@ -13,6 +13,7 @@ import logging
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.tools_picker import ToolsPicker
+from mcp.types import TextContent
 from pydantic import BaseModel, Field
 
 TOOLS_INFO = {
@@ -209,6 +210,37 @@ def test_empty_selection_counts_up_and_adds_feedback():
         ),
     )
     assert update2["picker_attempts"] == 2
+
+
+def test_tool_error_adds_its_text_to_feedback():
+    """A failed batch surfaces the error text so the picker can correct it."""
+    picker = _make_picker()
+    error = CallToolResult(
+        content=[TextContent(type="text", text="old_string matched 2 times")],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=True,
+    )
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_results=[error],
+        picker_attempts=0,
+        picker_step=0,
+    )
+    feedback = picker._get_prompt_variables(state)["picker_feedback"]
+    assert "old_string matched 2 times" in feedback
+    assert "fix" in feedback.lower() or "adjust" in feedback.lower()
+
+
+def test_no_error_keeps_empty_selection_feedback():
+    """Without a tool error, only the empty-selection message is used."""
+    picker = _make_picker()
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
+    )
+    feedback = picker._get_prompt_variables(state)["picker_feedback"]
+    assert "no usable tool call" in feedback
 
 
 def test_non_empty_selection_resets_attempts_and_feedback():

@@ -19,6 +19,7 @@ from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
 from klea_utils.mcp.schemas import ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.tools import last_tool_error_text
 
 
 class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
@@ -158,13 +159,21 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         # stays cache-friendly; empty on a normal pick.  Derived from the
         # incoming state (thread-isolated), not instance fields (ADR-0033).
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
-        variables["picker_feedback"] = (
-            "Your previous selection contained no usable tool call. "
-            "Only pick tools from the provided list; if the step cannot be "
-            "carried out with them, return an empty `tool_calls` list."
-            if attempts > 0
-            else ""
-        )
+        last_error = last_tool_error_text(getattr(state, "tool_results", None))
+        if last_error:
+            variables["picker_feedback"] = (
+                "Your previous tool call failed. The error was:\n"
+                f"{last_error}\n"
+                "Adjust the call so it can succeed"
+            )
+        elif attempts > 0:
+            variables["picker_feedback"] = (
+                "Your previous selection contained no usable tool call. "
+                "Only pick tools from the provided list; if the step cannot be "
+                "carried out with them, return an empty `tool_calls` list."
+            )
+        else:
+            variables["picker_feedback"] = ""
         return variables
 
     @override

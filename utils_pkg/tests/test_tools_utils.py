@@ -11,11 +11,43 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 
 from fastmcp.client.client import CallToolResult
-from klea_utils.tools import textualize_tool_results
+from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from mcp.types import EmbeddedResource, TextContent, TextResourceContents
 from pydantic.networks import AnyUrl
 
 logger = logging.getLogger(__name__)
+
+
+def _result(text: str, *, is_error: bool = False) -> CallToolResult:
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=is_error,
+    )
+
+
+def test_last_tool_error_text_returns_last_error():
+    """The most recent error result's text is returned."""
+    results = [
+        _result("bad", is_error=True),
+        _result("ok"),
+        _result("ambiguous match", is_error=True),
+    ]
+    assert last_tool_error_text(results) == "ambiguous match"
+
+
+def test_last_tool_error_text_none_when_no_error():
+    """A batch without errors yields no feedback."""
+    assert last_tool_error_text([_result("ok")]) == ""
+    assert last_tool_error_text(None) == ""
+
+
+def test_last_tool_error_text_truncates():
+    """Long error text is capped."""
+    out = last_tool_error_text([_result("x" * 1000, is_error=True)], max_len=10)
+    assert out == "x" * 10 + " [truncated]"
 
 
 def test_textualize_tool_results_success():

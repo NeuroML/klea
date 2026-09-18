@@ -73,6 +73,34 @@ def textualize_tool_results(
     return text
 
 
+def last_tool_error_text(
+    tool_results: list[CallToolResult] | None,
+    max_len: int = 500,
+) -> str:
+    """Return the text of the last error result in a batch, or ``""``.
+
+    Used to give the tool picker concrete feedback when a round failed (for
+    example an ``edit_file`` ambiguity), so it can adjust the call instead of
+    repeating it.  Only the last error is returned: the picker retries one
+    round at a time, so the most recent failure is the one to correct.
+
+    :param tool_results: The batch's tool results (``None`` treated as empty).
+    :param max_len: Truncate the extracted text to this many characters.
+    :returns: The final error result's textual content, or ``""`` if none.
+    """
+    if not tool_results:
+        return ""
+    for result in reversed(tool_results):
+        if not getattr(result, "is_error", False):
+            continue
+        parts = [_textualize_content_block(c) for c in result.content]
+        text = "\n".join(parts).strip()
+        if max_len is not None and len(text) > max_len:
+            text = text[:max_len] + " [truncated]"
+        return text
+    return ""
+
+
 def _collapse_schema_type(schema: dict[str, Any]) -> str:
     """Collapse a JSON Schema type spec into a single compact type name.
 
