@@ -8,6 +8,13 @@ informed: ""
 
 # Inspection features for validating execution
 
+> **Amended by ADR-0040 (2026-09-18):** the `info` event was removed and
+> `debug` renamed to `inspect` (so `_get_info`/`_get_debug` collapsed into a
+> single `_get_inspect`).  The `custom` channel now also carries `tool` events
+> for chat-renderable output; `NodeStreamData` gained `key`/`preformatted`; and
+> `token` is opt-in.  The text below is kept as the historical record; see
+> ADR-0040 for the current contract.
+
 ## Context and Problem Statement
 
 Most agentic coding tools today show little about how they function
@@ -103,14 +110,13 @@ Chosen option: "C. Structured per-node inspection signals".
 
   ```python
   yield {"type": "progress", "node": self.label}
-  yield {"type": "info", "node": self.label, "data": self._get_info().model_dump()}
-  yield {"type": "debug", "node": self.label, "data": self._get_debug().model_dump()}
+  yield {"type": "inspect", "node": self.label, "data": self._get_inspect().model_dump()}
   ```
 
 * Graph streaming: ``utils_pkg/klea_utils/graph/base.py:700``
   ``BaseLangGraph.run_graph_astream_events`` wraps
   ``graph.astream_events(..., version="v3", transformers=[_CustomChannelEnabler])``
-  and yields a normalised stream of ``{type: "progress"|"info"|"debug"|"token"|"usage"|"complete"}``
+  and yields a normalised stream of ``{type: "progress"|"inspect"|"state"|"usage"|"tool"|"token"|"context"|"complete"}``
   dicts.  ``graph/base.py:49`` ``_CustomChannelEnabler`` is the minimal
   ``StreamTransformer`` that declares the ``custom`` channel so
   ``write_custom_stream`` events flow through (LangGraph v3 only emits
@@ -120,9 +126,10 @@ Chosen option: "C. Structured per-node inspection signals".
 
 * UI: web (NiceGUI 3-column with an inspector pane) and TUI REPL both
   consume the same event stream: ``progress`` drives the step indicator,
-  ``info`` populates the per-node inspector, ``debug`` is gated behind a
-  details toggle, ``token`` streams LLM thinking/answer, ``usage``
-  surfaces per-node token counts for cost introspection.  The CLI
+  ``inspect`` populates the per-node inspector (summary shown, ``details``
+  collapsed), ``state`` fills the status pane, ``tool`` renders chat output,
+  ``usage`` surfaces per-node token counts for cost introspection, and
+  ``token`` streams free-text nodes only (opt-in).  The CLI
   ``klea-rag web`` / ``klea web`` auto-spawns the server and connects
   over SSE.
 
@@ -205,7 +212,7 @@ Chosen option: "C. Structured per-node inspection signals".
   ``_CustomChannelEnabler`` + ``graph/base.py:700``
   ``run_graph_astream_events`` (v3 ``messages``/``custom``/``values``
   normalisation), ``klea_utils/nodes/abstract.py`` (``NodeStreamData``/
-  ``NodeStreamEvent``, ``BaseLLMNode`` ``_get_info``/``_get_debug``),
+  ``NodeStreamEvent``, ``BaseLLMNode`` ``_get_inspect``),
   ``klea_utils/api/sse.py`` (SSE), ``klea_utils/graph/base.py`` worker
   ``write_custom_stream`` use.
 * Nodes with rich inspection: ``classify_question.py``

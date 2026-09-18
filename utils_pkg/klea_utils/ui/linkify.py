@@ -34,8 +34,8 @@ def linkify_md(text: str) -> str:
     """Convert bare URLs in markdown *text* to ``[url](url)`` links.
 
     Existing ``[text](url)`` links are returned verbatim so they are not
-    re-wrapped, and fenced code blocks (```` ``` ```` / ``~~~``) are left
-    untouched: a URL in code would otherwise be wrapped and the literal
+    re-wrapped, and fenced code blocks (triple-backtick or tilde fences) are
+    left untouched: a URL in code would otherwise be wrapped and the literal
     ``[url](url)`` shown inside the code span (fenced blocks are not parsed
     as markdown links).  Callers pass the result to a markdown renderer,
     which turns the wrapped URLs into clickable anchors.

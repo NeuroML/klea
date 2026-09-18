@@ -13,7 +13,7 @@ informed: klea contributors
 Frontends need session/run-level context that is not scoped to a node --
 the agent's operating mode (ADR-0030) being the first
 example.  The existing stream contract (ADR-0013) is node-scoped:
-`NodeStreamEvent` carries ``info``/``debug``/``state``/``usage`` types,
+`NodeStreamEvent` carries ``inspect``/``state``/``usage`` types,
 each with a mandatory ``node``, rendered into per-node inspector/status
 panes.  A mode badge is session-level, not per-node.
 
@@ -88,7 +88,7 @@ layer, not by nodes.
   "data": {...}}`` event when the returned snapshot changes.
 * Node-authored ``custom`` events of type ``context`` are **not**
   forwarded: the ``custom`` channel handles ``progress`` and the
-  node-scoped ``info``/``debug``/``state``/``usage`` types only.  The
+  node-scoped ``inspect``/``state``/``usage`` types only.  The
   separation is structural on the emission side -- a node cannot produce
   a ``context`` event through any supported path.
 * Each app overrides the hook to define its context: ``KleaAgent``

@@ -148,7 +148,7 @@ Chosen option: "C. Configurable fallback with graded close-out".
   ``undefined`` paths exhausting the configured retrieval/rewrite attempt
   budgets).
 * ``docs/troubleshooting.rst`` (vector-store mismatch) and the
-  ``Evaluator``/``RouteEvaluator`` ``info``/``debug`` ``NodeStreamData``
+  ``Evaluator``/``RouteEvaluator`` ``inspect`` ``NodeStreamData``
   streams show the final ``route`` to the NiceGUI/TUI inspector (proof
   for ADR-0013 inspection).
 * ``ty``/``ruff`` clean for the three nodes and ``config.py``; ``docs:

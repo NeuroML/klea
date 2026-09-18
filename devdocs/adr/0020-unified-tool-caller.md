@@ -55,7 +55,7 @@ shared ``klea_utils`` framework?
   and ``call_tools(calls, mcp_client)`` as helpers that each graph node
   calls.  Rejected: per-graph node wiring (prompt registry location,
   ``model_type``, ``post_dispatch``) would still be per-app, and the
-  graph node contract (``label``, ``_get_info``/``_get_debug`` streaming
+  graph node contract (``label``, ``_get_inspect`` streaming
   per ADR-0013) would not be shared.
 * **C. Unified shared nodes plus ``dispatch`` helper (chosen)** --
   ``klea_utils/nodes/tools_picker.py`` (``ToolsPicker`` as an
@@ -94,7 +94,7 @@ plus ``klea_utils.mcp`` shared schemas/dispatch".
   post_dispatch=None)``; ``agent_pkg/klea_agent/klea_agent.py`` passes a
   ``post_dispatch`` callback to mark per-plan-step status.  Both write the
   same ``tool_calls`` / ``tool_results`` fields consumed by the same
-  inspection events (``ADR-0013`` ``_get_info``/``_get_debug``).
+  inspection events (``ADR-0013`` ``_get_inspect``).
 * Permission integration (ADR-0007): ``ToolsCallerNode`` calls
   ``dispatch_tool_calls`` which runs ``check_tool_arguments_permissions``
   on every call **before** it reaches the MCP server; denied calls never
@@ -165,7 +165,7 @@ plus ``klea_utils.mcp`` shared schemas/dispatch".
 * Related: ``ADR-0004`` (bundled stdio that this caller consumes),
   ``ADR-0007`` (permission gate this caller runs), ``ADR-0016``
   (``BaseLangGraph`` template), ``ADR-0019`` (node hierarchy), ``ADR-0013``
-  (inspection stream that shows picker/caller ``info``/``debug``).
+  (inspection stream that shows picker/caller ``inspect``).
 * Commits: ``7e88ba1`` (move common methods to abstract node),
   ``95fc002``/``66608b7`` (``LLMModel`` container), ``c6e1a8a``/``f5bcfde``
   (tool-caller abstract share), ``d288d94`` (guard skip), plus the

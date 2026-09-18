@@ -57,7 +57,7 @@ flowchart TD
     mcpExt["nml-mcp + per-domain MCP Servers<br/>streamable-http / stdio<br/>via MCPConfig + tag filtering"]
     bundled["bundled klea-mcp<br/>stdio subprocess per app<br/>via BaseLangGraph._bundled_server_config()<br/>klea_utils.mcp.server.bundled"]
     sqlite["Session / Checkpoint Stores<br/>SQLite: checkpoints.db, sessions.db<br/>via BaseLangGraph._setup_checkpointer / sessions_db"]
-    inspection["Inspection Stream<br/>NodeStreamData (info/debug/usage)<br/>via _CustomChannelEnabler + SSE"]
+    inspection["Inspection Stream<br/>NodeStreamData (inspect/state/usage)<br/>via _CustomChannelEnabler + SSE"]
 
     subgraph RAG ["klea_rag container (rag_pkg/klea_rag/rag.py:191, WIP)"]
         direction TB
@@ -213,7 +213,7 @@ graph TD;
 
 | Component | File | Role | Key contracts |
 |-----------|------|------|---------------|
-| Initializing | ``klea_rag/nodes/init_rag.py`` | Seeds ``query_domains``, ``context_summary``, ``messages`` | Non-LLM, always runs; no ``_get_info`` |
+| Initializing | ``klea_rag/nodes/init_rag.py`` | Seeds ``query_domains``, ``context_summary``, ``messages`` | Non-LLM, always runs; no ``_get_inspect`` |
 | Checking safety | ``klea_utils/nodes/guard.py`` | ``GuardNode`` (``guard``, skip via ``_pre_exec`` when no model) | ``guard_decision`` ``safe/unsafe``; fail-open ``_get_default_error_result→safe`` |
 | Routing safety | ``klea_utils/nodes/guard_router.py`` | ``GuardRouterNode`` | reads ``guard_decision`` → ``safe/unsafe`` edge |
 | Declining / Refusing / Clarification | ``klea_utils/nodes/fixed_answer.py`` ``FixedAnswer`` | Canned refusals | ``_ask_user_for_clarification`` vs ``_refuse_answer`` vs ``Declining`` |

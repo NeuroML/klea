@@ -17,7 +17,7 @@ bases that duplicated: model selection via ``llm_models[model_type]``
 (``chat``/``guard``/``plan``), prompt loading (``_load_prompt_file`` +
 ``_get_system_prompt`` / ``_get_human_prompt``), per-invoke
 ``RunnableConfig`` building, ``ainvoke`` + ``_process_output`` +
-``_update_state``, and the ``_get_info``/``_get_debug``/``_get_status``
+``_update_state``, and the ``_get_inspect``/``_get_status``
 inspection contract plus ``write_custom_stream``.  Copy-paste made bug
 fixes divergent and streaming events inconsistent.
 
@@ -63,8 +63,8 @@ share.  How should node behaviour be factored?
     child logger, ``write_custom_stream`` via ``get_stream_writer()``,
     and the shared contract: ``_pre_exec(state) -> bool`` (default
     ``True``), ``_pre_exec_stream`` (``progress``), ``_post_exec_stream``
-    (``info``/``debug``/``state``) plus ``_get_info``/``_get_debug``/
-    ``_get_status`` hooks (all ``None`` by default).
+    (``inspect``/``state``) plus the ``_get_inspect``/``_get_status``
+    hooks (all ``None`` by default).
   - ``AbstractLLMNode[TSchema]`` (extends the above,
     ``TReturn = dict[str,Any]``) -- ``model_type`` + ``model_defaults``
     (frozen, per-subclass class attr), ``_llm_entry`` from
@@ -113,7 +113,7 @@ type in ``klea_utils``".
   ``configurable_fields="any"`` still honours the node's pin).
 * Inspection: ``AbstractLangGraphNode._pre_exec_stream`` emits
   ``{type:"progress", node:label}`` and ``_post_exec_stream`` emits
-  ``info``/``debug``/``state``; ``AbstractLLMNode`` augments it with
+  ``inspect``/``state``; ``AbstractLLMNode`` augments it with
   ``_get_usage`` (``TokenUsage`` -> ``NodeStreamData``).  The graph's
   ``_CustomChannelEnabler`` (``required_stream_modes = ("custom",)``)
   is still required so the ``custom`` channel is enabled in
@@ -121,7 +121,7 @@ type in ``klea_utils``".
 * ``AbstractLangGraphNode`` is intentionally not a Template Method
   over ``execute`` (LLM vs tool-calling vs router flows differ too
   much).  It only standardises ``_pre_exec``/``_pre_exec_stream``/
-  ``_post_exec_stream`` and the ``_get_info``/``_get_debug`` contract;
+  ``_post_exec_stream`` and the ``_get_inspect`` contract;
   ``AbstractLLMNode.execute`` is the true template.  This is the
   "Template Method at two levels" companion to ``ADR-0016`` (graph) and
   lives together with it in the todolist as requested.
@@ -158,7 +158,7 @@ type in ``klea_utils``".
 * ``mcp_pkg: pytest -v`` + ``utils_pkg: pytest -m "not localonly"``
   exercise the shared path (``guard`` skip via ``_pre_exec`` returning
   ``False`` -> empty dict).
-* Manual: ``ClassifyQuestion._get_info`` / ``GuardNode._pre_exec`` skip
+* Manual: ``ClassifyQuestion._get_inspect`` / ``GuardNode._pre_exec`` skip
   still emit the correct ``NodeStreamData`` via the shared base.
 
 ## Pros and Cons of the Options

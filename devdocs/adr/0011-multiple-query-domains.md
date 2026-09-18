@@ -139,7 +139,7 @@ Chosen option: "B. Upfront multiple query domains per LLM call".
   ``domain_query`` edge; ``ty`` cross-package ``RetrieverConfig`` via
   ``ty.toml`` extra-paths is satisfied.
 * Live: ``klea-rag-serve`` logs ``classified_domains`` via
-  ``ClassifyQuestion._get_info`` ``NodeStreamData`` (inspection, ADR-0013)
+  ``ClassifyQuestion._get_inspect`` ``NodeStreamData`` (inspection, ADR-0013)
   already surface multiple domains before ``RetrieveInfoNode`` runs.
 
 ## Pros and Cons of the Options

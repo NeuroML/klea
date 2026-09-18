@@ -40,6 +40,7 @@ Structure:
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
 | `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; future C4 diagram) |
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |
+| `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
 | `adr/0003-mcp-iserror-compliance.md` | ADR-0003: Strictly require MCP isError for tool execution failures |
@@ -79,5 +80,6 @@ Structure:
 | `adr/0037-tool-access-levels.md` | ADR-0037: Tool access levels (read_only \| full) from MCP annotations, with documented trust limits |
 | `adr/0038-run-command-tool.md` | ADR-0038: General shell command tool (`run_command`): full-mode only, advisory path checking |
 | `adr/0039-file-editing-tools.md` | ADR-0039: File editing tools: whole-file write plus exact search/replace with bounded replacer recovery |
+| `adr/0040-stream-contract-inspect-tool-token.md` | ADR-0040: Stream contract: `inspect` events, chat-renderable `tool` events, gated `token` (amends ADR-0013) |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |
