@@ -164,7 +164,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["picker_feedback"] = (
                 "Your previous tool call failed. The error was:\n"
                 f"{last_error}\n"
-                "Adjust the call so it can succeed"
+                "Adjust the call so it can succeed."
+                "Do not add new tool calls."
+                "If the error suggests the call cannot be completed, return an empty `tool_calls` list."
             )
         elif attempts > 0:
             variables["picker_feedback"] = (
