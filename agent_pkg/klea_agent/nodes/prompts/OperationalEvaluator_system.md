@@ -24,6 +24,11 @@
 * `step_incomplete`: the current step is not yet done, but can be completed.
 * `need_replan`: the current step or plan cannot achieve the goal and must be
   revised.
+* `abort`: the goal cannot be achieved with the available means.  Use this when
+  the observations already prove the goal is unreachable -- for example a
+  required input does not exist and the task is read-only, so it must not be
+  created.  The run ends with a failure explanation; do not keep replanning an
+  unreachable goal.
 
 ---
 
@@ -38,7 +43,14 @@
 * Use `step_incomplete` only when you can name a concrete further call that
   will move the step forward.  If no further progress is possible, use
   `need_replan` instead of keeping the loop alive.
+* When the observations already prove the goal is unreachable (the required
+  input or dependency is missing and cannot be produced), return `abort`
+  instead of `need_replan`: replanning cannot help, and the failure should be
+  reported now.
 * Do not claim success without supporting evidence in the observations.
+* Judge only the latest batch's new evidence.  If the observations are unchanged
+  from a batch you already judged incomplete, repeat that verdict; do not flip
+  to done without new evidence that meets the criterion.
 * You never write the user-facing reply. Return only the verdict and a short `reason`; a separate stage synthesises the answer.
 * A conversational request that is fully answered is `plan_done`.
 * When the current step is the final step and it is done, use `plan_done`, not `step_done`.

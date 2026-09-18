@@ -150,6 +150,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         update["step_attempt_counts"] = attempts
 
         # --- Global run budget (deterministic backstop) ------------------
+        budget_abort = False
         if evaluation != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
             self.logger.warning(
                 "Tool-round budget (%d) exhausted; aborting",
@@ -157,6 +158,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             )
             evaluation = "abort"
             result.evaluation = "abort"
+            budget_abort = True
 
         if plan.step_list:
             index = plan.current_step_index
@@ -180,11 +182,18 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 plan.step_list[plan.current_step_index].status = "failed"
             plan.status = "aborted"
             update["plan"] = plan
-            update["failure_reason"] = (
-                f"tool-round budget exhausted: {result.reason}"
-                if result.reason
-                else "tool-round budget exhausted"
-            )
+            if budget_abort:
+                update["failure_reason"] = (
+                    f"tool-round budget exhausted: {result.reason}"
+                    if result.reason
+                    else "tool-round budget exhausted"
+                )
+            else:
+                # The model judged the goal unreachable; keep its reason so the
+                # failure answer explains the real cause, not a budget.
+                update["failure_reason"] = (
+                    result.reason or "the goal cannot be achieved"
+                )
 
         # Record the verdict in run history so a replan (and summarisation)
         # can see why the plan was sent back.

@@ -144,7 +144,34 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertEqual(update["evaluation"].evaluation, "abort")
         self.assertEqual(update["plan"].status, "aborted")
-        self.assertIn("failure_reason", update)
+        self.assertIn("tool-round budget exhausted", update["failure_reason"])
+
+    def test_model_abort_uses_its_own_reason(self):
+        """A model ``abort`` verdict reports the real cause, not a budget."""
+        evaluator = self._evaluator()
+        state = self._state()
+        update = evaluator._update_state(
+            EvaluationSchema(
+                evaluation="abort",
+                reason="input file does not exist and may not be created",
+            ),
+            state,
+        )
+        self.assertEqual(update["evaluation"].evaluation, "abort")
+        self.assertEqual(update["plan"].status, "aborted")
+        self.assertEqual(
+            update["failure_reason"],
+            "input file does not exist and may not be created",
+        )
+
+    def test_model_abort_without_reason_gets_a_default(self):
+        """An empty abort reason still yields an explanation for the answer."""
+        evaluator = self._evaluator()
+        update = evaluator._update_state(
+            EvaluationSchema(evaluation="abort", reason=""),
+            self._state(),
+        )
+        self.assertEqual(update["failure_reason"], "the goal cannot be achieved")
 
     def test_prompt_variables_include_criteria(self):
         evaluator = self._evaluator()
