@@ -12,6 +12,7 @@ from typing import Literal
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.graph.state import BaseGraphSchema
+from klea_utils.tools import textualize_tool_results
 from pydantic import BaseModel, Field
 from typing_extensions import Any
 
@@ -259,6 +260,34 @@ class EvaluationSchema(BaseModel):
     reason: str = Field(default="", description="Short justification for the verdict")
 
 
+class StepOutput(BaseModel):
+    """A tool result recorded against a plan step.
+
+    :attr:`tool` is the selected tool's name (``CallToolResult`` does not carry
+    it) and :attr:`displayed` records that the server streamed a display event
+    for this result.  That is *intent-to-display*, not a render guarantee: a
+    client may not have shown it.  The answer node uses the flag to avoid
+    reprinting results the interface already showed.
+    """
+
+    result: CallToolResult
+    tool: str = ""
+    displayed: bool = False
+
+    def render(self) -> str:
+        """Render this result with its tool/displayed metadata.
+
+        The body is the shared single-result text (no batch header); the
+        ``### <tool> (displayed_to_user: ...)`` heading replaces the generic
+        ``Result i/n`` label so the consumer knows which tool ran and whether
+        the interface already showed it.
+        """
+        body = textualize_tool_results([self.result], include_header=False).strip()
+        tool = self.tool or "(unknown tool)"
+        shown = "yes" if self.displayed else "no"
+        return f"### {tool} (displayed_to_user: {shown})\n{body}"
+
+
 class KleaAgentState(BaseGraphSchema):
     """The state of the graph
 
@@ -278,7 +307,7 @@ class KleaAgentState(BaseGraphSchema):
     # planning related
     goal: GoalSchema = GoalSchema()
     plan: PlanSchema = PlanSchema()
-    step_outputs: dict[int, list[CallToolResult]] = Field(default_factory=dict)
+    step_outputs: dict[int, list[StepOutput]] = Field(default_factory=dict)
     # per-step re-pick counter for the ADaPT tool-error escalation policy
     tool_retry_counts: dict[int, int] = Field(default_factory=dict)
     # per-step non-advancing evaluation counter (semantic loop budget)
@@ -307,3 +336,20 @@ class KleaAgentState(BaseGraphSchema):
 
     # { id -> artefact }
     artefacts: dict[str, ArtefactSchema] = Field(default_factory=dict)
+
+    def observations_text(self) -> str:
+        """Render all recorded step outputs as one text block.
+
+        Groups by step (``Step N:``) and renders each :class:`StepOutput` via
+        its :meth:`StepOutput.render`.  Used by the Planner, Evaluator and
+        AnswerFromResults so all three see identical observations, including
+        the tool that produced each result and whether it was displayed to the
+        user.
+        """
+        parts: list[str] = []
+        for step_key, entries in self.step_outputs.items():
+            if not entries:
+                continue
+            rendered = "\n\n".join(entry.render() for entry in entries)
+            parts.append(f"Step {step_key}:\n{rendered}")
+        return "\n\n".join(parts) if parts else "(no observations)"

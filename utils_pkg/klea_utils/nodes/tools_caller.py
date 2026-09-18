@@ -38,7 +38,8 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
 
     Applications that need extra post-dispatch state updates (e.g. the
     agent's per-plan-step status) pass a *post_dispatch* callback that
-    receives the state and the results and returns additional state updates.
+    receives the state, the results, and a per-result "displayed" flag, and
+    returns additional state updates.
     """
 
     def __init__(
@@ -48,7 +49,7 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         mcp_client: Any | None,
         tool_infos: dict[str, ToolInfo] | None = None,
         project_root: str | None = None,
-        post_dispatch: Callable[[Any, list[CallToolResult]], dict[str, Any]]
+        post_dispatch: Callable[[Any, list[CallToolResult], list[bool]], dict[str, Any]]
         | None = None,
     ):
         """Initialise the tools caller node.
@@ -67,9 +68,11 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
             both gates.
         :param project_root: Boundary directory for the client-side permission
             gate.  Defaults to the current working directory.
-        :param post_dispatch: Optional ``(state, results) -> state_updates``
+        :param post_dispatch: Optional ``(state, results, displayed) -> state_updates``
             callback for application-specific updates after dispatch.  The
-            state is passed untyped so app-specific state schemas fit.
+            state is passed untyped so app-specific state schemas fit, and
+            ``displayed`` is a per-result flag (aligned with *results*) for
+            results the node streamed a display event for.
         """
         super().__init__(logger=logger, label=label)
         self._mcp_client = mcp_client
@@ -79,6 +82,9 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         #: Last state/results, set by ``execute`` for the streaming hooks.
         self._last_state: BaseModel | None = None
         self._last_tool_results: list[CallToolResult] | None = None
+        #: Per-result display flag from ``_post_exec_stream`` (aligned with
+        #: ``_last_tool_results``), passed to ``post_dispatch``.
+        self._last_display_flags: list[bool] = []
 
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
@@ -117,7 +123,9 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
 
         updates: dict[str, Any] = {"tool_results": results}
         if self._post_dispatch:
-            updates.update(self._post_dispatch(state, results))
+            updates.update(
+                self._post_dispatch(state, results, self._last_display_flags)
+            )
         return updates
 
     def _pre_exec(self, state: BaseModel) -> bool:
@@ -127,11 +135,29 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
     def _post_exec_stream(self) -> None:
         """Emit the shared events, then any chat-renderable tool output."""
         super()._post_exec_stream()
-        entries = self._tool_display_entries()
+        entries, flags = self._compute_displays()
+        self._last_display_flags = flags
         if entries:
             self.write_custom_stream(
                 {"type": "tool", "node": self.label, "data": {"tools": entries}}
             )
+
+    def _compute_displays(self) -> tuple[list[dict[str, Any]], list[bool]]:
+        """Return the display entries and a per-result displayed flag.
+
+        The entries are the chat-renderable payloads (one per result at most);
+        the flags are aligned with ``self._last_tool_results`` so a caller can
+        record which results were streamed to the user.
+        """
+        assert self._last_state is not None
+        assert self._last_tool_results is not None
+        tool_calls = getattr(self._last_state, "tool_calls", [])
+        per_result = [
+            self._display_entry_for(tc, result)
+            for tc, result in zip(tool_calls, self._last_tool_results, strict=False)
+        ]
+        flags = [entry is not None for entry in per_result]
+        return [entry for entry in per_result if entry is not None], flags
 
     def _tool_display_entries(self) -> list[dict[str, Any]]:
         """Return chat-renderable per-tool entries for the last round.
@@ -151,23 +177,22 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         is not surfaced (ours is the JSON dump).  Errors and results with
         nothing to show are skipped.
         """
-        assert self._last_state is not None
-        assert self._last_tool_results is not None
-        tool_calls = getattr(self._last_state, "tool_calls", [])
-        entries: list[dict[str, Any]] = []
-        for tc, result in zip(tool_calls, self._last_tool_results, strict=False):
-            if result.is_error:
-                continue
-            info = self._tool_infos.get(tc.tool) if self._tool_infos else None
-            title = info.title if info and info.title else tc.tool
-            entry = self._display_from_content(result, tc.tool, title)
-            if entry is None and isinstance(result.structured_content, dict):
-                entry = self._display_from_structured(
-                    result.structured_content, tc.tool, title
-                )
-            if entry is not None:
-                entries.append(entry)
-        return entries
+        return self._compute_displays()[0]
+
+    def _display_entry_for(
+        self, tc: Any, result: CallToolResult
+    ) -> dict[str, Any] | None:
+        """Build a display entry for one call/result, or ``None``."""
+        if result.is_error:
+            return None
+        info = self._tool_infos.get(tc.tool) if self._tool_infos else None
+        title = info.title if info and info.title else tc.tool
+        entry = self._display_from_content(result, tc.tool, title)
+        if entry is None and isinstance(result.structured_content, dict):
+            entry = self._display_from_structured(
+                result.structured_content, tc.tool, title
+            )
+        return entry
 
     def _display_from_content(
         self, result: CallToolResult, tool: str, title: str

@@ -17,7 +17,7 @@ from klea_agent.nodes.triage_router import (
     current_step_key,
     update_tool_retry_counts,
 )
-from klea_agent.schemas import KleaAgentState, PlanSchema
+from klea_agent.schemas import KleaAgentState, PlanSchema, StepSchema
 
 
 def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
@@ -25,7 +25,14 @@ def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
     state.tool_results = [
         CallToolResult(content=[], structured_content=None, meta=None, is_error=error)
     ]
-    state.plan = PlanSchema(current_step_index=step)
+    # A plan with one step per index; the step identity is its 1-based number.
+    state.plan = PlanSchema(
+        step_list=[
+            StepSchema(step_number=i + 1, description=f"s{i + 1}")
+            for i in range(step + 1)
+        ],
+        current_step_index=step,
+    )
     state.tool_retry_counts = counts or {}
     return state
 
@@ -35,20 +42,20 @@ class TestRetryCounts:
 
     def test_error_increments(self):
         counts = update_tool_retry_counts(_state(error=True))
-        assert counts == {0: 1}
+        assert counts == {1: 1}
 
     def test_repeated_errors_accumulate(self):
-        counts = update_tool_retry_counts(_state(error=True, counts={0: 2}))
-        assert counts == {0: 3}
+        counts = update_tool_retry_counts(_state(error=True, counts={1: 2}))
+        assert counts == {1: 3}
 
     def test_success_clears_budget(self):
-        counts = update_tool_retry_counts(_state(error=False, counts={0: 2}))
+        counts = update_tool_retry_counts(_state(error=False, counts={1: 2}))
         assert counts == {}
 
-    def test_step_key_tracks_plan_index(self):
-        assert current_step_key(_state(error=False, step=3)) == 3
+    def test_step_key_tracks_step_number(self):
+        assert current_step_key(_state(error=False, step=3)) == 4
         counts = update_tool_retry_counts(_state(error=True, step=3))
-        assert counts == {3: 1}
+        assert counts == {4: 1}
 
 
 class TestTriageDecide:
@@ -63,11 +70,11 @@ class TestTriageDecide:
         assert self.router.decide(_state(error=False)) == "evaluate"
 
     def test_error_within_budget_retries(self):
-        assert self.router.decide(_state(error=True, counts={0: 1})) == "retry"
-        assert self.router.decide(_state(error=True, counts={0: 2})) == "retry"
+        assert self.router.decide(_state(error=True, counts={1: 1})) == "retry"
+        assert self.router.decide(_state(error=True, counts={1: 2})) == "retry"
 
     def test_error_over_budget_replans(self):
-        assert self.router.decide(_state(error=True, counts={0: 3})) == "replan"
+        assert self.router.decide(_state(error=True, counts={1: 3})) == "replan"
 
     def test_error_without_counter_retries(self):
         # Counter not yet maintained: treat as first failure.
@@ -83,7 +90,7 @@ class TestTriageExecute:
         emitted: list[dict] = []
         monkeypatch.setattr(router, "write_custom_stream", emitted.append)
 
-        route = await router.execute(_state(error=True, counts={0: 9}))
+        route = await router.execute(_state(error=True, counts={1: 9}))
 
         assert route == "replan"
         assert emitted[0]["type"] == "progress"

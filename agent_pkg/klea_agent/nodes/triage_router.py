@@ -22,13 +22,22 @@ from klea_agent.schemas import KleaAgentState
 
 
 def current_step_key(state: KleaAgentState) -> int:
-    """Return the state key used for the current step's retry counter.
+    """Return the 1-based identity of the current plan step.
 
-    The key is the 0-based ``plan.current_step_index``; on the ``act``
-    (planless) path there is no plan, so the key is ``0``.
+    Uses the step's own ``step_number`` so observations and retry counters
+    match the plan's displayed numbering (``Step 3`` for plan step ``3.``).
+    Falls back to ``current_step_index + 1`` when there is no plan/step (the
+    planless ``act`` path) or the step has no usable number.
     """
     plan = getattr(state, "plan", None)
-    return int(getattr(plan, "current_step_index", 0) or 0)
+    if plan is not None:
+        step = plan.current_step() if hasattr(plan, "current_step") else None
+        if step is not None:
+            number = getattr(step, "step_number", 0)
+            if isinstance(number, int) and number > 0:
+                return number
+        return int(getattr(plan, "current_step_index", 0) or 0) + 1
+    return 1
 
 
 def update_tool_retry_counts(

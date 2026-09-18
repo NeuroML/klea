@@ -242,7 +242,7 @@ async def test_access_level_gate_full_allows():
 async def test_post_dispatch_callback_extras():
     client = FakeMCPClient()
 
-    def post_dispatch(state, results):
+    def post_dispatch(state, results, displayed):
         return {"plan_status": "done"}
 
     node = _make_node(client=client, post_dispatch=post_dispatch)
@@ -268,7 +268,7 @@ async def test_post_dispatch_can_update_plan_step():
 
     client = FakeMCPClient()
 
-    def post_dispatch(state, results):
+    def post_dispatch(state, results, displayed):
         step = state.plan.step_list[state.plan.current_step_index]
         step.status = "done"
         state.plan.current_step_index += 1
@@ -468,3 +468,37 @@ def test_post_exec_stream_emits_tool_event():
     tool_events = [e for e in events if e["type"] == "tool"]
     assert len(tool_events) == 1
     assert tool_events[0]["data"]["tools"][0]["mime"] == "text/x-diff"
+
+
+def test_compute_displays_flags_aligned_with_results():
+    """The displayed flags align 1:1 with results; only diffs are entries."""
+    node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
+    node._last_state = MiniState(
+        tool_calls=[
+            ToolCallSchema(tool="edit_file"),
+            ToolCallSchema(tool="run_command"),
+        ]
+    )
+    node._last_tool_results = [
+        CallToolResult(
+            content=[],
+            structured_content={
+                "path": "a.txt",
+                "diff": "+x",
+                "additions": 1,
+                "deletions": 0,
+            },
+            meta=None,
+        ),
+        CallToolResult(
+            content=[],
+            structured_content={"stdout": "hi", "returncode": 0, "error": ""},
+            meta=None,
+        ),
+    ]
+
+    entries, flags = node._compute_displays()
+
+    assert flags == [True, False]
+    assert len(entries) == 1
+    assert entries[0]["mime"] == "text/x-diff"

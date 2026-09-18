@@ -107,9 +107,15 @@ than application configuration; a config field can be added later if needed.
 * On timeout the process *group* is signalled (SIGTERM, then SIGKILL after a
   short grace), so children do not leak.
 * The result is a dict `{command, working_directory, returncode, stdout,
-  stderr, truncated, error}`; `error` is empty exactly when the exit code is
-  zero and is set for a non-zero exit, a timeout, or a denied working
-  directory (the ADR-0003 `isError` contract via `to_result`).
+  stderr, truncated, error}`.  `error` is set only when the command never
+  produced a result: a timeout, a denied working directory, a spawn failure,
+  or a rejected argument.  A **non-zero exit is a normal command result**
+  (amended 2026-09-18): many tools signal conditions with exit codes (for
+  example `diff` returns 1 when files differ, `grep` returns 1 on no match,
+  a failing test returns non-zero), so `error` stays empty and the caller
+  judges `returncode`/`stdout`/`stderr`.  This keeps MCP `isError` (via
+  `to_result`, ADR-0003) meaning "the tool call failed", not "the command
+  reported a non-zero status".
 
 ### Root guard
 
@@ -161,7 +167,8 @@ step.  Both are separate follow-ups.
 
 ### Confirmation
 
-* Unit tests: success, non-zero exit -> error, working directory denied /
+* Unit tests: success, non-zero exit -> normal result (returncode set, error
+  empty, output preserved), working directory denied /
   inside / default / not-a-directory, timeout kills the process group, output
   truncation, stdin closed, and the `KLEA_RUN_COMMAND_MAX_TIMEOUT` override
   (including non-finite values).

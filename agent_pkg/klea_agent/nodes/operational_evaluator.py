@@ -14,9 +14,9 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
-from klea_utils.tools import textualize_tool_results
 from langchain_core.messages import AIMessage
 
+from klea_agent.nodes.triage_router import current_step_key
 from klea_agent.schemas import EvaluationSchema, KleaAgentState
 
 
@@ -74,17 +74,12 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         self.max_tool_rounds = max_tool_rounds
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return per-step tool outputs as readable text.
+        """Return the rendered per-step tool outputs (tool + displayed flag).
 
-        ``step_outputs`` accumulates every batch for each step, so the current
-        step's latest batch is already included; the separate latest-batch
-        block is gone to avoid double-printing it.
+        Delegates to :meth:`KleaAgentState.observations_text` so the Evaluator,
+        Planner and AnswerFromResults all see identical observations.
         """
-        parts = []
-        for step_index, results in state.step_outputs.items():
-            if results:
-                parts.append(f"Step {step_index}:\n{textualize_tool_results(results)}")
-        return "\n\n".join(parts) if parts else "(no observations yet)"
+        return state.observations_text()
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState) -> dict:
@@ -135,8 +130,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
         # --- Per-step semantic budget (deterministic) --------------------
         # Count non-advancing evaluations; repeated ``step_incomplete`` on the
-        # same step escalates to a replan rather than looping.
-        step = plan.current_step_index
+        # same step escalates to a replan rather than looping.  The key is the
+        # plan step's 1-based number (see ``current_step_key``), matching the
+        # step identity used for outputs and tool-retry counters.
+        step = current_step_key(state)
         attempts = dict(state.step_attempt_counts or {})
         if evaluation == "step_incomplete":
             attempts[step] = attempts.get(step, 0) + 1
@@ -183,7 +180,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 plan.step_list[plan.current_step_index].status = "failed"
             plan.status = "aborted"
             update["plan"] = plan
-            update["failure_reason"] = "tool-round budget exhausted"
+            update["failure_reason"] = (
+                f"tool-round budget exhausted: {result.reason}"
+                if result.reason
+                else "tool-round budget exhausted"
+            )
 
         # Record the verdict in run history so a replan (and summarisation)
         # can see why the plan was sent back.

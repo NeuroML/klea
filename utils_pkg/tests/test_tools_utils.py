@@ -137,3 +137,18 @@ def test_textualize_tool_results_multiple_results():
     assert '{"model": "cerebellum"}' in output
     assert "**Error:**" in output
     assert "Timeout fetching data" in output
+
+
+def test_textualize_tool_results_without_header():
+    """``include_header=False`` renders just the result body."""
+    result = CallToolResult(
+        content=[TextContent(type="text", text='{"a": 1}')],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=False,
+    )
+    output = textualize_tool_results([result], include_header=False)
+    assert "## Tool Results" not in output
+    assert "### Result" not in output
+    assert '{"a": 1}' in output

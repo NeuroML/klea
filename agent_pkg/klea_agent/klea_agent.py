@@ -51,6 +51,7 @@ from .schemas import (
     PlannerOutput,
     PlanSchema,
     RouteSchema,
+    StepOutput,
     StepSchema,
 )
 
@@ -126,6 +127,7 @@ class KleaAgent(BaseLangGraph):
         return base + [
             CodeSchema,
             StepSchema,
+            StepOutput,
             PlanSchema,
             GoalSchema,
             ArtefactSchema,
@@ -268,7 +270,10 @@ class KleaAgent(BaseLangGraph):
         }
 
     def _record_tool_round(
-        self, state: KleaAgentState, results: list[CallToolResult]
+        self,
+        state: KleaAgentState,
+        results: list[CallToolResult],
+        displayed: list[bool],
     ) -> dict[str, Any]:
         """Record a dispatched tool round: retry counter + per-step outputs.
 
@@ -279,18 +284,30 @@ class KleaAgent(BaseLangGraph):
         maintained here and :class:`TriageRouter` reads it to decide retry vs
         replan; incremented on any ``is_error`` result and cleared when the
         round made progress, ADR-0035), appends the round's results to
-        ``step_outputs`` so the Evaluator and Planner see every observation for
-        the step (bounded to the most recent ``MAX_STEP_RESULTS``), and counts
-        the round in ``tool_rounds``.
+        ``step_outputs`` as :class:`StepOutput` entries (tool name + whether the
+        interface displayed it) so the Evaluator and Planner see every
+        observation for the step (bounded to the most recent
+        ``MAX_STEP_RESULTS``), and counts the round in ``tool_rounds``.
 
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
+        :param displayed: Per-result flag: the server streamed a display event
+            for that result (aligned with *results*).
         :returns: State updates carrying the updated retry counts and outputs.
         """
         counts = update_tool_retry_counts(state, results)
         step = current_step_key(state)
+        calls = getattr(state, "tool_calls", [])
+        entries = [
+            StepOutput(
+                result=result,
+                tool=calls[i].tool if i < len(calls) else "",
+                displayed=displayed[i] if i < len(displayed) else False,
+            )
+            for i, result in enumerate(results)
+        ]
         outputs = dict(state.step_outputs or {})
-        outputs[step] = [*outputs.get(step, []), *results][-self.MAX_STEP_RESULTS :]
+        outputs[step] = [*outputs.get(step, []), *entries][-self.MAX_STEP_RESULTS :]
         rounds = state.tool_rounds + 1
         self.logger.debug(
             f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }\n{rounds = }"

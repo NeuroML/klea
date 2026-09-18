@@ -117,14 +117,14 @@ class TestOperationalEvaluator(unittest.TestCase):
         """Repeated ``step_incomplete`` on a step escalates to a replan."""
         evaluator = self._evaluator()  # max_step_attempts=3
         state = self._state()
-        state.step_attempt_counts = {0: 2}
+        state.step_attempt_counts = {1: 2}
         update = evaluator._update_state(
             EvaluationSchema(evaluation="step_incomplete", reason="still going"),
             state,
         )
         self.assertEqual(update["evaluation"].evaluation, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
-        self.assertEqual(update["step_attempt_counts"][0], 3)
+        self.assertEqual(update["step_attempt_counts"][1], 3)
 
     def test_progress_clears_step_attempt_budget(self):
         update = self._evaluator()._update_state(

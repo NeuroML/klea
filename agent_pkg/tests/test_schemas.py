@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import pytest
+from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import (
     EvaluationSchema,
@@ -17,6 +18,7 @@ from klea_agent.schemas import (
     PlannerOutput,
     PlanSchema,
     RouteSchema,
+    StepOutput,
     StepSchema,
 )
 from klea_utils.graph.schemas import TokenUsage
@@ -25,6 +27,7 @@ from klea_utils.mcp.schemas import ToolCallSchema
 from langgraph.channels.binop import BinaryOperatorAggregate
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import StateGraph
+from mcp.types import TextContent
 
 
 class TestRouteSchema:
@@ -94,6 +97,43 @@ class TestSharedStateInheritance:
         assert isinstance(channels["usage_metrics"], BinaryOperatorAggregate)
 
 
+class TestStepOutputRender:
+    """StepOutput.render and KleaAgentState.observations_text."""
+
+    @staticmethod
+    def _result() -> CallToolResult:
+        return CallToolResult(
+            content=[TextContent(type="text", text='{"a": 1}')],
+            structured_content={"a": 1},
+            meta=None,
+        )
+
+    def test_render_includes_tool_and_displayed(self):
+        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        rendered = entry.render()
+        assert rendered.startswith("### edit_file (displayed_to_user: yes)")
+        assert '{"a": 1}' in rendered
+
+    def test_observations_text_groups_by_step(self):
+        state = KleaAgentState(
+            step_outputs={
+                2: [
+                    StepOutput(result=self._result(), tool="edit_file", displayed=True),
+                    StepOutput(
+                        result=self._result(), tool="run_command", displayed=False
+                    ),
+                ]
+            }
+        )
+        text = state.observations_text()
+        assert text.startswith("Step 2:")
+        assert "### edit_file (displayed_to_user: yes)" in text
+        assert "### run_command (displayed_to_user: no)" in text
+
+    def test_observations_text_empty(self):
+        assert KleaAgentState().observations_text() == "(no observations)"
+
+
 class TestCheckpointMsgpack:
     """Nested state models round-trip through the checkpoint serializer."""
 
@@ -110,6 +150,19 @@ class TestCheckpointMsgpack:
             ),
             "evaluation": EvaluationSchema(evaluation="abort"),
             "tool_calls": [ToolCallSchema(tool="list_files", args={"path": "."})],
+            "step_outputs": {
+                1: [
+                    StepOutput(
+                        result=CallToolResult(
+                            content=[],
+                            structured_content=None,
+                            meta=None,
+                        ),
+                        tool="list_files",
+                        displayed=False,
+                    )
+                ]
+            },
             "usage_metrics": TokenUsage(
                 input_tokens=1, output_tokens=2, total_tokens=3
             ),

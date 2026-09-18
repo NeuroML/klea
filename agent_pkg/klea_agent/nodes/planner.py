@@ -121,7 +121,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "evaluation_feedback": state.evaluation.reason or "(none)",
             "artefacts": state.artefacts,
             "discovery": state.discovery_persistent,
-            "observations": state.step_outputs,
+            "observations": state.observations_text(),
             "tools_description": self._get_tool_descriptions(state),
         }
 
@@ -198,6 +198,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         status = "in_review" if result.plan.status == "in_review" else "in_progress"
         plan = PlanSchema(step_list=steps, status=status, current_step_index=current)
         update["plan"] = plan
+        # A replan replaces the step list: clear per-step execution state so
+        # stale step keys cannot merge into (or trip the retry budgets of) the
+        # new plan's renumbered steps.  The LLM call above already saw the
+        # prior observations and feedback when it produced this plan.
+        update["step_outputs"] = {}
+        update["tool_retry_counts"] = {}
+        update["step_attempt_counts"] = {}
         update["messages"] = [
             *state.messages,
             AIMessage(content=f"Plan ({status}):\n{plan.render()}"),

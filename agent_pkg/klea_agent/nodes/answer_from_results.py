@@ -67,16 +67,12 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         )
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return per-step tool outputs as readable text.
+        """Return the rendered per-step tool outputs (tool + displayed flag).
 
-        ``step_outputs`` accumulates every batch for each step, so the latest
-        batch is already included; there is no separate latest-batch block.
+        Delegates to :meth:`KleaAgentState.observations_text` so the answer
+        node, Planner and Evaluator see identical observations.
         """
-        parts = []
-        for step_index, results in state.step_outputs.items():
-            if results:
-                parts.append(f"Step {step_index}:\n{textualize_tool_results(results)}")
-        return "\n\n".join(parts) if parts else "(no observations)"
+        return state.observations_text()
 
     @staticmethod
     def _is_failure(state: KleaAgentState) -> bool:

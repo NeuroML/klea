@@ -30,13 +30,32 @@ async def test_runs_command_and_captures_output(tmp_path):
     assert result["working_directory"] == str(tmp_path.resolve())
 
 
-async def test_nonzero_exit_sets_error(tmp_path):
+async def test_nonzero_exit_is_a_normal_result(tmp_path):
+    """A non-zero exit is reported via ``returncode``, not as an error.
+
+    Many tools signal conditions with exit codes (``diff`` = 1, ``grep`` = 1
+    on no match, a failing test), so the command result is returned normally
+    and the caller judges it (ADR-0038).
+    """
     result = await run_command(
         "exit 3", working_directory=str(tmp_path), project_root=str(tmp_path)
     )
     assert result["returncode"] == 3
-    assert result["error"]
+    assert result["error"] == ""
     assert result["stdout"] == ""
+
+
+async def test_nonzero_exit_keeps_output(tmp_path):
+    """A command that writes output and exits non-zero still returns it."""
+    result = await run_command(
+        "echo out; echo err >&2; exit 1",
+        working_directory=str(tmp_path),
+        project_root=str(tmp_path),
+    )
+    assert result["returncode"] == 1
+    assert result["error"] == ""
+    assert "out" in result["stdout"]
+    assert "err" in result["stderr"]
 
 
 async def test_working_directory_outside_project_denied(tmp_path):
