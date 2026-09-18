@@ -1066,7 +1066,7 @@ class BaseLangGraph(ABC):
                         self.logger.debug(f"Progress: {current_node}")
                         yield {"type": "progress", "node": current_node}
 
-                elif event_type in ("inspect", "state", "usage"):
+                elif event_type in ("inspect", "state", "usage", "tool"):
                     node = data.get("node")
                     if not node:
                         continue

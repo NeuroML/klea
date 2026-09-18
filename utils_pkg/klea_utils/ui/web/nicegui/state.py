@@ -37,9 +37,10 @@ def ensure_chat(user_id: str, chat_id: str) -> dict:
         name                Human-readable display name (auto-generated)
         created             ``datetime.timestamp()`` of creation (float).
         pinned              Whether the chat session is pinned to the top of the list.
-        messages            List of ``(text, stamp, is_user)`` tuples where
-                            *is_user* is ``True`` for user messages and
-                            ``False`` for bot / system messages.
+        messages            List of message dicts ``{"text", "stamp",
+                            "role", "header"}`` where *role* is ``"user"``,
+                            ``"agent"`` or ``"tool"`` and *header* is an
+                            optional small title (used by tool blocks).
         inspector_entries   List of dicts with info/debug events for the most
                             recent query in this chat session.
         inspector_expanded  Set of indices into *inspector_entries* that are

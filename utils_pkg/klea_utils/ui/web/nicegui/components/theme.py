@@ -46,10 +46,9 @@ def _add_css_overrides() -> None:
     ui.add_css(".msg-collapsed { max-height: 6em; overflow: hidden; }")
     ui.add_css(".msg-expanded { max-height: none; }")
     # Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a
-    # margin on ``<pre>``, so a long line would overflow the bubble and the
-    # page.  Keep the block inside the bubble and scroll it internally; the
-    # ``chat-markdown`` class scopes this to bubbles (the inspector and status
-    # panes have their own rules).
+    # margin on ``<pre>``; a long line would overflow the bubble and the page.
+    # The block is kept inside the bubble and its lines wrap (see the wrap
+    # rule below); ``overflow-x: auto`` remains as a fallback.
     ui.add_css(
         ".chat-markdown pre { "
         "margin: 0.5rem 0; "
@@ -66,6 +65,23 @@ def _add_css_overrides() -> None:
         "padding: 0.1rem 0.3rem; "
         "border-radius: 0.25rem; "
         "word-break: break-word; }"
+    )
+    # Wrap long lines in chat code blocks - user/agent fenced code
+    # (``.chat-markdown pre``) and tool code boxes (``.tool-code``, a
+    # ``ui.code`` element) - so they stay within the bubble instead of
+    # producing a horizontal scrollbar.  The chat area itself still scrolls
+    # vertically.  ``overflow-wrap: anywhere`` also breaks long unbroken
+    # tokens (URLs, base64) that would otherwise overflow.
+    ui.add_css(
+        ".chat-markdown pre, .chat-markdown pre code, "
+        ".tool-code pre, .tool-code code, .tool-code .codehilite pre { "
+        "white-space: pre-wrap !important; "
+        "overflow-wrap: anywhere !important; "
+        "word-break: break-word !important; }"
+    )
+    # Keep embedded media (future image/audio blocks) within the bubble.
+    ui.add_css(
+        ".chat-bubble img, .chat-bubble video { max-width: 100%; height: auto; }"
     )
     # Chat input: match the transcript blocks' corner radius (the ``rounded``
     # prop is a pill, so it is not used).  The textarea autogrows upward as the

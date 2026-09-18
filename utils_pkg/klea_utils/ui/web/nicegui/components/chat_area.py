@@ -54,12 +54,17 @@ def _render_messages(ctx: PageContext) -> None:
         else:
             current_chat = chats.get(f"{ctx.user_id}:{current}")
             msgs = current_chat["messages"] if current_chat else []
-            for idx, (text, stamp, is_user) in enumerate(msgs):
+            for idx, msg in enumerate(msgs):
                 collapsed = idx not in ctx.expanded
+                text = msg.get("text", "")
                 ChatBubble(
                     text=linkify_md(text),
-                    stamp=stamp,
-                    role="user" if is_user else "agent",
+                    stamp=msg.get("stamp", ""),
+                    role=msg.get("role", "agent"),
+                    header=msg.get("header", ""),
+                    mime=msg.get("mime", ""),
+                    data=msg.get("data", ""),
+                    meta=msg.get("meta", {}),
                     collapsed=collapsed,
                     idx=idx,
                     on_copy=lambda t=text: ui.run_javascript(

@@ -68,7 +68,9 @@ def attach_input(ctx: PageContext) -> None:
                     background_tasks.create(ctx.fetch_model_info())
                 ctx.refresh_chat_list()
 
-            ensure_chat(ctx.user_id, current)["messages"].append((query, stamp, True))
+            ensure_chat(ctx.user_id, current)["messages"].append(
+                {"text": query, "stamp": stamp, "role": "user", "header": ""}
+            )
             ctx.render_chat_area()
             ctx.refresh_chat_list()
 

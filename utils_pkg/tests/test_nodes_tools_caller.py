@@ -14,6 +14,7 @@ from typing import Any, cast
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.tools_caller import ToolsCallerNode
+from mcp.types import ImageContent
 from pydantic import BaseModel, Field
 
 
@@ -338,3 +339,132 @@ def test_get_status_none_when_all_names_empty():
     ]
 
     assert node._get_status() is None
+
+
+def test_tool_display_entries_for_diff_and_text():
+    """Renders a fenced diff for file edits and passthrough text otherwise."""
+    node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
+    node._last_state = MiniState(
+        tool_calls=[ToolCallSchema(tool="edit_file"), ToolCallSchema(tool="other")]
+    )
+    node._last_tool_results = [
+        CallToolResult(
+            content=[],
+            structured_content={
+                "path": "a.txt",
+                "diff": "+hello",
+                "additions": 1,
+                "deletions": 0,
+            },
+            meta=None,
+        ),
+        CallToolResult(
+            content=[], structured_content={"display": "42 files"}, meta=None
+        ),
+    ]
+
+    entries = node._tool_display_entries()
+
+    assert entries[0]["mime"] == "text/x-diff"
+    assert entries[0]["header"] == "Edit file: a.txt (+1/-0)"
+    assert entries[0]["data"] == "+hello"
+    assert entries[0]["meta"] == {"path": "a.txt", "additions": 1, "deletions": 0}
+    assert entries[0]["display"] == "```diff\n+hello\n```"
+    assert entries[1]["mime"] == "text/markdown"
+    assert entries[1]["data"] == "42 files"
+
+
+def test_tool_display_entries_for_code_and_self_describing():
+    """``code`` maps to ``text/x-<lang>``; a display dict is passed through."""
+    node = _make_node()
+    node._last_state = MiniState(
+        tool_calls=[ToolCallSchema(tool="code_tool"), ToolCallSchema(tool="rich")]
+    )
+    node._last_tool_results = [
+        CallToolResult(
+            content=[],
+            structured_content={"code": "print(1)", "language": "python"},
+            meta=None,
+        ),
+        CallToolResult(
+            content=[],
+            structured_content={
+                "display": {
+                    "mime": "image/png",
+                    "data": "AAAA",
+                    "meta": {"uri": "file:///tmp/x.png"},
+                }
+            },
+            meta=None,
+        ),
+    ]
+
+    entries = node._tool_display_entries()
+
+    assert entries[0]["mime"] == "text/x-python"
+    assert entries[0]["data"] == "print(1)"
+    assert entries[0]["meta"] == {"language": "python"}
+    assert entries[1]["mime"] == "image/png"
+    assert entries[1]["data"] == "AAAA"
+    assert entries[1]["meta"] == {"uri": "file:///tmp/x.png"}
+    assert entries[1]["display"] == "[image/png data, 4 bytes]"
+
+
+def test_tool_display_entries_from_image_content_block():
+    """A typed MCP ImageContent is surfaced using its mimeType."""
+    node = _make_node()
+    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="plot")])
+    node._last_tool_results = [
+        CallToolResult(
+            content=[ImageContent(type="image", data="BBBB", mimeType="image/png")],
+            structured_content=None,
+            meta=None,
+        )
+    ]
+
+    entries = node._tool_display_entries()
+
+    assert entries[0]["mime"] == "image/png"
+    assert entries[0]["data"] == "BBBB"
+    assert entries[0]["meta"] == {"binary": True}
+
+
+def test_tool_display_entries_skip_errors_and_empty():
+    node = _make_node()
+    node._last_state = MiniState(
+        tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
+    )
+    node._last_tool_results = [
+        CallToolResult(
+            content=[], structured_content={"diff": "+x"}, meta=None, is_error=True
+        ),
+        CallToolResult(content=[], structured_content=None, meta=None),
+    ]
+
+    assert node._tool_display_entries() == []
+
+
+def test_post_exec_stream_emits_tool_event():
+    """A renderable result produces one ``tool`` event carrying the entries."""
+    node = _make_node(tool_infos={"write_file": ToolInfo(title="Write file")})
+    events: list[dict] = []
+    _record_stream(node, events)
+    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="write_file")])
+    node._last_tool_results = [
+        CallToolResult(
+            content=[],
+            structured_content={
+                "path": "a.txt",
+                "diff": "+x",
+                "additions": 1,
+                "deletions": 0,
+            },
+            meta=None,
+        )
+    ]
+
+    node._post_exec_stream()
+
+    tool_events = [e for e in events if e["type"] == "tool"]
+    assert len(tool_events) == 1
+    assert tool_events[0]["data"]["tools"][0]["mime"] == "text/x-diff"

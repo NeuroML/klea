@@ -13,6 +13,13 @@ from collections.abc import Callable
 from typing import Any
 
 from fastmcp.client.client import CallToolResult
+from mcp.types import (
+    AudioContent,
+    BlobResourceContents,
+    EmbeddedResource,
+    ImageContent,
+    ResourceLink,
+)
 from pydantic import BaseModel
 
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
@@ -116,6 +123,147 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
     def _pre_exec(self, state: BaseModel) -> bool:
         """Run only when there are tool calls and a client to dispatch to."""
         return bool(getattr(state, "tool_calls", None)) and self._mcp_client is not None
+
+    def _post_exec_stream(self) -> None:
+        """Emit the shared events, then any chat-renderable tool output."""
+        super()._post_exec_stream()
+        entries = self._tool_display_entries()
+        if entries:
+            self.write_custom_stream(
+                {"type": "tool", "node": self.label, "data": {"tools": entries}}
+            )
+
+    def _tool_display_entries(self) -> list[dict[str, Any]]:
+        """Return chat-renderable per-tool entries for the last round.
+
+        Each entry is ``{tool, title, header, mime, data, meta, display}``:
+        ``mime`` is the single type vocabulary (mirroring MCP's ``mimeType``),
+        ``data`` the payload (text or base64), ``meta`` extras (path, language,
+        additions/deletions, uri, ...) and ``display`` a preformatted text
+        fallback for clients that cannot render ``mime``.
+
+        Sources, in order: typed MCP content blocks (``ImageContent`` /
+        ``AudioContent`` / ``EmbeddedResource`` / ``ResourceLink`` - the
+        standard, third-party-friendly path); then structured conventions
+        (``diff`` -> ``text/x-diff``, ``code`` -> ``text/x-<language>``,
+        ``display`` -> ``text/markdown``); then a self-describing
+        ``display`` dict (``{"mime", "data", "meta"}``).  Plain ``TextContent``
+        is not surfaced (ours is the JSON dump).  Errors and results with
+        nothing to show are skipped.
+        """
+        assert self._last_state is not None
+        assert self._last_tool_results is not None
+        tool_calls = getattr(self._last_state, "tool_calls", [])
+        entries: list[dict[str, Any]] = []
+        for tc, result in zip(tool_calls, self._last_tool_results, strict=False):
+            if result.is_error:
+                continue
+            info = self._tool_infos.get(tc.tool) if self._tool_infos else None
+            title = info.title if info and info.title else tc.tool
+            entry = self._display_from_content(result, tc.tool, title)
+            if entry is None and isinstance(result.structured_content, dict):
+                entry = self._display_from_structured(
+                    result.structured_content, tc.tool, title
+                )
+            if entry is not None:
+                entries.append(entry)
+        return entries
+
+    def _display_from_content(
+        self, result: CallToolResult, tool: str, title: str
+    ) -> dict[str, Any] | None:
+        """Build an entry from a typed MCP content block, if any."""
+        for block in result.content or []:
+            if isinstance(block, (ImageContent, AudioContent)):
+                return self._display_entry(
+                    tool, title, block.mimeType, block.data, {"binary": True}
+                )
+            if isinstance(block, EmbeddedResource):
+                resource = block.resource
+                mime = resource.mimeType
+                if not mime:
+                    continue
+                meta: dict[str, Any] = {"uri": str(resource.uri)}
+                if isinstance(resource, BlobResourceContents):
+                    meta["binary"] = True
+                    return self._display_entry(tool, title, mime, resource.blob, meta)
+                return self._display_entry(tool, title, mime, resource.text, meta)
+            if isinstance(block, ResourceLink) and block.mimeType:
+                return self._display_entry(
+                    tool, title, block.mimeType, "", {"uri": str(block.uri)}
+                )
+        return None
+
+    def _display_from_structured(
+        self, structured: dict[str, Any], tool: str, title: str
+    ) -> dict[str, Any] | None:
+        """Build an entry from a structured result's display convention."""
+        declared = structured.get("display")
+        if isinstance(declared, dict):
+            # Self-describing hook for tools: {"mime", "data", "meta"}.
+            return self._display_entry(
+                tool,
+                title,
+                declared.get("mime", "text/markdown"),
+                declared.get("data", ""),
+                declared.get("meta", {}),
+            )
+        if structured.get("diff"):
+            path = structured.get("path", tool)
+            adds = structured.get("additions", 0)
+            dels = structured.get("deletions", 0)
+            return self._display_entry(
+                tool,
+                title,
+                "text/x-diff",
+                structured["diff"],
+                {"path": path, "additions": adds, "deletions": dels},
+                header=f"{title}: {path} (+{adds}/-{dels})",
+            )
+        if structured.get("code"):
+            language = structured.get("language", "")
+            mime = f"text/x-{language}" if language else "text/plain"
+            return self._display_entry(
+                tool, title, mime, structured["code"], {"language": language}
+            )
+        if isinstance(declared, str) and declared.strip():
+            return self._display_entry(tool, title, "text/markdown", declared)
+        return None
+
+    @staticmethod
+    def _display_entry(
+        tool: str,
+        title: str,
+        mime: str,
+        data: Any,
+        meta: dict[str, Any] | None = None,
+        header: str | None = None,
+    ) -> dict[str, Any]:
+        """Assemble one display entry, including the text fallback."""
+        return {
+            "tool": tool,
+            "title": title,
+            "header": header if header is not None else title,
+            "mime": mime,
+            "data": data,
+            "meta": meta or {},
+            "display": ToolsCallerNode._fallback_display(mime, data),
+        }
+
+    @staticmethod
+    def _fallback_display(mime: str, data: Any) -> str:
+        """Return a client-agnostic text rendering of a display entry."""
+        text = "" if data is None else str(data)
+        if mime in ("text/x-diff", "text/x-patch"):
+            return f"```diff\n{text}\n```"
+        if mime.startswith(("image/", "audio/")):
+            return f"[{mime} data, {len(text)} bytes]" if text else f"[{mime}]"
+        if mime == "text/markdown":
+            return text
+        if mime.startswith("text/x-"):
+            language = mime.split("/", 1)[1][2:]
+            return f"```{language}\n{text}\n```"
+        return text
 
     def _get_inspect(self) -> NodeStreamData:
         """Return the inspection payload for the completed dispatch.

@@ -62,13 +62,16 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                         current_chat = chats.get(key)
                         if current_chat:
                             current_chat["messages"] = [
-                                (
-                                    msg["content"],
-                                    datetime.fromtimestamp(msg["created_at"])
+                                {
+                                    "text": msg["content"],
+                                    "stamp": datetime.fromtimestamp(msg["created_at"])
                                     .astimezone()
                                     .strftime("%X"),
-                                    msg["role"] == "user",
-                                )
+                                    "role": "user"
+                                    if msg["role"] == "user"
+                                    else "agent",
+                                    "header": "",
+                                }
                                 for msg in msg_resp.json()
                             ]
                     # Session context (the agent's operating mode etc.,

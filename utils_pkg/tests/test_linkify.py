@@ -92,3 +92,21 @@ def test_no_urls_unchanged():
 
 def test_empty_string():
     assert linkify_md("") == ""
+
+
+def test_fenced_code_block_url_left_verbatim():
+    """A URL inside a fenced block must not be wrapped as a markdown link."""
+    text = "before http://a.example.com\n```\nhttp://b.example.com\n```\nafter"
+    out = linkify_md(text)
+    assert "[http://a.example.com](http://a.example.com)" in out
+    assert "http://b.example.com" in out
+    assert "[" not in out.split("```")[1]
+    assert "[http://a.example.com](http://a.example.com)" in out
+
+
+def test_tilde_fence_and_unterminated():
+    assert linkify_md("~~~\nhttp://x.example.com\n~~~") == (
+        "~~~\nhttp://x.example.com\n~~~"
+    )
+    # Unterminated fence: remainder is verbatim.
+    assert linkify_md("```\nhttp://x.example.com") == "```\nhttp://x.example.com"

@@ -204,10 +204,43 @@ class TestApplyStreamEvent:
         )
         assert result == "complete"
         assert len(chat["messages"]) == 1
-        text, stamp, is_user = chat["messages"][0]
-        assert text == "Final answer"
-        assert stamp
-        assert is_user is False
+        message = chat["messages"][0]
+        assert message["text"] == "Final answer"
+        assert message["stamp"]
+        assert message["role"] == "agent"
+
+    def test_tool_event_appends_display_blocks(self, chat):
+        """tool events append one full-width block per renderable entry."""
+        result = apply_stream_event(
+            chat,
+            {
+                "type": "tool",
+                "node": "Running tools",
+                "data": {
+                    "tools": [
+                        {
+                            "tool": "edit_file",
+                            "title": "Edit file",
+                            "mime": "text/x-diff",
+                            "header": "Edit file: a.txt (+1/-0)",
+                            "data": "+hello",
+                            "meta": {"path": "a.txt"},
+                            "display": "```diff\n+hello\n```",
+                        },
+                        {"tool": "noop", "data": "", "display": ""},
+                    ]
+                },
+            },
+        )
+        assert result == "tool"
+        assert len(chat["messages"]) == 1  # the empty-display entry is skipped
+        block = chat["messages"][0]
+        assert block["role"] == "tool"
+        assert block["header"] == "Edit file: a.txt (+1/-0)"
+        assert block["mime"] == "text/x-diff"
+        assert block["data"] == "+hello"
+        assert block["meta"] == {"path": "a.txt"}
+        assert block["text"] == "```diff\n+hello\n```"
 
     def test_unknown_type_ignored(self, chat):
         """Unknown event types mutate nothing and return None."""

@@ -110,8 +110,33 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     if t == "complete":
         message = event.get("message_for_user", "")
         stamp = datetime.now().astimezone().strftime("%X")
-        chat.setdefault("messages", []).append((message, stamp, False))
+        chat.setdefault("messages", []).append(
+            {"text": message, "stamp": stamp, "role": "agent", "header": ""}
+        )
         return "complete"
+
+    if t == "tool":
+        # Chat-renderable tool output (e.g. a file edit's diff).  One message
+        # per entry so each renders as its own full-width block, before the
+        # final answer.  ``mime`` selects the renderer; ``display`` is the
+        # text fallback.
+        data = event.get("data", {})
+        stamp = datetime.now().astimezone().strftime("%X")
+        for entry in data.get("tools", []):
+            if not entry.get("data") and not entry.get("display"):
+                continue
+            chat.setdefault("messages", []).append(
+                {
+                    "text": entry.get("display", ""),
+                    "stamp": stamp,
+                    "role": "tool",
+                    "header": entry.get("header", entry.get("title", "")),
+                    "mime": entry.get("mime", ""),
+                    "data": entry.get("data", ""),
+                    "meta": entry.get("meta", {}),
+                }
+            )
+        return "tool"
 
     if t == "error":
         return "error"
@@ -159,6 +184,8 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
             action = apply_stream_event(current_chat, event)
             if action in ("usage", "state", "context"):
                 ctx.refresh_status_pane()
+            elif action == "tool":
+                ctx.render_chat_area()
             elif action == "complete":
                 pg_row.delete()
                 logger.debug("chat=%s stream complete", chat_id)

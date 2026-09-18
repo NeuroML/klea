@@ -33,6 +33,9 @@
 * Wrap individual file names, paths, commands and identifiers that appear inline in backticks.
 * Leave a blank line before any list, table, or heading.
 * Present structured tool results as the relevant fields; do not dump raw JSON.
+* Do not reproduce complete file contents or diff hunks in your reply: the
+  interface displays file changes separately. Summarise what changed (for
+  example the file and the number of additions/removals) instead.
 * Do not invent files, values, or results that are not present in the observations.
 * Keep the reply focused and concise; put the reply text in `answer`.
 * Output all text strictly in English.
