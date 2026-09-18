@@ -135,35 +135,27 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         return "Done."
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return a short summary of the produced answer."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the answer summary plus input prompt and raw/processed output."""
+        assert self._last_prompt is not None
+        assert self._last_output is not None
         assert self._last_result is not None
         result = self._last_result
         if isinstance(result, AnswerSchema):
             summary = f"Answer ready ({len(result.answer)} chars)"
-            details = {"char_count": len(result.answer)}
+            char_count = len(result.answer)
         else:
             summary = "Answer ready"
-            details = {}
-        return NodeStreamData(heading="Answer", summary=summary, details=details)
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
-        details.update(
-            {
+            char_count = 0
+        return NodeStreamData(
+            heading="Answer",
+            summary=summary,
+            details={
+                "char_count": char_count,
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
                 "unprocessed_output": extract_llm_output_content(self._last_output),
                 "processed_output": str(self._last_result),
-            }
-        )
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            },
         )
 
     @override

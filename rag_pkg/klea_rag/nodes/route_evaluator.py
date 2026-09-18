@@ -147,8 +147,8 @@ class RouteEvaluator(AbstractRouterNode):
                 route = "best_effort"
             self.logger.debug(f"returning: {route}")
 
-        # Emit info event with routing decision
-        info_data = NodeStreamData(
+        # Emit one inspection event with the routing decision and thresholds
+        inspect_data = NodeStreamData(
             heading="Route Evaluation",
             summary=f"Routing decision: {route}",
             details={
@@ -156,22 +156,16 @@ class RouteEvaluator(AbstractRouterNode):
                 "next_step": next_step,
                 "retrieval_attempts": state.retrieval_attempts,
                 "rewrite_attempts": state.rewrite_attempts,
+                "thresholds": {
+                    "max_retrieval_attempts": self.max_retrieval_attempts,
+                    "max_rewrite_attempts": self.max_rewrite_attempts,
+                    "fallback_to_training_data": self.fallback_to_training_data,
+                },
             },
         )
-        info_event = NodeStreamEvent(type="info", node=self.label, data=info_data)
-        self.write_custom_stream(info_event.model_dump())
-
-        # Emit debug event with routing context
-        debug_details = info_data.details.copy()
-        debug_details["thresholds"] = {
-            "max_retrieval_attempts": self.max_retrieval_attempts,
-            "max_rewrite_attempts": self.max_rewrite_attempts,
-            "fallback_to_training_data": self.fallback_to_training_data,
-        }
-        debug_data = NodeStreamData(
-            heading=info_data.heading, summary=info_data.summary, details=debug_details
+        inspect_event = NodeStreamEvent(
+            type="inspect", node=self.label, data=inspect_data
         )
-        debug_event = NodeStreamEvent(type="debug", node=self.label, data=debug_data)
-        self.write_custom_stream(debug_event.model_dump())
+        self.write_custom_stream(inspect_event.model_dump())
 
         return route

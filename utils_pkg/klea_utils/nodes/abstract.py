@@ -45,6 +45,22 @@ class NodeStreamData(BaseModel):
         default="",
         description="Pre-formatted markdown content for the status pane",
     )
+    key: str = Field(
+        default="",
+        description=(
+            "Status-pane section key.  Empty (default) keys the section by the "
+            "emitting node's label; a shared non-empty key lets several nodes "
+            "update one section in place (e.g. a live plan)."
+        ),
+    )
+    preformatted: bool = Field(
+        default=False,
+        description=(
+            "Render ``display`` as preformatted monospace text (``<pre>``) "
+            "instead of markdown.  Use for aligned, literal content such as a "
+            "plan with tool names, where markdown would mangle ``_``/``*``."
+        ),
+    )
 
 
 class NodeStreamEvent(BaseModel):
@@ -53,7 +69,7 @@ class NodeStreamEvent(BaseModel):
     This is the contract between the graph infrastructure and the frontend.
     """
 
-    type: Literal["info", "debug", "state", "usage"] = Field(description="Event type")
+    type: Literal["inspect", "state", "usage"] = Field(description="Event type")
     node: str = Field(description="Node label")
     data: NodeStreamData = Field(description="Event payload")
 
@@ -121,8 +137,8 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
     # - ``_pre_exec(state)``: whether to run at all.  Returning False skips
     #   execution (``execute`` returns an empty dict).  Default: True.
     # - ``_pre_exec_stream()``: emit a progress event before doing work.
-    # - ``_post_exec_stream()``: emit ``info``/``debug``/``state`` events
-    #   from ``_get_info``/``_get_debug``/``_get_status`` after doing work.
+    # - ``_post_exec_stream()``: emit ``inspect``/``state`` events from
+    #   ``_get_inspect``/``_get_status`` after doing work.
     #
     # ``AbstractLLMNode`` calls all three from its own ``execute`` template
     # and additionally emits a token-usage event (LLM-specific).
@@ -147,30 +163,28 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
     def _post_exec_stream(self) -> None:
         """Emit streaming events after node execution.
 
-        Default: emits ``info``, ``debug``, and ``state`` events from
-        ``_get_info``, ``_get_debug``, and ``_get_status`` if they return
-        non-None values.  ``AbstractLLMNode`` overrides this to also emit
-        the token-usage event, which is LLM-specific.
+        Default: emits ``inspect`` and ``state`` events from
+        ``_get_inspect`` and ``_get_status`` if they return non-None values.
+        ``AbstractLLMNode`` overrides this to also emit the token-usage
+        event, which is LLM-specific.
         Override to customise post-execution streaming.
         """
-        info = self._get_info()
-        if info:
-            event = NodeStreamEvent(type="info", node=self.label, data=info)
-            self.write_custom_stream(event.model_dump())
-        debug = self._get_debug()
-        if debug:
-            event = NodeStreamEvent(type="debug", node=self.label, data=debug)
+        inspect = self._get_inspect()
+        if inspect:
+            event = NodeStreamEvent(type="inspect", node=self.label, data=inspect)
             self.write_custom_stream(event.model_dump())
         status = self._get_status()
         if status:
             event = NodeStreamEvent(type="state", node=self.label, data=status)
             self.write_custom_stream(event.model_dump())
 
-    def _get_info(self) -> NodeStreamData | None:
-        """Return structured summary data for an ``info`` stream event.
+    def _get_inspect(self) -> NodeStreamData | None:
+        """Return structured inspection data for an ``inspect`` event.
 
-        Override in subclasses to provide node-specific summary data.
-        Has access to all ``self._last_*`` values.
+        Override in subclasses to provide node-specific inspection data: a
+        short summary plus a ``details`` dict (rendered as collapsible JSON
+        in the inspection pane).  The summary is always shown; the details
+        are the drill-down.  Has access to all ``self._last_*`` values.
 
         :returns: NodeStreamData with summary and details, or None to skip
 
@@ -180,25 +194,6 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
                 summary="Classified into: neuron, morphology",
                 details={"classified_domains": ["neuron", "morphology"]}
             )
-        """
-        return None
-
-    def _get_debug(self) -> NodeStreamData | None:
-        """Return structured debug data for a ``debug`` stream event.
-
-        Override in subclasses to provide node-specific debug data.
-        Has access to all ``self._last_*`` values.
-
-        :returns: NodeStreamData with summary and details, or None to skip
-
-        Example::
-
-            info = self._get_info()
-            details = info.details.copy()
-            # ``_last_system_prompt`` may be a list when the node keeps a
-            # verbatim memory window; use the formatted prompt instead.
-            details["input_prompt"] = prompt_value_to_messages(self._last_prompt)
-            return NodeStreamData(summary=info.summary, details=details)
         """
         return None
 
@@ -290,8 +285,8 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         """Template method defining standard execution flow"""
         # Clear previous execution context to prevent stale data.
         # These are instance variables (not locals) so that streaming hooks
-        # (_pre_exec_stream, _post_exec_stream, _get_info, _get_debug) can
-        # access intermediate values for progress reporting.
+        # (_pre_exec_stream, _post_exec_stream, _get_inspect, _get_status)
+        # can access intermediate values for progress reporting.
         self._last_state = None
         self._last_human_prompt = None
         self._last_system_prompt = None
@@ -426,39 +421,23 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             )
         return result
 
-    def _get_info(self) -> NodeStreamData | None:
-        """Return structured summary data for an ``info`` stream event.
+    def _get_inspect(self) -> NodeStreamData | None:
+        """Return structured inspection data for an ``inspect`` event.
 
-        Override in subclasses to provide node-specific summary data.
-        Has access to all ``self._last_*`` values.
-
-        :returns: NodeStreamData with summary and details, or None to skip
-
-        Example::
-
-            return NodeStreamData(
-                summary="Classified into: neuron, morphology",
-                details={"classified_domains": ["neuron", "morphology"]}
-            )
-        """
-        return None
-
-    def _get_debug(self) -> NodeStreamData | None:
-        """Return structured debug data for a ``debug`` stream event.
-
-        Override in subclasses to provide node-specific debug data.
-        Has access to all ``self._last_*`` values.
+        Override in subclasses to provide node-specific inspection data: a
+        short summary plus a ``details`` dict.  The summary is always shown;
+        the details are the drill-down.  Has access to all ``self._last_*``
+        values.
 
         :returns: NodeStreamData with summary and details, or None to skip
 
         Example::
 
-            info = self._get_info()
-            details = info.details.copy()
+            details = {"classified_domains": ["neuron", "morphology"]}
             # ``_last_system_prompt`` may be a list when the node keeps a
             # verbatim memory window; use the formatted prompt instead.
             details["input_prompt"] = prompt_value_to_messages(self._last_prompt)
-            return NodeStreamData(summary=info.summary, details=details)
+            return NodeStreamData(summary="Classified", details=details)
         """
         return None
 

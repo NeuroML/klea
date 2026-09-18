@@ -155,6 +155,21 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertIn("success criteria", variables["plan"])
         self.assertIn("[CURRENT]", variables["plan"])
 
+    def test_status_refreshes_live_plan_section(self):
+        """The Evaluator updates the Planner's plan section in place.
+
+        Both emit ``key="plan"`` so the status pane keeps exactly one live plan
+        entry instead of a stale Planner copy plus a duplicate Evaluator copy.
+        """
+        evaluator = self._evaluator()
+        evaluator._last_state = self._state()
+        status = evaluator._get_status()
+        assert status is not None
+        self.assertEqual(status.heading, "Plan")
+        self.assertEqual(status.key, "plan")
+        self.assertTrue(status.preformatted)
+        self.assertIn("2 step(s)", status.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

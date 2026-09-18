@@ -32,15 +32,26 @@ class StepSchema(BaseModel):
         default="pending", validate_default=True
     )
 
-    def status_label(self, *, current: bool = False) -> str:
-        """Return the step status as a bracketed text marker.
+    def status_label(self, *, current: bool = False, markdown: bool = False) -> str:
+        """Return the step status as a bracketed marker.
 
-        Plain-word markers (rather than symbols) are used so every model can
-        read the per-step status unambiguously in prompts.
+        Two styles by audience.  Prompts (``markdown=False``) use plain-word
+        markers, which every model reads unambiguously.  The status pane
+        (``markdown=True``) uses compact symbols so the markers align and do
+        not dominate the line.
 
         :param current: Whether this is the plan's current step.
-        :returns: ``[DONE]``, ``[FAILED]``, ``[CURRENT]`` or ``[PENDING]``.
+        :param markdown: ``True`` for symbol markers (user-facing render),
+            ``False`` for word markers (prompt render).
+        :returns: Word form ``[DONE]``/``[FAILED]``/``[CURRENT]``/``[PENDING]``
+            or symbol form ``[x]``/``[!]``/``[*]``/``[ ]``.
         """
+        if markdown:
+            if self.status == "done":
+                return "[x]"
+            if self.status == "failed":
+                return "[!]"
+            return "[*]" if current else "[ ]"
         if self.status == "done":
             return "[DONE]"
         if self.status == "failed":
@@ -50,28 +61,37 @@ class StepSchema(BaseModel):
     def render(self, *, current: bool = False, markdown: bool = False) -> str:
         """Render this step as one line with its status marker.
 
-        Everything a model may need is included (description, success
-        criteria, suggested tools, dependencies) so the Evaluator, Planner and
-        status pane see the same step detail.
+        Two audiences.  Prompts (``markdown=False``) include everything a
+        model may need (description, success criteria, suggested tools,
+        dependencies).  The status pane (``markdown=True``) stays minimal -
+        marker, number, description and dependencies (execution order) - with
+        the rest left to the inspection pane.
 
         :param current: Whether this is the plan's current step.
-        :param markdown: Prefix the line with ``- `` for a markdown list.
-        :returns: ``[STATUS] N. description (success criteria: ...; suggested
-            tools: ...; depends on: ...)``.
+        :param markdown: ``True`` for the status-pane render: ``[marker] Step
+            N: description (depends on: ...)``.  ``False`` for the prompt
+            render: ``[STATUS] N. description (success criteria: ...;
+            suggested tools: ...; depends on: ...)``.
+        :returns: The prompt line, or the minimal status-pane line.
         """
-        criteria = self.success_criteria or "(none)"
-        tools = ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
         depends = (
             ", ".join(str(step) for step in self.depends_on)
             if self.depends_on
             else "(none)"
         )
-        line = (
-            f"{self.status_label(current=current)} {self.step_number}. "
+        marker = self.status_label(current=current, markdown=markdown)
+        if markdown:
+            return (
+                f"{marker} Step {self.step_number}: {self.description} "
+                f"(depends on: {depends})"
+            )
+        criteria = self.success_criteria or "(none)"
+        tools = ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
+        detail = (
             f"{self.description} (success criteria: {criteria}; "
             f"suggested tools: {tools}; depends on: {depends})"
         )
-        return f"- {line}" if markdown else line
+        return f"{marker} {self.step_number}. {detail}"
 
 
 class PlanSchema(BaseModel):
@@ -92,14 +112,16 @@ class PlanSchema(BaseModel):
     current_step_index: int = 0
 
     def render(self, *, markdown: bool = False) -> str:
-        """Render the plan as text (or a markdown list) with status markers.
+        """Render the plan as text (or the status-pane preformatted block).
 
-        Each step renders as ``[STATUS] N. description (success criteria: ...)``
-        where ``STATUS`` is :meth:`StepSchema.status_label`; the current step is
-        marked ``[CURRENT]``.  Used in node prompts and in the status pane, so
-        the same rendering is shown to the model and to the user.
+        Prompts (``markdown=False``) render each step as ``[STATUS] N.
+        description (...)`` with plain-word markers, which every model reads
+        unambiguously.  The status pane (``markdown=True``) renders ``[marker]
+        Step N: description (...)`` lines with symbol markers, separated by a
+        blank line and rendered preformatted so tool names stay literal.
 
-        :param markdown: Prefix each line with ``- `` for a markdown list.
+        :param markdown: ``True`` for the status-pane render, ``False`` for
+            the prompt render.
         :returns: The rendered plan, or ``"(no plan)"`` when there are no steps.
         """
         if not self.step_list:
@@ -108,7 +130,8 @@ class PlanSchema(BaseModel):
         for index, step in enumerate(self.step_list):
             current = index == self.current_step_index and step.status == "pending"
             lines.append(step.render(current=current, markdown=markdown))
-        return "\n".join(lines)
+        separator = "\n\n" if markdown else "\n"
+        return separator.join(lines)
 
     def current_step(self) -> StepSchema | None:
         """Return the plan's current step, or ``None`` when there is none.

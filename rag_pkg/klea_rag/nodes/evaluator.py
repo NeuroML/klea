@@ -80,46 +80,32 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
         return EvaluateAnswerSchema(next_step="undefined", summary="Evaluation failed")
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return evaluation scores, next step, and summary."""
-        assert self._last_state_updates is not None
-        eval_result = self._last_state_updates.get("text_response_eval")
-        if eval_result is None:
-            return NodeStreamData(
-                heading="Answer Evaluation",
-                summary="Evaluation failed",
-                details={},
-            )
-
-        # Extract scores from the evaluation result
-        scores = {
-            "confidence": eval_result.confidence,
-            "coverage": eval_result.coverage,
-            "relevance": eval_result.relevance,
-            "groundedness": eval_result.groundedness,
-            "coherence": eval_result.coherence,
-            "conciseness": eval_result.conciseness,
-        }
-
-        return NodeStreamData(
-            heading="Answer Evaluation",
-            summary=f"Evaluation complete: {eval_result.summary}",
-            details={
-                "scores": scores,
-                "next_step": eval_result.next_step,
-                "summary": eval_result.summary,
-            },
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt, raw output, and processed output."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return evaluation scores plus prompt and raw/processed output."""
         assert self._last_state is not None
         assert self._last_prompt is not None
         assert self._last_output is not None
         assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
+        assert self._last_state_updates is not None
+        eval_result = self._last_state_updates.get("text_response_eval")
+        if eval_result is None:
+            summary = "Evaluation failed"
+            details = {}
+        else:
+            scores = {
+                "confidence": eval_result.confidence,
+                "coverage": eval_result.coverage,
+                "relevance": eval_result.relevance,
+                "groundedness": eval_result.groundedness,
+                "coherence": eval_result.coherence,
+                "conciseness": eval_result.conciseness,
+            }
+            summary = f"Evaluation complete: {eval_result.summary}"
+            details = {
+                "scores": scores,
+                "next_step": eval_result.next_step,
+                "summary": eval_result.summary,
+            }
         details.update(
             {
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
@@ -128,5 +114,5 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
             }
         )
         return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            heading="Answer Evaluation", summary=summary, details=details
         )

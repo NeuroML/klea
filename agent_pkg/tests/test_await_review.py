@@ -27,5 +27,5 @@ async def test_await_review_returns_stub_feedback(monkeypatch):
     assert update["human_feedback"] == AwaitReview.STUB_REVIEW
     assert update["messages"][-1].content == AwaitReview.STUB_REVIEW
     assert emitted[0]["type"] == "progress"
-    assert emitted[-1]["type"] == "info"
+    assert emitted[-1]["type"] == "inspect"
     assert emitted[-1]["data"]["details"]["human_feedback"] == AwaitReview.STUB_REVIEW

@@ -986,10 +986,8 @@ class BaseLangGraph(ABC):
 
         ``{"type": "progress", "node": "<label>"}``
             When the graph enters a new node (via ``write_custom_stream``)
-        ``{"type": "info", "node": "<label>", "data": {...}}``
-            Structured summary data from a node after execution
-        ``{"type": "debug", "node": "<label>", "data": {...}}``
-            Full data dump from a node after execution
+        ``{"type": "inspect", "node": "<label>", "data": {...}}``
+            Inspection data from a node after execution (summary + details)
         ``{"type": "token", "content": "<chunk>", "node": "<label>"}``
             LLM token chunk from the current node
         ``{"type": "usage", "node": "<label>", "data": {...}}``
@@ -1068,7 +1066,7 @@ class BaseLangGraph(ABC):
                         self.logger.debug(f"Progress: {current_node}")
                         yield {"type": "progress", "node": current_node}
 
-                elif event_type in ("info", "debug", "state", "usage"):
+                elif event_type in ("inspect", "state", "usage"):
                     node = data.get("node")
                     if not node:
                         continue

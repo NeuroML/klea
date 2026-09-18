@@ -193,33 +193,33 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
 
         self.logger.debug(f"{reference_material =}")
 
-        # Emit info event
+        # Emit inspection event: counts plus the retrieved material
         per_domain_counts = {
             domain: len(docs) for domain, docs in reference_material.items()
         }
         total_docs = sum(per_domain_counts.values())
-        info_data = NodeStreamData(
+        inspect_data = NodeStreamData(
             heading="Document Retrieval",
             summary=f"Retrieved {total_docs} documents from {len(per_domain_counts)} domains",
-            details={"per_domain_counts": per_domain_counts},
+            details={
+                "per_domain_counts": per_domain_counts,
+                "reference_material": {
+                    domain: [
+                        {
+                            "content": doc.page_content,
+                            "metadata": doc.metadata,
+                            "score": score,
+                        }
+                        for doc, score in docs
+                    ]
+                    for domain, docs in reference_material.items()
+                },
+            },
         )
-        info_event = NodeStreamEvent(type="info", node=self.label, data=info_data)
-        self.write_custom_stream(info_event.model_dump())
-
-        # Emit debug event
-        debug_details = info_data.details.copy()
-        debug_details["reference_material"] = {
-            domain: [
-                {"content": doc.page_content, "metadata": doc.metadata, "score": score}
-                for doc, score in docs
-            ]
-            for domain, docs in reference_material.items()
-        }
-        debug_data = NodeStreamData(
-            heading=info_data.heading, summary=info_data.summary, details=debug_details
+        inspect_event = NodeStreamEvent(
+            type="inspect", node=self.label, data=inspect_data
         )
-        debug_event = NodeStreamEvent(type="debug", node=self.label, data=debug_data)
-        self.write_custom_stream(debug_event.model_dump())
+        self.write_custom_stream(inspect_event.model_dump())
 
         # Emit state event
         # URLs, file name, score, not full content

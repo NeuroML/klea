@@ -44,17 +44,16 @@ class TestApplyStreamEvent:
         assert chat["messages"] == []
         assert chat["token_usage"]["total_tokens"] == 0
 
-    def test_info_and_token_ignored(self, chat):
-        """info and token events mutate nothing."""
-        assert apply_stream_event(chat, {"type": "info", "data": {}}) is None
+    def test_token_ignored(self, chat):
+        """A token event mutates nothing."""
         assert apply_stream_event(chat, {"type": "token", "content": "hi"}) is None
 
-    def test_debug_buffers_inspector_entry(self, chat):
-        """debug events append to the inspector buffer."""
+    def test_inspect_buffers_inspector_entry(self, chat):
+        """inspect events append to the inspector buffer."""
         result = apply_stream_event(
             chat,
             {
-                "type": "debug",
+                "type": "inspect",
                 "node": "Planner",
                 "data": {
                     "heading": "Plan",
@@ -64,7 +63,7 @@ class TestApplyStreamEvent:
                 },
             },
         )
-        assert result == "debug"
+        assert result == "inspect"
         assert len(chat[INSPECTOR_BUFFER_KEY]) == 1
         entry = chat[INSPECTOR_BUFFER_KEY][0]
         assert entry["heading"] == "Plan"
@@ -136,7 +135,54 @@ class TestApplyStreamEvent:
             "display": "- 2 docs",
             "summary": "",
             "details": {},
+            "preformatted": False,
         }
+
+    def test_state_section_shared_key_updates_in_place(self, chat):
+        """A non-empty key lets different nodes update one section in place."""
+        apply_stream_event(
+            chat,
+            {
+                "type": "state",
+                "node": "Planning",
+                "data": {
+                    "heading": "Plan",
+                    "summary": "1 step(s)",
+                    "key": "plan",
+                },
+            },
+        )
+        apply_stream_event(
+            chat,
+            {
+                "type": "state",
+                "node": "Evaluating",
+                "data": {
+                    "heading": "Plan",
+                    "summary": "2 step(s)",
+                    "key": "plan",
+                },
+            },
+        )
+        assert list(chat["state_sections"].keys()) == ["plan"]
+        assert chat["state_sections"]["plan"]["summary"] == "2 step(s)"
+
+    def test_state_section_carries_preformatted(self, chat):
+        """A preformatted flag is preserved so the pane can render <pre>."""
+        apply_stream_event(
+            chat,
+            {
+                "type": "state",
+                "node": "Planning",
+                "data": {
+                    "heading": "Plan",
+                    "display": "[*] Step 1: a",
+                    "key": "plan",
+                    "preformatted": True,
+                },
+            },
+        )
+        assert chat["state_sections"]["plan"]["preformatted"] is True
 
     def test_context_event_stored(self, chat):
         """context events store session context (e.g. the operating mode)."""

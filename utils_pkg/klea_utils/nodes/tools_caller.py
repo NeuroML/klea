@@ -117,11 +117,18 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         """Run only when there are tool calls and a client to dispatch to."""
         return bool(getattr(state, "tool_calls", None)) and self._mcp_client is not None
 
-    def _get_info(self) -> NodeStreamData:
-        """Return a summary of the completed dispatch."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the inspection payload for the completed dispatch.
+
+        The inspection pane shows the dispatch summary plus the full tool
+        calls (arguments and reasons) and their results.  The status pane gets
+        a compact ``ok``/``error`` view from ``_get_status``; renderable
+        outputs (e.g. diffs) surface in the chat.
+        """
         assert self._last_state is not None
         assert self._last_tool_results is not None
-        tool_names = [tc.tool for tc in getattr(self._last_state, "tool_calls", [])]
+        tool_calls = getattr(self._last_state, "tool_calls", [])
+        tool_names = [tc.tool for tc in tool_calls]
         success_count = sum(1 for r in self._last_tool_results if not r.is_error)
         return NodeStreamData(
             heading="Tool Execution",
@@ -131,32 +138,20 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
                 "total_calls": len(tool_names),
                 "successful_calls": success_count,
                 "failed_calls": len(tool_names) - success_count,
+                "tool_calls": [
+                    {"tool": tc.tool, "arguments": tc.args, "reason": tc.reason}
+                    for tc in tool_calls
+                ],
+                "tool_results": [
+                    {
+                        "tool": tool_names[i] if i < len(tool_names) else f"tool_{i}",
+                        "is_error": r.is_error,
+                        "content": str(r.content) if r.content else None,
+                        "structured_content": r.structured_content,
+                    }
+                    for i, r in enumerate(self._last_tool_results)
+                ],
             },
-        )
-
-    def _get_debug(self) -> NodeStreamData:
-        """Return info plus the full tool calls and results."""
-        assert self._last_state is not None
-        assert self._last_tool_results is not None
-        tool_calls = getattr(self._last_state, "tool_calls", [])
-        tool_names = [tc.tool for tc in tool_calls]
-        info = self._get_info()
-        details = info.details.copy()
-        details["tool_calls"] = [
-            {"tool": tc.tool, "arguments": tc.args, "reason": tc.reason}
-            for tc in tool_calls
-        ]
-        details["tool_results"] = [
-            {
-                "tool": tool_names[i] if i < len(tool_names) else f"tool_{i}",
-                "is_error": r.is_error,
-                "content": str(r.content) if r.content else None,
-                "structured_content": r.structured_content,
-            }
-            for i, r in enumerate(self._last_tool_results)
-        ]
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
         )
 
     def _get_status(self) -> NodeStreamData | None:
@@ -166,7 +161,7 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         whether each succeeded -- as a generic ``ok``/``error`` label per tool
         (frontends may map the labels to icons).  The selected args, the
         picker's reasons and the full results stay in the inspection pane
-        (``_get_debug``), and renderable outputs (e.g. diffs) surface in the
+        (``_get_inspect``), and renderable outputs (e.g. diffs) surface in the
         chat.  Returns ``None`` for a round with no calls so empty rounds
         leave the pane unchanged.
 

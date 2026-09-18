@@ -183,10 +183,13 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         return RetrievalQueryOutput()
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return search query, filters, and attempt number."""
-        assert self._last_state_updates is not None
+    def _get_inspect(self) -> NodeStreamData:
+        """Return search query/filters plus prompt, raw output and feedback."""
         assert self._last_state is not None
+        assert self._last_prompt is not None
+        assert self._last_output is not None
+        assert self._last_result is not None
+        assert self._last_state_updates is not None
         rq = self._last_state_updates.get("retrieval_query") or RetrievalQueryOutput()
         search_query = rq.search_query
         # Display-only: this node does not bump the counter (the retrieval
@@ -195,37 +198,20 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         state = self._last_state
         attempt = state.retrieval_attempts + 1
         action = "Regenerated" if state.retrieval_attempts > 0 else "Generated"
-        return NodeStreamData(
-            heading="Retrieval Query Generation",
-            summary=f"{action} retrieval query (attempt {attempt})",
-            details={
-                "search_query": search_query,
-                "metadata_filter": rq.to_metadata_filter(),
-                "retrieval_attempts": attempt,
-            },
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt, raw output, processed output, and evaluator feedback."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
-        details.update(
-            {
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
-            }
-        )
+        details = {
+            "search_query": search_query,
+            "metadata_filter": rq.to_metadata_filter(),
+            "retrieval_attempts": attempt,
+            "input_prompt": prompt_value_to_messages(self._last_prompt),
+            "unprocessed_output": extract_llm_output_content(self._last_output),
+            "processed_output": str(self._last_result),
+        }
         # Add evaluator feedback if this is a retry
-        state: RAGState = self._last_state  # type: ignore[assignment]
         if state.retrieval_attempts > 0 and state.text_response_eval:
             details["evaluator_feedback"] = state.text_response_eval.summary
             details["previous_query"] = state.retrieval_query.search_query
         return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            heading="Retrieval Query Generation",
+            summary=f"{action} retrieval query (attempt {attempt})",
+            details=details,
         )

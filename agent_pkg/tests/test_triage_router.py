@@ -87,5 +87,5 @@ class TestTriageExecute:
 
         assert route == "replan"
         assert emitted[0]["type"] == "progress"
-        assert emitted[-1]["type"] == "info"
+        assert emitted[-1]["type"] == "inspect"
         assert emitted[-1]["data"]["details"]["route"] == "replan"

@@ -63,7 +63,7 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             },
         )
         self.write_custom_stream(
-            NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
+            NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()
         )
 
         return {

@@ -230,6 +230,47 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         self.assertIn("read tool", descriptions)
         self.assertIn("delete tool", descriptions)
 
+    def test_status_renders_the_plan_just_produced(self):
+        """Status reads the new plan, not the pre-execution (empty) state.
+
+        ``_last_state`` is captured at execution entry, so on a turn's first
+        Planner pass it holds the empty plan ``InitGraphState`` reset.  The
+        status section must render the plan from ``_last_state_updates``.
+        """
+        planner = self._planner()
+        planner._last_state = KleaAgentState()  # empty, default plan
+        planner._last_state_updates = {
+            "plan": PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, description="a"),
+                    StepSchema(step_number=2, description="b"),
+                ],
+                status="in_progress",
+            )
+        }
+
+        status = planner._get_status()
+
+        assert status is not None
+        self.assertIn("2 step(s)", status.summary)
+        self.assertIn("[*] Step 1: a", status.display)
+        self.assertNotEqual(status.display, "(no plan)")
+        self.assertEqual(status.key, "plan")
+        self.assertTrue(status.preformatted)
+
+    def test_status_falls_back_to_state_plan(self):
+        """Without state updates, status falls back to ``_last_state.plan``."""
+        planner = self._planner()
+        planner._last_state = KleaAgentState(
+            plan=PlanSchema(step_list=[StepSchema(description="only")])
+        )
+        planner._last_state_updates = {}
+
+        status = planner._get_status()
+
+        assert status is not None
+        self.assertIn("1 step(s)", status.summary)
+
 
 if __name__ == "__main__":
     unittest.main()

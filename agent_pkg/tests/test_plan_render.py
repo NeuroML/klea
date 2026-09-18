@@ -19,7 +19,7 @@ class TestPlanRender(unittest.TestCase):
     def test_empty_plan(self):
         self.assertEqual(PlanSchema().render(), "(no plan)")
 
-    def test_status_markers(self):
+    def test_status_markers_words_for_prompts(self):
         plan = PlanSchema(
             step_list=[
                 StepSchema(step_number=1, description="a", status="done"),
@@ -35,6 +35,22 @@ class TestPlanRender(unittest.TestCase):
         self.assertIn("[CURRENT] 3. c", rendered)
         self.assertIn("[PENDING] 4. d", rendered)
 
+    def test_status_markers_symbols_for_status_pane(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, description="a", status="done"),
+                StepSchema(step_number=2, description="b", status="failed"),
+                StepSchema(step_number=3, description="c"),
+                StepSchema(step_number=4, description="d"),
+            ],
+            current_step_index=2,
+        )
+        rendered = plan.render(markdown=True)
+        self.assertIn("[x] Step 1: a", rendered)
+        self.assertIn("[!] Step 2: b", rendered)
+        self.assertIn("[*] Step 3: c", rendered)
+        self.assertIn("[ ] Step 4: d", rendered)
+
     def test_success_criteria_included(self):
         plan = PlanSchema(
             step_list=[StepSchema(description="x", success_criteria="x done")],
@@ -42,9 +58,16 @@ class TestPlanRender(unittest.TestCase):
         )
         self.assertIn("success criteria: x done", plan.render())
 
-    def test_markdown_prefix(self):
-        plan = PlanSchema(step_list=[StepSchema(description="x")])
-        self.assertTrue(plan.render(markdown=True).startswith("- [CURRENT] 1. x"))
+    def test_markdown_steps_separated_by_blank_line(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, description="a"),
+                StepSchema(step_number=2, description="b"),
+            ]
+        )
+        rendered = plan.render(markdown=True)
+        self.assertEqual(len(rendered.split("\n\n")), 2)
+        self.assertTrue(rendered.startswith("[*] Step 1: a"))
 
     def test_step_render(self):
         step = StepSchema(
@@ -59,7 +82,10 @@ class TestPlanRender(unittest.TestCase):
                 "suggested tools: (none); depends on: (none))"
             ),
         )
-        self.assertTrue(step.render(current=True, markdown=True).startswith("- "))
+        self.assertEqual(
+            step.render(current=True, markdown=True),
+            "[*] Step 2: edit the file (depends on: (none))",
+        )
 
     def test_step_render_includes_tools_and_deps(self):
         step = StepSchema(
@@ -72,6 +98,20 @@ class TestPlanRender(unittest.TestCase):
         rendered = step.render()
         self.assertIn("suggested tools: edit, write", rendered)
         self.assertIn("depends on: 1", rendered)
+
+    def test_status_render_is_minimal(self):
+        """The status render omits criteria/tools; keeps deps (execution order)."""
+        step = StepSchema(
+            step_number=2,
+            description="edit the file",
+            success_criteria="tests pass",
+            suggested_tools=["edit", "write"],
+            depends_on=[1],
+        )
+        rendered = step.render(current=True, markdown=True)
+        self.assertEqual(rendered, "[*] Step 2: edit the file (depends on: 1)")
+        self.assertNotIn("success criteria", rendered)
+        self.assertNotIn("suggested tools", rendered)
 
     def test_step_render_done_marker(self):
         step = StepSchema(description="x", status="done")

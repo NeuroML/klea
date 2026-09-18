@@ -28,7 +28,7 @@ async def test_answer_user_reports_assurance(monkeypatch):
 
     assert result["message_for_user"] == "done"
     assert result["messages"][-1].content == "done"
-    info = next(e for e in emitted if e["type"] == "info")
+    info = next(e for e in emitted if e["type"] == "inspect")
     assert info["data"]["details"]["assurance"] == "unverified"
 
 

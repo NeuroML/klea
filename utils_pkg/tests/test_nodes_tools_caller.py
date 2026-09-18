@@ -67,7 +67,7 @@ async def test_always_writes_tool_results():
     events: list[dict] = []
     _record_stream(node, events)
     assert await node.execute(MiniState()) == {"tool_results": []}
-    assert [e["type"] for e in events] == ["progress", "info", "debug"]
+    assert [e["type"] for e in events] == ["progress", "inspect"]
 
     node = _make_node(client=FakeMCPClient())
     _record_stream(node, events)
@@ -102,15 +102,14 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    assert event_types == ["progress", "info", "debug", "state"]
+    assert event_types == ["progress", "inspect", "state"]
 
     info = events[1]["data"]
     assert info["summary"] == "Called 2 tool(s), 2 succeeded"
     assert info["details"]["tool_names"] == ["a", "b"]
     assert info["details"]["failed_calls"] == 0
-    debug = events[2]["data"]
-    assert debug["details"]["tool_calls"][0]["tool"] == "a"
-    status = events[3]["data"]
+    assert info["details"]["tool_calls"][0]["tool"] == "a"
+    status = events[2]["data"]
     assert status["display"] == "- **a**: ok\n- **b**: ok"
 
 
@@ -126,11 +125,8 @@ async def test_streaming_uses_shared_hooks():
             self._post_exec_stream()
             return {}
 
-        def _get_info(self) -> NodeStreamData:
-            return NodeStreamData(summary="info-summary", details={"k": "v"})
-
-        def _get_debug(self) -> NodeStreamData:
-            return NodeStreamData(summary="debug-summary")
+        def _get_inspect(self) -> NodeStreamData:
+            return NodeStreamData(summary="inspect-summary", details={"k": "v"})
 
         def _get_status(self) -> NodeStreamData:
             return NodeStreamData(summary="status-summary", display="**status**")
@@ -142,9 +138,9 @@ async def test_streaming_uses_shared_hooks():
     await node.execute(MiniState())
 
     event_types = [e["type"] for e in events]
-    assert event_types == ["progress", "info", "debug", "state"]
+    assert event_types == ["progress", "inspect", "state"]
     assert "usage" not in event_types
-    assert events[1]["data"]["summary"] == "info-summary"
+    assert events[1]["data"]["summary"] == "inspect-summary"
 
 
 async def test_denies_path_arg_without_server_call(tmp_path):

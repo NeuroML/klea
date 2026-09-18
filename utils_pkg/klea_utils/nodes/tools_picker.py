@@ -169,8 +169,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return ToolCallsSchema()
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return the selected tools."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the inspection payload: selection, prompt and raw output."""
+        assert self._last_state is not None
+        assert self._last_prompt is not None
+        assert self._last_output is not None
+        assert self._last_result is not None
         assert self._last_state_updates is not None
         tool_calls = self._last_state_updates.get("tool_calls", [])
         tool_names = [tc.tool for tc in tool_calls]
@@ -178,39 +182,18 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             summary = f"Selected {len(tool_names)} tool(s): {', '.join(tool_names)}"
         else:
             summary = "No tools selected"
-        return NodeStreamData(
-            heading="Tool Selection",
-            summary=summary,
-            details={
-                "tool_names": tool_names,
-                "tool_count": len(tool_names),
-            },
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt, raw output, and full tool calls."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        assert self._last_state_updates is not None
-        info = self._get_info()
-        details = info.details.copy()
-        details.update(
-            {
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
-            }
-        )
-        # Add full tool calls with arguments
-        tool_calls = self._last_state_updates.get("tool_calls", [])
+        details: dict[str, Any] = {
+            "tool_names": tool_names,
+            "tool_count": len(tool_names),
+            "input_prompt": prompt_value_to_messages(self._last_prompt),
+            "unprocessed_output": extract_llm_output_content(self._last_output),
+            "processed_output": str(self._last_result),
+        }
         if tool_calls:
             details["tool_calls"] = [
                 {"name": tc.tool, "arguments": tc.args, "reason": tc.reason}
                 for tc in tool_calls
             ]
         return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            heading="Tool Selection", summary=summary, details=details
         )

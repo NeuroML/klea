@@ -86,28 +86,21 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         return state_update
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return the routing decision for the inspector."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the routing decision plus prompt and raw/processed output."""
+        assert self._last_prompt is not None
+        assert self._last_output is not None
         assert self._last_result is not None
         result = self._last_result
+        details: dict[str, Any]
         if isinstance(result, RouteSchema):
             summary = f"Route: {result.route}"
-            details: dict[str, Any] = {"route": result.route}
+            details = {"route": result.route}
             if result.route == "chat":
                 details["answer_chars"] = len(result.answer)
         else:
             summary = "Route decision"
             details = {}
-        return NodeStreamData(heading="Route", summary=summary, details=details)
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
         details.update(
             {
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
@@ -115,9 +108,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
                 "processed_output": str(self._last_result),
             }
         )
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
-        )
+        return NodeStreamData(heading="Route", summary=summary, details=details)
 
     @override
     def _get_default_error_result(self) -> RouteSchema:

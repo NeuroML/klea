@@ -142,8 +142,12 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         }
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return classification summary and details."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return classification summary plus prompt and raw/processed output."""
+        assert self._last_state is not None
+        assert self._last_prompt is not None
+        assert self._last_output is not None
+        assert self._last_result is not None
         assert self._last_state_updates is not None
         classified = self._last_state_updates.get("query_domains", [])
         available = list(self.domains.keys())
@@ -153,27 +157,10 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
             details={
                 "classified_domains": classified,
                 "available_domains": available,
-            },
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt, raw output, and processed output."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
-        details.update(
-            {
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
                 "unprocessed_output": extract_llm_output_content(self._last_output),
                 "processed_output": str(self._last_result),
-            }
-        )
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            },
         )
 
     @override

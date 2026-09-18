@@ -35,8 +35,7 @@ async def stream_events(
     Each yielded dict has at least a ``"type"`` key.  Known types::
 
         progress    {"type": "progress", "node": "<label>"}
-        info        {"type": "info", "node": "<label>", "data": {...}}
-        debug       {"type": "debug", "node": "<label>", "data": {...}}
+        inspect     {"type": "inspect", "node": "<label>", "data": {...}}
         token       {"type": "token", "content": "<chunk>", "node": "<label>"}
         usage       {"type": "usage", "node": "<label>", "data": {...}}
         context     {"type": "context", "data": {...}}  (graph-level session context)

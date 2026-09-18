@@ -195,46 +195,22 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         return update
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return the evaluation verdict for the inspector."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the verdict summary plus prompt and raw/processed output."""
+        assert self._last_prompt is not None
+        assert self._last_output is not None
         assert self._last_result is not None
         result = self._last_result
+        details: dict[str, Any]
         if isinstance(result, EvaluationSchema):
             summary = f"Verdict: {result.evaluation}"
-            details: dict[str, Any] = {
+            details = {
                 "evaluation": result.evaluation,
                 "reason": result.reason,
             }
         else:
             summary = "Evaluation"
             details = {}
-        return NodeStreamData(
-            heading="Evaluation",
-            summary=summary,
-            details=details,
-        )
-
-    @override
-    def _get_status(self) -> NodeStreamData | None:
-        """Expose the current plan to the status pane (markdown)."""
-        state = self._last_state
-        if state is None:
-            return None
-        plan = state.plan
-        return NodeStreamData(
-            heading="Plan",
-            summary=f"{len(plan.step_list)} step(s); status={plan.status}",
-            display=plan.render(markdown=True),
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
         details.update(
             {
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
@@ -243,7 +219,32 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             }
         )
         return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            heading="Evaluation",
+            summary=summary,
+            details=details,
+        )
+
+    @override
+    def _get_status(self) -> NodeStreamData | None:
+        """Refresh the live plan section after evaluating a step.
+
+        The plan section is shared (``key="plan"``) between the Planner and the
+        Evaluator: the Planner creates it, and the Evaluator -- which sees the
+        plan advanced after each tool round -- updates the same pane entry in
+        place.  This keeps exactly one live plan section instead of a stale
+        Planner copy plus a duplicate Evaluator copy.  The verdict itself is in
+        the evaluator's ``inspect`` payload and the final answer.
+        """
+        state = self._last_state
+        if state is None:
+            return None
+        plan = state.plan
+        return NodeStreamData(
+            heading="Plan",
+            summary=f"{len(plan.step_list)} step(s); status={plan.status}",
+            display=plan.render(markdown=True),
+            key="plan",
+            preformatted=True,
         )
 
     @override

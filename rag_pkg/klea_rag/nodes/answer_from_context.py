@@ -129,8 +129,11 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
         return full_answer
 
     @override
-    def _get_info(self) -> NodeStreamData:
-        """Return answer generation summary."""
+    def _get_inspect(self) -> NodeStreamData:
+        """Return the answer summary plus prompt and raw/processed output."""
+        assert self._last_prompt is not None
+        assert self._last_output is not None
+        assert self._last_result is not None
         assert self._last_state_updates is not None
         answer = ""
         refs = []
@@ -147,26 +150,10 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
                 "char_count": len(answer),
                 "reference_count": len(refs),
                 "references": refs,
-            },
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData:
-        """Return info + input prompt, raw output, and processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        info = self._get_info()
-        details = info.details.copy()
-        details.update(
-            {
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
                 "unprocessed_output": extract_llm_output_content(self._last_output),
                 "processed_output": str(self._last_result),
-            }
-        )
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            },
         )
 
     @override

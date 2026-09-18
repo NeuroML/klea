@@ -129,6 +129,6 @@ class ModeInformer(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         self.logger.debug(f"informing user about mode: {note}")
         info = NodeStreamData(heading="Mode", summary=note)
         self.write_custom_stream(
-            NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
+            NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()
         )
         return {"message_for_user": note}

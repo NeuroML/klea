@@ -62,7 +62,7 @@ class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             details={"human_feedback": feedback},
         )
         self.write_custom_stream(
-            NodeStreamEvent(type="info", node=self.label, data=info).model_dump()
+            NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()
         )
         return {
             "human_feedback": feedback,

@@ -115,9 +115,11 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         return AIMessage(content=EMPTY_RESULT_FALLBACK)
 
     @override
-    def _get_info(self) -> NodeStreamData | None:
-        """Return answer summary."""
+    def _get_inspect(self) -> NodeStreamData | None:
+        """Return the answer summary plus input/output prompt data."""
         assert self._last_state_updates is not None
+        assert self._last_prompt is not None
+        assert self._last_output is not None
         result = content_to_str(self._last_state_updates.get("message_for_user", ""))
         char_count = len(result)
         return NodeStreamData(
@@ -125,24 +127,9 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
             summary=f"Generated answer ({char_count} characters)"
             if char_count
             else "No answer generated",
-            details={"character_count": char_count},
-        )
-
-    @override
-    def _get_debug(self) -> NodeStreamData | None:
-        """Return info + input/output triples."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        info = self._get_info()
-        if not info:
-            return None
-        details = info.details.copy()
-        details.update(
-            {
+            details={
+                "character_count": char_count,
                 "input_prompt": prompt_value_to_messages(self._last_prompt),
                 "unprocessed_output": extract_llm_output_content(self._last_output),
-            }
-        )
-        return NodeStreamData(
-            heading=info.heading, summary=info.summary, details=details
+            },
         )

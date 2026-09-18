@@ -156,7 +156,18 @@ def attach_status_pane(ctx: PageContext) -> None:
                         ui.label(section.get("heading", node_label))
                     display = section.get("display", "")
                     if display:
-                        ui.markdown(linkify_md(display)).classes("text-xs w-full")
+                        if section.get("preformatted"):
+                            # Aligned/literal content (e.g. the plan): a plain
+                            # code block, so columns line up and ``_``/``*`` in
+                            # tool names are not parsed as markdown.  No
+                            # language is passed (no syntax highlighting), and
+                            # ``nicegui-code-noformat`` strips the code-box
+                            # styling.
+                            ui.code(display, language=None).classes(
+                                "text-xs w-full nicegui-code-noformat"
+                            )
+                        else:
+                            ui.markdown(linkify_md(display)).classes("text-xs w-full")
                     summary = section.get("summary", "")
                     if summary and not display:
                         ui.label(summary).classes("text-xs text-grey-6 mb-1 w-full")

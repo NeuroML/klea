@@ -203,6 +203,36 @@ def _add_css_overrides() -> None:
     ui.add_css(
         ".status-details code { white-space: pre-wrap !important; word-break: break-all !important; }"
     )
+    # Preformatted status sections (e.g. the plan): a ``ui.code`` element whose
+    # visual "code box" is undone, so the content reads as plain pane text.
+    # ``nicegui-code-noformat`` targets the wrapper (which ``ui.code`` gives the
+    # ``nicegui-code`` class), cancelling its background, border, shadow,
+    # radius and copy button; the inner layers are cleared too and long lines
+    # wrap instead of scrolling.  The plan uses this; chat bubbles and the
+    # inspector/status JSON keep their normal code styling.
+    ui.add_css(
+        ".nicegui-code-noformat { "
+        "background: transparent !important; "
+        "border: none !important; "
+        "box-shadow: none !important; "
+        "border-radius: 0 !important; "
+        "padding: 0.25rem 0 !important; }"
+    )
+    ui.add_css(
+        ".nicegui-code-noformat .nicegui-code-copy { display: none !important; }"
+    )
+    ui.add_css(
+        ".nicegui-code-noformat .nicegui-markdown, "
+        ".nicegui-code-noformat pre, "
+        ".nicegui-code-noformat pre code, "
+        ".nicegui-code-noformat .codehilite, "
+        ".nicegui-code-noformat .highlight { "
+        "white-space: pre-wrap !important; "
+        "word-break: break-word !important; "
+        "background: transparent !important; "
+        "padding: 0 !important; "
+        "margin: 0 !important; }"
+    )
     ui.add_css(
         ".status-entry .nicegui-markdown { overflow: hidden !important; height: auto !important; overflow-wrap: break-word !important; word-break: break-word !important; }"
     )

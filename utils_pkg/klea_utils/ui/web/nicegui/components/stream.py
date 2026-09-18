@@ -41,7 +41,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     ==============  =====================================================
     ``"usage"``     token usage totals were incremented
     ``"state"``     a status-pane section was stored
-    ``"debug"``     an inspector entry was buffered
+    ``"inspect"``   an inspection entry was buffered
     ``"context"``   session context (e.g. the operating mode) was stored
     ``"complete"``  the final assistant message was appended
     ``"error"``     the backend signalled an error
@@ -66,7 +66,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
         chat.setdefault("context", {}).update(event.get("data", {}))
         return "context"
 
-    if t == "debug":
+    if t == "inspect":
         data = event.get("data", {})
         chat.setdefault(INSPECTOR_BUFFER_KEY, []).append(
             {
@@ -78,7 +78,7 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
                 "timing_seconds": data.get("timing_seconds", None),
             }
         )
-        return "debug"
+        return "inspect"
 
     if t == "usage":
         data = event.get("data", {})
@@ -94,11 +94,16 @@ def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | Non
     if t == "state":
         data = event.get("data", {})
         node = event.get("node", "")
-        chat.setdefault("state_sections", {})[node] = {
+        # Sections are keyed by ``data["key"]`` when set, else by node label,
+        # so nodes can share one section (e.g. a live plan updated by the
+        # Planner and the Evaluator) instead of each owning a duplicate.
+        section_key = data.get("key") or node
+        chat.setdefault("state_sections", {})[section_key] = {
             "heading": data.get("heading", ""),
             "display": data.get("display", ""),
             "summary": data.get("summary", ""),
             "details": data.get("details", {}),
+            "preformatted": data.get("preformatted", False),
         }
         return "state"
 
