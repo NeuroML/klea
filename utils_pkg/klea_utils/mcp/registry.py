@@ -15,6 +15,8 @@ from types import ModuleType
 from typing import Any
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
+from mcp import types as mt
 from mcp.types import ToolAnnotations
 
 from klea_utils.mcp.privilege import (
@@ -28,6 +30,59 @@ from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_result import to_result
 
 logger = logging.getLogger(__name__)
+
+
+def _schema_declares_null(prop: dict[str, Any]) -> bool:
+    """Return whether a JSON-schema property explicitly allows ``null``."""
+    if prop.get("type") == "null":
+        return True
+    return any(
+        isinstance(option, dict) and option.get("type") == "null"
+        for option in prop.get("anyOf", []) or []
+    )
+
+
+def _strip_null_optionals(schema: dict[str, Any] | None, arguments: dict[str, Any]):
+    """Delete ``null`` values for non-nullable, non-required arguments.
+
+    Weak models frequently emit explicit ``null`` for optional tool arguments
+    (e.g. ``max_chars: null``), which Pydantic rejects for a non-Optional
+    field.  Dropping such a key before validation lets the function's own
+    default apply - the same as omitting it.  Arguments whose schema allows
+    ``null`` (e.g. ``limit: int | None``) or that are required are untouched.
+
+    :param schema: The tool's JSON input schema (``Tool.parameters``).
+    :param arguments: The request arguments, mutated in place.
+    """
+    properties = (schema or {}).get("properties", {}) or {}
+    required = set((schema or {}).get("required", []) or [])
+    for name, value in list(arguments.items()):
+        if value is not None or name in required:
+            continue
+        prop = properties.get(name)
+        if isinstance(prop, dict) and not _schema_declares_null(prop):
+            del arguments[name]
+
+
+class _DropNullOptionalsMiddleware(Middleware):
+    """Treat an explicit ``null`` for a non-nullable optional as its default.
+
+    Runs before argument validation, so ``{"max_chars": null}`` becomes an
+    omitted argument and the tool's default is used, rather than failing with
+    a validation error.  See :func:`_strip_null_optionals`.
+    """
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[mt.CallToolRequestParams],
+        call_next: CallNext[mt.CallToolRequestParams, Any],
+    ) -> Any:
+        message = context.message
+        if message.arguments and context.fastmcp_context is not None:
+            tool = await context.fastmcp_context.fastmcp.get_tool(message.name)
+            if tool is not None:
+                _strip_null_optionals(tool.parameters, message.arguments)
+        return await call_next(context)
 
 
 def _wrap_with_root_guard(fn):
@@ -70,11 +125,16 @@ def register_tools(mcp: FastMCP, modules: list[ModuleType]):
     given module are registered, so an imported decorated function is not
     picked up accidentally.
 
+    Also installs :class:`_DropNullOptionalsMiddleware`, which tolerates weak
+    models sending explicit ``null`` for optional arguments (treated as
+    "use the default").
+
     :param mcp: FastMCP server to register the tools on.
     :param modules: list of modules with tool function definitions
 
     """
     warn_if_root(logger)
+    mcp.add_middleware(_DropNullOptionalsMiddleware())
     for module in modules:
         for fname, fn in inspect.getmembers(module, inspect.isfunction):
             if fn.__module__ != module.__name__:

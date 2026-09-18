@@ -16,7 +16,12 @@ import types
 import pytest
 from fastmcp import Client, FastMCP
 from klea_utils.mcp import registry
-from klea_utils.mcp.registry import _wrap_with_root_guard, register_tools, tool_meta
+from klea_utils.mcp.registry import (
+    _strip_null_optionals,
+    _wrap_with_root_guard,
+    register_tools,
+    tool_meta,
+)
 from klea_utils.mcp.schemas import ToolInfo
 
 logger = logging.getLogger(__name__)
@@ -26,6 +31,12 @@ logger = logging.getLogger(__name__)
 def sample_tool(param: str) -> str:
     """A tool function."""
     return param
+
+
+@tool_meta(ToolInfo(tags={"testing"}))
+def optional_tool(count: int = 5, limit: int | None = None) -> dict:
+    """A tool mixing a non-nullable and a nullable optional argument."""
+    return {"count": count, "limit": limit}
 
 
 @tool_meta(ToolInfo(tags={"testing"}, checkpaths=["path"]))
@@ -228,3 +239,33 @@ def test_register_tools_warns_if_root(monkeypatch):
     register_tools(server, [sys.modules[__name__]])
 
     assert called
+
+
+def test_strip_null_optionals_unit():
+    """Nulls are dropped only for non-nullable, non-required properties."""
+    schema = {
+        "properties": {
+            "a": {"type": "integer"},
+            "b": {"type": "integer"},
+            "c": {"anyOf": [{"type": "integer"}, {"type": "null"}]},
+            "d": {"type": "integer"},
+        },
+        "required": ["d"],
+    }
+    args = {"a": None, "b": 3, "c": None, "d": None}
+    _strip_null_optionals(schema, args)
+    # a: non-nullable optional -> dropped; b: present; c: nullable -> kept;
+    # d: required -> kept (validation reports it).
+    assert args == {"b": 3, "c": None, "d": None}
+
+
+@pytest.mark.asyncio
+async def test_registered_tool_tolerates_null_optional():
+    """A weak model's explicit null uses the default for non-nullable args."""
+    server = FastMCP("test-server")
+    register_tools(server, [sys.modules[__name__]])
+
+    async with Client(transport=server) as client:
+        result = await client.call_tool("optional_tool", {"count": None, "limit": None})
+
+    assert result.structured_content == {"count": 5, "limit": None}
