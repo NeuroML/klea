@@ -453,6 +453,8 @@ def test_extract_usage_from_usage_metadata():
                 "input_tokens": 100,
                 "output_tokens": 20,
                 "total_tokens": 120,
+                "input_token_details": {"cache_read": 64},
+                "output_token_details": {"reasoning": 12},
             },
         )
     )
@@ -460,6 +462,9 @@ def test_extract_usage_from_usage_metadata():
     assert usage.input_tokens == 100
     assert usage.output_tokens == 20
     assert usage.total_tokens == 120
+    assert usage.reasoning_tokens == 12
+    assert usage.cached_tokens == 64
+    assert usage.role == "chat"
 
 
 def test_extract_usage_falls_back_to_response_metadata():
@@ -474,6 +479,7 @@ def test_extract_usage_falls_back_to_response_metadata():
                     "completion_tokens": 505,
                     "total_tokens": 3912,
                     "completion_tokens_details": {"reasoning_tokens": 441},
+                    "prompt_tokens_details": {"cached_tokens": 512},
                 }
             },
         )
@@ -482,6 +488,9 @@ def test_extract_usage_falls_back_to_response_metadata():
     assert usage.input_tokens == 3407
     assert usage.output_tokens == 505
     assert usage.total_tokens == 3912
+    assert usage.reasoning_tokens == 441
+    assert usage.cached_tokens == 512
+    assert usage.role == "chat"
 
 
 def test_extract_usage_none_without_metadata():

@@ -71,3 +71,29 @@ def test_add_token_usage_combines_parallel_deltas() -> None:
         output_tokens=70,
         total_tokens=570,
     )
+
+
+def test_add_token_usage_sums_reasoning_and_cached_and_drops_role() -> None:
+    """Reasoning/cache counters sum; ``role`` is identity and is dropped."""
+    left = TokenUsage(
+        input_tokens=100,
+        output_tokens=20,
+        total_tokens=120,
+        reasoning_tokens=12,
+        cached_tokens=64,
+        role="chat",
+    )
+    right = {
+        "input_tokens": 50,
+        "output_tokens": 10,
+        "total_tokens": 60,
+        "reasoning_tokens": 5,
+        "cached_tokens": 16,
+        "role": "plan",
+    }
+
+    combined = add_token_usage(left, right)
+
+    assert combined.reasoning_tokens == 17
+    assert combined.cached_tokens == 80
+    assert combined.role == ""

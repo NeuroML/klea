@@ -436,6 +436,9 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=input_tokens + output_tokens,
+            reasoning_tokens=usage["reasoning_tokens"],
+            cached_tokens=usage["cached_tokens"],
+            role=self.model_type,
         )
         self.logger.debug(
             f"Node token usage ({source}): {token_usage} "
