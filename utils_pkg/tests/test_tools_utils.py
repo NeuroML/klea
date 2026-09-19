@@ -107,7 +107,7 @@ def test_textualize_tool_results_error():
     logger.debug(f"{output = }")
 
     assert "## Tool Results" in output
-    assert "**Error:**" in output
+    assert "**Tool call failed:**" in output
     assert "Connection timeout" in output
 
 
@@ -167,7 +167,7 @@ def test_textualize_tool_results_multiple_results():
     assert "### Result 1/2" in output
     assert "### Result 2/2" in output
     assert '{"model": "cerebellum"}' in output
-    assert "**Error:**" in output
+    assert "**Tool call failed:**" in output
     assert "Timeout fetching data" in output
 
 
