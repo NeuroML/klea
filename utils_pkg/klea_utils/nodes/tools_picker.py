@@ -170,12 +170,13 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 current.render(current=True) if current else "(no plan)"
             )
         # Appended last (its own prompt section) so the stable prefix above
-        # stays cache-friendly; empty on a normal pick.  Derived from the
-        # incoming state (thread-isolated), not instance fields (ADR-0033).
+        # stays cache-friendly; omitted entirely on a normal pick (prompt
+        # conventions).  Derived from the incoming state (thread-isolated), not
+        # instance fields (ADR-0033).
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
         last_error = last_tool_error_text(getattr(state, "tool_results", None))
         if last_error:
-            variables["picker_feedback"] = (
+            feedback = (
                 "Your previous tool call failed. The error was:\n"
                 f"{last_error}\n"
                 "Fix the arguments of the same tool so the call can succeed. "
@@ -185,14 +186,17 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 "reason in `reason`."
             )
         elif attempts > 0:
-            variables["picker_feedback"] = (
+            feedback = (
                 "Your previous selection contained no usable tool call. Use "
                 "only the tools named in the current step. If none can carry "
                 "out the step, return a single entry with an empty `tool` and "
                 "the reason in `reason`."
             )
         else:
-            variables["picker_feedback"] = ""
+            feedback = ""
+        variables["picker_feedback"] = self._optional_section(
+            "Feedback on your previous selection", feedback
+        )
         return variables
 
     @override

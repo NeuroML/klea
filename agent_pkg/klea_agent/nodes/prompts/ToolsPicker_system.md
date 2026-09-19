@@ -58,10 +58,4 @@ choose which tools to use.
 
 {current_step}
 
----
-
-## Feedback on your previous selection
-
 {picker_feedback}
-
----

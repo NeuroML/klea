@@ -173,6 +173,7 @@ def test_prompt_variables_superset_for_agent_state():
         "picker_feedback",
     } <= set(variables)
     assert variables["current_step"] == "do it"
+    # No feedback -> the whole section (heading included) is omitted.
     assert variables["picker_feedback"] == ""
 
 
@@ -236,6 +237,8 @@ def test_tool_error_adds_its_text_to_feedback():
     # Retries are arguments-only on the same tool; no switching.
     assert "same tool" in feedback
     assert "do not switch" in feedback.lower()
+    # The heading renders only when there is feedback.
+    assert feedback.startswith("## Feedback on your previous selection")
 
 
 def test_no_error_keeps_empty_selection_feedback():

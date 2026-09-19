@@ -58,6 +58,8 @@ class TestAnswerFromResults(unittest.TestCase):
         self.assertIn("list files", variables["plan"])
         self.assertIn("observations", variables)
         self.assertEqual(variables["outcome"], "success")
+        # On success the outcome-detail block is omitted entirely.
+        self.assertEqual(variables["outcome_details"], "")
 
     def _failed_state(self) -> KleaAgentState:
         state = KleaAgentState(query="do x")
@@ -68,7 +70,9 @@ class TestAnswerFromResults(unittest.TestCase):
     def test_failure_outcome_in_prompt_variables(self):
         variables = self._node()._get_prompt_variables(self._failed_state())
         self.assertEqual(variables["outcome"], "failure")
-        self.assertEqual(variables["failure_reason"], "tool-round budget exhausted")
+        self.assertEqual(
+            variables["outcome_details"], "Failure reason: tool-round budget exhausted"
+        )
 
     def test_failure_fallback_mentions_reason(self):
         answer = self._node()._fallback_answer(self._failed_state())
@@ -89,7 +93,7 @@ class TestAnswerFromResults(unittest.TestCase):
     def test_needs_input_outcome_in_prompt_variables(self):
         variables = self._node()._get_prompt_variables(self._needs_input_state())
         self.assertEqual(variables["outcome"], "needs_input")
-        self.assertEqual(variables["pending_question"], "which file?")
+        self.assertEqual(variables["outcome_details"], "Pending question: which file?")
 
     def test_needs_input_is_not_failure(self):
         self.assertFalse(self._node()._is_failure(self._needs_input_state()))
@@ -129,6 +133,25 @@ class TestAnswerFromResults(unittest.TestCase):
             AnswerSchema(answer="question"), self._needs_input_state()
         )
         assert "artefacts" not in update
+
+    def test_only_deliverable_is_persisted_not_observations(self):
+        """Artefacts hold the concise result, not the step observations.
+
+        The full reply also reaches ``messages`` via ``AnswerUser`` (lossy
+        continuity); only the deliverable is session-scoped, so intermediate
+        tool/reasoning outputs (``step_outputs``) must not leak into
+        ``artefacts``.
+        """
+        state = self._state()
+        state.step_outputs = {1: []}
+        update = self._node()._update_state(
+            AnswerSchema(answer="the concise result"), state
+        )
+        artefact = next(iter(update["artefacts"].values()))
+        assert "the concise result" in artefact.content
+        assert "step_outputs" not in artefact.content
+        # The reply itself is delivered via message_for_user (-> messages).
+        assert update["message_for_user"] == "the concise result"
 
 
 if __name__ == "__main__":
