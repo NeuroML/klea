@@ -344,8 +344,13 @@ Responses API when <code class="docutils literal notranslate"><span class="pre">
 
 <dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS">
-<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4096</span></span><a class="headerlink" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16384</span></span><a class="headerlink" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
 <dd><p>Fallback max output tokens used when no node/role default provides a value.</p>
+<p>Deliberately generous: reasoning models spend most of the completion budget
+on hidden reasoning tokens, so a small cap truncates even tiny structured
+payloads.  The value is a ceiling, not a target, and is clamped per model by
+<a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit" title="klea_utils.llm.resolve_output_token_limit"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a> (catalog output limit and context
+headroom), so a large default is safe for small models too.</p>
 </dd></dl>
 
 <dl class="py data">
@@ -544,6 +549,12 @@ bucket.</p>
 <dd class="field-even"><p>The best-effort <a class="reference internal" href="errors.html#klea_utils.errors.LLMInvocationErrorCategory" title="klea_utils.errors.LLMInvocationErrorCategory"><code class="xref py py-class docutils literal notranslate"><span class="pre">klea_utils.errors.LLMInvocationErrorCategory</span></code></a>.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.clear_structured_output_cache">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">clear_structured_output_cache</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#clear_structured_output_cache"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.clear_structured_output_cache" title="Link to this definition">¶</a></dt>
+<dd><p>Clear the process-local structured-output capability cache (tests).</p>
 </dd></dl>
 
 <dl class="py function">
@@ -796,6 +807,51 @@ list-form <code class="docutils literal notranslate"><span class="pre">finish_re
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.is_structured_capability_rejection">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">is_structured_capability_rejection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#BaseException" title="(in Python v3.14)"><span class="pre">BaseException</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#is_structured_capability_rejection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.is_structured_capability_rejection" title="Link to this definition">¶</a></dt>
+<dd><p>Return True if <em>exc</em> is a stable capability rejection of structured output.</p>
+<p>Stricter than the <code class="docutils literal notranslate"><span class="pre">STRUCTURED_OUTPUT_REJECTED</span></code> category returned by
+<a class="reference internal" href="#klea_utils.llm.classify_llm_invocation_error" title="klea_utils.llm.classify_llm_invocation_error"><code class="xref py py-func docutils literal notranslate"><span class="pre">classify_llm_invocation_error()</span></code></a>: only messages naming
+<code class="docutils literal notranslate"><span class="pre">response_format</span></code> / <code class="docutils literal notranslate"><span class="pre">json_schema</span></code> / <code class="docutils literal notranslate"><span class="pre">structured</span> <span class="pre">output</span></code> qualify.  The
+category’s generic <code class="docutils literal notranslate"><span class="pre">400</span> <span class="pre">invalid_request_error</span></code> pattern is excluded so an
+unrelated bad request cannot poison the capability cache.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>exc</strong> – The exception raised by the structured invoke.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True when the endpoint will keep refusing the parameter.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.is_structured_output_failure">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">is_structured_output_failure</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">exc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#BaseException" title="(in Python v3.14)"><span class="pre">BaseException</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#is_structured_output_failure"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.is_structured_output_failure" title="Link to this definition">¶</a></dt>
+<dd><p>Return True if <em>exc</em> means the structured call produced no usable output.</p>
+<p>The structured path (<code class="docutils literal notranslate"><span class="pre">with_structured_output(...).ainvoke</span></code>) can fail in
+ways the plain invoke cannot: the provider rejects the <code class="docutils literal notranslate"><span class="pre">response_format</span></code>
+parameter, or the model returns content that does not satisfy the schema.
+Some SDKs surface the latter as a pydantic <code class="xref py py-class docutils literal notranslate"><span class="pre">ValidationError</span></code> (the
+OpenAI client validates JSON inside its own parser) rather than a LangChain
+parser error, so both types are treated as a structured failure.</p>
+<p>Detection is by exception type wherever possible, so a provider’s new error
+wording does not need a new pattern; the one message-classified case is
+<code class="xref py py-data docutils literal notranslate"><span class="pre">STRUCTURED_OUTPUT_REJECTED</span></code>
+(parameter refusal), which has no distinct exception type.</p>
+<p>Empty responses are deliberately included: the caller decides whether to
+retry them on the structured path or fall back to plain.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>exc</strong> – Exception raised by the structured invoke.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True when the structured call should give way to a plain invoke.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.llm.load_prompt">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">load_prompt</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">prompt_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">prompt_registry_location</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#load_prompt"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.load_prompt" title="Link to this definition">¶</a></dt>
 <dd><p>Load a prompt from file called prompt_name.md</p>
@@ -808,6 +864,21 @@ list-form <code class="docutils literal notranslate"><span class="pre">finish_re
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>loaded prompt text</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.mark_structured_output_unsupported">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">mark_structured_output_unsupported</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#mark_structured_output_unsupported"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.mark_structured_output_unsupported" title="Link to this definition">¶</a></dt>
+<dd><p>Record a stable capability rejection for the process lifetime.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Resolved <code class="docutils literal notranslate"><span class="pre">model_provider</span></code>.</p></li>
+<li><p><strong>model</strong> – Resolved model identifier.</p></li>
+<li><p><strong>base_url</strong> – Endpoint base URL, when one applies.</p></li>
+</ul>
 </dd>
 </dl>
 </dd></dl>
@@ -1045,6 +1116,27 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <dd><p>Split out thoughts and actual responses from AI responses</p>
 </dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.structured_output_known_unsupported">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">structured_output_known_unsupported</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">base_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#structured_output_known_unsupported"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.structured_output_known_unsupported" title="Link to this definition">¶</a></dt>
+<dd><p>Return True if this endpoint was seen refusing structured output.</p>
+<p>Consulted before building <code class="docutils literal notranslate"><span class="pre">with_structured_output</span></code> so a rejecting
+endpoint is not re-probed on every node call.  A miss (<code class="docutils literal notranslate"><span class="pre">False</span></code>) may
+still reject – the first attempt for a key always probes.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Resolved <code class="docutils literal notranslate"><span class="pre">model_provider</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;openai&quot;</span></code>).</p></li>
+<li><p><strong>model</strong> – Resolved model identifier.</p></li>
+<li><p><strong>base_url</strong> – Endpoint base URL, when one applies.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True when the key is known to reject <code class="docutils literal notranslate"><span class="pre">response_format</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
 
         </article>
@@ -1127,6 +1219,7 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <li><a class="reference internal" href="#klea_utils.llm.check_model_works"><code class="docutils literal notranslate"><span class="pre">check_model_works()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.check_ollama_model"><code class="docutils literal notranslate"><span class="pre">check_ollama_model()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.classify_llm_invocation_error"><code class="docutils literal notranslate"><span class="pre">classify_llm_invocation_error()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.clear_structured_output_cache"><code class="docutils literal notranslate"><span class="pre">clear_structured_output_cache()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.content_to_str"><code class="docutils literal notranslate"><span class="pre">content_to_str()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.create_configurable_model"><code class="docutils literal notranslate"><span class="pre">create_configurable_model()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.estimate_input_tokens"><code class="docutils literal notranslate"><span class="pre">estimate_input_tokens()</span></code></a></li>
@@ -1139,7 +1232,10 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <li><a class="reference internal" href="#klea_utils.llm.is_empty_structured_parse_error"><code class="docutils literal notranslate"><span class="pre">is_empty_structured_parse_error()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_output_empty"><code class="docutils literal notranslate"><span class="pre">is_output_empty()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_output_truncated"><code class="docutils literal notranslate"><span class="pre">is_output_truncated()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.is_structured_capability_rejection"><code class="docutils literal notranslate"><span class="pre">is_structured_capability_rejection()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.is_structured_output_failure"><code class="docutils literal notranslate"><span class="pre">is_structured_output_failure()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.load_prompt"><code class="docutils literal notranslate"><span class="pre">load_prompt()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.mark_structured_output_unsupported"><code class="docutils literal notranslate"><span class="pre">mark_structured_output_unsupported()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.parse_model_name"><code class="docutils literal notranslate"><span class="pre">parse_model_name()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.parse_output_with_thought"><code class="docutils literal notranslate"><span class="pre">parse_output_with_thought()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.prompt_value_to_messages"><code class="docutils literal notranslate"><span class="pre">prompt_value_to_messages()</span></code></a></li>
@@ -1149,6 +1245,7 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit"><code class="docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_user_agent"><code class="docutils literal notranslate"><span class="pre">resolve_user_agent()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.split_output_by_section"><code class="docutils literal notranslate"><span class="pre">split_output_by_section()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.structured_output_known_unsupported"><code class="docutils literal notranslate"><span class="pre">structured_output_known_unsupported()</span></code></a></li>
 </ul>
 </li>
 </ul>

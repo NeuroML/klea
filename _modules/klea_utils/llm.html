@@ -309,6 +309,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
@@ -326,7 +327,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptValue</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ValidationError</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMInvocationErrorCategory</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.imports</span><span class="w"> </span><span class="kn">import</span> <span class="n">require_extra</span>
@@ -909,6 +910,119 @@
 
 
 
+<div class="viewcode-block" id="is_structured_output_failure">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_structured_output_failure">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_structured_output_failure</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True if *exc* means the structured call produced no usable output.</span>
+
+<span class="sd">    The structured path (``with_structured_output(...).ainvoke``) can fail in</span>
+<span class="sd">    ways the plain invoke cannot: the provider rejects the ``response_format``</span>
+<span class="sd">    parameter, or the model returns content that does not satisfy the schema.</span>
+<span class="sd">    Some SDKs surface the latter as a pydantic :class:`ValidationError` (the</span>
+<span class="sd">    OpenAI client validates JSON inside its own parser) rather than a LangChain</span>
+<span class="sd">    parser error, so both types are treated as a structured failure.</span>
+
+<span class="sd">    Detection is by exception type wherever possible, so a provider's new error</span>
+<span class="sd">    wording does not need a new pattern; the one message-classified case is</span>
+<span class="sd">    :data:`~klea_utils.errors.LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED`</span>
+<span class="sd">    (parameter refusal), which has no distinct exception type.</span>
+
+<span class="sd">    Empty responses are deliberately included: the caller decides whether to</span>
+<span class="sd">    retry them on the structured path or fall back to plain.</span>
+
+<span class="sd">    :param exc: Exception raised by the structured invoke.</span>
+<span class="sd">    :returns: True when the structured call should give way to a plain invoke.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="p">(</span><span class="n">ValidationError</span><span class="p">,</span> <span class="n">OutputParserException</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">classify_llm_invocation_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+        <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="c1">#: Process-local negative cache of ``(provider, model, base_url)`` triples</span>
+<span class="c1">#: whose endpoint has been seen refusing structured output.  Populated only</span>
+<span class="c1">#: from a stable :func:`is_structured_capability_rejection` (see there): a</span>
+<span class="c1">#: per-response schema parse failure must never disable structured output for</span>
+<span class="c1">#: later calls.  Deliberately in-memory only -- a persisted negative could go</span>
+<span class="c1">#: stale if a deployment later adds ``response_format`` support, and one</span>
+<span class="c1">#: re-probe per process is cheap.</span>
+<span class="n">_STRUCTURED_UNSUPPORTED</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_structured_output_cache_key</span><span class="p">(</span>
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Normalize a structured-output capability cache key.</span>
+
+<span class="sd">    ``openai``-shaped deployments can share a provider and model name while</span>
+<span class="sd">    pointing at different ``base_url``\\ s with different capabilities, so the</span>
+<span class="sd">    endpoint is part of the identity.  Values are trimmed and lower-cased so</span>
+<span class="sd">    trivially different spellings share an entry.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">provider</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+        <span class="n">model</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
+        <span class="n">base_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="k">if</span> <span class="n">base_url</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="structured_output_known_unsupported">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.structured_output_known_unsupported">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">structured_output_known_unsupported</span><span class="p">(</span>
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True if this endpoint was seen refusing structured output.</span>
+
+<span class="sd">    Consulted before building ``with_structured_output`` so a rejecting</span>
+<span class="sd">    endpoint is not re-probed on every node call.  A miss (``False``) may</span>
+<span class="sd">    still reject -- the first attempt for a key always probes.</span>
+
+<span class="sd">    :param provider: Resolved ``model_provider`` (e.g. ``"openai"``).</span>
+<span class="sd">    :param model: Resolved model identifier.</span>
+<span class="sd">    :param base_url: Endpoint base URL, when one applies.</span>
+<span class="sd">    :returns: True when the key is known to reject ``response_format``.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_structured_output_cache_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span>
+        <span class="n">_STRUCTURED_UNSUPPORTED</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="mark_structured_output_unsupported">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.mark_structured_output_unsupported">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">mark_structured_output_unsupported</span><span class="p">(</span>
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Record a stable capability rejection for the process lifetime.</span>
+
+<span class="sd">    :param provider: Resolved ``model_provider``.</span>
+<span class="sd">    :param model: Resolved model identifier.</span>
+<span class="sd">    :param base_url: Endpoint base URL, when one applies.</span>
+<span class="sd">    """</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="n">_structured_output_cache_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="p">:</span>
+        <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">"Structured output unsupported for provider </span><span class="si">%r</span><span class="s2"> model </span><span class="si">%r</span><span class="s2"> (base_url=</span><span class="si">%r</span><span class="s2">); "</span>
+            <span class="s2">"using prompt-based output for the rest of this process"</span><span class="p">,</span>
+            <span class="n">provider</span><span class="p">,</span>
+            <span class="n">model</span><span class="p">,</span>
+            <span class="n">base_url</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="clear_structured_output_cache">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.clear_structured_output_cache">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">clear_structured_output_cache</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Clear the process-local structured-output capability cache (tests)."""</span>
+    <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+
+
 <div class="viewcode-block" id="get_token_limit_param">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.get_token_limit_param">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_token_limit_param</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -941,16 +1055,26 @@
 
 
 <span class="c1">#: Fallback max output tokens used when no node/role default provides a value.</span>
-<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">4096</span>
+<span class="c1">#:</span>
+<span class="c1">#: Deliberately generous: reasoning models spend most of the completion budget</span>
+<span class="c1">#: on hidden reasoning tokens, so a small cap truncates even tiny structured</span>
+<span class="c1">#: payloads.  The value is a ceiling, not a target, and is clamped per model by</span>
+<span class="c1">#: :func:`resolve_output_token_limit` (catalog output limit and context</span>
+<span class="c1">#: headroom), so a large default is safe for small models too.</span>
+<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">16384</span>
 
 <span class="c1">#: Built-in per-role max output token defaults.  Nodes may override these</span>
 <span class="c1">#: with the generic ``max_output_tokens`` key in ``model_defaults``, and</span>
 <span class="c1">#: admins may override them per provider via the ``providers`` config</span>
 <span class="c1">#: section.</span>
+<span class="c1">#:</span>
+<span class="c1">#: ``guard`` stays small: a safety classifier emits a one-word verdict, so</span>
+<span class="c1">#: there is no reason to reserve a large window.  Every other role gets the</span>
+<span class="c1">#: generous default so reasoning models do not truncate.</span>
 <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"chat"</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
-    <span class="s2">"plan"</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
-    <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
+    <span class="s2">"chat"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"plan"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1">#: The three max-output token parameter names used across providers.</span>
@@ -1306,6 +1430,19 @@
     <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\b400\b[^\n]*invalid_request_error"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
 <span class="p">]</span>
 
+<span class="c1">#: Strict subset of :data:`_STRUCTURED_OUTPUT_REJECTED_PATTERNS` naming the</span>
+<span class="c1">#: structured-output parameter itself.  Only these indicate a *stable</span>
+<span class="c1">#: capability gap* of the deployment, so only these may populate the</span>
+<span class="c1">#: process-local capability cache.  The generic</span>
+<span class="c1">#: ``400 invalid_request_error`` pattern is intentionally excluded: it can</span>
+<span class="c1">#: also match an unrelated bad request (e.g. an unsupported sampling</span>
+<span class="c1">#: parameter), and caching that would silently disable structured output.</span>
+<span class="n">_STRUCTURED_OUTPUT_CAPABILITY_PATTERNS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">re</span><span class="o">.</span><span class="n">Pattern</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"response_format"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"structured output"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
+<span class="p">]</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_flatten_exception_messages</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Collect the message from an exception and its cause chain.</span>
@@ -1363,6 +1500,27 @@
     <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_STRUCTURED_OUTPUT_REJECTED_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
     <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">UNKNOWN</span></div>
+
+
+
+<div class="viewcode-block" id="is_structured_capability_rejection">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_structured_capability_rejection">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">is_structured_capability_rejection</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True if *exc* is a stable capability rejection of structured output.</span>
+
+<span class="sd">    Stricter than the ``STRUCTURED_OUTPUT_REJECTED`` category returned by</span>
+<span class="sd">    :func:`classify_llm_invocation_error`: only messages naming</span>
+<span class="sd">    ``response_format`` / ``json_schema`` / ``structured output`` qualify.  The</span>
+<span class="sd">    category's generic ``400 invalid_request_error`` pattern is excluded so an</span>
+<span class="sd">    unrelated bad request cannot poison the capability cache.</span>
+
+<span class="sd">    :param exc: The exception raised by the structured invoke.</span>
+<span class="sd">    :returns: True when the endpoint will keep refusing the parameter.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_matches_any</span><span class="p">(</span>
+        <span class="n">_STRUCTURED_OUTPUT_CAPABILITY_PATTERNS</span><span class="p">,</span>
+        <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_flatten_exception_messages</span><span class="p">(</span><span class="n">exc</span><span class="p">)),</span>
+    <span class="p">)</span></div>
 
 
 

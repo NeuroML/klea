@@ -333,7 +333,6 @@
     <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
     <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
-        <span class="s2">"max_output_tokens"</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
     <span class="p">}</span>
 <span class="w">    </span><span class="sd">"""Node that summarises conversation history into a context summary.</span>
 
@@ -415,18 +414,39 @@
 
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_prompt_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Format prompt with conversation data."""</span>
+<span class="w">        </span><span class="sd">"""Format prompt with conversation data.</span>
+
+<span class="sd">        ``context_summary`` is empty on the first summarisation, so the</span>
+<span class="sd">        previous-summary section is composed as an optional block and omitted</span>
+<span class="sd">        entirely when there is none (prompt conventions).</span>
+<span class="sd">        """</span>
         <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">"old_summary"</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">context_summary</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
+            <span class="s2">"old_summary_block"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
+                <span class="s2">"Current summary"</span><span class="p">,</span>
+                <span class="n">state</span><span class="o">.</span><span class="n">context_summary</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
+            <span class="p">),</span>
             <span class="s2">"conversation"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conversation</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Extract summary from raw AIMessage output."""</span>
+<span class="w">        </span><span class="sd">"""Extract summary from raw AIMessage output.</span>
+
+<span class="sd">        A blank response is not a usable summary.  Advancing</span>
+<span class="sd">        ``summarised_till`` on it would replace the existing</span>
+<span class="sd">        ``context_summary`` with an empty string and drop the old</span>
+<span class="sd">        conversation from the memory window, so preserve the existing state</span>
+<span class="sd">        instead (return ``{}``): the next invocation retries the same window.</span>
+<span class="sd">        """</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Current history summary is:</span><span class="se">\n</span><span class="si">{</span><span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">content</span> <span class="o">=</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">)</span>
         <span class="n">_</span><span class="p">,</span> <span class="n">answer</span> <span class="o">=</span> <span class="n">split_output_by_section</span><span class="p">(</span><span class="n">content</span><span class="p">,</span> <span class="s2">"&lt;think&gt;"</span><span class="p">,</span> <span class="s2">"&lt;/think&gt;"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">answer</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Summarisation produced no usable content; preserving the "</span>
+                <span class="s2">"existing summary and leaving the window unsummarised"</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{}</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"context_summary"</span><span class="p">:</span> <span class="n">answer</span><span class="p">,</span>
             <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span><span class="p">,</span>

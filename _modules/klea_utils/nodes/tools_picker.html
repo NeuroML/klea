@@ -308,6 +308,7 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">override</span>
 
@@ -346,7 +347,6 @@
     <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
     <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
-        <span class="s2">"max_output_tokens"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
     <span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -358,6 +358,7 @@
         <span class="n">model_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"chat"</span><span class="p">,</span>
         <span class="n">prompt_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ToolsPicker"</span><span class="p">,</span>
         <span class="n">prompt_registry_location</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">on_unusable</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Initialise the tools picker node.</span>
 
@@ -372,6 +373,11 @@
 <span class="sd">            Must be set for apps: the sibling-``prompts`` fallback in</span>
 <span class="sd">            ``BaseLLMNode`` resolves relative to this shared class file,</span>
 <span class="sd">            not the application.</span>
+<span class="sd">        :param on_unusable: Optional app callback ``(state, reason) -&gt;</span>
+<span class="sd">            state_updates`` invoked when the picker returns no usable call but</span>
+<span class="sd">            explains why (a single empty-name call with a ``reason``).  The app</span>
+<span class="sd">            records that as a synthetic failure observation and a</span>
+<span class="sd">            ``replan_reason`` (agent); RAG passes nothing.</span>
 <span class="sd">        """</span>
         <span class="c1"># Must be set before AbstractLLMNode.__init__ reads it to pick the</span>
         <span class="c1"># right entry from llm_models.</span>
@@ -385,6 +391,7 @@
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_tools_info</span> <span class="o">=</span> <span class="n">tools_info</span> <span class="ow">or</span> <span class="p">{}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_prompt_prefix</span> <span class="o">=</span> <span class="n">prompt_prefix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_on_unusable</span> <span class="o">=</span> <span class="n">on_unusable</span>
         <span class="k">if</span> <span class="n">prompt_registry_location</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">prompt_registry_location</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">prompt_registry_location</span><span class="p">)</span>
 
@@ -448,7 +455,13 @@
             <span class="n">variables</span><span class="p">[</span><span class="s2">"query"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">query</span>
         <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"artefacts"</span><span class="p">):</span>
             <span class="n">variables</span><span class="p">[</span><span class="s2">"artefacts"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">artefacts</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">):</span>
+        <span class="n">render_observations</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"observations_text"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">render_observations</span><span class="p">):</span>
+            <span class="c1"># Agent state: the accumulated per-step outputs (tool results and</span>
+            <span class="c1"># reasoning conclusions), so the picker can bind arguments from</span>
+            <span class="c1"># earlier steps - not just the last batch.</span>
+            <span class="n">variables</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">render_observations</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">):</span>
             <span class="n">variables</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">tool_results</span>
         <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -457,52 +470,76 @@
                 <span class="n">current</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">current</span> <span class="k">else</span> <span class="s2">"(no plan)"</span>
             <span class="p">)</span>
         <span class="c1"># Appended last (its own prompt section) so the stable prefix above</span>
-        <span class="c1"># stays cache-friendly; empty on a normal pick.  Derived from the</span>
-        <span class="c1"># incoming state (thread-isolated), not instance fields (ADR-0033).</span>
+        <span class="c1"># stays cache-friendly; omitted entirely on a normal pick (prompt</span>
+        <span class="c1"># conventions).  Derived from the incoming state (thread-isolated), not</span>
+        <span class="c1"># instance fields (ADR-0033).</span>
         <span class="n">attempts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">last_error</span> <span class="o">=</span> <span class="n">last_tool_error_text</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">last_error</span><span class="p">:</span>
-            <span class="n">variables</span><span class="p">[</span><span class="s2">"picker_feedback"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="s2">"Your previous tool call failed. The error was:</span><span class="se">\n</span><span class="s2">"</span>
                 <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="s2">"Adjust the call so it can succeed."</span>
-                <span class="s2">"Do not add new tool calls."</span>
-                <span class="s2">"If the error suggests the call cannot be completed, return an empty `tool_calls` list."</span>
+                <span class="s2">"Fix the arguments of the same tool so the call can succeed. "</span>
+                <span class="s2">"Do not switch to a different tool and do not add new calls. "</span>
+                <span class="s2">"If the error shows the step cannot be completed with this "</span>
+                <span class="s2">"tool, return a single entry with an empty `tool` and the "</span>
+                <span class="s2">"reason in `reason`."</span>
             <span class="p">)</span>
         <span class="k">elif</span> <span class="n">attempts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">variables</span><span class="p">[</span><span class="s2">"picker_feedback"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s2">"Your previous selection contained no usable tool call. "</span>
-                <span class="s2">"Only pick tools from the provided list; if the step cannot be "</span>
-                <span class="s2">"carried out with them, return an empty `tool_calls` list."</span>
+            <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">"Your previous selection contained no usable tool call. Use "</span>
+                <span class="s2">"only the tools named in the current step. If none can carry "</span>
+                <span class="s2">"out the step, return a single entry with an empty `tool` and "</span>
+                <span class="s2">"the reason in `reason`."</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">variables</span><span class="p">[</span><span class="s2">"picker_feedback"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">""</span>
+            <span class="n">feedback</span> <span class="o">=</span> <span class="s2">""</span>
+        <span class="n">variables</span><span class="p">[</span><span class="s2">"picker_feedback"</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
+            <span class="s2">"Feedback on your previous selection"</span><span class="p">,</span> <span class="n">feedback</span>
+        <span class="p">)</span>
         <span class="k">return</span> <span class="n">variables</span>
 
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">ToolCallsSchema</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Write the selected calls and the empty-selection retry counter.</span>
+<span class="w">        </span><span class="sd">"""Write the selected calls, the failure callback and the retry counter.</span>
 
-<span class="sd">        A picker that returns no calls on a step it was asked to execute is a</span>
-<span class="sd">        picker failure, not a planner failure.  The counter is kept in graph</span>
-<span class="sd">        state (thread-isolated, ADR-0033), not on the shared node instance:</span>
-<span class="sd">        it increments on each consecutive empty selection and resets when a</span>
-<span class="sd">        non-empty selection is produced or the plan step changes.  The</span>
-<span class="sd">        orchestrator's picker router reads it to retry the picker a bounded</span>
-<span class="sd">        number of times before letting the empty round proceed to the</span>
-<span class="sd">        evaluator.</span>
+<span class="sd">        A usable selection is written as-is.  An unusable selection with an</span>
+<span class="sd">        explicit ``reason`` (a single empty-name call carrying the reason) is a</span>
+<span class="sd">        *deliberate* failure: the app's ``on_unusable`` callback records it as a</span>
+<span class="sd">        synthetic observation and a replan reason.  An empty/malformed</span>
+<span class="sd">        selection with no reason is an emission glitch: the counter is kept in</span>
+<span class="sd">        graph state (thread-isolated, ADR-0033) so the orchestrator can retry</span>
+<span class="sd">        the picker a bounded number of times before escalating.</span>
 <span class="sd">        """</span>
         <span class="n">tool_calls</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">tool_calls</span>
+        <span class="n">usable</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span>
+        <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tool_calls"</span><span class="p">:</span> <span class="n">tool_calls</span><span class="p">}</span>
+
+        <span class="c1"># Deliberate failure: no usable call, but the picker explained why.  The</span>
+        <span class="c1"># app records it (synthetic is_error result + replan_reason) so the</span>
+        <span class="c1"># graph replans with a concrete reason instead of dispatching nothing.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">usable</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_unusable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">reason</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+                <span class="p">(</span>
+                    <span class="n">tc</span><span class="o">.</span><span class="n">reason</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="n">tc</span><span class="o">.</span><span class="n">reason</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="p">),</span>
+                <span class="s2">""</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">reason</span><span class="p">:</span>
+                <span class="n">update</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_on_unusable</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">reason</span><span class="p">))</span>
+
         <span class="c1"># The retry counter only exists on the agent state; RAG has no picker</span>
         <span class="c1"># retry edge, so omit the keys there rather than writing unknown state.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">):</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s2">"tool_calls"</span><span class="p">:</span> <span class="n">tool_calls</span><span class="p">}</span>
+            <span class="k">return</span> <span class="n">update</span>
+
         <span class="c1"># An empty list and a list whose calls all have empty/whitespace names</span>
         <span class="c1"># are the same failure: no usable tool call.  Unknown-but-non-empty</span>
         <span class="c1"># names are left to dispatch (which reports a clear error).</span>
-        <span class="n">usable</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span>
         <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="n">step</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">"current_step_index"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
         <span class="n">prev_step</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_step"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
@@ -515,11 +552,9 @@
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">step</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">prev_step</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">prev_attempts</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">attempts</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">usable = </span><span class="si">{</span><span class="n">usable</span><span class="si">}</span><span class="se">\n</span><span class="s2">selected = </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">"tool_calls"</span><span class="p">:</span> <span class="n">tool_calls</span><span class="p">,</span>
-            <span class="s2">"picker_attempts"</span><span class="p">:</span> <span class="n">attempts</span><span class="p">,</span>
-            <span class="s2">"picker_step"</span><span class="p">:</span> <span class="n">step</span><span class="p">,</span>
-        <span class="p">}</span>
+        <span class="n">update</span><span class="p">[</span><span class="s2">"picker_attempts"</span><span class="p">]</span> <span class="o">=</span> <span class="n">attempts</span>
+        <span class="n">update</span><span class="p">[</span><span class="s2">"picker_step"</span><span class="p">]</span> <span class="o">=</span> <span class="n">step</span>
+        <span class="k">return</span> <span class="n">update</span>
 
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_default_error_result</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolCallsSchema</span><span class="p">:</span>

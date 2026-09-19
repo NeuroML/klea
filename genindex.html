@@ -420,6 +420,8 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.CACHE_DIR_NAME">CACHE_DIR_NAME (in module klea_utils.stores.utils)</a>
 </li>
+        <li><a href="api/utils/graph.html#klea_utils.graph.schemas.TokenUsage.cached_tokens">cached_tokens (klea_utils.graph.schemas.TokenUsage attribute)</a>
+</li>
         <li><a href="api/utils/stores.html#klea_utils.stores.retrieval.base.BaseKleaRetriever.can_inc_k">can_inc_k() (klea_utils.stores.retrieval.base.BaseKleaRetriever method)</a>
 </li>
         <li><a href="glossary.html#term-Chat-model"><strong>Chat model</strong></a>
@@ -479,6 +481,8 @@
         <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_override">clear_override() (klea_utils.api.sessions_db.SessionStore method)</a>
 </li>
         <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_overrides">clear_overrides() (klea_utils.api.sessions_db.SessionStore method)</a>
+</li>
+        <li><a href="api/utils/llm.html#klea_utils.llm.clear_structured_output_cache">clear_structured_output_cache() (in module klea_utils.llm)</a>
 </li>
         <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.close">close() (klea_utils.api.sessions_db.SessionStore method)</a>
 
@@ -882,10 +886,10 @@
 </li>
         <li><a href="api/utils/llm.html#klea_utils.llm.INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR">INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR (in module klea_utils.llm)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.theme.install_theme">install_theme() (in module klea_utils.ui.web.nicegui.components.theme)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.instantiate_vector_store">instantiate_vector_store() (in module klea_utils.stores.utils)</a>
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.is_binary">is_binary() (in module klea_utils.mcp.tool_impls.file_ops)</a>
@@ -901,6 +905,10 @@
         <li><a href="api/utils/llm.html#klea_utils.llm.is_output_truncated">is_output_truncated() (in module klea_utils.llm)</a>
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.ssrf.is_private_or_reserved">is_private_or_reserved() (in module klea_utils.mcp.tool_impls.ssrf)</a>
+</li>
+        <li><a href="api/utils/llm.html#klea_utils.llm.is_structured_capability_rejection">is_structured_capability_rejection() (in module klea_utils.llm)</a>
+</li>
+        <li><a href="api/utils/llm.html#klea_utils.llm.is_structured_output_failure">is_structured_output_failure() (in module klea_utils.llm)</a>
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.walk.iter_files">iter_files() (in module klea_utils.mcp.tool_impls.walk)</a>
 </li>
@@ -1703,6 +1711,8 @@
 </li>
         <li><a href="api/utils/ui-stores-create.html#klea_utils.ui.stores_create.map_lint">map_lint() (in module klea_utils.ui.stores_create)</a>
 </li>
+        <li><a href="api/utils/llm.html#klea_utils.llm.mark_structured_output_unsupported">mark_structured_output_unsupported() (in module klea_utils.llm)</a>
+</li>
         <li><a href="api/utils/plogging.html#klea_utils.plogging.mask_sensitive">mask_sensitive() (in module klea_utils.plogging)</a>
 </li>
         <li><a href="api/utils/nodes.html#klea_utils.nodes.base.MAX_CONTEXT_OVERFLOW_RETRIES">MAX_CONTEXT_OVERFLOW_RETRIES (in module klea_utils.nodes.base)</a>
@@ -2158,6 +2168,8 @@
         </ul></li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.read_whole_text">read_whole_text() (in module klea_utils.mcp.tool_impls.file_ops)</a>
 </li>
+        <li><a href="api/utils/graph.html#klea_utils.graph.schemas.TokenUsage.reasoning_tokens">reasoning_tokens (klea_utils.graph.schemas.TokenUsage attribute)</a>
+</li>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.RECENCY_MISSING_YEAR_SCORE">RECENCY_MISSING_YEAR_SCORE (in module klea_utils.stores.utils)</a>
 </li>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.RECENCY_WEIGHT_RELEVANCE">RECENCY_WEIGHT_RELEVANCE (in module klea_utils.stores.utils)</a>
@@ -2246,6 +2258,8 @@
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.rg_backend.rg_grep">rg_grep() (in module klea_utils.mcp.tool_impls.rg_backend)</a>
 </li>
+        <li><a href="api/utils/graph.html#klea_utils.graph.schemas.TokenUsage.role">role (klea_utils.graph.schemas.TokenUsage attribute)</a>
+</li>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.RRF_K">RRF_K (in module klea_utils.stores.utils)</a>
 </li>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.rrf_merge">rrf_merge() (in module klea_utils.stores.utils)</a>
@@ -2326,10 +2340,10 @@
           <li><a href="api/utils/stores.html#klea_utils.stores.retrieval.vs.VSRetriever.source_label">(klea_utils.stores.retrieval.vs.VSRetriever attribute)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/utils/stores.html#klea_utils.stores.utils.SOURCE_SCORES_KEY">SOURCE_SCORES_KEY (in module klea_utils.stores.utils)</a>
 </li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/utils/api.html#klea_utils.api.server.spawn_server">spawn_server() (in module klea_utils.api.server)</a>
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.split_bom">split_bom() (in module klea_utils.mcp.tool_impls.file_ops)</a>
@@ -2368,6 +2382,8 @@
           <li><a href="api/utils/nodes.html#klea_utils.nodes.answer_general.AnswerGeneral.stream_tokens">(klea_utils.nodes.answer_general.AnswerGeneral attribute)</a>
 </li>
         </ul></li>
+        <li><a href="api/utils/llm.html#klea_utils.llm.structured_output_known_unsupported">structured_output_known_unsupported() (in module klea_utils.llm)</a>
+</li>
         <li><a href="api/utils/llm.html#klea_utils.llm.ParsedModelName.suffix">suffix (klea_utils.llm.ParsedModelName attribute)</a>
 </li>
         <li><a href="api/utils/nodes.html#klea_utils.nodes.summarise_memory.SummariseMemoryNode">SummariseMemoryNode (class in klea_utils.nodes.summarise_memory)</a>

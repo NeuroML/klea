@@ -342,10 +342,14 @@
     <span class="n">is_empty_structured_parse_error</span><span class="p">,</span>
     <span class="n">is_output_empty</span><span class="p">,</span>
     <span class="n">is_output_truncated</span><span class="p">,</span>
+    <span class="n">is_structured_capability_rejection</span><span class="p">,</span>
+    <span class="n">is_structured_output_failure</span><span class="p">,</span>
     <span class="n">load_prompt</span><span class="p">,</span>
+    <span class="n">mark_structured_output_unsupported</span><span class="p">,</span>
     <span class="n">parse_output_with_thought</span><span class="p">,</span>
     <span class="n">resolve_langchain_endpoint</span><span class="p">,</span>
     <span class="n">resolve_output_token_limit</span><span class="p">,</span>
+    <span class="n">structured_output_known_unsupported</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe_endpoint_model_limits</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span>
@@ -729,41 +733,73 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Async invoke LLM with optional structured output + fallback.</span>
 
-<span class="sd">        Wraps the configurable model with ``with_structured_output``</span>
-<span class="sd">        when an output schema exists.  If the provider rejects the</span>
-<span class="sd">        ``response_format`` parameter (e.g. some custom OpenAI-compatible</span>
-<span class="sd">        endpoints), falls back to a plain invoke  ---  the prompt already</span>
-<span class="sd">        contains the JSON schema as text instructions.</span>
+<span class="sd">        When an output schema exists, the model is first invoked through</span>
+<span class="sd">        ``with_structured_output``, unless this ``(provider, model, base_url)``</span>
+<span class="sd">        was already seen refusing the parameter (process-local cache), in which</span>
+<span class="sd">        case the plain invoke is used directly.  Any structured-only failure</span>
+<span class="sd">        ---  a schema validation/JSON parse error, or the provider rejecting</span>
+<span class="sd">        the ``response_format`` parameter  ---  latches the call to a plain</span>
+<span class="sd">        invoke for the rest of this invocation; the prompt already contains the</span>
+<span class="sd">        JSON schema as text instructions and :meth:`_process_output` parses it</span>
+<span class="sd">        tolerantly.  Only a stable capability rejection is remembered in the</span>
+<span class="sd">        cache; parse failures are per-response and are never cached.</span>
 
-<span class="sd">        Both paths route through :meth:`_invoke_with_retries` for adaptive</span>
-<span class="sd">        retries on context overflow / truncated output.</span>
+<span class="sd">        Both strategies share one :meth:`_invoke_with_retries` loop so</span>
+<span class="sd">        context-overflow / truncation / empty retries and infra-error</span>
+<span class="sd">        classification apply uniformly.  Blank responses are the one exception:</span>
+<span class="sd">        they stay on the structured path so its existing empty-retry budget is</span>
+<span class="sd">        used before degrading.</span>
 <span class="sd">        """</span>
         <span class="n">prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_cache_control</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
-            <span class="n">llm_wrapped</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
-            <span class="p">)</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span>
-                    <span class="n">llm_wrapped</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span>
-                <span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                <span class="k">if</span> <span class="p">(</span>
-                    <span class="n">classify_llm_invocation_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
-                    <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
-                <span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">"Structured output not supported, falling back to prompt-based"</span>
-                    <span class="p">)</span>
-                    <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span>
-                        <span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span>
-                    <span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="n">configurable</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">model_name</span>
+        <span class="n">base_url</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
             <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="k">if</span> <span class="n">structured_output_known_unsupported</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Structured output known unsupported for </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">; "</span>
+                <span class="s2">"using the plain invoke"</span>
+            <span class="p">)</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="n">structured</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="n">use_structured</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">):</span>
+            <span class="k">nonlocal</span> <span class="n">use_structured</span>
+            <span class="k">if</span> <span class="n">use_structured</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="k">await</span> <span class="n">structured</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="c1"># Blank responses keep their structured retry budget: let</span>
+                    <span class="c1"># the retry loop see the error and apply the empty-output</span>
+                    <span class="c1"># backoff instead of switching strategy.</span>
+                    <span class="k">if</span> <span class="n">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="k">raise</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_structured_output_failure</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="k">raise</span>
+                    <span class="k">if</span> <span class="n">is_structured_capability_rejection</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="n">mark_structured_output_unsupported</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"Structured output unusable (</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: "</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">); falling back to the plain invoke for this call"</span>
+                    <span class="p">)</span>
+                    <span class="n">use_structured</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="k">await</span> <span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">invoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">output</span>
 
@@ -1254,6 +1290,28 @@
             <span class="n">prompt_name</span><span class="o">=</span><span class="n">prompt_name</span><span class="p">,</span>
             <span class="n">prompt_registry_location</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_registry_location</span><span class="p">,</span>
         <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_optional_section</span><span class="p">(</span><span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Render an optional prompt section, or ``""`` when *body* is empty.</span>
+
+<span class="sd">        ``ChatPromptTemplate`` has no conditionals, so every placeholder always</span>
+<span class="sd">        renders; a bare ``Heading:\\n{value}`` line would leave an empty label</span>
+<span class="sd">        on the calls where the value does not apply.  Nodes therefore compose a</span>
+<span class="sd">        conditional section whole -- heading included -- into one variable and</span>
+<span class="sd">        leave it out entirely when there is nothing to say (prompt</span>
+<span class="sd">        conventions, ``devdocs/system/prompt-conventions.md``).  The user</span>
+<span class="sd">        prompt then carries a bare ``{..._block}`` placeholder.</span>
+
+<span class="sd">        :param title: Section heading text, without the ``#`` markers.</span>
+<span class="sd">        :param body: Section content; whitespace-only means "omit".</span>
+<span class="sd">        :param level: Markdown heading level (default ``2``).</span>
+<span class="sd">        :returns: The rendered section, or ``""`` when *body* is empty.</span>
+<span class="sd">        """</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">""</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'#'</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">level</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="se">\n\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_prompt_template</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">system_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">human_prompt</span><span class="p">:</span> <span class="nb">str</span>

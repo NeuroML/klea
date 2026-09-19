@@ -313,11 +313,26 @@
 <div class="viewcode-block" id="TokenUsage">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.schemas.TokenUsage">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">TokenUsage</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Token usage accumulated across the nodes in a graph run."""</span>
+<span class="w">    </span><span class="sd">"""Token usage for one node, or accumulated across a graph run.</span>
+
+<span class="sd">    ``role``, ``reasoning_tokens`` and ``cached_tokens`` are populated on the</span>
+<span class="sd">    per-node ``usage`` stream event so a run can be benchmarked per node and</span>
+<span class="sd">    per role.  When this schema is accumulated into the graph state's</span>
+<span class="sd">    ``usage_metrics`` (see :func:`~klea_utils.graph.reducers.add_token_usage`)</span>
+<span class="sd">    only the numeric fields are summed; ``role`` is identity, not a quantity,</span>
+<span class="sd">    so it is dropped from the aggregate.</span>
+<span class="sd">    """</span>
 
     <span class="n">input_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">output_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></div>
+    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1">#: Hidden reasoning/thinking tokens reported by the provider (subset of</span>
+    <span class="c1">#: ``output_tokens`` when the provider exposes them).</span>
+    <span class="n">reasoning_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1">#: Prompt tokens served from the provider's prompt cache.</span>
+    <span class="n">cached_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="c1">#: Model role that produced this usage (e.g. ``chat``, ``plan``, ``guard``).</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></div>
 
 </pre></div>
         </article>
