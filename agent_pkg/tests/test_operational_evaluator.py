@@ -199,6 +199,11 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertIn("success criteria", variables["plan"])
         self.assertIn("[CURRENT]", variables["plan"])
 
+    def test_prompt_variables_include_executed_tools_sentinel(self):
+        """The declared ``executed_tools`` input is always rendered."""
+        variables = self._evaluator()._get_prompt_variables(self._state())
+        self.assertEqual(variables["executed_tools"], "(none)")
+
     def test_status_refreshes_live_plan_section(self):
         """The Evaluator updates the Planner's plan section in place.
 

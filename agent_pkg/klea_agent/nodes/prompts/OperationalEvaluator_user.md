@@ -10,6 +10,12 @@
 
 ---
 
+## Executed tools
+
+{executed_tools}
+
+---
+
 ## Observations
 
 {observations}
