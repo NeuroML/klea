@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, ClassVar, override
 
@@ -57,6 +58,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         model_type: str = "chat",
         prompt_prefix: str = "ToolsPicker",
         prompt_registry_location: str | Path | None = None,
+        on_unusable: Callable[[Any, str], dict[str, Any]] | None = None,
     ):
         """Initialise the tools picker node.
 
@@ -71,6 +73,11 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             Must be set for apps: the sibling-``prompts`` fallback in
             ``BaseLLMNode`` resolves relative to this shared class file,
             not the application.
+        :param on_unusable: Optional app callback ``(state, reason) ->
+            state_updates`` invoked when the picker returns no usable call but
+            explains why (a single empty-name call with a ``reason``).  The app
+            records that as a synthetic failure observation and a
+            ``replan_reason`` (agent); RAG passes nothing.
         """
         # Must be set before AbstractLLMNode.__init__ reads it to pick the
         # right entry from llm_models.
@@ -84,6 +91,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         )
         self._tools_info = tools_info or {}
         self._prompt_prefix = prompt_prefix
+        self._on_unusable = on_unusable
         if prompt_registry_location is not None:
             self.prompt_registry_location = Path(prompt_registry_location)
 
@@ -147,7 +155,13 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["query"] = state.query
         if hasattr(state, "artefacts"):
             variables["artefacts"] = state.artefacts
-        if hasattr(state, "tool_results"):
+        render_observations = getattr(state, "observations_text", None)
+        if callable(render_observations):
+            # Agent state: the accumulated per-step outputs (tool results and
+            # reasoning conclusions), so the picker can bind arguments from
+            # earlier steps - not just the last batch.
+            variables["observations"] = render_observations()
+        elif hasattr(state, "tool_results"):
             variables["observations"] = state.tool_results
         plan = getattr(state, "plan", None)
         if plan is not None:
@@ -182,26 +196,43 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     def _update_state(
         self, result: ToolCallsSchema, state: BaseModel
     ) -> dict[str, Any]:
-        """Write the selected calls and the empty-selection retry counter.
+        """Write the selected calls, the failure callback and the retry counter.
 
-        A picker that returns no calls on a step it was asked to execute is a
-        picker failure, not a planner failure.  The counter is kept in graph
-        state (thread-isolated, ADR-0033), not on the shared node instance:
-        it increments on each consecutive empty selection and resets when a
-        non-empty selection is produced or the plan step changes.  The
-        orchestrator's picker router reads it to retry the picker a bounded
-        number of times before letting the empty round proceed to the
-        evaluator.
+        A usable selection is written as-is.  An unusable selection with an
+        explicit ``reason`` (a single empty-name call carrying the reason) is a
+        *deliberate* failure: the app's ``on_unusable`` callback records it as a
+        synthetic observation and a replan reason.  An empty/malformed
+        selection with no reason is an emission glitch: the counter is kept in
+        graph state (thread-isolated, ADR-0033) so the orchestrator can retry
+        the picker a bounded number of times before escalating.
         """
         tool_calls = result.tool_calls
+        usable = any(tc.tool.strip() for tc in tool_calls)
+        update: dict[str, Any] = {"tool_calls": tool_calls}
+
+        # Deliberate failure: no usable call, but the picker explained why.  The
+        # app records it (synthetic is_error result + replan_reason) so the
+        # graph replans with a concrete reason instead of dispatching nothing.
+        if not usable and self._on_unusable is not None:
+            reason = next(
+                (
+                    tc.reason.strip()
+                    for tc in tool_calls
+                    if not tc.tool.strip() and tc.reason.strip()
+                ),
+                "",
+            )
+            if reason:
+                update.update(self._on_unusable(state, reason))
+
         # The retry counter only exists on the agent state; RAG has no picker
         # retry edge, so omit the keys there rather than writing unknown state.
         if not hasattr(state, "picker_attempts"):
-            return {"tool_calls": tool_calls}
+            return update
+
         # An empty list and a list whose calls all have empty/whitespace names
         # are the same failure: no usable tool call.  Unknown-but-non-empty
         # names are left to dispatch (which reports a clear error).
-        usable = any(tc.tool.strip() for tc in tool_calls)
         plan = getattr(state, "plan", None)
         step = getattr(plan, "current_step_index", -1) if plan is not None else -1
         prev_step = getattr(state, "picker_step", -1)
@@ -214,11 +245,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             f"{step = }\n{prev_step = }\n{prev_attempts = }\n"
             f"{attempts = }\nusable = {usable}\nselected = {len(tool_calls)}"
         )
-        return {
-            "tool_calls": tool_calls,
-            "picker_attempts": attempts,
-            "picker_step": step,
-        }
+        update["picker_attempts"] = attempts
+        update["picker_step"] = step
+        return update
 
     @override
     def _get_default_error_result(self) -> ToolCallsSchema:

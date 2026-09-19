@@ -74,6 +74,7 @@ async def test_general_path_work_loop(monkeypatch):
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
     assert ("Selecting tools", "Running tools") in edges  # dispatch (incl. empty round)
     assert ("Selecting tools", "Selecting tools") in edges  # empty pick -> retry
+    assert ("Selecting tools", "Planning") in edges  # deliberate/exhausted pick failure
     assert ("Running tools", "Selecting tools") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
     assert ("Running tools", "Planning") in edges  # replan
@@ -122,11 +123,16 @@ async def test_picker_router_retries_bad_names(monkeypatch):
     state.picker_attempts = 1
     assert await agent._picker_router(state) == "retry_picker"
 
-    # Budget exhausted -> dispatch the (empty) round to the Evaluator.
+    # Budget exhausted -> escalate to the Planner.
     state.picker_attempts = agent._max_picker_retries + 1
-    assert await agent._picker_router(state) == "dispatch"
+    assert await agent._picker_router(state) == "replan"
 
     # An unknown-but-non-empty name is a dispatch concern, not a retry.
     state.tool_calls = [ToolCallSchema(tool="made_up")]
     state.picker_attempts = agent._max_picker_retries + 1
     assert await agent._picker_router(state) == "dispatch"
+
+    # A deliberate failure (empty tool + reason) goes straight to the Planner.
+    state.tool_calls = [ToolCallSchema(tool="", reason="no tool can do this")]
+    state.picker_attempts = 0
+    assert await agent._picker_router(state) == "replan"

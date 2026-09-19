@@ -70,6 +70,9 @@ class AgentLikeState(BaseModel):
     picker_attempts: int = 0
     picker_step: int = -1
 
+    def observations_text(self) -> str:
+        return "rendered observations"
+
 
 def _make_picker(**kwargs) -> ToolsPicker:
     kwargs.setdefault("tools_info", TOOLS_INFO)
@@ -312,3 +315,46 @@ def test_one_usable_name_resets_attempts():
         state,
     )
     assert update["picker_attempts"] == 0
+
+
+def test_observations_use_rendered_text_for_agent_state():
+    """The picker sees all step outputs, not just the last batch (agent)."""
+    picker = _make_picker()
+    variables = picker._get_prompt_variables(AgentLikeState())
+    assert variables["observations"] == "rendered observations"
+
+
+def test_observations_fall_back_to_tool_results_without_renderer():
+    """RAG state has no ``observations_text``, so raw results are passed."""
+    picker = _make_picker()
+    variables = picker._get_prompt_variables(RagLikeState())
+    assert variables["observations"] == []
+
+
+def test_deliberate_failure_invokes_on_unusable():
+    """An empty-name call with a reason is handed to the app callback."""
+    seen: dict[str, str] = {}
+
+    def on_unusable(state, reason):
+        seen["reason"] = reason
+        return {"replan_reason": reason}
+
+    picker = _make_picker(on_unusable=on_unusable)
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="", reason="cannot do it")]),
+        AgentLikeState(plan=PlanLike(step_list=[Step()])),
+    )
+    assert seen["reason"] == "cannot do it"
+    assert update["replan_reason"] == "cannot do it"
+
+
+def test_empty_list_does_not_invoke_on_unusable():
+    """A bare empty list is an emission glitch, not a deliberate failure."""
+    calls: list[str] = []
+    picker = _make_picker(on_unusable=lambda state, reason: calls.append(reason) or {})
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[]),
+        AgentLikeState(plan=PlanLike(step_list=[Step()])),
+    )
+    assert calls == []
+    assert "replan_reason" not in update

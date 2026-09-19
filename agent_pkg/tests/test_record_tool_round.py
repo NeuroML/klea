@@ -88,6 +88,19 @@ def test_clean_round_clears_replan_reason():
     assert update["replan_reason"] == ""
 
 
+def test_record_picker_failure_writes_synthetic_observation_and_reason():
+    """A deliberate picker failure becomes an is_error StepOutput + reason."""
+    agent = _agent()
+    state = KleaAgentState(plan=PlanSchema(current_step_index=0))
+    update = agent._record_picker_failure(state, "no listed tool can do this")
+    assert update["replan_reason"] == "no listed tool can do this"
+    assert update["tool_results"][0].is_error
+    entries = update["step_outputs"][1]
+    assert len(entries) == 1
+    assert entries[0].tool == ""
+    assert entries[0].result.is_error
+
+
 def test_records_tool_name_and_displayed_flag():
     """Each StepOutput carries the tool name and the displayed flag."""
     agent = _agent()

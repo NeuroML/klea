@@ -25,6 +25,7 @@ from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import ToolsPicker
 from klea_utils.tools import last_tool_error_text
 from langgraph.graph import END, START, StateGraph
+from mcp.types import TextContent
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
@@ -207,23 +208,29 @@ class KleaAgent(BaseLangGraph):
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).
 
-        A selection with no usable call -- an empty list, or a list whose calls
-        all have empty/whitespace names -- means the picker failed the step.
-        The picker is retried a bounded number of times (with feedback in its
-        prompt) before the round is allowed to proceed; after the budget, the
-        round goes to the caller (which dispatches nothing usable) and on to
-        the Evaluator, whose ``need_replan`` returns the failure to the Planner.
+        A usable selection is dispatched.  A *deliberate* failure -- no usable
+        call but an explicit reason (a single empty-name call carrying
+        ``reason``) -- goes straight to the Planner; the picker node has
+        already recorded the synthetic observation and ``replan_reason``.  An
+        empty/malformed selection with no reason is an emission glitch: it is
+        retried a bounded number of times, then escalated to the Planner.
+
         Unknown-but-non-empty names are not retried here: they reach dispatch,
         which reports a clear error that Triage acts on.
 
-        :returns: ``dispatch`` | ``retry_picker``.
+        :returns: ``dispatch`` | ``replan`` | ``retry_picker``.
         """
         usable = any(tc.tool.strip() for tc in state.tool_calls)
         if usable:
             return "dispatch"
+        deliberate = any(
+            tc.reason.strip() for tc in state.tool_calls if not tc.tool.strip()
+        )
+        if deliberate:
+            return "replan"
         if state.picker_attempts <= self._max_picker_retries:
             return "retry_picker"
-        return "dispatch"
+        return "replan"
 
     async def _mode_router_node(self, state: KleaAgentState) -> str:
         """Route mode decision: proceed normally or inform (ADR-0030).
@@ -339,6 +346,43 @@ class KleaAgent(BaseLangGraph):
             "replan_reason": replan_reason,
         }
 
+    def _record_picker_failure(
+        self, state: KleaAgentState, reason: str
+    ) -> dict[str, Any]:
+        """Record a deliberate picker failure as a synthetic tool result.
+
+        Passed as the shared :class:`ToolsPicker`'s ``on_unusable`` callback.
+        When the picker returns no usable call but explains why (a single
+        empty-name call carrying a ``reason``), that reason becomes an
+        ``is_error`` :class:`CallToolResult` observation for the current step
+        and the unified ``replan_reason``.  The picker router then sends the
+        round straight to the Planner, bypassing the caller (which would
+        otherwise overwrite ``tool_results`` with an empty batch and clear the
+        reason), so the Planner sees a concrete failure instead of silence.
+
+        :param state: Current graph state.
+        :param reason: The picker's explanation (non-empty).
+        :returns: State updates carrying the synthetic observation and reason.
+        """
+        step = current_step_key(state)
+        synthetic = CallToolResult(
+            content=[TextContent(type="text", text=reason)],
+            structured_content=None,
+            meta=None,
+            is_error=True,
+        )
+        outputs = dict(state.step_outputs or {})
+        entry = StepOutput(result=synthetic, tool="", displayed=False)
+        outputs[step] = [*outputs.get(step, []), entry][-self.MAX_STEP_RESULTS :]
+        self.logger.debug(
+            f"picker failure recorded: {step = }\n{reason = }\n{len(outputs[step]) = }"
+        )
+        return {
+            "tool_results": [synthetic],
+            "step_outputs": outputs,
+            "replan_reason": reason,
+        }
+
     async def _create_graph(self):
         """Create the LangGraph"""
         self.workflow = StateGraph(KleaAgentState, context_schema=KleaRunContext)
@@ -433,6 +477,7 @@ class KleaAgent(BaseLangGraph):
             tools_info=self.tools_info,
             model_type="chat",
             prompt_registry_location=Path(__file__).parent / "nodes" / "prompts",
+            on_unusable=self._record_picker_failure,
         )
         self._tools_caller_node = ToolsCallerNode(
             logger=self.logger,
@@ -544,16 +589,16 @@ class KleaAgent(BaseLangGraph):
         # Human review loops back to the Planner, which interprets the
         # feedback and owns the in_review <-> in_progress transition.
         self.workflow.add_edge(self._await_review_node.label, self._planner_node.label)
-        # The picker is the authority on tool suitability: if it finds no
-        # suitable tool, replan; otherwise dispatch the selected calls.
+        # The picker binds arguments; a deliberate failure (no usable call but
+        # a reason) or an exhausted empty-selection retry escalates to the
+        # Planner, bypassing the caller (which would dispatch nothing).
         self.workflow.add_conditional_edges(
             self._tools_picker_node.label,
             self._picker_router,
             {
                 "dispatch": self._tools_caller_node.label,
-                # Empty selection: re-pick (bounded) with feedback before the
-                # empty round proceeds to the Evaluator via the caller.
                 "retry_picker": self._tools_picker_node.label,
+                "replan": self._planner_node.label,
             },
         )
         self.workflow.add_conditional_edges(
