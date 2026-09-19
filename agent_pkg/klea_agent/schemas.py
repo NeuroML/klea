@@ -27,6 +27,12 @@ class StepSchema(BaseModel):
     step_number: int = 1
     description: str = ""
     success_criteria: str = ""
+    #: Whether this step executes tools or reasons over the evidence
+    #: (ADR-0035 update 2026-09-19).  A ``tool`` step names at least one tool
+    #: in :attr:`suggested_tools` and runs through the picker/caller; a
+    #: ``reasoning`` step names none and is handled by the ``ReasoningNode``,
+    #: its conclusion recorded as a :class:`StepOutput`.
+    kind: Literal["tool", "reasoning"] = Field(default="tool", validate_default=True)
     suggested_tools: list[str] = Field(default_factory=list)
     depends_on: list[int] = []
     status: Literal["pending", "done", "failed"] = Field(
@@ -72,7 +78,8 @@ class StepSchema(BaseModel):
         :param markdown: ``True`` for the status-pane render: ``[marker] Step
             N: description (depends on: ...)``.  ``False`` for the prompt
             render: ``[STATUS] N. description (success criteria: ...;
-            suggested tools: ...; depends on: ...)``.
+            suggested tools: ...; depends on: ...)``, or ``...; kind:
+            reasoning; ...`` for a reasoning step (which names no tools).
         :returns: The prompt line, or the minimal status-pane line.
         """
         depends = (
@@ -87,11 +94,19 @@ class StepSchema(BaseModel):
                 f"(depends on: {depends})"
             )
         criteria = self.success_criteria or "(none)"
-        tools = ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
-        detail = (
-            f"{self.description} (success criteria: {criteria}; "
-            f"suggested tools: {tools}; depends on: {depends})"
-        )
+        if self.kind == "reasoning":
+            detail = (
+                f"{self.description} (success criteria: {criteria}; "
+                f"kind: reasoning; depends on: {depends})"
+            )
+        else:
+            tools = (
+                ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
+            )
+            detail = (
+                f"{self.description} (success criteria: {criteria}; "
+                f"suggested tools: {tools}; depends on: {depends})"
+            )
         return f"{marker} {self.step_number}. {detail}"
 
 
