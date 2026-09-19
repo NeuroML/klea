@@ -130,10 +130,23 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
     @override
     def _update_state(self, result: Any, state: BaseModel) -> dict[str, Any]:
-        """Extract summary from raw AIMessage output."""
+        """Extract summary from raw AIMessage output.
+
+        A blank response is not a usable summary.  Advancing
+        ``summarised_till`` on it would replace the existing
+        ``context_summary`` with an empty string and drop the old
+        conversation from the memory window, so preserve the existing state
+        instead (return ``{}``): the next invocation retries the same window.
+        """
         self.logger.debug(f"Current history summary is:\n{result.content}")
         content = content_to_str(result.content)
         _, answer = split_output_by_section(content, "<think>", "</think>")
+        if not answer.strip():
+            self.logger.warning(
+                "Summarisation produced no usable content; preserving the "
+                "existing summary and leaving the window unsummarised"
+            )
+            return {}
         return {
             "context_summary": answer,
             "summarised_till": self._window_start,

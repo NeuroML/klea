@@ -98,6 +98,18 @@ def test_summarise_update_state_uses_window_start():
     assert updates["summarised_till"] < len(msgs)  # no overlap with window
 
 
+def test_summarise_preserves_state_on_empty_summary():
+    """A blank summary must not overwrite the existing summary or window."""
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    msgs = _conversation(5)
+    state = MemoryState(messages=msgs, summarised_till=0)
+    node._pre_exec(state)
+
+    for blank in (AIMessage(content=""), AIMessage(content="   ")):
+        updates = node._update_state(blank, state)
+        assert updates == {}
+
+
 def test_summarise_omits_previous_summary_when_empty():
     """First summarisation: no previous-summary section (prompt convention)."""
     node = _make_summarise_node()

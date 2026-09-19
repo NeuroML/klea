@@ -19,6 +19,14 @@ from langchain_core.messages import AIMessage
 from klea_agent.nodes.triage_router import current_step_key
 from klea_agent.schemas import KleaAgentState, ReasoningSchema, StepOutput
 
+#: Conclusion recorded when the model produced no usable reasoning output.
+#: Non-empty so the base node's empty-result guard sees a meaningful result
+#: and the Evaluator recognises an explicit failure, instead of a silent empty
+#: conclusion it might mistake for progress.
+NO_CONCLUSION_FALLBACK = (
+    "Reasoning failed: the model produced no conclusion for this step."
+)
+
 
 class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     """Produce a reasoning step's conclusion (ADR-0035 update 2026-09-19).
@@ -147,5 +155,5 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
 
     @override
     def _get_default_error_result(self) -> ReasoningSchema:
-        """Return an empty conclusion; the step then fails evaluation."""
-        return ReasoningSchema()
+        """Return an explicit failure conclusion so the step cannot pass silently."""
+        return ReasoningSchema(conclusion=NO_CONCLUSION_FALLBACK)

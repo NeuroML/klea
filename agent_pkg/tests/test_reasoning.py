@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import logging
 import unittest
 
-from klea_agent.nodes.reasoning import ReasoningNode
+from klea_agent.nodes.reasoning import NO_CONCLUSION_FALLBACK, ReasoningNode
 from klea_agent.schemas import (
     GoalSchema,
     KleaAgentState,
@@ -95,8 +95,12 @@ class TestReasoningNode(unittest.TestCase):
         assert "generate a hypothesis" in variables["goal"]
         assert "observations" in variables
 
-    def test_default_error_result_is_empty(self):
-        assert self._node()._get_default_error_result() == ReasoningSchema()
+    def test_default_error_result_is_explicit_failure(self):
+        """A failed reasoning step is loud, not a silent empty conclusion."""
+        result = self._node()._get_default_error_result()
+        assert result.conclusion == NO_CONCLUSION_FALLBACK
+        assert result.conclusion.strip()
+        assert result != ReasoningSchema()
 
 
 if __name__ == "__main__":
