@@ -50,9 +50,16 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
 
     @override
     def _get_prompt_variables(self, state: RAGState) -> dict:
-        """Format prompt with question, context, and answer."""
+        """Format prompt with question, context, and answer.
+
+        The context is a required prompt slot; an empty retrieval is signalled
+        with a sentinel rather than an empty "Context" label (prompt
+        conventions).
+        """
         question = state.query
         context = serialize_reference_material(state.reference_material)
+        if not context.strip():
+            context = "(no context)"
         answer = state.messages[-1].content
         if isinstance(answer, list):
             answer = "".join(

@@ -77,6 +77,11 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
             )
             reference_material_text += "\n" + tool_text
 
+        # A required prompt slot: signal an empty context with a sentinel
+        # rather than rendering an empty "Context" label (prompt conventions).
+        if not reference_material_text.strip():
+            reference_material_text = "(no reference material)"
+
         return {
             "query": state.query,
             "reference_material": reference_material_text,
