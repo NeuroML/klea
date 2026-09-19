@@ -115,6 +115,13 @@ class TestStepOutputRender:
         assert rendered.startswith("### edit_file (displayed_to_user: yes)")
         assert '{"a": 1}' in rendered
 
+    def test_render_reasoning_string_result(self):
+        """A str result (reasoning conclusion) renders without a tool name."""
+        entry = StepOutput(result="H1: X causes Y", tool="", displayed=False)
+        rendered = entry.render()
+        assert rendered.startswith("### reasoning (displayed_to_user: no)")
+        assert "H1: X causes Y" in rendered
+
     def test_observations_text_groups_by_step(self):
         state = KleaAgentState(
             step_outputs={
@@ -198,7 +205,9 @@ class TestCheckpointMsgpack:
                         ),
                         tool="list_files",
                         displayed=False,
-                    )
+                    ),
+                    # Reasoning conclusions are plain strings in the union.
+                    StepOutput(result="H1: X causes Y", tool="", displayed=False),
                 ]
             },
             "usage_metrics": TokenUsage(

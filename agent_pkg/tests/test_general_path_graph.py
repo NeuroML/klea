@@ -12,9 +12,16 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
+from typing import Literal
+
 import pytest
 from klea_agent.klea_agent import KleaAgent
-from klea_agent.schemas import KleaAgentState
+from klea_agent.schemas import (
+    EvaluationSchema,
+    KleaAgentState,
+    PlanSchema,
+    StepSchema,
+)
 from klea_utils.llm import LLMModel
 from klea_utils.mcp.schemas import ToolCallSchema
 
@@ -140,3 +147,42 @@ async def test_picker_router_retries_bad_names(monkeypatch):
     state.tool_calls = [ToolCallSchema(tool="", reason="no tool can do this")]
     state.picker_attempts = 0
     assert await agent._picker_router(state) == "replan"
+
+
+def _plan_with_step(
+    kind: Literal["tool", "reasoning"], status: Literal["in_progress"] = "in_progress"
+) -> KleaAgentState:
+    state = KleaAgentState()
+    state.plan = PlanSchema(
+        step_list=[StepSchema(step_number=1, description="s", kind=kind)],
+        status=status,
+        current_step_index=0,
+    )
+    return state
+
+
+@pytest.mark.asyncio
+async def test_planner_router_dispatches_by_step_kind():
+    """in_progress routes to the picker or the reasoning node by step kind."""
+    agent = KleaAgent(checkpoint="inmemory")
+    assert await agent._planner_router(_plan_with_step("tool")) == "tool"
+    assert await agent._planner_router(_plan_with_step("reasoning")) == "reasoning"
+
+
+@pytest.mark.asyncio
+async def test_evaluation_router_dispatches_by_step_kind():
+    """step_done/step_incomplete dispatch by the (advanced) current step kind."""
+    agent = KleaAgent(checkpoint="inmemory")
+    for verdict in ("step_done", "step_incomplete"):
+        state = _plan_with_step("reasoning")
+        state.evaluation = EvaluationSchema(evaluation=verdict)
+        assert await agent._evaluation_router(state) == "reasoning"
+
+        state = _plan_with_step("tool")
+        state.evaluation = EvaluationSchema(evaluation=verdict)
+        assert await agent._evaluation_router(state) == "tool"
+
+    # Terminal/other verdicts pass through unchanged.
+    state = _plan_with_step("tool")
+    state.evaluation = EvaluationSchema(evaluation="need_replan")
+    assert await agent._evaluation_router(state) == "need_replan"
