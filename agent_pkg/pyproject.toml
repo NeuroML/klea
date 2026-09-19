@@ -3,7 +3,20 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
+# Keep the default/CI run to the unit tests.  The manual end-to-end suite
+# lives in ``e2e/`` and is only collected when named explicitly
+# (``pytest e2e/``), so ``pytest`` / ``scripts/run_tests.sh`` stay fast and
+# never touch the network or a real model.
+testpaths = ["tests"]
 markers = [
     "localonly", # test to not be run on GH actions: they require an LLM.
+    "e2e", # manual end-to-end CLI run (opt-in; see agent_pkg/e2e/)
+    "e2e_chat",
+    "e2e_tools",
+    "e2e_reasoning",
+    "e2e_review",
+    "e2e_failure",
+    "e2e_picker",
+    "e2e_persistence",
 ]
 asyncio_mode = "auto"
