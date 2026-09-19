@@ -1,6 +1,6 @@
 ---
 status: "proposed"
-date: 2026-09-10
+date: 2026-09-19
 decision-makers: Ankur Sinha
 consulted: "literature review (devdocs/system/agent-topology-literature-review.md)"
 informed: klea contributors
@@ -394,3 +394,95 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 
 The current mechanics live in
 `devdocs/system/agent-general-path-control-flow.md`.
+
+## Update (2026-09-19): reasoning steps, tool-identity contract and state persistence
+
+Design review amendments to the general path.  The affected clauses of the
+decision and its earlier updates are named explicitly.
+
+### Reasoning steps (supersedes "Plans are tool-executable only")
+
+The 2026-09-10 update stated "Plans are tool-executable only.  There is no
+reasoning-step node" (`:320-325`).  That is **superseded**.  Real tasks
+(academic, coding, long-horizon) contain steps whose output is a
+*judgement* rather than an external observation -- interpretation of
+results, decision/selection, hypothesis or experimental-design formation,
+intermediate synthesis.  Those conclusions must be first-class so later
+steps can consume them.
+
+* `StepSchema` gains `kind: Literal["tool", "reasoning"]`.
+* Tool steps name at least one tool from the disclosed catalogue; reasoning
+  steps name none.
+* A new `ReasoningNode` (an LLM node) reads the goal, plan, observations
+  and current step and emits a general text conclusion.  It never answers
+  the user, and the picker/caller are skipped for it.  Its result is stored
+  as a `StepOutput` alongside tool results -- to the Planner it is just
+  another step: `StepOutput.result: CallToolResult | str`.
+* Reasoning output is deliberately general, not forced structured;
+  `ArtefactSchema.type_`/`metadata` carry more where it exists.
+* This does not duplicate the Planner: the Planner reasons about *plan
+  structure* (what to do next), not about *what is true*.
+
+### Tool-identity contract (narrows the picker's role; ADR-0020)
+
+* The Planner selects tool identity per step via `suggested_tools`; the
+  picker **binds arguments only** and never substitutes another tool.  The
+  "sole selector of the concrete call" wording (`:322-325`) is narrowed to
+  argument binding.
+* Disclosure stays the **full, static catalogue** rather than a per-step
+  subset: the per-step restriction lives in the picker prompt, so the
+  cacheable system prefix is preserved (ADR-0028).  A deterministic
+  substitution backstop is deferred until drift is observed.
+* Picker inputs are trimmed to the tool list, all observations
+  (`observations_text()`), the current step and its feedback.  It does not
+  need the goal or other big-picture context.
+* Retries are for execution/emission errors on the **same** tool with new
+  arguments -- never a search for a different tool.
+* An unusable selection is recorded as a synthetic `is_error`
+  `CallToolResult` (the standard result shape) and, after a bounded
+  emission retry, routes `Selecting tools -> Planning` directly.  This
+  supersedes the empty-selection rule at `:326-337` (empty -> caller ->
+  Evaluator -> `need_replan`), which spent a caller dispatch and an
+  Evaluator call on a batch with nothing to run.  Call-level tool errors
+  still reach the Planner directly via the TriageRouter, carrying the raw
+  error in `observations`.
+* When a round completes without error, the step's earlier errored
+  `StepOutput` entries are pruned before the new results are appended, so
+  superseded failures do not confuse the Evaluator or the answer synthesis.
+
+### Persistence: plan-scoped working memory vs session-scoped artefacts
+
+State lifetime is explicit; the aim is a bounded working set, not the
+"keep everything" of a flat ReAct loop.
+
+* Working memory is **plan-scoped**: `step_outputs` (tool results and
+  reasoning conclusions) is visible to later steps in the plan, then
+  cleared at run start (`InitGraphState`) and when the Planner authors a
+  new plan.
+* `artefacts` is **session-scoped**: `InitGraphState` no longer clears it.
+  The completed task's deliverable is auto-persisted by
+  `AnswerFromResults` as a concise `ArtefactSchema` (`content` = the
+  result, `metadata` = goal/provenance/references, `type_` = category), and
+  the Planner prompt renders it (`artefacts_text()`) so a later task can
+  build on it.  This extends the artefact model of ADR-0029 (evidence and
+  provenance).
+* `messages` remains lossy continuity (summarised, ADR-0018), not a durable
+  store.  The deliverable appearing in both is expected: one is the
+  conversational trace, the other the durable, addressable result.
+* There is deliberately no `output_scope` on steps: the Planner cannot
+  predict whether a later task will need a result, so durability is not its
+  call.  Explicit persistence on user request (an `add_artefact` tool) is
+  deferred.
+* Cross-run transfer therefore happens only through `artefacts` (precise)
+  and `messages` (lossy); step data does not enter the next task's context
+  unless promoted.
+
+### Parallelism
+
+Step granularity, explicit dependencies and parallel execution are a
+separate decision: ADR-0041 (draft).  A reasoning step is effect-free and
+therefore parallelisable under that decision's effect gate.
+
+Cross-references: ADR-0018 (message memory), ADR-0020 (picker/caller),
+ADR-0028 (prompt cache), ADR-0029 (correctness and artefacts), ADR-0032
+(state ownership), ADR-0041 (parallel step execution).
