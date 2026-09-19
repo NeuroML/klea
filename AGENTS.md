@@ -166,6 +166,10 @@ work is implemented.
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
 semantic classes): `devdocs/system/web-theming.md`.
 
+LLM-node prompt conventions (required-vs-conditional fields, sentinels,
+`_optional_section`, prompt-cache ordering): `devdocs/system/prompt-conventions.md`.
+Read this before adding or editing a node prompt.
+
 ## Session continuity
 
 `.agents/YYYY-MM-DD-HHMM.md` logs previous work, where HHMM is the time the

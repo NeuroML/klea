@@ -954,6 +954,28 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             prompt_registry_location=self.prompt_registry_location,
         )
 
+    @staticmethod
+    def _optional_section(title: str, body: str, level: int = 2) -> str:
+        """Render an optional prompt section, or ``""`` when *body* is empty.
+
+        ``ChatPromptTemplate`` has no conditionals, so every placeholder always
+        renders; a bare ``Heading:\\n{value}`` line would leave an empty label
+        on the calls where the value does not apply.  Nodes therefore compose a
+        conditional section whole -- heading included -- into one variable and
+        leave it out entirely when there is nothing to say (prompt
+        conventions, ``devdocs/system/prompt-conventions.md``).  The user
+        prompt then carries a bare ``{..._block}`` placeholder.
+
+        :param title: Section heading text, without the ``#`` markers.
+        :param body: Section content; whitespace-only means "omit".
+        :param level: Markdown heading level (default ``2``).
+        :returns: The rendered section, or ``""`` when *body* is empty.
+        """
+        text = str(body).strip()
+        if not text:
+            return ""
+        return f"{'#' * level} {title}\n\n{text}"
+
     def _create_prompt_template(
         self, system_prompt: str | list[Any], human_prompt: str
     ) -> ChatPromptTemplate:
