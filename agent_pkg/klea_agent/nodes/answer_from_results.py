@@ -30,12 +30,13 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     """Synthesise the final user-facing reply (ADR-0035).
 
     Separate from the Evaluator by design: evaluation judges, this node
-    generates.  It runs once at the end of a run -- on success (``plan_done``)
-    or on failure (``abort``/``unplannable``/``failure_reason``) -- and turns
-    the goal, the plan and the observations into a reply.  On failure it
-    explains concisely what was attempted and why it could not be completed.
-    In scientific mode a grounded/cited variant replaces it; the Evaluator
-    contract (judge only) stays the same.
+    generates.  It runs once at the end of a run -- on success (``plan_done``),
+    on failure (``abort``/``unplannable``/``failure_reason``), or on
+    ``needs_input`` (present the pending question) -- and turns the goal, the
+    plan and the observations into a reply.  On failure it explains concisely
+    what was attempted and why it could not be completed.  In scientific mode a
+    grounded/cited variant replaces it; the Evaluator contract (judge only)
+    stays the same.
     """
 
     model_type = "chat"
@@ -82,19 +83,29 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             "unplannable",
         )
 
+    @staticmethod
+    def _outcome(state: KleaAgentState) -> str:
+        """Return the run outcome: ``success`` | ``failure`` | ``needs_input``.
+
+        ``needs_input`` is the failure answer's sibling: the task is not
+        complete, but it can proceed once the user answers the pending
+        question (``plan.status == needs_input``).
+        """
+        if state.plan.status == "needs_input" or state.pending_question:
+            return "needs_input"
+        return "failure" if AnswerFromResults._is_failure(state) else "success"
+
     @override
     def _get_prompt_variables(self, state: KleaAgentState) -> dict:
         """Format prompt with the outcome, goal, plan, observations and query."""
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
-        failure = self._is_failure(state)
         variables = {
             "query": state.query,
-            "outcome": "Plan failed" if failure else "Plan succeeded",
-            "failure_reason": f"Failure reason: {state.failure_reason}"
-            if state.failure_reason
-            else "",
+            "outcome": self._outcome(state),
+            "failure_reason": state.failure_reason,
+            "pending_question": state.pending_question,
             "goal": goal_text,
             "plan": state.plan.render(),
             "observations": self._observations_text(state),
@@ -114,11 +125,18 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     def _fallback_answer(self, state: KleaAgentState) -> str:
         """Return a non-empty answer when synthesis produced nothing.
 
-        On failure, reports that the task could not be completed and why.
-        On success, prefers the latest tool outputs (which are often the
-        answer, e.g. a command's output), then the completed step description.
+        On ``needs_input``, asks the pending question.  On failure, reports
+        that the task could not be completed and why.  On success, prefers the
+        latest tool outputs (which are often the answer, e.g. a command's
+        output), then the completed step description.
         """
-        if self._is_failure(state):
+        outcome = self._outcome(state)
+        if outcome == "needs_input":
+            question = (
+                state.pending_question or "More information is needed to continue."
+            )
+            return f"I need more information to continue: {question}"
+        if outcome == "failure":
             reason = state.failure_reason or "the task could not be completed"
             return f"I could not complete this task: {reason}."
         if state.tool_results:

@@ -14,6 +14,8 @@
 
 Failure reason: {failure_reason}
 
+Pending question: {pending_question}
+
 ---
 
 ## Observations

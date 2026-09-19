@@ -9,11 +9,19 @@
 ## Inputs you will receive
 
 * `query`: the user's original request
-* `outcome`: `success` or `failure`
+* `outcome`: `success`, `failure`, or `needs_input`
 * `failure_reason`: why the task failed (only meaningful when `outcome` is `failure`)
+* `pending_question`: the question the user must answer (only meaningful when `outcome` is `needs_input`)
 * `goal` and its success criteria
 * `plan`: the steps with their statuses and success criteria
 * `observations`: the tool outputs collected while executing the plan
+
+---
+
+## If the outcome is needs_input
+
+* Do not claim the task is done or failed.  Ask the `pending_question` clearly and concisely, so the user can answer it in their next message.
+* Keep it short and put the reply text in `answer`.
 
 ---
 
