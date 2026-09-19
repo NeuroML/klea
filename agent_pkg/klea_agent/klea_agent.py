@@ -325,6 +325,12 @@ class KleaAgent(BaseLangGraph):
         Planner may be re-entered with, and a clean batch clears it (progress),
         so a stale tool error cannot mislead a later replan.
 
+        On a clean batch, the step's earlier errored entries are pruned before
+        the new results are appended: once a call succeeds, its superseded
+        failures are no longer evidence and would otherwise confuse the
+        Evaluator and the answer synthesis.  The failures remain in
+        ``messages`` and the node stream.
+
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
         :param displayed: Per-result flag: the server streamed a display event
@@ -343,13 +349,17 @@ class KleaAgent(BaseLangGraph):
             )
             for i, result in enumerate(results)
         ]
+        has_error = any(getattr(r, "is_error", False) for r in results)
         outputs = dict(state.step_outputs or {})
-        outputs[step] = [*outputs.get(step, []), *entries][-self.MAX_STEP_RESULTS :]
+        prior = outputs.get(step, [])
+        if not has_error:
+            # Progress: drop earlier errored entries for this step.
+            prior = [entry for entry in prior if not self._entry_is_error(entry)]
+        outputs[step] = [*prior, *entries][-self.MAX_STEP_RESULTS :]
         rounds = state.tool_rounds + 1
         # A failed batch feeds the Planner's unified replan reason; a clean
         # batch clears it (progress), so a stale tool error cannot mislead a
         # later replan (ADR-0035 update 2026-09-19).
-        has_error = any(getattr(r, "is_error", False) for r in results)
         replan_reason = (
             (last_tool_error_text(results) or "a tool call failed") if has_error else ""
         )
@@ -363,6 +373,14 @@ class KleaAgent(BaseLangGraph):
             "tool_rounds": rounds,
             "replan_reason": replan_reason,
         }
+
+    @staticmethod
+    def _entry_is_error(entry: StepOutput) -> bool:
+        """Return True when a recorded step output is an errored tool result.
+
+        A reasoning conclusion is a plain ``str`` and is never an error.
+        """
+        return isinstance(entry.result, CallToolResult) and bool(entry.result.is_error)
 
     def _record_picker_failure(
         self, state: KleaAgentState, reason: str
