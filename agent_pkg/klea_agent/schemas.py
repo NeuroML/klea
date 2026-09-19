@@ -112,9 +112,11 @@ class StepSchema(BaseModel):
 
 class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
-    #: Lifecycle + routing status.  The Planner writes the entry values
-    #: (``in_review`` | ``in_progress`` | ``unplannable``); the Evaluator/budget
-    #: guards write the terminal ones.  This single field is the post-Planner
+    #: Lifecycle + routing status.  The Planner authors only the entry values
+    #: via :class:`PlannerPlanSchema` (``in_progress`` | ``in_review`` |
+    #: ``unplannable``); the Evaluator and budget guards write the terminal
+    #: ones (``completed``/``failed``/``aborted``), and ``InitGraphState``
+    #: resets to ``not_started``.  This single field is the post-Planner
     #: routing source; no separate route flag exists.
     status: Literal[
         "not_started",
@@ -203,6 +205,30 @@ class PlanSchema(BaseModel):
                 f"for {len(self.step_list)} step(s)"
             )
         return errors
+
+
+class PlannerPlanSchema(PlanSchema):
+    """The plan as the Planner may author it (ADR-0035 update 2026-09-19).
+
+    The state :class:`PlanSchema` carries runtime lifecycle statuses written by
+    code (``not_started`` from ``InitGraphState``; ``completed``/``failed``/
+    ``aborted`` from the Evaluator and budget guards).  Exposing that whole
+    enum as the Planner's structured output was misleading -- the generated
+    example even showed ``not_started``.  This subclass exposes only the
+    statuses the Planner may set:
+
+    * ``in_progress`` -- run the plan (default);
+    * ``in_review`` -- the plan should be reviewed before it runs;
+    * ``unplannable`` -- no workable plan with the available tools.
+
+    All other behaviour (``render``, ``validate_plan``, ``current_step``) is
+    inherited unchanged; :meth:`Planner._update_state` maps this to the state
+    ``PlanSchema``.
+    """
+
+    status: Literal["in_progress", "in_review", "unplannable"] = Field(
+        default="in_progress", validate_default=True
+    )
 
 
 class GoalSchema(BaseModel):
@@ -312,10 +338,16 @@ class PlannerOutput(BaseModel):
     (execute the plan), ``in_review`` (await human review), or ``unplannable``
     (no viable plan).  It never answers the user directly -- chat is handled by
     ``RouteDecision`` and the final reply by ``AnswerFromResults``.
+
+    :attr:`plan` is a :class:`PlannerPlanSchema` so the model only sees the
+    statuses it may set.  :attr:`reason` is a free-form place for the Planner's
+    own reasoning/justification; it becomes the failure explanation when the
+    plan is ``unplannable`` and is recorded in the run history otherwise.
     """
 
     goal: GoalSchema = GoalSchema()
-    plan: PlanSchema = PlanSchema()
+    plan: PlannerPlanSchema = PlannerPlanSchema()
+    reason: str = ""
 
 
 class EvaluationSchema(BaseModel):

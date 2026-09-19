@@ -16,6 +16,7 @@ from klea_agent.schemas import (
     GoalSchema,
     KleaAgentState,
     PlannerOutput,
+    PlannerPlanSchema,
     PlanSchema,
     RouteSchema,
     StepOutput,
@@ -134,6 +135,17 @@ class TestStepOutputRender:
         assert KleaAgentState().observations_text() == "(no observations)"
 
 
+class TestPlannerPlanSchema:
+    """The Planner sees only the statuses it may set (ADR-0035 2026-09-19)."""
+
+    def test_default_plan_status_is_in_progress(self):
+        assert PlannerOutput().plan.status == "in_progress"
+
+    def test_planner_status_enum_excludes_runtime_statuses(self):
+        status = PlannerPlanSchema.model_json_schema()["properties"]["status"]
+        assert set(status["enum"]) == {"in_progress", "in_review", "unplannable"}
+
+
 class TestCheckpointMsgpack:
     """Nested state models round-trip through the checkpoint serializer."""
 
@@ -144,7 +156,7 @@ class TestCheckpointMsgpack:
             "route": RouteSchema(route="chat", answer="hi"),
             "planner_output": PlannerOutput(
                 goal=GoalSchema(goal="g", success_criteria="c"),
-                plan=PlanSchema(
+                plan=PlannerPlanSchema(
                     step_list=[StepSchema(description="s")], status="in_progress"
                 ),
             ),

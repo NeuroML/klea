@@ -49,6 +49,7 @@ from .schemas import (
     KleaAgentState,
     Mode,
     PlannerOutput,
+    PlannerPlanSchema,
     PlanSchema,
     RouteSchema,
     StepOutput,
@@ -134,6 +135,7 @@ class KleaAgent(BaseLangGraph):
             Discovery,
             Mode,
             PlannerOutput,
+            PlannerPlanSchema,
             RouteSchema,
             EvaluationSchema,
         ]

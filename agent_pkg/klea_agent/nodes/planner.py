@@ -9,7 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
-from typing import Any, ClassVar, override
+from typing import Any, ClassVar, Literal, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
@@ -134,16 +134,40 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     def _validate_result(
         self, result: PlannerOutput, state: KleaAgentState
     ) -> str | None:
-        """Reject a structurally inconsistent plan (see ``validate_plan``).
+        """Reject a structurally inconsistent or contradictory plan.
 
         The Planner is the sole plan author; code does not repair its output.
         An inconsistent plan is retried with the errors exposed to the prompt
-        as ``validation_feedback``.  An empty plan is not a structural error
-        (it routes to ``unplannable``); ``_update_state`` handles it.
+        as ``validation_feedback``.  Checks:
+
+        * ``status == "unplannable"`` must not carry steps;
+        * structural plan consistency (:meth:`PlanSchema.validate_plan`);
+        * ``kind``/tool consistency: a ``tool`` step names at least one tool,
+          a ``reasoning`` step names none.
+
+        An empty plan with a non-``unplannable`` status is not an error --
+        :meth:`_update_state` deterministically coerces it to ``unplannable``.
         """
-        if not isinstance(result, PlannerOutput) or not result.plan.step_list:
+        if not isinstance(result, PlannerOutput):
             return None
-        errors = result.plan.validate_plan()
+        errors: list[str] = []
+        plan = result.plan
+        if plan.status == "unplannable" and plan.step_list:
+            errors.append(
+                "status is 'unplannable' but steps were returned; "
+                "return no steps or set a runnable status"
+            )
+        if plan.step_list:
+            errors.extend(plan.validate_plan())
+            for step in plan.step_list:
+                if step.kind == "tool" and not step.suggested_tools:
+                    errors.append(
+                        f"step {step.step_number} is a tool step but names no tool"
+                    )
+                if step.kind == "reasoning" and step.suggested_tools:
+                    errors.append(
+                        f"step {step.step_number} is a reasoning step but names tools"
+                    )
         return "; ".join(errors) if errors else None
 
     @override
@@ -167,6 +191,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         written rather than mutating the previous one.  The Planner never
         answers the user -- chat is handled by ``RouteDecision`` and the final
         reply by ``AnswerFromResults``.
+
+        An ``unplannable`` status (or an empty plan) fails the run, using
+        ``result.reason`` as the failure explanation; a plan with steps maps
+        the remaining statuses to the state plan.  ``result.reason`` is also
+        recorded with the plan in ``messages`` for continuity.
         """
         update: dict[str, Any] = {"human_feedback": ""}
 
@@ -186,6 +215,24 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             ]
             return update
 
+        # --- Unplannable: the Planner's explicit signal, or no steps at all.
+        # 'unplannable' with steps is rejected in _validate_result; a
+        # non-unplannable status with no steps is a deterministic coercion.
+        # Handled before the goal lock so a failed plan does not lock a goal.
+        steps = result.plan.step_list
+        if result.plan.status == "unplannable" or not steps:
+            update["plan"] = PlanSchema(status="unplannable")
+            update["failure_reason"] = (
+                result.reason
+                or "planner could not produc a plan with the available information"
+            )
+            update["messages"] = [
+                *state.messages,
+                AIMessage(content=f"Planning failed: {update['failure_reason']}"),
+            ]
+            self.logger.debug(f"{update = }")
+            return update
+
         # Goal lock: write only while unset.
         if not state.goal.goal and result.goal.goal:
             update["goal"] = result.goal
@@ -196,22 +243,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "Planner proposed a different goal; keeping the fixed goal (ADR-0035)"
             )
 
-        steps = result.plan.step_list
-        if not steps:
-            update["plan"] = PlanSchema(status="unplannable")
-            update["failure_reason"] = "planner produced no plan"
-            update["messages"] = [
-                *state.messages,
-                AIMessage(content=f"Planning failed: {update['failure_reason']}"),
-            ]
-            self.logger.debug(f"{update = }")
-            return update
-
         # The Planner decides whether the plan needs human review before it
         # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
         # has been consumed by this LLM call and is cleared above.  The model's
         # per-step statuses and ``current_step_index`` are used unchanged.
-        status = "in_review" if result.plan.status == "in_review" else "in_progress"
+        status: Literal["in_review", "in_progress"] = (
+            "in_review" if result.plan.status == "in_review" else "in_progress"
+        )
         plan = PlanSchema(
             step_list=steps,
             status=status,
@@ -225,10 +263,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         update["step_outputs"] = {}
         update["tool_retry_counts"] = {}
         update["step_attempt_counts"] = {}
-        update["messages"] = [
-            *state.messages,
-            AIMessage(content=f"Plan ({status}):\n{plan.render()}"),
-        ]
+        message = f"Plan ({status}):\n{plan.render()}"
+        if result.reason:
+            message += f"\nReason: {result.reason}"
+        update["messages"] = [*state.messages, AIMessage(content=message)]
         self.logger.debug(f"{update = }")
         return update
 
