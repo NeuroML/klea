@@ -18,7 +18,7 @@
 - `read_file` gains a `line_numbers` option (default true); set it false to get raw text for an `edit_file` `old_string`.
 - Rich stream contract (ADR-0040): `inspect` replaces the `info`/`debug` events (one event, summary shown and `details` collapsible); a `tool` event carries chat-renderable tool output (file-edit diffs, and MCP image/audio/resource blocks), rendered by MIME type with a text fallback; `NodeStreamData` gains `key` (shared status-pane sections) and `preformatted` (monospace `<pre>`); `token` streaming is now opt-in per node.
 - MCP tools accept an explicit `null` for a non-nullable optional argument (for example `max_chars: null`), treating it as "use the default" instead of failing validation.
-- Model strings for providers in the models.dev catalog (`<provider>:<model>`, e.g. `openrouter:...`) resolve their endpoint from the catalog, so no URL is needed; OpenAI-compatible providers use the OpenAI surface and `OPENAI_API_KEY`, Anthropic-style providers use the Anthropic surface.
+- Model strings for providers in the models.dev catalog (`<provider>:<model>`, e.g. `openrouter:...`) resolve their endpoint from the catalog, so no URL is needed; OpenAI-compatible providers use the OpenAI surface and `OPENAI_API_KEY`, Anthropic-style providers use the Anthropic surface. The wire surface is resolved per model, so gateways that serve different models on different APIs (e.g. OpenCode Go) select Chat Completions, Responses, or Messages correctly.
 
 ### Changed
 

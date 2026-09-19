@@ -70,7 +70,12 @@ _MODELS_DEV_PROVIDER_KEYS: dict[str, str | None] = {
 }
 
 
-MODELS_DEV_PROVIDERS_IGNORED = {"huggingface", "anthropic"}
+#: Provider ids whose endpoint must NOT be taken from the catalog, because
+#: Klea has dedicated native handling for them (HuggingFace backend/provider
+#: selection and token mapping).  Checked before any catalog lookup.  Others
+#: are covered by the per-provider ``api`` guard: ``anthropic`` and ``openai``
+#: carry no ``api`` in the catalog, so they already resolve to ``None``.
+MODELS_DEV_PROVIDERS_IGNORED = {"huggingface"}
 
 
 class ModelLimits(NamedTuple):
@@ -247,7 +252,7 @@ def get_catalog_model_limits(provider: str, model_name: str) -> ModelLimits | No
 
 
 class ProviderEndpoint(NamedTuple):
-    """Endpoint metadata for one models.dev provider.
+    """Endpoint metadata for one models.dev provider (optionally per model).
 
     ``api`` is the base URL an OpenAI/Anthropic-compatible client appends
     its resource path to (``/chat/completions``, ``/v1/messages``, ...), and
@@ -255,13 +260,21 @@ class ProviderEndpoint(NamedTuple):
     (``@ai-sdk/anthropic`` vs the OpenAI-shaped rest).  The catalog's ``env``
     field is deliberately not exposed: it names variables for the npm
     package, not for LangChain.
+
+    Some providers (gateways such as OpenCode, OpenRouter, Cloudflare) serve
+    different models on different wire surfaces.  The catalog records this as
+    a per-model ``provider.npm`` override which, when present, wins over the
+    provider default; :func:`get_provider_endpoint` resolves it when given a
+    model name.
     """
 
     api: str | None = None
     npm: str | None = None
 
 
-def get_provider_endpoint(provider: str) -> ProviderEndpoint | None:
+def get_provider_endpoint(
+    provider: str, model_name: str | None = None
+) -> ProviderEndpoint | None:
     """Return the endpoint metadata for a models.dev provider, or ``None``.
 
     Used to resolve ``provider:model`` model strings to an endpoint without
@@ -271,7 +284,13 @@ def get_provider_endpoint(provider: str) -> ProviderEndpoint | None:
     carries no ``api`` (native SDK providers such as ``groq``/``mistral``
     resolve their own endpoint).
 
+    When *model_name* is given and the catalog carries a per-model
+    ``provider.npm`` override (as gateways do for models served on a
+    different surface, e.g. ``muse-spark-1.2-contributor`` on OpenCode Go),
+    that npm is returned instead of the provider default.
+
     :param provider: Klea provider id (e.g. ``"openrouter"``).
+    :param model_name: Model identifier within the provider, or ``None``.
     :returns: :class:`ProviderEndpoint`, or ``None`` when unavailable.
     """
     try:
@@ -286,6 +305,19 @@ def get_provider_endpoint(provider: str) -> ProviderEndpoint | None:
 
     api = provider_entry.get("api")
     npm = provider_entry.get("npm")
+
+    if model_name:
+        model_entry = (provider_entry.get("models") or {}).get(model_name)
+        if isinstance(model_entry, dict):
+            model_provider = model_entry.get("provider")
+            if isinstance(model_provider, dict) and model_provider.get("npm"):
+                model_npm = model_provider["npm"]
+                logger.debug(
+                    f"Using per-model npm override for {provider}:{model_name}: "
+                    f"{model_npm!r} (provider default {npm!r})"
+                )
+                npm = model_npm
+
     return ProviderEndpoint(
         api=api if isinstance(api, str) and api.strip() else None,
         npm=npm if isinstance(npm, str) and npm.strip() else None,

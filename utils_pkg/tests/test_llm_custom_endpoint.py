@@ -82,6 +82,40 @@ class TestResolveCatalogProviderEndpoint:
         )
         assert out == CustomEndpoint("https://openrouter.ai/api/v1", "openai", None)
 
+    def test_vendor_openai_npm_defaults_to_chat_completions(self):
+        """A non-``openai-compatible`` vendor package is still OpenAI wire."""
+        out = self._resolve(
+            ProviderEndpoint(
+                api="https://gateway.example.com/v1",
+                npm="@vendor/ai-sdk-provider",
+            )
+        )
+        assert out == CustomEndpoint("https://gateway.example.com/v1", "openai", None)
+
+    def test_openai_npm_selects_responses(self):
+        out = self._resolve(
+            ProviderEndpoint(api="https://opencode.ai/zen/go/v1", npm="@ai-sdk/openai")
+        )
+        assert out == CustomEndpoint("https://opencode.ai/zen/go/v1", "openai", True)
+
+    def test_google_npm_returns_none(self):
+        out = self._resolve(
+            ProviderEndpoint(api="https://opencode.ai/zen/v1", npm="@ai-sdk/google")
+        )
+        assert out is None
+
+    def test_per_model_npm_override(self):
+        """The model name is passed through for per-model surface resolution."""
+        with mock.patch(
+            "klea_utils.llm.get_provider_endpoint",
+            return_value=ProviderEndpoint(
+                api="https://opencode.ai/zen/go/v1", npm="@ai-sdk/openai"
+            ),
+        ) as lookup:
+            out = resolve_catalog_provider_endpoint("opencode-go", "muse-spark")
+        lookup.assert_called_once_with("opencode-go", "muse-spark")
+        assert out == CustomEndpoint("https://opencode.ai/zen/go/v1", "openai", True)
+
     def test_anthropic_strips_trailing_v1(self):
         out = self._resolve(
             ProviderEndpoint(

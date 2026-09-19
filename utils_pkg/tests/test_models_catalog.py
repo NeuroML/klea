@@ -59,6 +59,26 @@ _SAMPLE_CATALOG = {
         "npm": "@ai-sdk/groq",
         "models": {},
     },
+    "gateway": {
+        "name": "Mixed-surface gateway",
+        "api": "https://gateway.example.com/v1",
+        "npm": "@ai-sdk/openai-compatible",
+        "models": {
+            "plain-model": {"id": "plain-model"},
+            "responses-model": {
+                "id": "responses-model",
+                "provider": {"npm": "@ai-sdk/openai"},
+            },
+            "claude-model": {
+                "id": "claude-model",
+                "provider": {"npm": "@ai-sdk/anthropic"},
+            },
+            "gemini-model": {
+                "id": "gemini-model",
+                "provider": {"npm": "@ai-sdk/google"},
+            },
+        },
+    },
 }
 
 
@@ -409,6 +429,23 @@ class TestProviderEndpoint(unittest.TestCase):
 
     def test_unknown_provider_returns_none(self):
         self.assertIsNone(models_catalog.get_provider_endpoint("nope-xyz"))
+
+    def test_per_model_npm_override(self):
+        """A model's provider.npm override wins over the provider default."""
+        entry = models_catalog.get_provider_endpoint("gateway", "responses-model")
+        assert entry is not None
+        self.assertEqual(entry.npm, "@ai-sdk/openai")
+        self.assertEqual(entry.api, "https://gateway.example.com/v1")
+
+    def test_model_without_override_uses_provider_npm(self):
+        entry = models_catalog.get_provider_endpoint("gateway", "plain-model")
+        assert entry is not None
+        self.assertEqual(entry.npm, "@ai-sdk/openai-compatible")
+
+    def test_unknown_model_uses_provider_npm(self):
+        entry = models_catalog.get_provider_endpoint("gateway", "not-a-model")
+        assert entry is not None
+        self.assertEqual(entry.npm, "@ai-sdk/openai-compatible")
 
     def test_offline_returns_none(self):
         models_catalog._catalog.cache_clear()

@@ -284,10 +284,12 @@ Model names are prefixed according to their provider:
   `models.dev <https://models.dev>`_ catalog whose endpoint Klea can resolve
   (for example ``openrouter:qwen/qwen3-coder`` or ``deepseek:deepseek-chat``).
   Klea reads the provider's endpoint from the catalog, so no URL is needed.
-  The provider's wire protocol decides the surface: OpenAI-compatible
-  endpoints (most of the catalog, including OpenRouter) use the OpenAI
-  surface and ``OPENAI_API_KEY``; Anthropic-style endpoints use the Anthropic
-  surface (requires the ``anthropic`` extra) with the same
+  The provider's (or, for gateways that mix surfaces, the model's) wire
+  protocol decides the surface: OpenAI Chat Completions (most of the catalog,
+  including OpenRouter) and the OpenAI Responses API both use the OpenAI
+  provider with ``OPENAI_API_KEY`` (Responses is selected automatically for
+  models such as those on OpenCode Go); Anthropic-style endpoints use the
+  Anthropic surface (requires the ``anthropic`` extra) with the same
   ``OPENAI_API_KEY`` mapping as ``custom:``.  Providers without a catalog
   endpoint (native SDK providers such as ``groq``/``mistral``) are left to
   LangChain as before, as are ``huggingface:`` and ``anthropic:``, which keep

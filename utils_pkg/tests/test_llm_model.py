@@ -413,6 +413,29 @@ class TestCatalogProviderEndpoint:
         assert c["base_url"] == "https://api.tbox.cn/api/llm/v1"
         assert c["use_responses_api"] is False
 
+    def test_openai_npm_selects_responses(self):
+        """A model served on the Responses surface (e.g. OpenCode Go)."""
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "opencode-go:muse-spark-1.3-contributor",
+            ProviderEndpoint(api="https://opencode.ai/zen/go/v1", npm="@ai-sdk/openai"),
+        )
+        assert c["model"] == "muse-spark-1.3-contributor"
+        assert c["model_provider"] == "openai"
+        assert c["base_url"] == "https://opencode.ai/zen/go/v1"
+        assert c["use_responses_api"] is True
+
+    def test_google_npm_leaves_provider_to_langchain(self):
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "opencode:gemini-3.1-pro",
+            ProviderEndpoint(api="https://opencode.ai/zen/v1", npm="@ai-sdk/google"),
+        )
+        assert c["model_provider"] == "opencode"
+        assert "base_url" not in c
+
     def test_anthropic_provider_strips_v1(self):
         pytest.importorskip("langchain_anthropic")
         from klea_utils.models_catalog import ProviderEndpoint

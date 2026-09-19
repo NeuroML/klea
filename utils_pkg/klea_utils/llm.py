@@ -105,6 +105,24 @@ _CUSTOM_ENDPOINT_SURFACES: dict[str, tuple[str, bool | None]] = {
     "/v1/messages": ("anthropic", None),
 }
 
+#: models.dev npm packages that are a known **non-OpenAI** wire surface Klea
+#: does not implement (e.g. Google Gemini).  Catalog providers whose npm is
+#: one of these are left to LangChain.  Everything else with an ``api`` is
+#: treated as OpenAI-shaped -- ``@ai-sdk/openai-compatible``, the vendor
+#: packages (``@openrouter/ai-sdk-provider``, ...), and the long tail -- which
+#: is the catalog's dominant convention.
+_CATALOG_NON_OPENAI_NPM: frozenset[str] = frozenset(
+    {
+        "@ai-sdk/google",
+        "@ai-sdk/google-vertex",
+        "@ai-sdk/google-vertex/anthropic",
+        "@ai-sdk/amazon-bedrock",
+        "@ai-sdk/amazon-bedrock/mantle",
+        "@ai-sdk/cohere",
+        "@ai-sdk/azure",
+    }
+)
+
 
 class CustomEndpoint(NamedTuple):
     """Resolved API surface for a ``custom:`` model endpoint URL.
@@ -163,17 +181,26 @@ def resolve_custom_endpoint(url: str) -> CustomEndpoint:
     return CustomEndpoint(url, "openai", None)
 
 
-def resolve_catalog_provider_endpoint(provider: str) -> CustomEndpoint | None:
+def resolve_catalog_provider_endpoint(
+    provider: str, model_name: str | None = None
+) -> CustomEndpoint | None:
     """Resolve a catalog provider to a wire surface via its models.dev entry.
 
     Lets a user write ``provider:model`` (e.g. ``openrouter:...``) without an
     explicit URL: the catalog's ``api`` supplies the base URL and its ``npm``
-    package identifies the wire protocol.  Only two surfaces are inferred:
+    package identifies the wire protocol.  The wire surface is resolved from
+    the npm:
 
-    * ``@ai-sdk/anthropic`` -> Anthropic Messages API;
-    * anything else with an ``api`` -> OpenAI-compatible (the catalog is
-      overwhelmingly OpenAI-shaped, e.g. OpenRouter, and a non-OpenAI URL
-      simply fails at query time as an unsupported provider would).
+    * ``@ai-sdk/anthropic`` -> Anthropic Messages API
+      (``/v1/messages``);
+    * ``@ai-sdk/openai`` -> OpenAI Responses API (``/responses``);
+    * ``@ai-sdk/openai-compatible`` (and anything else with an ``api``) ->
+      OpenAI Chat Completions, the catalog's overwhelming default.
+
+    The npm is resolved *per model* when a model name is given, so gateway
+    providers that serve different models on different surfaces (OpenCode,
+    OpenRouter, ...) pick the right one -- the catalog records this as a
+    per-model ``provider.npm`` override.
 
     The returned ``base_url`` is what the SDK appends its resource path to.
     For the Anthropic surface the catalog ``api`` typically already ends in
@@ -182,13 +209,15 @@ def resolve_catalog_provider_endpoint(provider: str) -> CustomEndpoint | None:
     ``.../v1/messages`` is handled by :func:`resolve_custom_endpoint`.
 
     Returns ``None`` when the provider is not in the catalog, has no ``api``
-    (native SDK providers resolve their own endpoint), or the catalog is
+    (native SDK providers resolve their own endpoint), uses a surface Klea
+    does not implement (e.g. ``@ai-sdk/google``), or the catalog is
     unavailable -- callers then leave the model string to LangChain.
 
     :param provider: Klea provider id (e.g. ``"openrouter"``).
+    :param model_name: Model identifier within the provider, or ``None``.
     :returns: The resolved :class:`CustomEndpoint`, or ``None``.
     """
-    entry = get_provider_endpoint(provider)
+    entry = get_provider_endpoint(provider, model_name)
     if entry is None or not entry.api:
         return None
 
@@ -204,6 +233,24 @@ def resolve_catalog_provider_endpoint(provider: str) -> CustomEndpoint | None:
             f"Catalog provider {provider!r} -> anthropic surface, {base_url = }"
         )
         return CustomEndpoint(base_url, "anthropic", None)
+
+    if entry.npm == "@ai-sdk/openai":
+        # The native OpenAI SDK surface is the Responses API; its base URL is
+        # used as-is (the SDK appends ``/responses``).
+        logger.debug(f"Catalog provider {provider!r} -> openai responses surface")
+        return CustomEndpoint(entry.api, "openai", True)
+
+    if entry.npm in _CATALOG_NON_OPENAI_NPM:
+        # A known non-OpenAI wire surface Klea does not implement (e.g.
+        # ``@ai-sdk/google``): leave the model string to LangChain rather than
+        # guessing an OpenAI wire.  Everything else is assumed OpenAI-shaped
+        # (``@ai-sdk/openai-compatible`` and vendor packages such as
+        # ``@openrouter/ai-sdk-provider``), which is the catalog's default.
+        logger.debug(
+            f"Catalog provider {provider!r} uses unsupported npm {entry.npm!r}; "
+            "leaving to LangChain"
+        )
+        return None
 
     resolved = resolve_custom_endpoint(entry.api)
     logger.debug(f"Catalog provider {provider!r} -> {resolved}")
@@ -1337,7 +1384,9 @@ class LLMModel(BaseModel):
                     # Anthropic-compatible endpoint, so users need not write a
                     # ``custom:`` URL.  Native SDK providers (no catalog ``api``)
                     # are left to LangChain, which knows their default endpoint.
-                    endpoint = resolve_catalog_provider_endpoint(parsed.provider)
+                    endpoint = resolve_catalog_provider_endpoint(
+                        parsed.provider, parsed.model_name
+                    )
                     if endpoint is not None:
                         overrides["model_provider"] = endpoint.model_provider
                         if endpoint.model_provider == "anthropic":
