@@ -11,10 +11,7 @@
 ### Plan outcome
 
 {outcome}
-
-Failure reason: {failure_reason}
-
-Pending question: {pending_question}
+{outcome_details}
 
 ---
 

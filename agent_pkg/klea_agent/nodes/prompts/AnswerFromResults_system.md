@@ -10,8 +10,7 @@
 
 * `query`: the user's original request
 * `outcome`: `success`, `failure`, or `needs_input`
-* `failure_reason`: why the task failed (only meaningful when `outcome` is `failure`)
-* `pending_question`: the question the user must answer (only meaningful when `outcome` is `needs_input`)
+* `outcome_details`: the failure reason (when `outcome` is `failure`) or the pending question (when `outcome` is `needs_input`); empty on success
 * `goal` and its success criteria
 * `plan`: the steps with their statuses and success criteria
 * `observations`: the tool outputs collected while executing the plan
@@ -20,7 +19,7 @@
 
 ## If the outcome is needs_input
 
-* Do not claim the task is done or failed.  Ask the `pending_question` clearly and concisely, so the user can answer it in their next message.
+* Do not claim the task is done or failed.  Ask the pending question from `outcome_details` clearly and concisely, so the user can answer it in their next message.
 * Keep it short and put the reply text in `answer`.
 
 ---
@@ -28,7 +27,7 @@
 ## If the outcome is failure
 
 * Do not claim success. State plainly that the task could not be completed.
-* Explain concisely what was attempted and why it could not be completed, using `failure_reason` and the observations.
+* Explain concisely what was attempted and why it could not be completed, using the failure reason in `outcome_details` and the observations.
 * If a clarification from the user would unblock the task, ask for it.
 * Keep it short and put the reply text in `answer`.
 
