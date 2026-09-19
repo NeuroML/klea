@@ -211,6 +211,29 @@ class GoalSchema(BaseModel):
 
 
 class ArtefactSchema(BaseModel):
+    """A durable, session-scoped result (ADR-0029; ADR-0035 update 2026-09-19).
+
+    Artefacts are the session-scoped store that survives across graph runs,
+    unlike plan-scoped working memory (``step_outputs``), which
+    ``InitGraphState`` clears each run.  ``AnswerFromResults`` auto-persists
+    the completed task's deliverable here, and later tasks see it through the
+    Planner prompt (rendered by ``KleaAgentState.artefacts_text``).
+
+    Conventions:
+
+    * :attr:`id_` is the stable key: writing a new entry with the same id
+      supersedes the previous one, so a refined conclusion replaces rather
+      than accumulates.
+    * :attr:`type_` is the category, for example ``"hypothesis"``,
+      ``"result"`` or ``"reference"``.
+    * :attr:`content` holds the concise result itself (text or structured
+      data); it is not the full user-facing answer.
+    * :attr:`metadata` holds provenance/context: the goal, task/plan id,
+      source step, timestamp and references (for example file paths or URLs)
+      the result depends on.  External resources are referenced, not copied
+      into :attr:`content`.
+    """
+
     id_: str = ""
     type_: str = ""
     content: Any
