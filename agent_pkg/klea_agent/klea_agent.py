@@ -34,6 +34,7 @@ from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
+from klea_agent.nodes.reasoning import ReasoningNode
 from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.nodes.triage_router import (
     TriageRouter,
@@ -53,6 +54,7 @@ from .schemas import (
     PlannerOutput,
     PlannerPlanSchema,
     PlanSchema,
+    ReasoningSchema,
     RouteSchema,
     StepOutput,
     StepSchema,
@@ -138,6 +140,7 @@ class KleaAgent(BaseLangGraph):
             Mode,
             PlannerOutput,
             PlannerPlanSchema,
+            ReasoningSchema,
             RouteSchema,
             EvaluationSchema,
         ]
@@ -181,11 +184,12 @@ class KleaAgent(BaseLangGraph):
         return state.route.route
 
     async def _planner_router(self, state: KleaAgentState) -> str:
-        """Route on the Planner's ``plan.status`` (ADR-0035).
+        """Route on the Planner's ``plan.status`` and the step kind (ADR-0035).
 
         ``unplannable`` -> failure answer; ``in_review`` -> human review;
         ``needs_input`` -> the answer node asks the pending question;
-        otherwise (``in_progress``) -> run the plan through the tool work loop.
+        otherwise (``in_progress``) -> dispatch the current step by ``kind``:
+        ``tool`` -> picker/caller, ``reasoning`` -> ``ReasoningNode``.
         """
         status = state.plan.status
         if status == "unplannable":
@@ -194,16 +198,30 @@ class KleaAgent(BaseLangGraph):
             return "review"
         if status == "needs_input":
             return "needs_input"
-        return "act"
+        return self._step_kind(state)
+
+    @staticmethod
+    def _step_kind(state: KleaAgentState) -> str:
+        """Return the current step's dispatch label: ``tool`` | ``reasoning``.
+
+        A missing current step defaults to ``tool``: the picker then has nothing
+        to bind and escalates, which is harmless.
+        """
+        step = state.plan.current_step()
+        return "reasoning" if step is not None and step.kind == "reasoning" else "tool"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
-        """Return the OperationalEvaluator verdict (ADR-0035).
+        """Route on the Evaluator verdict and, if continuing, the step kind.
 
-        ``step_incomplete`` / ``step_done`` continue the work loop through the
-        picker; ``need_replan`` escalates to the Planner; ``plan_done`` ends at
-        the answer and ``abort`` at the failure answer.
+        ``step_incomplete`` / ``step_done`` continue the work loop with the
+        current (or newly advanced) step dispatched by ``kind``;
+        ``need_replan`` escalates to the Planner; ``plan_done`` ends at the
+        answer and ``abort`` at the failure answer.
         """
-        return state.evaluation.evaluation
+        verdict = state.evaluation.evaluation
+        if verdict in ("step_incomplete", "step_done"):
+            return self._step_kind(state)
+        return verdict
 
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).
@@ -492,6 +510,15 @@ class KleaAgent(BaseLangGraph):
             label="Evaluating",
             llm_models=self.llm_models,
         )
+        # Reasoning steps (ADR-0035 update 2026-09-19): a plan step whose output
+        # is a conclusion rather than a tool action.  It records the conclusion
+        # as a step output (a ``str``) and hands off to the Evaluator.
+        self._reasoning_node = ReasoningNode(
+            logger=self.logger,
+            label="Reasoning",
+            llm_models=self.llm_models,
+            memory=self.memory,
+        )
         self._answer_from_results_node = AnswerFromResults(
             logger=self.logger,
             label="Composing answer",
@@ -516,6 +543,7 @@ class KleaAgent(BaseLangGraph):
         self.workflow.add_node(
             self._tools_caller_node.label, self._tools_caller_node.execute
         )
+        self.workflow.add_node(self._reasoning_node.label, self._reasoning_node.execute)
         self.workflow.add_node(
             self._op_evaluator_node.label, self._op_evaluator_node.execute
         )
@@ -575,7 +603,9 @@ class KleaAgent(BaseLangGraph):
                 "task": self._planner_node.label,
             },
         )
-        # Planner routing (ADR-0035): route on ``plan.status``.
+        # Planner routing (ADR-0035): route on ``plan.status``; when running,
+        # dispatch the current step by its kind (tool -> picker, reasoning ->
+        # ReasoningNode).
         self.workflow.add_conditional_edges(
             self._planner_node.label,
             self._planner_router,
@@ -583,7 +613,8 @@ class KleaAgent(BaseLangGraph):
                 "failure": self._answer_from_results_node.label,
                 "review": self._await_review_node.label,
                 "needs_input": self._answer_from_results_node.label,
-                "act": self._tools_picker_node.label,
+                "tool": self._tools_picker_node.label,
+                "reasoning": self._reasoning_node.label,
             },
         )
         # Human review loops back to the Planner, which interprets the
@@ -610,12 +641,17 @@ class KleaAgent(BaseLangGraph):
                 "replan": self._planner_node.label,
             },
         )
+        # A reasoning step produces its conclusion and is judged like any other
+        # step (no picker/caller).
+        self.workflow.add_edge(
+            self._reasoning_node.label, self._op_evaluator_node.label
+        )
         self.workflow.add_conditional_edges(
             self._op_evaluator_node.label,
             self._evaluation_router,
             {
-                "step_incomplete": self._tools_picker_node.label,
-                "step_done": self._tools_picker_node.label,
+                "tool": self._tools_picker_node.label,
+                "reasoning": self._reasoning_node.label,
                 "need_replan": self._planner_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "abort": self._answer_from_results_node.label,

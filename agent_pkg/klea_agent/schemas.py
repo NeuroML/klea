@@ -354,6 +354,21 @@ class PlannerOutput(BaseModel):
     reason: str = ""
 
 
+class ReasoningSchema(BaseModel):
+    """Structured output of a reasoning step (ADR-0035 update 2026-09-19).
+
+    A reasoning step produces a conclusion from what is already known
+    (interpretation, decision, hypothesis, design, synthesis).  It is
+    deliberately general -- not every conclusion has evidence references or a
+    confidence -- so only the conclusion and a short rationale are required.
+    The conclusion is recorded as a :class:`StepOutput` (like a tool result) so
+    later steps and the Planner see it in ``observations``.
+    """
+
+    conclusion: str = ""
+    rationale: str = ""
+
+
 class EvaluationSchema(BaseModel):
     """Operational verdict produced by the general Evaluator (ADR-0035).
 

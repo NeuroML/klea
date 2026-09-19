@@ -50,6 +50,7 @@ async def test_general_path_work_loop(monkeypatch):
         "Awaiting review",
         "Selecting tools",
         "Running tools",
+        "Reasoning",
         "Evaluating",
         "Composing answer",
         "Preparing response",
@@ -63,10 +64,11 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Deciding route", "Preparing response") in edges  # chat
     assert ("Deciding route", "Planning") in edges  # task
 
-    # Planner routing on plan.status.
+    # Planner routing on plan.status and step kind.
     assert ("Planning", "Composing answer") in edges  # unplannable -> failure
     assert ("Planning", "Awaiting review") in edges  # in_review
-    assert ("Planning", "Selecting tools") in edges  # in_progress
+    assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
+    assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
 
     # Human review loops back to the Planner (ADR-0035).
     assert ("Awaiting review", "Planning") in edges
@@ -78,7 +80,9 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Running tools", "Selecting tools") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
     assert ("Running tools", "Planning") in edges  # replan
-    assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done
+    assert ("Reasoning", "Evaluating") in edges  # reasoning step judged
+    assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done, tool
+    assert ("Evaluating", "Reasoning") in edges  # step_incomplete/step_done, reasoning
     assert ("Evaluating", "Planning") in edges  # need_replan
     assert ("Evaluating", "Composing answer") in edges  # plan_done/abort
     assert ("Composing answer", "Preparing response") in edges
