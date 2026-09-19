@@ -114,9 +114,17 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
     @override
     def _get_prompt_variables(self, state: BaseModel) -> dict:
-        """Format prompt with conversation data."""
+        """Format prompt with conversation data.
+
+        ``context_summary`` is empty on the first summarisation, so the
+        previous-summary section is composed as an optional block and omitted
+        entirely when there is none (prompt conventions).
+        """
         return {
-            "old_summary": state.context_summary,  # type: ignore
+            "old_summary_block": self._optional_section(
+                "Current summary",
+                state.context_summary,  # type: ignore
+            ),
             "conversation": self.conversation,
         }
 

@@ -98,6 +98,23 @@ def test_summarise_update_state_uses_window_start():
     assert updates["summarised_till"] < len(msgs)  # no overlap with window
 
 
+def test_summarise_omits_previous_summary_when_empty():
+    """First summarisation: no previous-summary section (prompt convention)."""
+    node = _make_summarise_node()
+    node.conversation = "user: hi\nassistant: hello"
+    variables = node._get_prompt_variables(MemoryState())
+    assert variables["old_summary_block"] == ""
+
+
+def test_summarise_renders_previous_summary_when_present():
+    node = _make_summarise_node()
+    node.conversation = "user: hi\nassistant: hello"
+    state = MemoryState(context_summary="earlier facts")
+    variables = node._get_prompt_variables(state)
+    assert variables["old_summary_block"].startswith("## Current summary")
+    assert "earlier facts" in variables["old_summary_block"]
+
+
 def test_summarise_skips_when_nothing_new_old():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(2)

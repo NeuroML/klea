@@ -1,10 +1,6 @@
 Please create a summary of the conversation between the user and the AI assistant.
 
-------
-
-Here is the current summary of the conversation so far:
-
-{old_summary}
+{old_summary_block}
 
 ------
 
