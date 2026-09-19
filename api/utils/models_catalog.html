@@ -381,6 +381,16 @@ first use after the disk cache expires.</p>
 </dl>
 </dd></dl>
 
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.MODELS_DEV_PROVIDERS_IGNORED">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">MODELS_DEV_PROVIDERS_IGNORED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{'huggingface'}</span></span><a class="headerlink" href="#klea_utils.models_catalog.MODELS_DEV_PROVIDERS_IGNORED" title="Link to this definition">¶</a></dt>
+<dd><p>Provider ids whose endpoint must NOT be taken from the catalog, because
+Klea has dedicated native handling for them (HuggingFace backend/provider
+selection and token mapping).  Checked before any catalog lookup.  Others
+are covered by the per-provider <code class="docutils literal notranslate"><span class="pre">api</span></code> guard: <code class="docutils literal notranslate"><span class="pre">anthropic</span></code> and <code class="docutils literal notranslate"><span class="pre">openai</span></code>
+carry no <code class="docutils literal notranslate"><span class="pre">api</span></code> in the catalog, so they already resolve to <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="klea_utils.models_catalog.ModelLimits">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">ModelLimits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">context</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#ModelLimits"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.ModelLimits" title="Link to this definition">¶</a></dt>
@@ -408,6 +418,36 @@ first use after the disk cache expires.</p>
 
 </dd></dl>
 
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.ProviderEndpoint">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">ProviderEndpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">npm</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#ProviderEndpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.ProviderEndpoint" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
+<p>Endpoint metadata for one models.dev provider (optionally per model).</p>
+<p><code class="docutils literal notranslate"><span class="pre">api</span></code> is the base URL an OpenAI/Anthropic-compatible client appends
+its resource path to (<code class="docutils literal notranslate"><span class="pre">/chat/completions</span></code>, <code class="docutils literal notranslate"><span class="pre">/v1/messages</span></code>, …), and
+<code class="docutils literal notranslate"><span class="pre">npm</span></code> is the AI-SDK package name, which identifies the wire protocol
+(<code class="docutils literal notranslate"><span class="pre">&#64;ai-sdk/anthropic</span></code> vs the OpenAI-shaped rest).  The catalog’s <code class="docutils literal notranslate"><span class="pre">env</span></code>
+field is deliberately not exposed: it names variables for the npm
+package, not for LangChain.</p>
+<p>Some providers (gateways such as OpenCode, OpenRouter, Cloudflare) serve
+different models on different wire surfaces.  The catalog records this as
+a per-model <code class="docutils literal notranslate"><span class="pre">provider.npm</span></code> override which, when present, wins over the
+provider default; <a class="reference internal" href="#klea_utils.models_catalog.get_provider_endpoint" title="klea_utils.models_catalog.get_provider_endpoint"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_provider_endpoint()</span></code></a> resolves it when given a
+model name.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.ProviderEndpoint.api">
+<span class="sig-name descname"><span class="pre">api</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#klea_utils.models_catalog.ProviderEndpoint.api" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.ProviderEndpoint.npm">
+<span class="sig-name descname"><span class="pre">npm</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#klea_utils.models_catalog.ProviderEndpoint.npm" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.models_catalog.get_catalog_model_limits">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">get_catalog_model_limits</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.models_catalog.ModelLimits" title="klea_utils.models_catalog.ModelLimits"><span class="pre">ModelLimits</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#get_catalog_model_limits"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.get_catalog_model_limits" title="Link to this definition">¶</a></dt>
@@ -426,6 +466,33 @@ the catalog could not be fetched.  Callers should treat <code class="docutils li
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">ModelLimits</span></code> with whatever fields the catalog defines.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.get_provider_endpoint">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">get_provider_endpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint" title="klea_utils.models_catalog.ProviderEndpoint"><span class="pre">ProviderEndpoint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#get_provider_endpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.get_provider_endpoint" title="Link to this definition">¶</a></dt>
+<dd><p>Return the endpoint metadata for a models.dev provider, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<p>Used to resolve <code class="docutils literal notranslate"><span class="pre">provider:model</span></code> model strings to an endpoint without
+the user supplying a URL (the catalog <code class="docutils literal notranslate"><span class="pre">api</span></code>), mirroring how token
+limits are read from the same catalog.  Returns <code class="docutils literal notranslate"><span class="pre">None</span></code> when the
+provider has no catalog entry, the catalog is unavailable, or the entry
+carries no <code class="docutils literal notranslate"><span class="pre">api</span></code> (native SDK providers such as <code class="docutils literal notranslate"><span class="pre">groq</span></code>/<code class="docutils literal notranslate"><span class="pre">mistral</span></code>
+resolve their own endpoint).</p>
+<p>When <em>model_name</em> is given and the catalog carries a per-model
+<code class="docutils literal notranslate"><span class="pre">provider.npm</span></code> override (as gateways do for models served on a
+different surface, e.g. <code class="docutils literal notranslate"><span class="pre">muse-spark-1.2-contributor</span></code> on OpenCode Go),
+that npm is returned instead of the provider default.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Klea provider id (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;openrouter&quot;</span></code>).</p></li>
+<li><p><strong>model_name</strong> – Model identifier within the provider, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint" title="klea_utils.models_catalog.ProviderEndpoint"><code class="xref py py-class docutils literal notranslate"><span class="pre">ProviderEndpoint</span></code></a>, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when unavailable.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -534,13 +601,20 @@ or <code class="docutils literal notranslate"><span class="pre">None</span></cod
 <li><a class="reference internal" href="#klea_utils.models_catalog.ENDPOINT_LIMITS_CACHE_TTL_SECONDS"><code class="docutils literal notranslate"><span class="pre">ENDPOINT_LIMITS_CACHE_TTL_SECONDS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.ENDPOINT_LIMITS_FETCH_TIMEOUT_SECONDS"><code class="docutils literal notranslate"><span class="pre">ENDPOINT_LIMITS_FETCH_TIMEOUT_SECONDS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.FETCH_TIMEOUT_SECONDS"><code class="docutils literal notranslate"><span class="pre">FETCH_TIMEOUT_SECONDS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.models_catalog.MODELS_DEV_PROVIDERS_IGNORED"><code class="docutils literal notranslate"><span class="pre">MODELS_DEV_PROVIDERS_IGNORED</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.ModelLimits"><code class="docutils literal notranslate"><span class="pre">ModelLimits</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.models_catalog.ModelLimits.context"><code class="docutils literal notranslate"><span class="pre">ModelLimits.context</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.ModelLimits.input"><code class="docutils literal notranslate"><span class="pre">ModelLimits.input</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.ModelLimits.output"><code class="docutils literal notranslate"><span class="pre">ModelLimits.output</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint"><code class="docutils literal notranslate"><span class="pre">ProviderEndpoint</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint.api"><code class="docutils literal notranslate"><span class="pre">ProviderEndpoint.api</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint.npm"><code class="docutils literal notranslate"><span class="pre">ProviderEndpoint.npm</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.get_catalog_model_limits"><code class="docutils literal notranslate"><span class="pre">get_catalog_model_limits()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.models_catalog.get_provider_endpoint"><code class="docutils literal notranslate"><span class="pre">get_provider_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.probe_endpoint_model_limits"><code class="docutils literal notranslate"><span class="pre">probe_endpoint_model_limits()</span></code></a></li>
 </ul>
 </li>

@@ -864,6 +864,47 @@ already substituted).</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.resolve_catalog_provider_endpoint">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">resolve_catalog_provider_endpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.llm.CustomEndpoint" title="klea_utils.llm.CustomEndpoint"><span class="pre">CustomEndpoint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#resolve_catalog_provider_endpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.resolve_catalog_provider_endpoint" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve a catalog provider to a wire surface via its models.dev entry.</p>
+<p>Lets a user write <code class="docutils literal notranslate"><span class="pre">provider:model</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">openrouter:...</span></code>) without an
+explicit URL: the catalog’s <code class="docutils literal notranslate"><span class="pre">api</span></code> supplies the base URL and its <code class="docutils literal notranslate"><span class="pre">npm</span></code>
+package identifies the wire protocol.  The wire surface is resolved from
+the npm:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;ai-sdk/anthropic</span></code> -&gt; Anthropic Messages API
+(<code class="docutils literal notranslate"><span class="pre">/v1/messages</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;ai-sdk/openai</span></code> -&gt; OpenAI Responses API (<code class="docutils literal notranslate"><span class="pre">/responses</span></code>);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;ai-sdk/openai-compatible</span></code> (and anything else with an <code class="docutils literal notranslate"><span class="pre">api</span></code>) -&gt;
+OpenAI Chat Completions, the catalog’s overwhelming default.</p></li>
+</ul>
+<p>The npm is resolved <em>per model</em> when a model name is given, so gateway
+providers that serve different models on different surfaces (OpenCode,
+OpenRouter, …) pick the right one – the catalog records this as a
+per-model <code class="docutils literal notranslate"><span class="pre">provider.npm</span></code> override.</p>
+<p>The returned <code class="docutils literal notranslate"><span class="pre">base_url</span></code> is what the SDK appends its resource path to.
+For the Anthropic surface the catalog <code class="docutils literal notranslate"><span class="pre">api</span></code> typically already ends in
+<code class="docutils literal notranslate"><span class="pre">/v1</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">.../anthropic/v1</span></code>) while <code class="docutils literal notranslate"><span class="pre">ChatAnthropic</span></code> re-appends
+<code class="docutils literal notranslate"><span class="pre">/v1/messages</span></code>, so a trailing <code class="docutils literal notranslate"><span class="pre">/v1</span></code> is stripped here; a full
+<code class="docutils literal notranslate"><span class="pre">.../v1/messages</span></code> is handled by <a class="reference internal" href="#klea_utils.llm.resolve_custom_endpoint" title="klea_utils.llm.resolve_custom_endpoint"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_custom_endpoint()</span></code></a>.</p>
+<p>Returns <code class="docutils literal notranslate"><span class="pre">None</span></code> when the provider is not in the catalog, has no <code class="docutils literal notranslate"><span class="pre">api</span></code>
+(native SDK providers resolve their own endpoint), uses a surface Klea
+does not implement (e.g. <code class="docutils literal notranslate"><span class="pre">&#64;ai-sdk/google</span></code>), or the catalog is
+unavailable – callers then leave the model string to LangChain.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Klea provider id (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;openrouter&quot;</span></code>).</p></li>
+<li><p><strong>model_name</strong> – Model identifier within the provider, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The resolved <a class="reference internal" href="#klea_utils.llm.CustomEndpoint" title="klea_utils.llm.CustomEndpoint"><code class="xref py py-class docutils literal notranslate"><span class="pre">CustomEndpoint</span></code></a>, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.llm.resolve_custom_endpoint">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">resolve_custom_endpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.llm.CustomEndpoint" title="klea_utils.llm.CustomEndpoint"><span class="pre">CustomEndpoint</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#resolve_custom_endpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.resolve_custom_endpoint" title="Link to this definition">¶</a></dt>
 <dd><p>Detect the wire API surface from a <code class="docutils literal notranslate"><span class="pre">custom:</span></code> model endpoint URL.</p>
@@ -1102,6 +1143,7 @@ is unavailable (e.g. an uninstalled checkout).</p>
 <li><a class="reference internal" href="#klea_utils.llm.parse_model_name"><code class="docutils literal notranslate"><span class="pre">parse_model_name()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.parse_output_with_thought"><code class="docutils literal notranslate"><span class="pre">parse_output_with_thought()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.prompt_value_to_messages"><code class="docutils literal notranslate"><span class="pre">prompt_value_to_messages()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.resolve_catalog_provider_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_catalog_provider_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_custom_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_custom_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_langchain_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_langchain_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit"><code class="docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a></li>

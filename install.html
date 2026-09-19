@@ -608,6 +608,20 @@ different models on different endpoints):</p>
 Anthropic (where it is copied to <code class="docutils literal notranslate"><span class="pre">anthropic_api_key</span></code>); an explicit
 per-chat <code class="docutils literal notranslate"><span class="pre">api_key</span></code> override takes precedence.</p>
 </li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;provider&gt;:&lt;model_name&gt;</span></code> for providers listed in the
+<a class="reference external" href="https://models.dev">models.dev</a> catalog whose endpoint Klea can resolve
+(for example <code class="docutils literal notranslate"><span class="pre">openrouter:qwen/qwen3-coder</span></code> or <code class="docutils literal notranslate"><span class="pre">deepseek:deepseek-chat</span></code>).
+Klea reads the provider’s endpoint from the catalog, so no URL is needed.
+The provider’s (or, for gateways that mix surfaces, the model’s) wire
+protocol decides the surface: OpenAI Chat Completions (most of the catalog,
+including OpenRouter) and the OpenAI Responses API both use the OpenAI
+provider with <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> (Responses is selected automatically for
+models such as those on OpenCode Go); Anthropic-style endpoints use the
+Anthropic surface (requires the <code class="docutils literal notranslate"><span class="pre">anthropic</span></code> extra) with the same
+<code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> mapping as <code class="docutils literal notranslate"><span class="pre">custom:</span></code>.  Providers without a catalog
+endpoint (native SDK providers such as <code class="docutils literal notranslate"><span class="pre">groq</span></code>/<code class="docutils literal notranslate"><span class="pre">mistral</span></code>) are left to
+LangChain as before, as are <code class="docutils literal notranslate"><span class="pre">huggingface:</span></code> and <code class="docutils literal notranslate"><span class="pre">anthropic:</span></code>, which keep
+their dedicated handling.</p></li>
 <li><p>Others (e.g. OpenAI, Anthropic) use their standard model names and
 environment variables as supported by LangChain.</p></li>
 </ul>
@@ -647,8 +661,9 @@ stores – set <code class="docutils literal notranslate"><span class="pre">KLEA
 <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code> (see <a class="reference internal" href="#model-defaults">Model defaults</a>).</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code></p></td>
-<td><p>API key for OpenAI and for <code class="docutils literal notranslate"><span class="pre">custom:</span></code> endpoints (including the
-Anthropic surface).</p></td>
+<td><p>API key for OpenAI, for <code class="docutils literal notranslate"><span class="pre">custom:</span></code> endpoints, and for catalog
+providers resolved to the OpenAI or Anthropic surface (see
+<a class="reference internal" href="#model-defaults">Model defaults</a>).</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code></p></td>
 <td><p>API key for the native Anthropic provider.</p></td>
