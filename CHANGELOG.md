@@ -48,17 +48,24 @@
 - Per-request tool `access_level` (chat payload) plus `general.access_level` / `general.tool_access` config; the agent defaults to `full` (ADR-0037).
 - Environment and coding requests (working directory, builds, scripts) are now answerable in full mode via the bundled `run_command` tool instead of ending `unplannable` (ADR-0038).
 - Per-step observations record the tool that produced each result and whether the interface already displayed it, and the final reply avoids reprinting output the chat already showed.
-- Empty or unusable tool selections are retried a bounded number of times with feedback before the round proceeds to the evaluator.
+- Reasoning steps: a plan step can be a `reasoning` step that produces a conclusion (analysis, decision, hypothesis, design) instead of a tool call, handled by a dedicated `ReasoningNode` and recorded alongside tool results.
+- `needs_input` plan outcome: when a missing fact only the user can supply blocks planning, the agent asks for it instead of failing, carrying the question in `pending_question`.
+- Session-scoped artefacts: a completed task's deliverable is persisted as a concise artefact and is available to later tasks in the same session.
+- Unified replan reason: automated replans (tool failure or `need_replan`) carry a concrete reason back to the Planner.
 
 ### Changed
 
-- Tool selection: the picker prefers the planner's suggested tools and replans when none fit; per-step observations and run progress are kept in state and context.
+- Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
+- The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.
 - Per-step observations, retry counters and status use the plan step's 1-based number, and per-step state is cleared when the planner writes a plan, so replans no longer merge stale outputs.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
 ### Fixed
 
 - The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.
+- Answer synthesis reports the correct success/failure outcome and no longer duplicates the failure-reason label.
+- Superseded failed tool outputs are dropped from a step's observations once a call succeeds, so stale errors no longer confuse evaluation or the final answer.
+- The evaluator is given the list of tools actually executed, and an empty retrieval renders a clear "no context" marker instead of a blank context section.
 
 ## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`
 

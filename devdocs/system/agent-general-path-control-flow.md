@@ -3,7 +3,9 @@
 Status: design note, not an ADR.  Concrete mechanics for ADR-0035; to be
 replaced by the C4 agent component diagram once the graph is implemented.
 Written 2026-09-10 by opencode (model: deepseek-flash); revised same day to
-the narrow-router + task-path topology.
+the narrow-router + task-path topology; revised 2026-09-19 for reasoning
+steps, the tool-identity contract, the unified replan reason, ``needs_input``
+and session-scoped artefacts (ADR-0035 update 2026-09-19).
 
 ## Scope
 
@@ -27,11 +29,16 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
                  |-- status in_review -----> AwaitReview --(user input only)--> Planner
-                 '-- status in_progress ---> step entry
+                 |-- status needs_input ---> AnswerFromResults (question) -> AnswerUser -> END
+                 '-- status in_progress ---> step entry (dispatch by step kind)
 
-Step entry (the tools picker is the sole tool selector):
-  ToolsPicker --empty selection--> Planner   (no suitable tool: replan)
-              --otherwise--------> ToolsCaller -> TriageRouter
+Step entry (the Planner selects the tool; the picker binds arguments):
+  kind = tool:
+    ToolsPicker --usable call(s)------> ToolsCaller -> TriageRouter
+                --deliberate failure--> Planner   (synthetic error observation + replan_reason)
+                --empty (glitch)------> ToolsPicker (bounded retry), then Planner
+  kind = reasoning:
+    ReasoningNode -> Evaluator
 
 TriageRouter (deterministic, tool-error triage):
   error, retries left  -> ToolsPicker
@@ -39,10 +46,10 @@ TriageRouter (deterministic, tool-error triage):
   no error             -> Evaluator
 
 Evaluator (operational judge):
-  step_incomplete -> step entry
-  step_done       -> step entry (next step)
+  step_incomplete -> step entry (current step, by kind)
+  step_done       -> step entry (next step, by kind)
   need_replan     -> Planner
-  plan_done       -> AnswerFromResults -> AnswerUser -> END
+  plan_done       -> AnswerFromResults (persists the deliverable) -> AnswerUser -> END
   abort           -> AnswerFromResults (failure) -> AnswerUser -> END
 ```
 
@@ -62,7 +69,8 @@ answered from assumption.
 | RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan, flag review (ADR-0035); never answers the user | yes (plan role) |
 | AwaitReview | capture human review input only (no LLM); free-text feedback | no |
-| ToolsPicker + ToolsCaller (Act) | emit ``ToolCallsSchema`` and dispatch parallel tool calls (ADR-0020/0034) | picker yes, caller no |
+| ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for the step's suggested tools and dispatch (ADR-0020/0034); never substitute a different tool | picker yes, caller no |
+| ReasoningNode (``kind=reasoning``) | produce the step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller | yes (chat role) |
 | TriageRouter | deterministic tool-error triage: error present? retries left? | no |
 | Evaluator | operational judge only: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
@@ -78,17 +86,22 @@ answer the user directly:
 | ``chat`` | self-contained conversation/knowledge; the router wrote ``answer`` | ``AnswerUser`` |
 | ``task`` | needs the environment/workspace/session | ``Planner`` |
 
-The Planner (task path only) emits ``PlannerOutput {goal, plan}``;
+The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``plan.status`` is the post-Planner routing source:
 
 | status | meaning | edge |
 |--------|---------|------|
 | ``in_review`` | plan produced, awaiting human review | ``AwaitReview`` |
+| ``needs_input`` | blocked on a missing fact only the user can supply; the question is in ``reason`` (a partial plan is allowed) | ``AnswerFromResults`` (question) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | ready; execute | step entry |
+| ``in_progress`` | ready; execute the current step by its ``kind`` | step entry |
 
-``Planner._update_state``: steps + review -> ``in_review``; steps ->
-``in_progress``; no steps -> ``unplannable``.  It never answers the user.
+``Planner._update_state``: ``needs_input`` -> state ``needs_input`` with
+``pending_question`` from ``reason``; steps + review -> ``in_review``; steps ->
+``in_progress``; ``unplannable`` (or no steps) -> ``unplannable``.  It never
+answers the user.  ``PlannerPlanSchema`` exposes only these editable statuses to
+the model; the state ``PlanSchema`` also carries the runtime ones
+(``not_started``/``completed``/``failed``/``aborted``) written by code.
 
 ### Planner plan ownership (Design A)
 
@@ -150,7 +163,10 @@ For the first implementation stage ``AwaitReview`` is a stub that supplies a
 canned "looks good, proceed" input, exercising the loop without LangGraph
 ``interrupt``.  Real ``interrupt``/``Command(resume=...)`` (and the API/UI
 resume path, including resume-of-same-execution vs new-turn semantics) is a
-separate stage recorded as ADR-0037.
+separate pending stage (HITL interrupt/resume ADR).  That stage must also wire
+``needs_input``: today it terminates with the question in the answer, and the
+next turn is a fresh run; the interrupt should resume the same run with the
+answer and the plan/state intact.
 
 ## Tool disclosure
 
@@ -162,30 +178,32 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 | Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
 | ToolsPicker | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` |
 
-Plans are **tool-executable only**: a self-contained request that needs no tools
-is answered inline by ``RouteDecision`` (``chat``), so a plan step always goes
-through the picker.  The Planner's per-step ``suggested_tools`` is a **prior**,
-not a binding: the picker honours it when it fits and otherwise picks a
-different available tool (giving a ``reason``), or returns an empty list when
-nothing fits (-> replan).  The outcome contract is the step's success criteria,
-judged by the Evaluator; a different tool that meets the criteria is fine, and a
-tool that does not is caught by ``need_replan``.  The picker is shared with RAG,
-which has no suggestions and simply selects from all tools.
+Plans contain **tool-executable steps** and **reasoning steps**, selected by
+``StepSchema.kind``.  A self-contained request that needs no tools is answered
+inline by ``RouteDecision`` (``chat``).  Tool identity is the Planner's: each
+tool step names its tool(s) in ``suggested_tools`` (normally one; more only for
+overlapping alternatives).  The picker **binds arguments only** and never
+substitutes: it sees the full static catalogue (prompt-cache stability,
+ADR-0028) but is instructed to use only the step's suggested tools.  When none
+can carry out the step it returns a single empty-``tool`` call carrying the
+reason; the picker node records that as a synthetic ``is_error`` observation
+plus ``replan_reason``, and the graph escalates to the Planner.  The picker is
+shared with RAG, which has no plan and selects freely from all tools.
 
-Access level (deferred; its own ADR): a ``read_only | full`` policy that
-filters the Planner's and picker's tool lists by the MCP
-``read_only``/``destructive`` annotations and is hard-enforced at dispatch, so
-a read-only run can still plan and inspect but cannot mutate.
+Access level (ADR-0037): a ``read_only | full`` policy filters the Planner's
+and picker's tool lists by the MCP ``read_only``/``destructive`` annotations and
+is hard-enforced at dispatch, so a read-only run can still plan and inspect but
+cannot mutate.
 
 The Planner sees all configured tools (bundled plus domain).  Pruning or
 filtering is deferred; if it becomes necessary, prefer multi-domain selection
-(ADR-0011) or tool retrieval over single-domain classification.  Caching: v1
-keeps the tool block stable so provider prefix caching (ADR-0028) still
-applies.
+(ADR-0011) or tool retrieval over single-domain classification.  Caching: the
+tool block is kept stable so provider prefix caching (ADR-0028) still applies.
 
-Planner and ToolsPicker stay separate nodes: the picker runs after each batch
-with the latest results so it can set arguments that depend on prior outputs,
-and it is shared with RAG (ADR-0020).
+Planner and ToolsPicker stay separate nodes: the Planner runs once (or on
+replan) without per-step outputs, while the picker runs after each batch with
+the latest observations so it can bind arguments that depend on prior outputs
+(ADR-0020/0035).
 
 ## State (relevant fields)
 
@@ -193,24 +211,55 @@ and it is shared with RAG (ADR-0020).
   chat answer).
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
-* ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``,
-  current step index, and the lifecycle ``status`` used for routing).  The
-  Planner authors all of it (Design A, above); code only validates structure.
-* ``step_outputs: dict[int, list[CallToolResult]]`` (per-step results).
+* ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``/
+  ``kind``/``suggested_tools``, current step index, and the lifecycle ``status``
+  used for routing).  The Planner authors all of it (Design A, above); code only
+  validates structure.
+* ``step_outputs: dict[int, list[StepOutput]]`` (per-step results; a
+  ``StepOutput.result`` is either a ``CallToolResult`` or, for a reasoning
+  step, a plain ``str`` conclusion).  Plan-scoped: cleared each turn and on a
+  new plan.
 * ``tool_calls`` / ``tool_results`` (current batch; shared with RAG).
 * ``tool_retry_counts: dict[int, int]`` (consecutive tool-error batches per
   step; ADaPT re-pick budget).
 * ``step_attempt_counts: dict[int, int]`` (non-advancing evaluations per step;
   semantic no-progress budget).
-* ``plan_revisions: int`` (Planner entries; replan budget).
+* ``plan_revisions: int`` (automated replans since the initial plan or the last
+  human review; replan budget; review entries reset it).
+* ``picker_attempts``/``picker_step`` (consecutive unusable picker selections
+  and the step they belong to; bounded retry before escalating).
+* ``replan_reason: str`` (unified reason the Planner is re-entered: set by the
+  Evaluator on ``need_replan`` and by the tool-round recorder on a failed
+  batch; read and cleared by the Planner).
+* ``pending_question: str`` (the question to ask when ``plan.status`` is
+  ``needs_input``).
 * ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run;
   global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``human_feedback: str`` (latest review input; empty otherwise).
 * ``evaluation: EvaluationSchema`` (latest operational verdict + reason).
+* ``artefacts: dict[str, ArtefactSchema]`` (session-scoped durable results; the
+  completed task's deliverable is persisted here, see Persistence below).
 * ``messages`` (run history: query, plan/verdict progress, review input,
   final answer).
 * ``mode: Mode`` (requested / resolved / note).
+
+## Persistence (plan-scoped vs session-scoped)
+
+State lifetime is split so a bounded working set carries across a run while
+only curated results cross into later tasks:
+
+* **Plan-scoped working memory** (`step_outputs`, the retry/attempt counters)
+  is visible to later steps and cleared by ``InitGraphState`` each turn and by
+  the Planner when it authors a new plan.
+* **Session-scoped** (`artefacts`, plus ``messages`` for lossy continuity,
+  ``mode`` and ``discovery_persistent``) survives across tasks in the same
+  session.  ``AnswerFromResults`` auto-persists the completed task's
+  deliverable as a concise ``ArtefactSchema`` (goal + result, keyed by a slug of
+  the goal so a re-run supersedes); failure and ``needs_input`` persist nothing.
+  The Planner sees the rendered artefacts (`artefacts_text()`), so a later task
+  can build on an earlier one.  Intermediate tool/reasoning outputs never leak
+  into artefacts.
 
 ## Failure signals (levels)
 
@@ -234,14 +283,18 @@ level 2 verifier with provenance.
 | Cause | Route | Notes |
 |-------|-------|-------|
 | transient (network, timeout, 5xx) | retry at dispatch | bounded (ADR-0017 handles LLM; dispatch handles tools) |
-| call-level (bad args, wrong tool, permission denied) | picker | re-pick with the error fed back |
+| call-level (bad args, permission denied) | picker | re-pick the **same** tool with corrected arguments; the picker may not switch tools |
+| picker cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the picker does not substitute |
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` N re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
 | plan cannot be revised usefully | failure answer | ``plan_revisions``/``tool_rounds`` cap -> ``abort`` |
 
 Failure is attributed per call, not per round: successful calls in a round are
-kept, failed calls are re-picked.
+kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
+errored outputs are pruned from the observations (they remain in ``messages``
+and the node stream), so superseded failures do not mislead the Evaluator or
+the answer synthesis.
 
 ## Goal handling
 
@@ -303,14 +356,18 @@ criterion, and ``abort`` when they show the goal is unreachable (above).
 
 ## Answer synthesis
 
-``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success) or
-``abort``/``unplannable`` (failure).  On success it writes ``message_for_user``
-from the goal, the completed plan and the observations; on failure it explains
-concisely what was attempted and why it could not be completed (using
-``failure_reason``, the plan and the observations).  It judges nothing.  Its
-prompt carries the output-formatting rules (verbatim command/list output in
-fenced code blocks, identifiers in backticks, a blank line before lists, no raw
-JSON dumps).  A deterministic fallback covers an empty or failed synthesis.
+``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success),
+``abort``/``unplannable`` (failure), or ``needs_input`` (ask the pending
+question).  On success it writes ``message_for_user`` from the goal, the
+completed plan and the observations, and persists the deliverable to
+``artefacts`` (see Persistence); on failure it explains concisely what was
+attempted and why it could not be completed (using ``failure_reason``, the plan
+and the observations); on ``needs_input`` it asks ``pending_question``.  The
+outcome-specific detail (failure reason or question) is rendered as a single
+conditional block, omitted entirely on success.  It judges nothing.  Its prompt
+carries the output-formatting rules (verbatim command/list output in fenced
+code blocks, identifiers in backticks, a blank line before lists, no raw JSON
+dumps).  A deterministic fallback covers an empty or failed synthesis.
 Scientific mode will use a grounded, citation-carrying variant; the Evaluator
 contract is unchanged.
 
