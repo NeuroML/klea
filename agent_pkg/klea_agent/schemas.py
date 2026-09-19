@@ -505,3 +505,27 @@ class KleaAgentState(BaseGraphSchema):
                 rendered += f"\n\nTool call {ind}: {entry.render()}"
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"
+
+    def artefacts_text(self) -> str:
+        """Render the session-scoped artefacts as one text block.
+
+        Used by the Planner so a later task can build on earlier tasks'
+        durable results.  Each artefact is rendered with its id, type and
+        metadata (provenance/references) so the model can cite them; content is
+        the concise result.  Returns ``"(no artefacts)"`` when the session has
+        none, so the prompt always has a value.
+        """
+        if not self.artefacts:
+            return "(no artefacts)"
+        parts: list[str] = []
+        for artefact_id, artefact in self.artefacts.items():
+            key = artefact.id_ or artefact_id
+            header = f"{key} (type: {artefact.type_ or 'unknown'})"
+            lines = [header, str(artefact.content)]
+            if artefact.metadata:
+                rendered_meta = "; ".join(
+                    f"{name}={value}" for name, value in artefact.metadata.items()
+                )
+                lines.append(f"metadata: {rendered_meta}")
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)

@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
+import re
 from typing import Any, ClassVar, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
@@ -17,13 +18,24 @@ from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.tools import textualize_tool_results
 from pydantic import BaseModel
 
-from klea_agent.schemas import KleaAgentState
+from klea_agent.schemas import ArtefactSchema, KleaAgentState
 
 
 class AnswerSchema(BaseModel):
     """Structured output of the answer-synthesis node."""
 
     answer: str = ""
+
+
+def _slug(text: str, max_len: int = 60) -> str:
+    """Return a stable, filesystem-safe id slug from *text*.
+
+    Lowercases, collapses non-alphanumeric runs to single hyphens and trims to
+    *max_len* characters, so a goal maps to a short id (used as the artefact
+    key; re-running the same goal supersedes the previous artefact).
+    """
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:max_len].strip("-")
 
 
 class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
@@ -117,10 +129,43 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     def _update_state(
         self, result: AnswerSchema, state: KleaAgentState
     ) -> dict[str, Any]:
-        """Write the final message, with a deterministic fallback if empty."""
+        """Write the final message and persist the task deliverable.
+
+        On success the task's deliverable (a concise artefact: the goal plus the
+        answer) is written to the session-scoped ``artefacts`` so a later task
+        in the same session can build on it.  The full user-facing reply stays
+        in ``message_for_user`` and ``messages`` (lossy continuity); the
+        artefact is the concise, addressable record.  On failure or
+        ``needs_input`` nothing is persisted -- there is no deliverable yet.
+        """
         answer = result.answer.strip() or self._fallback_answer(state)
-        self.logger.debug(f"{answer = }")
-        return {"message_for_user": answer}
+        update: dict[str, Any] = {"message_for_user": answer}
+        if self._outcome(state) == "success":
+            artefact = self._deliverable_artefact(state, answer)
+            artefacts = dict(state.artefacts or {})
+            artefacts[artefact.id_] = artefact
+            update["artefacts"] = artefacts
+        self.logger.debug(f"{answer = }\n{update.get('artefacts') = }")
+        return update
+
+    @staticmethod
+    def _deliverable_artefact(state: KleaAgentState, answer: str) -> ArtefactSchema:
+        """Build the concise, session-scoped artefact for this task.
+
+        The id is derived from the goal so a re-run of the same task supersedes
+        rather than accumulates.  ``content`` is the concise result (the goal
+        and the answer); ``metadata`` records provenance (the goal and the plan
+        status) for later reference.
+        """
+        goal = state.goal.goal.strip()
+        artefact_id = _slug(goal) or "task-result"
+        content = f"Goal: {goal}\nResult: {answer}" if goal else answer
+        return ArtefactSchema(
+            id_=artefact_id,
+            type_="result",
+            content=content,
+            metadata={"goal": goal, "plan_status": state.plan.status},
+        )
 
     def _fallback_answer(self, state: KleaAgentState) -> str:
         """Return a non-empty answer when synthesis produced nothing.

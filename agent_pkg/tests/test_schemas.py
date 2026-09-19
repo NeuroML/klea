@@ -134,6 +134,27 @@ class TestStepOutputRender:
     def test_observations_text_empty(self):
         assert KleaAgentState().observations_text() == "(no observations)"
 
+    def test_artefacts_text_empty(self):
+        assert KleaAgentState().artefacts_text() == "(no artefacts)"
+
+    def test_artefacts_text_renders_id_type_content_metadata(self):
+        from klea_agent.schemas import ArtefactSchema
+
+        state = KleaAgentState(
+            artefacts={
+                "hypothesis": ArtefactSchema(
+                    id_="hypothesis",
+                    type_="hypothesis",
+                    content="H1: X causes Y",
+                    metadata={"goal": "generate a hypothesis"},
+                )
+            }
+        )
+        text = state.artefacts_text()
+        assert "hypothesis (type: hypothesis)" in text
+        assert "H1: X causes Y" in text
+        assert "goal=generate a hypothesis" in text
+
 
 class TestPlannerPlanSchema:
     """The Planner sees only the statuses it may set (ADR-0035 2026-09-19)."""

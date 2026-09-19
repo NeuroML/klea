@@ -31,10 +31,11 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
     Mirrors ``rag_pkg/klea_rag/nodes/init_rag.py``: resets per-turn
     ephemeral fields while preserving ``messages``,
     ``context_summary``/``summarised_till``, ``discovery_persistent``
-    (project-wide discovery that only changes when files change), and
-    ``mode`` (session-scoped, ADR-0030).  ``usage_metrics`` is intentionally
-    not reset -- it uses the ``add_token_usage`` reducer and accumulates
-    across turns.
+    (project-wide discovery that only changes when files change),
+    ``artefacts`` (session-scoped durable results, ADR-0035 update
+    2026-09-19), and ``mode`` (session-scoped, ADR-0030).  ``usage_metrics`` is
+    intentionally not reset -- it uses the ``add_token_usage`` reducer and
+    accumulates across turns.
     """
 
     def __init__(self, logger: logging.Logger, label: str):
@@ -49,6 +50,10 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         preserved across turns so the Planner's memory and summarisation see
         the conversation.  A HITL resume does not re-run this node, so the
         query is recorded once per turn.
+
+        ``artefacts`` is deliberately *not* reset: it is the session-scoped
+        store that carries a task's durable result into later tasks in the same
+        session (ADR-0035 update 2026-09-19).
         """
         self.write_custom_stream({"type": "progress", "node": self.label})
         return {
@@ -71,7 +76,6 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},
-            "artefacts": {},
             "discovery_per_step": Discovery(),
             "code": CodeSchema(),
             "messages": [*state.messages, HumanMessage(content=state.query)],

@@ -98,6 +98,38 @@ class TestAnswerFromResults(unittest.TestCase):
         answer = self._node()._fallback_answer(self._needs_input_state())
         self.assertIn("which file?", answer)
 
+    def test_success_persists_deliverable_artefact(self):
+        update = self._node()._update_state(
+            AnswerSchema(answer="here you go"), self._state()
+        )
+        artefacts = update["artefacts"]
+        assert len(artefacts) == 1
+        artefact = next(iter(artefacts.values()))
+        assert artefact.type_ == "result"
+        assert "list files" in artefact.content
+        assert artefact.metadata["goal"] == "list files"
+
+    def test_same_goal_supersedes_artefact(self):
+        node = self._node()
+        first = node._update_state(AnswerSchema(answer="a"), self._state())
+        state = self._state()
+        state.artefacts = first["artefacts"]
+        second = node._update_state(AnswerSchema(answer="b"), state)
+        assert len(second["artefacts"]) == 1
+        assert "b" in next(iter(second["artefacts"].values())).content
+
+    def test_failure_does_not_persist_artefact(self):
+        update = self._node()._update_state(
+            AnswerSchema(answer="failed"), self._failed_state()
+        )
+        assert "artefacts" not in update
+
+    def test_needs_input_does_not_persist_artefact(self):
+        update = self._node()._update_state(
+            AnswerSchema(answer="question"), self._needs_input_state()
+        )
+        assert "artefacts" not in update
+
 
 if __name__ == "__main__":
     unittest.main()

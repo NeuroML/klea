@@ -60,6 +60,8 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update
     assert "context_summary" not in update
+    # Artefacts are session-scoped: never cleared by the per-run reset.
+    assert "artefacts" not in update
     # The query is appended to the run history (messages is preserved + query).
     assert len(update["messages"]) == 1
     assert isinstance(update["messages"][-1], HumanMessage)
