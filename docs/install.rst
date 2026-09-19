@@ -280,6 +280,18 @@ Model names are prefixed according to their provider:
   ``OPENAI_API_KEY`` supplies the key for every custom surface, including
   Anthropic (where it is copied to ``anthropic_api_key``); an explicit
   per-chat ``api_key`` override takes precedence.
+* ``<provider>:<model_name>`` for providers listed in the
+  `models.dev <https://models.dev>`_ catalog whose endpoint Klea can resolve
+  (for example ``openrouter:qwen/qwen3-coder`` or ``deepseek:deepseek-chat``).
+  Klea reads the provider's endpoint from the catalog, so no URL is needed.
+  The provider's wire protocol decides the surface: OpenAI-compatible
+  endpoints (most of the catalog, including OpenRouter) use the OpenAI
+  surface and ``OPENAI_API_KEY``; Anthropic-style endpoints use the Anthropic
+  surface (requires the ``anthropic`` extra) with the same
+  ``OPENAI_API_KEY`` mapping as ``custom:``.  Providers without a catalog
+  endpoint (native SDK providers such as ``groq``/``mistral``) are left to
+  LangChain as before, as are ``huggingface:`` and ``anthropic:``, which keep
+  their dedicated handling.
 * Others (e.g. OpenAI, Anthropic) use their standard model names and
   environment variables as supported by LangChain.
 
@@ -313,8 +325,9 @@ The environment variables Klea reads, and what they control:
      - Per-role model defaults, e.g. ``KLEA_AGENT_CHAT_MODEL``,
        ``KLEA_RAG_EMBEDDING_MODEL`` (see `Model defaults`_).
    * - ``OPENAI_API_KEY``
-     - API key for OpenAI and for ``custom:`` endpoints (including the
-       Anthropic surface).
+     - API key for OpenAI, for ``custom:`` endpoints, and for catalog
+       providers resolved to the OpenAI or Anthropic surface (see
+       `Model defaults`_).
    * - ``ANTHROPIC_API_KEY``
      - API key for the native Anthropic provider.
    * - ``HF_TOKEN``

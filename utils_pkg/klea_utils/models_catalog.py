@@ -70,6 +70,9 @@ _MODELS_DEV_PROVIDER_KEYS: dict[str, str | None] = {
 }
 
 
+MODELS_DEV_PROVIDERS_IGNORED = {"huggingface", "anthropic"}
+
+
 class ModelLimits(NamedTuple):
     """Token limits for a single model from the catalog.
 
@@ -240,6 +243,52 @@ def get_catalog_model_limits(provider: str, model_name: str) -> ModelLimits | No
         context=limit.get("context") if isinstance(limit.get("context"), int) else None,
         input=limit.get("input") if isinstance(limit.get("input"), int) else None,
         output=limit.get("output") if isinstance(limit.get("output"), int) else None,
+    )
+
+
+class ProviderEndpoint(NamedTuple):
+    """Endpoint metadata for one models.dev provider.
+
+    ``api`` is the base URL an OpenAI/Anthropic-compatible client appends
+    its resource path to (``/chat/completions``, ``/v1/messages``, ...), and
+    ``npm`` is the AI-SDK package name, which identifies the wire protocol
+    (``@ai-sdk/anthropic`` vs the OpenAI-shaped rest).  The catalog's ``env``
+    field is deliberately not exposed: it names variables for the npm
+    package, not for LangChain.
+    """
+
+    api: str | None = None
+    npm: str | None = None
+
+
+def get_provider_endpoint(provider: str) -> ProviderEndpoint | None:
+    """Return the endpoint metadata for a models.dev provider, or ``None``.
+
+    Used to resolve ``provider:model`` model strings to an endpoint without
+    the user supplying a URL (the catalog ``api``), mirroring how token
+    limits are read from the same catalog.  Returns ``None`` when the
+    provider has no catalog entry, the catalog is unavailable, or the entry
+    carries no ``api`` (native SDK providers such as ``groq``/``mistral``
+    resolve their own endpoint).
+
+    :param provider: Klea provider id (e.g. ``"openrouter"``).
+    :returns: :class:`ProviderEndpoint`, or ``None`` when unavailable.
+    """
+    try:
+        catalog = _catalog()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("models.dev catalog unavailable: %s", e)
+        return None
+
+    provider_entry = catalog.get(provider.lower())
+    if not isinstance(provider_entry, dict):
+        return None
+
+    api = provider_entry.get("api")
+    npm = provider_entry.get("npm")
+    return ProviderEndpoint(
+        api=api if isinstance(api, str) and api.strip() else None,
+        npm=npm if isinstance(npm, str) and npm.strip() else None,
     )
 
 

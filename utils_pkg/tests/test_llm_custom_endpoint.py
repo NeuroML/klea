@@ -8,8 +8,15 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from unittest import mock
+
 import pytest
-from klea_utils.llm import CustomEndpoint, resolve_custom_endpoint
+from klea_utils.llm import (
+    CustomEndpoint,
+    resolve_catalog_provider_endpoint,
+    resolve_custom_endpoint,
+)
+from klea_utils.models_catalog import ProviderEndpoint
 
 
 class TestResolveCustomEndpoint:
@@ -60,3 +67,44 @@ class TestResolveCustomEndpoint:
     def test_endpoint_without_base_path_raises(self):
         with pytest.raises(ValueError):
             resolve_custom_endpoint("/chat/completions")
+
+
+class TestResolveCatalogProviderEndpoint:
+    """Catalog providers resolve to a wire surface via api + npm."""
+
+    def _resolve(self, entry):
+        with mock.patch("klea_utils.llm.get_provider_endpoint", return_value=entry):
+            return resolve_catalog_provider_endpoint("some-provider")
+
+    def test_openai_compatible(self):
+        out = self._resolve(
+            ProviderEndpoint(api="https://openrouter.ai/api/v1", npm="@openrouter/x")
+        )
+        assert out == CustomEndpoint("https://openrouter.ai/api/v1", "openai", None)
+
+    def test_anthropic_strips_trailing_v1(self):
+        out = self._resolve(
+            ProviderEndpoint(
+                api="https://api.minimax.io/anthropic/v1", npm="@ai-sdk/anthropic"
+            )
+        )
+        assert out == CustomEndpoint(
+            "https://api.minimax.io/anthropic", "anthropic", None
+        )
+
+    def test_anthropic_full_path_stripped(self):
+        out = self._resolve(
+            ProviderEndpoint(
+                api="https://api.example.com/anthropic/v1/messages",
+                npm="@ai-sdk/anthropic",
+            )
+        )
+        assert out == CustomEndpoint(
+            "https://api.example.com/anthropic", "anthropic", None
+        )
+
+    def test_no_api_returns_none(self):
+        assert self._resolve(ProviderEndpoint(api=None, npm="@ai-sdk/groq")) is None
+
+    def test_missing_entry_returns_none(self):
+        assert self._resolve(None) is None

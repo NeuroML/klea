@@ -5,6 +5,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from unittest import mock
 
 import pytest
 from klea_utils.llm import LLMModel
@@ -370,3 +371,97 @@ class TestCustomEndpointSurface:
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         c = self._config("custom:minimax-m3:https://opencode.ai/zen/go/v1/messages")
         assert "anthropic_api_key" not in c
+
+
+class TestCatalogProviderEndpoint:
+    """``provider:model`` resolves the endpoint from the models.dev catalog."""
+
+    def _config(self, model_name, provider_entry=None, **kwargs):
+        model = LLMModel(
+            model_name=model_name,
+            instance=None,
+            user_agent="klea-agent/0.0.1",
+        )
+        with mock.patch(
+            "klea_utils.llm.get_provider_endpoint",
+            return_value=provider_entry,
+        ):
+            return configurable(model.build_config(**kwargs))
+
+    def test_openai_compatible_provider(self):
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "openrouter:qwen/qwen3-coder",
+            ProviderEndpoint(api="https://openrouter.ai/api/v1", npm="@openrouter/x"),
+        )
+        assert c["model"] == "qwen/qwen3-coder"
+        assert c["model_provider"] == "openai"
+        assert c["base_url"] == "https://openrouter.ai/api/v1"
+
+    def test_full_endpoint_suffix_is_stripped(self):
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "bailing:some-model",
+            ProviderEndpoint(
+                api="https://api.tbox.cn/api/llm/v1/chat/completions",
+                npm="@ai-sdk/openai-compatible",
+            ),
+        )
+        assert c["model_provider"] == "openai"
+        assert c["base_url"] == "https://api.tbox.cn/api/llm/v1"
+        assert c["use_responses_api"] is False
+
+    def test_anthropic_provider_strips_v1(self):
+        pytest.importorskip("langchain_anthropic")
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "minimax:minimax-m3",
+            ProviderEndpoint(
+                api="https://api.minimax.io/anthropic/v1", npm="@ai-sdk/anthropic"
+            ),
+        )
+        assert c["model_provider"] == "anthropic"
+        # /v1 stripped: the Anthropic SDK re-appends /v1/messages.
+        assert c["anthropic_api_url"] == "https://api.minimax.io/anthropic"
+        assert "base_url" not in c
+
+    def test_anthropic_provider_copies_openai_key(self, monkeypatch):
+        pytest.importorskip("langchain_anthropic")
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+        c = self._config(
+            "minimax:minimax-m3",
+            ProviderEndpoint(
+                api="https://api.minimax.io/anthropic/v1", npm="@ai-sdk/anthropic"
+            ),
+        )
+        assert c["anthropic_api_key"] == "env-key"
+
+    def test_native_provider_without_api_unchanged(self):
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        c = self._config(
+            "mistral:mistral-small", ProviderEndpoint(api=None, npm="@ai-sdk/mistral")
+        )
+        assert c["model_provider"] == "mistral"
+        assert "base_url" not in c
+
+    def test_unknown_provider_unchanged(self):
+        # No catalog entry -> LangChain resolves the provider as today.
+        c = self._config("nope-xyz:some-model", None)
+        assert c["model_provider"] == "nope-xyz"
+        assert "base_url" not in c
+
+    def test_explicit_custom_endpoint_wins(self):
+        from klea_utils.models_catalog import ProviderEndpoint
+
+        # A custom: model does not consult the catalog at all.
+        c = self._config(
+            "custom:some-model:https://my.endpoint/v1",
+            ProviderEndpoint(api="https://openrouter.ai/api/v1", npm="@openrouter/x"),
+        )
+        assert c["base_url"] == "https://my.endpoint/v1"

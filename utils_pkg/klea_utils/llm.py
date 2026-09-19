@@ -31,7 +31,12 @@ from pydantic import BaseModel
 
 from .errors import LLMInvocationErrorCategory
 from .imports import require_extra
-from .models_catalog import get_catalog_model_limits, probe_endpoint_model_limits
+from .models_catalog import (
+    MODELS_DEV_PROVIDERS_IGNORED,
+    get_catalog_model_limits,
+    get_provider_endpoint,
+    probe_endpoint_model_limits,
+)
 from .plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
@@ -156,6 +161,53 @@ def resolve_custom_endpoint(url: str) -> CustomEndpoint:
 
     logger.debug(f"No known endpoint suffix in {url!r}; treating as an OpenAI base URL")
     return CustomEndpoint(url, "openai", None)
+
+
+def resolve_catalog_provider_endpoint(provider: str) -> CustomEndpoint | None:
+    """Resolve a catalog provider to a wire surface via its models.dev entry.
+
+    Lets a user write ``provider:model`` (e.g. ``openrouter:...``) without an
+    explicit URL: the catalog's ``api`` supplies the base URL and its ``npm``
+    package identifies the wire protocol.  Only two surfaces are inferred:
+
+    * ``@ai-sdk/anthropic`` -> Anthropic Messages API;
+    * anything else with an ``api`` -> OpenAI-compatible (the catalog is
+      overwhelmingly OpenAI-shaped, e.g. OpenRouter, and a non-OpenAI URL
+      simply fails at query time as an unsupported provider would).
+
+    The returned ``base_url`` is what the SDK appends its resource path to.
+    For the Anthropic surface the catalog ``api`` typically already ends in
+    ``/v1`` (e.g. ``.../anthropic/v1``) while ``ChatAnthropic`` re-appends
+    ``/v1/messages``, so a trailing ``/v1`` is stripped here; a full
+    ``.../v1/messages`` is handled by :func:`resolve_custom_endpoint`.
+
+    Returns ``None`` when the provider is not in the catalog, has no ``api``
+    (native SDK providers resolve their own endpoint), or the catalog is
+    unavailable -- callers then leave the model string to LangChain.
+
+    :param provider: Klea provider id (e.g. ``"openrouter"``).
+    :returns: The resolved :class:`CustomEndpoint`, or ``None``.
+    """
+    entry = get_provider_endpoint(provider)
+    if entry is None or not entry.api:
+        return None
+
+    if entry.npm == "@ai-sdk/anthropic":
+        # ``ChatAnthropic`` appends ``/v1/messages`` to ``anthropic_api_url``;
+        # drop a trailing ``/v1`` (and any full ``/v1/messages``) first.
+        base_url = entry.api.rstrip("/")
+        for suffix in ("/v1/messages", "/v1"):
+            if base_url.endswith(suffix):
+                base_url = base_url[: -len(suffix)]
+                break
+        logger.debug(
+            f"Catalog provider {provider!r} -> anthropic surface, {base_url = }"
+        )
+        return CustomEndpoint(base_url, "anthropic", None)
+
+    resolved = resolve_custom_endpoint(entry.api)
+    logger.debug(f"Catalog provider {provider!r} -> {resolved}")
+    return resolved
 
 
 def check_ollama_model(logger, model, exit=False):
@@ -1253,37 +1305,56 @@ class LLMModel(BaseModel):
         # parse_model_name is defined in this module  ---  no lazy import needed.
         parsed = parse_model_name(overrides["model"])
         overrides["model"] = parsed.model_name
-        if parsed.provider == "custom":
+        if parsed.provider and parsed.provider == "custom":
             # The suffix may be a bare base URL (default: OpenAI Chat
             # Completions) or a full endpoint URL whose surface we detect
             # (chat completions / responses / messages).  See
             # resolve_custom_endpoint.
             if parsed.suffix:
-                endpoint = resolve_custom_endpoint(parsed.suffix)
-                overrides["model_provider"] = endpoint.model_provider
-                if endpoint.model_provider == "anthropic":
+                custom_endpoint: CustomEndpoint = resolve_custom_endpoint(parsed.suffix)
+                overrides["model_provider"] = custom_endpoint.model_provider
+                if custom_endpoint.model_provider == "anthropic":
                     # Anthropic's LangChain field is anthropic_api_url, and its
                     # SDK re-appends /v1/messages to the stripped base URL.
-                    overrides["anthropic_api_url"] = endpoint.base_url
+                    overrides["anthropic_api_url"] = custom_endpoint.base_url
                 else:
-                    overrides["base_url"] = endpoint.base_url
-                if endpoint.use_responses_api is not None:
-                    overrides["use_responses_api"] = endpoint.use_responses_api
+                    overrides["base_url"] = custom_endpoint.base_url
+                if custom_endpoint.use_responses_api is not None:
+                    overrides["use_responses_api"] = custom_endpoint.use_responses_api
             else:
                 overrides["model_provider"] = "openai"
-        else:
-            if parsed.provider:
-                overrides["model_provider"] = parsed.provider
+        # for certain providers, we do not want to use the models dev
+        # catalogue, since langchain handles them natively
+        elif parsed.provider:
+            overrides["model_provider"] = parsed.provider
+            # explicit end point url
             if parsed.suffix:
                 overrides["base_url"] = parsed.suffix
+            else:
+                if parsed.provider not in MODELS_DEV_PROVIDERS_IGNORED:
+                    # No explicit endpoint (``provider:model``): resolve it from
+                    # the models.dev catalog when the provider is an OpenAI- or
+                    # Anthropic-compatible endpoint, so users need not write a
+                    # ``custom:`` URL.  Native SDK providers (no catalog ``api``)
+                    # are left to LangChain, which knows their default endpoint.
+                    endpoint = resolve_catalog_provider_endpoint(parsed.provider)
+                    if endpoint is not None:
+                        overrides["model_provider"] = endpoint.model_provider
+                        if endpoint.model_provider == "anthropic":
+                            overrides["anthropic_api_url"] = endpoint.base_url
+                        else:
+                            overrides["base_url"] = endpoint.base_url
+                        if endpoint.use_responses_api is not None:
+                            overrides["use_responses_api"] = endpoint.use_responses_api
         logger.debug(f"After model string parse:\n{mask_sensitive(overrides) = }")
 
-        # A custom Anthropic endpoint still authenticates with the generic
-        # custom key users set as OPENAI_API_KEY (ChatAnthropic itself reads
-        # ANTHROPIC_API_KEY).  Copy it across so one key works for every
-        # custom surface; an explicit api_key override wins.
+        # A custom or catalog-resolved Anthropic endpoint still authenticates
+        # with the generic key users set as OPENAI_API_KEY (ChatAnthropic
+        # itself reads ANTHROPIC_API_KEY).  Copy it across so one key works
+        # for every non-native custom surface; an explicit api_key override
+        # wins.  The native ``anthropic:`` provider keeps ANTHROPIC_API_KEY.
         if (
-            parsed.provider == "custom"
+            parsed.provider != "anthropic"
             and overrides.get("model_provider") == "anthropic"
         ):
             require_extra("langchain_anthropic", "anthropic")

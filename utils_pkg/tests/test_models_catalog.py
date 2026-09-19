@@ -41,6 +41,24 @@ _SAMPLE_CATALOG = {
             },
         },
     },
+    "openrouter": {
+        "name": "OpenRouter",
+        "api": "https://openrouter.ai/api/v1",
+        "npm": "@openrouter/ai-sdk-provider",
+        "env": ["OPENROUTER_API_KEY"],
+        "models": {},
+    },
+    "minimax": {
+        "name": "MiniMax",
+        "api": "https://api.minimax.io/anthropic/v1",
+        "npm": "@ai-sdk/anthropic",
+        "models": {},
+    },
+    "groq": {
+        "name": "Groq",
+        "npm": "@ai-sdk/groq",
+        "models": {},
+    },
 }
 
 
@@ -351,6 +369,54 @@ class TestEndpointModelLimits(unittest.TestCase):
             )
         _args, kwargs = get.call_args
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer mistral-secret")
+
+
+class TestProviderEndpoint(unittest.TestCase):
+    """Tests for get_provider_endpoint (provider -> api + npm)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._cache_path = Path(self._tmpdir.name) / "models-dev.json"
+        self._path_patcher = mock.patch.object(
+            models_catalog, "_disk_cache_path", return_value=self._cache_path
+        )
+        self._path_patcher.start()
+        self.addCleanup(self._path_patcher.stop)
+        self.addCleanup(models_catalog._catalog.cache_clear)
+        models_catalog._catalog.cache_clear()
+        with open(self._cache_path, "w") as f:
+            json.dump(_SAMPLE_CATALOG, f)
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_openai_compatible_provider(self):
+        entry = models_catalog.get_provider_endpoint("openrouter")
+        assert entry is not None
+        self.assertEqual(entry.api, "https://openrouter.ai/api/v1")
+        self.assertEqual(entry.npm, "@openrouter/ai-sdk-provider")
+
+    def test_anthropic_provider(self):
+        entry = models_catalog.get_provider_endpoint("minimax")
+        assert entry is not None
+        self.assertEqual(entry.npm, "@ai-sdk/anthropic")
+
+    def test_native_provider_without_api(self):
+        entry = models_catalog.get_provider_endpoint("groq")
+        assert entry is not None
+        self.assertIsNone(entry.api)
+        self.assertEqual(entry.npm, "@ai-sdk/groq")
+
+    def test_unknown_provider_returns_none(self):
+        self.assertIsNone(models_catalog.get_provider_endpoint("nope-xyz"))
+
+    def test_offline_returns_none(self):
+        models_catalog._catalog.cache_clear()
+        self._cache_path.unlink()
+        with mock.patch.object(
+            models_catalog, "_fetch_catalog", side_effect=RuntimeError("no net")
+        ):
+            self.assertIsNone(models_catalog.get_provider_endpoint("openrouter"))
 
 
 if __name__ == "__main__":
