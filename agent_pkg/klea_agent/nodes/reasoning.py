@@ -47,7 +47,6 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
-        "max_output_tokens": 2048,
     }
 
     def __init__(

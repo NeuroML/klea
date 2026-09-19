@@ -408,36 +408,105 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     def _extract_usage(self, output: AIMessage | dict[str, Any]) -> TokenUsage | None:
         """Extract this node's token usage from the LLM output.
 
-        :param output: The raw LLM output (``AIMessage`` with ``usage_metadata``,
-            or a structured-output dict with a ``"raw"`` key)
+        Reads ``usage_metadata`` when the provider populates it, otherwise
+        falls back to ``response_metadata['token_usage']``: many
+        OpenAI-compatible endpoints and gateways report counts only in the raw
+        provider payload, leaving ``usage_metadata`` empty.  The reasoning-token
+        count is logged so per-node budgets can be benchmarked.
+
+        :param output: The raw LLM output (``AIMessage``, or a structured-output
+            dict with a ``"raw"`` key)
         :returns: ``TokenUsage`` for this node, or ``None`` if usage information is
             unavailable
         """
         if isinstance(output, dict) and "raw" in output:
             output = output["raw"]
-        if not isinstance(output, AIMessage) or not hasattr(output, "usage_metadata"):
-            self.logger.debug("No message/metadata to get token usage from")
+        if not isinstance(output, AIMessage):
+            self.logger.debug("No message to get token usage from")
             return None
-        meta = output.usage_metadata
-        if not meta:
-            self.logger.debug("usage_metadata is empty")
+
+        usage, source = self._normalise_usage(output)
+        if usage is None:
+            self.logger.debug("No token usage available in message metadata")
             return None
+
+        input_tokens = usage["input_tokens"]
+        output_tokens = usage["output_tokens"]
         token_usage = TokenUsage(
-            input_tokens=meta.get("input_tokens", 0),
-            output_tokens=meta.get("output_tokens", 0),
-            total_tokens=(meta.get("input_tokens", 0) + meta.get("output_tokens", 0)),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=input_tokens + output_tokens,
         )
-        self.logger.debug(f"Node token usage: {token_usage}")
-        # Track prompt cache hits (Anthropic/OpenAI expose cached tokens)
-        cached = (
-            meta.get("cache_read_input_tokens")
-            or meta.get("cached_tokens")
-            or meta.get("prompt_cache_hit_tokens")
-            or meta.get("cache_creation_input_tokens")
+        self.logger.debug(
+            f"Node token usage ({source}): {token_usage} "
+            f"reasoning_tokens={usage['reasoning_tokens']}"
         )
-        if cached:
-            self.logger.info(f"Cache hit for {self.label}: {cached} tokens cached")
+        if usage["cached_tokens"]:
+            self.logger.info(
+                f"Cache hit for {self.label}: {usage['cached_tokens']} tokens cached"
+            )
         return token_usage
+
+    @staticmethod
+    def _normalise_usage(output: AIMessage) -> tuple[dict[str, int] | None, str]:
+        """Normalise token counts from either metadata shape.
+
+        ``usage_metadata`` (LangChain-normalised) and
+        ``response_metadata['token_usage']`` (raw provider payload) use
+        different key names; return a common shape so callers do not care which
+        the provider populated.
+
+        :param output: The raw ``AIMessage``.
+        :returns: ``(counts, source)``, or ``(None, "")`` when neither shape
+            carries usage.
+        """
+        meta = output.usage_metadata
+        if meta:
+            output_details = meta.get("output_token_details") or {}
+            # langchain-anthropic nests cache counters under ``input_token_details``;
+            # other providers expose them at the top level.
+            input_details = meta.get("input_token_details") or {}
+            return (
+                {
+                    "input_tokens": int(meta.get("input_tokens", 0) or 0),
+                    "output_tokens": int(meta.get("output_tokens", 0) or 0),
+                    "cached_tokens": int(
+                        input_details.get("cache_read")
+                        or input_details.get("cache_creation")
+                        or meta.get("cache_read_input_tokens")
+                        or meta.get("cached_tokens")
+                        or meta.get("prompt_cache_hit_tokens")
+                        or 0
+                    ),
+                    "reasoning_tokens": int(output_details.get("reasoning", 0) or 0),
+                },
+                "usage_metadata",
+            )
+
+        raw = (output.response_metadata or {}).get("token_usage") or {}
+        if not raw:
+            return None, ""
+        return (
+            {
+                "input_tokens": int(
+                    raw.get("prompt_tokens", raw.get("input_tokens", 0)) or 0
+                ),
+                "output_tokens": int(
+                    raw.get("completion_tokens", raw.get("output_tokens", 0)) or 0
+                ),
+                "cached_tokens": int(
+                    (raw.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
+                    or 0
+                ),
+                "reasoning_tokens": int(
+                    (raw.get("completion_tokens_details") or {}).get(
+                        "reasoning_tokens", 0
+                    )
+                    or 0
+                ),
+            },
+            "response_metadata",
+        )
 
     def _get_usage(self) -> NodeStreamData | None:
         """Build a ``NodeStreamData`` wrapper for the current node's token usage.

@@ -441,3 +441,50 @@ async def test_anthropic_cache_control_real_call():
     assert second_details.get("cache_read", 0) > 0, (
         f"Second call should read the cached prefix; usage={second_details}"
     )
+
+
+def test_extract_usage_from_usage_metadata():
+    """LangChain-normalised ``usage_metadata`` is read when present."""
+    node = _node(AnswerSchema)
+    usage = node._extract_usage(
+        AIMessage(
+            content="ok",
+            usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "total_tokens": 120,
+            },
+        )
+    )
+    assert isinstance(usage, TokenUsage)
+    assert usage.input_tokens == 100
+    assert usage.output_tokens == 20
+    assert usage.total_tokens == 120
+
+
+def test_extract_usage_falls_back_to_response_metadata():
+    """Gateways that leave ``usage_metadata`` empty are still measured."""
+    node = _node(AnswerSchema)
+    usage = node._extract_usage(
+        AIMessage(
+            content="ok",
+            response_metadata={
+                "token_usage": {
+                    "prompt_tokens": 3407,
+                    "completion_tokens": 505,
+                    "total_tokens": 3912,
+                    "completion_tokens_details": {"reasoning_tokens": 441},
+                }
+            },
+        )
+    )
+    assert isinstance(usage, TokenUsage)
+    assert usage.input_tokens == 3407
+    assert usage.output_tokens == 505
+    assert usage.total_tokens == 3912
+
+
+def test_extract_usage_none_without_metadata():
+    """No usage in either shape yields ``None``."""
+    node = _node(AnswerSchema)
+    assert node._extract_usage(AIMessage(content="ok")) is None

@@ -28,7 +28,6 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
-        "max_output_tokens": 2048,
     }
     """Classify a user query into domain categories.
 

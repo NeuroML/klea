@@ -696,16 +696,26 @@ def get_token_limit_param(provider: str) -> str:
 
 
 #: Fallback max output tokens used when no node/role default provides a value.
-DEFAULT_MAX_OUTPUT_TOKENS = 4096
+#:
+#: Deliberately generous: reasoning models spend most of the completion budget
+#: on hidden reasoning tokens, so a small cap truncates even tiny structured
+#: payloads.  The value is a ceiling, not a target, and is clamped per model by
+#: :func:`resolve_output_token_limit` (catalog output limit and context
+#: headroom), so a large default is safe for small models too.
+DEFAULT_MAX_OUTPUT_TOKENS = 16384
 
 #: Built-in per-role max output token defaults.  Nodes may override these
 #: with the generic ``max_output_tokens`` key in ``model_defaults``, and
 #: admins may override them per provider via the ``providers`` config
 #: section.
+#:
+#: ``guard`` stays small: a safety classifier emits a one-word verdict, so
+#: there is no reason to reserve a large window.  Every other role gets the
+#: generous default so reasoning models do not truncate.
 _ROLE_MAX_OUTPUT_TOKENS: dict[str, int] = {
-    "chat": 4096,
-    "plan": 4096,
-    "guard": 1024,
+    "chat": DEFAULT_MAX_OUTPUT_TOKENS,
+    "plan": DEFAULT_MAX_OUTPUT_TOKENS,
+    "guard": 2048,
 }
 
 #: The three max-output token parameter names used across providers.

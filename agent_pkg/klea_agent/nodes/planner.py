@@ -39,7 +39,6 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     model_type = "plan"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
-        "max_output_tokens": 4096,
     }
     #: Re-invoke the model with the validation error when it returns a
     #: structurally inconsistent plan (dangling dependencies, out-of-range

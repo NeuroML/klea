@@ -46,7 +46,6 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
-        "max_output_tokens": 2048,
     }
 
     def __init__(

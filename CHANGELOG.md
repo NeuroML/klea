@@ -30,10 +30,12 @@
 - `run_command` treats a non-zero exit as a normal command result (reported via `returncode`), not an MCP error; `isError` is reserved for a timeout, a denied working directory, or a spawn failure, so commands such as `diff`/`grep` no longer trigger retry/replan loops.
 - Web UI: the chat transcript uses full-width blocks (user tinted, agent plain, tool neutral), file-edit diffs render as their own blocks, code lines wrap instead of scrolling horizontally, the input is resizable, and the disclaimer and credits share one footer line.
 - Structured-output failures (`ValidationError` / JSON parse, or an endpoint refusing `response_format`) now fall back to the plain, tolerantly-parsed invoke instead of aborting the run; endpoints seen refusing the parameter are cached per `(provider, model, base_url)` for the process lifetime, so the structured attempt is not repeated on every node call.
+- Output-token budgets now default to 16384 (guard stays at 2048) and the frozen per-node `max_output_tokens` caps are removed, so reasoning models no longer truncate even tiny structured calls; the budget is still clamped per model to its catalog output limit and context headroom, and remains tunable via the `providers` config.
 
 ### Fixed
 
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
+- Per-node token usage is now read from `response_metadata.token_usage` when `usage_metadata` is empty (gateways and OpenAI-compatible endpoints that report counts only in the raw payload), so token usage and reasoning-token counts are tracked and logged instead of being silently dropped.
 - Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
 

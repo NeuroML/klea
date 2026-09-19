@@ -54,7 +54,6 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
-        "max_output_tokens": 4096,
     }
 
     def __init__(

@@ -37,7 +37,6 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
-        "max_output_tokens": 4096,
     }
 
     def __init__(

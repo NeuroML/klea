@@ -36,7 +36,6 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
     stream_tokens = True
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
-        "max_output_tokens": 2048,
     }
     """Answer general (non-domain) questions using the LLM's training data.
 

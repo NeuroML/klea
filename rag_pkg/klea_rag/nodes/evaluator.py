@@ -25,7 +25,6 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
-        "max_output_tokens": 4096,
     }
 
     def __init__(

@@ -36,7 +36,6 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
-        "max_output_tokens": 1024,
     }
 
     def __init__(

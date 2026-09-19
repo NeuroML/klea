@@ -37,13 +37,13 @@ class TestResolveOutputTokenLimit(unittest.TestCase):
         ov = self._resolve(
             {"model": "gpt-4o", "model_provider": "openai"}, "openai", role="chat"
         )
-        self.assertEqual(ov["max_tokens"], 4096)
+        self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
 
     def test_guard_role_default(self):
         ov = self._resolve(
             {"model": "gpt-4o", "model_provider": "openai"}, "openai", role="guard"
         )
-        self.assertEqual(ov["max_tokens"], 1024)
+        self.assertEqual(ov["max_tokens"], 2048)
 
     def test_unknown_role_default(self):
         ov = self._resolve(
@@ -147,14 +147,14 @@ class TestResolveOutputTokenLimit(unittest.TestCase):
         with _no_catalog(ModelLimits(context=8192, output=65536)):
             ov = {"model": "org/model", "model_provider": "huggingface"}
             resolve_output_token_limit(ov, "huggingface", role="chat")
-        self.assertEqual(ov["max_tokens"], 4096)
+        self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
 
     def test_no_clamp_without_catalog(self):
         """No catalog info means only the role default applies."""
         ov = self._resolve(
             {"model": "gpt-4o", "model_provider": "openai"}, "openai", role="chat"
         )
-        self.assertEqual(ov["max_tokens"], 4096)
+        self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
 
     # --- live-endpoint limits (custom OpenAI-compatible endpoints) ---
 
@@ -254,7 +254,7 @@ class TestResolveOutputTokenLimit(unittest.TestCase):
             resolve_output_token_limit(ov, "openai", role="chat", input_chars=30000)
         endpoint_lookup.assert_not_called()
         # No models.dev entry -> falls back to the chat role default.
-        self.assertEqual(ov["max_tokens"], 4096)
+        self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
 
     def test_use_endpoint_falls_back_to_models_dev_when_none(self):
         """Endpoint returning None falls back to models.dev for context."""

@@ -39,7 +39,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     model_type = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
-        "max_output_tokens": 2048,
     }
 
     def __init__(
