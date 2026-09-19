@@ -66,8 +66,9 @@ def textualize_tool_results(
         if max_len_per_tool is not None and len(content) > max_len_per_tool:
             content = content[:max_len_per_tool] + f"\n[tool result {i} truncated]"
         if result.is_error:
-            text += "**Error:** " + content + "\n"
+            text += "**Tool call failed:** " + content + "\n"
         else:
+            text += "**Tool call succeeded:** " + content + "\n"
             text += "```\n" + content + "\n```\n"
 
     return text

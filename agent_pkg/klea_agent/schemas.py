@@ -128,6 +128,8 @@ class PlanSchema(BaseModel):
         if not self.step_list:
             return "(no plan)"
         lines: list[str] = []
+        if not markdown:
+            lines.append("Steps:")
         for index, step in enumerate(self.step_list):
             current = index == self.current_step_index and step.status == "pending"
             lines.append(step.render(current=current, markdown=markdown))
@@ -390,6 +392,8 @@ class KleaAgentState(BaseGraphSchema):
         for step_key, entries in self.step_outputs.items():
             if not entries:
                 continue
-            rendered = "\n\n".join(entry.render() for entry in entries)
+            rendered = ""
+            for ind, entry in enumerate(entries):
+                rendered += f"\n\nTool call {ind}: {entry.render()}"
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"

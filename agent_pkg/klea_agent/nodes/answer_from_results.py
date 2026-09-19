@@ -91,8 +91,10 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         failure = self._is_failure(state)
         variables = {
             "query": state.query,
-            "outcome": "failure" if failure else "success",
-            "failure_reason": state.failure_reason or "(none)",
+            "outcome": "Plan failed" if failure else "Plan succeeded",
+            "failure_reason": f"Failure reason: {state.failure_reason}"
+            if state.failure_reason
+            else "",
             "goal": goal_text,
             "plan": state.plan.render(),
             "observations": self._observations_text(state),

@@ -8,9 +8,7 @@
 
 {plan}
 
----
-
-## Outcome
+### Plan outcome
 
 {outcome}
 
