@@ -296,10 +296,52 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=2),
+            KleaAgentState(plan_revisions=2, plan=PlanSchema(status="in_progress")),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
+
+    def test_first_plan_does_not_count_as_revision(self):
+        """The initial plan (entry status not_started) resets the counter."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(),
+        )
+        self.assertEqual(update["plan_revisions"], 0)
+
+    def test_human_review_resets_revision_counter(self):
+        """A review re-entry (entry status in_review) resets the counter."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(plan_revisions=3, plan=PlanSchema(status="in_review")),
+        )
+        self.assertEqual(update["plan_revisions"], 0)
+
+    def test_automated_replan_increments_revision_counter(self):
+        """An automated replan (entry status in_progress) consumes the budget."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(plan_revisions=1, plan=PlanSchema(status="in_progress")),
+        )
+        self.assertEqual(update["plan_revisions"], 2)
 
 
 class TestPlannerValidation(unittest.TestCase):

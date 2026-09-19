@@ -432,7 +432,8 @@ class KleaAgentState(BaseGraphSchema):
     tool_retry_counts: dict[int, int] = Field(default_factory=dict)
     # per-step non-advancing evaluation counter (semantic loop budget)
     step_attempt_counts: dict[int, int] = Field(default_factory=dict)
-    # number of Planner entries in this run (replan budget)
+    # number of automated replans since the initial plan or the last human
+    # review (budget; reset to 0 on the first plan and on human review)
     plan_revisions: int = 0
     # consecutive empty ToolsPicker selections for the current step (picker
     # retry budget).  Lives in state, not on the shared node instance, so it

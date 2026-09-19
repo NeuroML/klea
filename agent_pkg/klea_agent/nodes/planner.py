@@ -62,8 +62,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :param memory: Whether to include recent conversation history.  The
             Planner needs prior context (follow-ups and earlier failed plans),
             so the orchestrator passes ``memory=self.memory``.
-        :param max_plan_revisions: Planner entries allowed in one run before it
-            gives up (deterministic replan budget)
+        :param max_plan_revisions: Automated replans allowed in one run
+            (since the initial plan or the last human review) before the
+            Planner gives up (deterministic budget).  Human review re-entries
+            reset the counter.
         """
         super().__init__(
             logger=logger,
@@ -200,7 +202,15 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         update: dict[str, Any] = {"human_feedback": ""}
 
         # --- Replan budget (deterministic) -------------------------------
-        revisions = state.plan_revisions + 1
+        # Count automated replans only: the first plan (entry status
+        # ``not_started``) and a human review re-entry (``in_review``) reset
+        # the counter; an automated replan (entry status ``in_progress``:
+        # Triage escalation, Evaluator ``need_replan``, or picker failure)
+        # consumes the budget.  This keeps human plan iteration from
+        # exhausting the failure budget.
+        revisions = (
+            state.plan_revisions + 1 if state.plan.status == "in_progress" else 0
+        )
         update["plan_revisions"] = revisions
         if revisions > self.max_plan_revisions:
             self.logger.warning(
