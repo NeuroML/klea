@@ -195,6 +195,17 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                     result.reason or "the goal cannot be achieved"
                 )
 
+        if evaluation == "need_replan":
+            # Carry the reason to the Planner through the unified replan-reason
+            # field (ADR-0035 update 2026-09-19); the Planner clears it.
+            update["replan_reason"] = result.reason or "the plan needs revision"
+        else:
+            # Any non-replan verdict clears the reason: the Evaluator is the
+            # last writer before the next action, so a stale failure cannot
+            # leak into a later replan (and a reasoning step, which never runs
+            # the tool-round recorder, is covered too).
+            update["replan_reason"] = ""
+
         # Record the verdict in run history so a replan (and summarisation)
         # can see why the plan was sent back.
         update["messages"] = [

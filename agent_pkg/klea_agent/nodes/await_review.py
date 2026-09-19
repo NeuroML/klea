@@ -66,5 +66,9 @@ class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         )
         return {
             "human_feedback": feedback,
+            # A review entry must not carry an automated replan reason: the
+            # Planner resets the replan counter on a review re-entry, so a
+            # stale reason would wrongly count it as an automated replan.
+            "replan_reason": "",
             "messages": [*state.messages, HumanMessage(content=feedback)],
         }

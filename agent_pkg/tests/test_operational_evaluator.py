@@ -71,6 +71,23 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertNotIn("message_for_user", update)
         self.assertEqual(update["plan"].step_list[0].status, "failed")
 
+    def test_need_replan_sets_replan_reason(self):
+        """The verdict reason is carried to the Planner via replan_reason."""
+        update = self._evaluator()._update_state(
+            EvaluationSchema(evaluation="need_replan", reason="cannot proceed"),
+            self._state(),
+        )
+        self.assertEqual(update["replan_reason"], "cannot proceed")
+
+    def test_non_replan_verdict_clears_stale_replan_reason(self):
+        """A non-replan verdict clears any stale replan reason."""
+        state = self._state()
+        state.replan_reason = "old failure"
+        update = self._evaluator()._update_state(
+            EvaluationSchema(evaluation="step_incomplete"), state
+        )
+        self.assertEqual(update["replan_reason"], "")
+
     def test_step_incomplete_leaves_plan_unchanged(self):
         update = self._evaluator()._update_state(
             EvaluationSchema(evaluation="step_incomplete"), self._state()

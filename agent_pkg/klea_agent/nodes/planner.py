@@ -124,7 +124,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "goal": goal_text,
             "plan": state.plan.render(),
             "human_feedback": state.human_feedback or "(none)",
-            "evaluation_feedback": state.evaluation.reason or "(none)",
+            "replan_reason": state.replan_reason or "(none)",
             "artefacts": state.artefacts,
             "discovery": state.discovery_persistent,
             "observations": state.observations_text(),
@@ -199,18 +199,25 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         the remaining statuses to the state plan.  ``result.reason`` is also
         recorded with the plan in ``messages`` for continuity.
         """
-        update: dict[str, Any] = {"human_feedback": ""}
+        update: dict[str, Any] = {"human_feedback": "", "replan_reason": ""}
 
         # --- Replan budget (deterministic) -------------------------------
-        # Count automated replans only: the first plan (entry status
-        # ``not_started``) and a human review re-entry (``in_review``) reset
-        # the counter; an automated replan (entry status ``in_progress``:
-        # Triage escalation, Evaluator ``need_replan``, or picker failure)
-        # consumes the budget.  This keeps human plan iteration from
-        # exhausting the failure budget.
-        revisions = (
-            state.plan_revisions + 1 if state.plan.status == "in_progress" else 0
-        )
+        # Link the counter to the unified replan reason: an entry carrying a
+        # ``replan_reason`` is an automated replan (Triage escalation,
+        # Evaluator ``need_replan``, or picker failure) and consumes the
+        # budget; the first plan and a human review re-entry carry no reason,
+        # so they reset it.  Deriving from the reason keeps the two in
+        # lockstep - a reason can never be present with a zero counter.
+        # The ``in_progress`` status is a belt-and-braces fallback so a path
+        # that forgets to set the reason still cannot bypass the budget
+        # (logged below).
+        is_replan = bool(state.replan_reason) or state.plan.status == "in_progress"
+        if state.plan.status == "in_progress" and not state.replan_reason:
+            self.logger.warning(
+                "Planner re-entered with an in_progress plan but no "
+                "replan_reason; counting it as a replan"
+            )
+        revisions = state.plan_revisions + 1 if is_replan else 0
         update["plan_revisions"] = revisions
         if revisions > self.max_plan_revisions:
             self.logger.warning(

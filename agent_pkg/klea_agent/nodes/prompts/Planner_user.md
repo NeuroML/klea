@@ -22,9 +22,9 @@
 
 ---
 
-## Evaluator feedback
+## Replan reason
 
-{evaluation_feedback}
+{replan_reason}
 
 ---
 

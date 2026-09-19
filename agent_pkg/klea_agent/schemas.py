@@ -449,6 +449,11 @@ class KleaAgentState(BaseGraphSchema):
     failure_reason: str = ""
     # latest human review input (empty unless a plan is under review)
     human_feedback: str = ""
+    # why the Planner is being re-entered for an automated replan: set by the
+    # Evaluator on ``need_replan`` and by the tool-round recorder when a batch
+    # had a failed call; read and cleared by the Planner.  Empty on the first
+    # plan and after a human review (which supplies ``human_feedback``).
+    replan_reason: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()

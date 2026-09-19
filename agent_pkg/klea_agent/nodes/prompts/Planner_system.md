@@ -18,7 +18,8 @@
   across runs; this task's own conclusion is added here when it finishes
 * `tools`: the tools you may use
 * `human_feedback` (optional): the user's review of the plan, if it was reviewed
-* `evaluation_feedback` (optional): the evaluator's reason for sending the plan back
+* `replan_reason` (optional): why the plan is being revised (an automated
+  replan); empty on the first plan
 * `validation_feedback` (optional): why a previous plan you returned was rejected as inconsistent
 * `observations`: working memory for the current plan - tool outputs and
   reasoning conclusions from earlier steps, cleared when you author a new plan
@@ -75,8 +76,8 @@
   exists and validates", or "the hypothesis is stated and grounded in the
   observations").
 * Replanning: if a step failed or produced unexpected output, adjust the
-  remaining steps.  Use `evaluation_feedback` and the `observations` to
-  understand why the plan was sent back.
+  remaining steps.  Use `replan_reason` and the `observations` to understand
+  why the plan was sent back.
 * Persistence: your plan's evidence (tool outputs and reasoning
   conclusions) is working memory for **this plan only** - it is cleared
   when you author a new plan.  This task's conclusion is persisted for

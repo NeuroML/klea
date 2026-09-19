@@ -13,7 +13,6 @@ import unittest
 
 from klea_agent.nodes.planner import Planner
 from klea_agent.schemas import (
-    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlannerOutput,
@@ -259,13 +258,28 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["human_feedback"], "")
         self.assertEqual(update["plan"].status, "in_progress")
 
-    def test_evaluation_feedback_is_exposed(self):
-        """The evaluator's reason reaches the Planner on a replan."""
-        state = KleaAgentState(
-            evaluation=EvaluationSchema(evaluation="need_replan", reason="no progress")
-        )
+    def test_replan_reason_is_exposed(self):
+        """The unified replan reason reaches the Planner on a replan."""
+        state = KleaAgentState(replan_reason="no progress")
         variables = self._planner()._get_prompt_variables(state)
-        self.assertEqual(variables["evaluation_feedback"], "no progress")
+        self.assertEqual(variables["replan_reason"], "no progress")
+
+    def test_replan_reason_defaults_to_none(self):
+        variables = self._planner()._get_prompt_variables(KleaAgentState())
+        self.assertEqual(variables["replan_reason"], "(none)")
+
+    def test_update_state_clears_replan_reason(self):
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(replan_reason="tool failed"),
+        )
+        self.assertEqual(update["replan_reason"], "")
 
     def test_plan_recorded_in_messages(self):
         update = self._planner()._update_state(
@@ -296,7 +310,7 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=2, plan=PlanSchema(status="in_progress")),
+            KleaAgentState(plan_revisions=2, replan_reason="tool failed"),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
@@ -330,7 +344,7 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan_revisions"], 0)
 
     def test_automated_replan_increments_revision_counter(self):
-        """An automated replan (entry status in_progress) consumes the budget."""
+        """A replan reason marks an automated replan and consumes the budget."""
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
@@ -339,7 +353,25 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=1, plan=PlanSchema(status="in_progress")),
+            KleaAgentState(
+                plan_revisions=1,
+                replan_reason="tool failed",
+                plan=PlanSchema(status="in_progress"),
+            ),
+        )
+        self.assertEqual(update["plan_revisions"], 2)
+
+    def test_replan_reason_links_counter_without_in_progress_status(self):
+        """A reason alone marks a replan, even if the plan status is stale."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(plan_revisions=1, replan_reason="tool failed"),
         )
         self.assertEqual(update["plan_revisions"], 2)
 

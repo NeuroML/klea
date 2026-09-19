@@ -22,9 +22,10 @@ async def test_await_review_returns_stub_feedback(monkeypatch):
     emitted: list[dict] = []
     monkeypatch.setattr(node, "write_custom_stream", emitted.append)
 
-    update = await node.execute(KleaAgentState())
+    update = await node.execute(KleaAgentState(replan_reason="stale failure"))
 
     assert update["human_feedback"] == AwaitReview.STUB_REVIEW
+    assert update["replan_reason"] == ""
     assert update["messages"][-1].content == AwaitReview.STUB_REVIEW
     assert emitted[0]["type"] == "progress"
     assert emitted[-1]["type"] == "inspect"

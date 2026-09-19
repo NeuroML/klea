@@ -14,11 +14,21 @@ from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import KleaAgentState, PlanSchema, StepOutput
 from klea_utils.mcp.schemas import ToolCallSchema
+from mcp.types import TextContent
 
 
 def _result(is_error: bool = False) -> CallToolResult:
     return CallToolResult(
         content=[], structured_content=None, meta=None, is_error=is_error
+    )
+
+
+def _error_result(text: str) -> CallToolResult:
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=None,
+        meta=None,
+        is_error=True,
     )
 
 
@@ -58,6 +68,24 @@ def test_increments_tool_rounds():
     state = KleaAgentState(tool_rounds=2)
     update = agent._record_tool_round(state, [_result()], [False])
     assert update["tool_rounds"] == 3
+
+
+def test_failed_round_sets_replan_reason():
+    """A failed batch exposes its error text as the unified replan reason."""
+    agent = _agent()
+    state = KleaAgentState(plan=PlanSchema(current_step_index=0))
+    update = agent._record_tool_round(state, [_error_result("no such file")], [False])
+    assert update["replan_reason"] == "no such file"
+
+
+def test_clean_round_clears_replan_reason():
+    """A clean batch clears a stale replan reason (progress)."""
+    agent = _agent()
+    state = KleaAgentState(
+        plan=PlanSchema(current_step_index=0), replan_reason="old failure"
+    )
+    update = agent._record_tool_round(state, [_result()], [False])
+    assert update["replan_reason"] == ""
 
 
 def test_records_tool_name_and_displayed_flag():

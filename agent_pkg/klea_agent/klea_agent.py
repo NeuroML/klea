@@ -23,6 +23,7 @@ from klea_utils.nodes.guard_router import GuardRouterNode
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import ToolsPicker
+from klea_utils.tools import last_tool_error_text
 from langgraph.graph import END, START, StateGraph
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults
@@ -291,11 +292,17 @@ class KleaAgent(BaseLangGraph):
         observation for the step (bounded to the most recent
         ``MAX_STEP_RESULTS``), and counts the round in ``tool_rounds``.
 
+        It also maintains ``replan_reason``: a batch with an ``is_error``
+        result records the failed call's text as the unified reason the
+        Planner may be re-entered with, and a clean batch clears it (progress),
+        so a stale tool error cannot mislead a later replan.
+
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
         :param displayed: Per-result flag: the server streamed a display event
             for that result (aligned with *results*).
-        :returns: State updates carrying the updated retry counts and outputs.
+        :returns: State updates carrying the updated retry counts, outputs and
+            the replan reason.
         """
         counts = update_tool_retry_counts(state, results)
         step = current_step_key(state)
@@ -311,13 +318,22 @@ class KleaAgent(BaseLangGraph):
         outputs = dict(state.step_outputs or {})
         outputs[step] = [*outputs.get(step, []), *entries][-self.MAX_STEP_RESULTS :]
         rounds = state.tool_rounds + 1
+        # A failed batch feeds the Planner's unified replan reason; a clean
+        # batch clears it (progress), so a stale tool error cannot mislead a
+        # later replan (ADR-0035 update 2026-09-19).
+        has_error = any(getattr(r, "is_error", False) for r in results)
+        replan_reason = (
+            (last_tool_error_text(results) or "a tool call failed") if has_error else ""
+        )
         self.logger.debug(
-            f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }\n{rounds = }"
+            f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }\n{rounds = }\n"
+            f"{has_error = }\n{replan_reason = }"
         )
         return {
             "tool_retry_counts": counts,
             "step_outputs": outputs,
             "tool_rounds": rounds,
+            "replan_reason": replan_reason,
         }
 
     async def _create_graph(self):
