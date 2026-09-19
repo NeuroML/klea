@@ -14,23 +14,7 @@
 
 {plan}
 
----
-
-## Review feedback
-
-{human_feedback}
-
----
-
-## Replan reason
-
-{replan_reason}
-
----
-
-## Validation feedback
-
-{validation_feedback}
+{feedback_block}
 
 ---
 

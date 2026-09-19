@@ -262,11 +262,13 @@ class TestPlannerState(unittest.TestCase):
         """The unified replan reason reaches the Planner on a replan."""
         state = KleaAgentState(replan_reason="no progress")
         variables = self._planner()._get_prompt_variables(state)
-        self.assertEqual(variables["replan_reason"], "no progress")
+        self.assertIn("## Replan reason", variables["feedback_block"])
+        self.assertIn("no progress", variables["feedback_block"])
 
-    def test_replan_reason_defaults_to_none(self):
+    def test_feedback_block_is_empty_by_default(self):
+        """No conditional feedback means no feedback section at all."""
         variables = self._planner()._get_prompt_variables(KleaAgentState())
-        self.assertEqual(variables["replan_reason"], "(none)")
+        self.assertEqual(variables["feedback_block"], "")
 
     def test_update_state_clears_replan_reason(self):
         update = self._planner()._update_state(

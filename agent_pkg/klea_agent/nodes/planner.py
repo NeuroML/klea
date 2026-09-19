@@ -115,21 +115,35 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState) -> dict:
-        """Format prompt with the query, current plan state and tool catalogue."""
+        """Format prompt with the query, current plan state and tool catalogue.
+
+        The three conditional feedback fields are composed into one optional
+        ``feedback_block`` so the prompt omits them entirely when there is
+        nothing to say (prompt conventions).
+        """
         goal_text = state.goal.goal or "(not set)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
+        feedback_block = "\n\n".join(
+            section
+            for section in (
+                self._optional_section("Review feedback", state.human_feedback),
+                self._optional_section("Replan reason", state.replan_reason),
+                self._optional_section(
+                    "Validation feedback", self._validation_feedback
+                ),
+            )
+            if section
+        )
         return {
             "query": state.query,
             "goal": goal_text,
             "plan": state.plan.render(),
-            "human_feedback": state.human_feedback or "(none)",
-            "replan_reason": state.replan_reason or "(none)",
+            "feedback_block": feedback_block,
             "artefacts": state.artefacts_text(),
             "discovery": state.discovery_persistent,
             "observations": state.observations_text(),
             "tools_description": self._get_tool_descriptions(state),
-            "validation_feedback": self._validation_feedback or "(none)",
         }
 
     @override
