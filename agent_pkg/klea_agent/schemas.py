@@ -341,29 +341,37 @@ class EvaluationSchema(BaseModel):
 
 
 class StepOutput(BaseModel):
-    """A tool result recorded against a plan step.
+    """A result recorded against a plan step.
 
-    :attr:`tool` is the selected tool's name (``CallToolResult`` does not carry
-    it) and :attr:`displayed` records that the server streamed a display event
-    for this result.  That is *intent-to-display*, not a render guarantee: a
-    client may not have shown it.  The answer node uses the flag to avoid
-    reprinting results the interface already showed.
+    :attr:`result` is either a tool call's :class:`CallToolResult` or, for a
+    reasoning step (ADR-0035 update 2026-09-19), the ``ReasoningNode``'s text
+    conclusion.  :attr:`tool` is the selected tool's name (``CallToolResult``
+    does not carry it) and is empty for a reasoning step.  :attr:`displayed`
+    records that the server streamed a display event for this result.  That is
+    *intent-to-display*, not a render guarantee: a client may not have shown
+    it.  The answer node uses the flag to avoid reprinting results the
+    interface already showed.
     """
 
-    result: CallToolResult
+    result: CallToolResult | str
     tool: str = ""
     displayed: bool = False
 
     def render(self) -> str:
         """Render this result with its tool/displayed metadata.
 
-        The body is the shared single-result text (no batch header); the
+        The body is the shared single-result text (no batch header) for a tool
+        result, or the conclusion text for a reasoning step; the
         ``### <tool> (displayed_to_user: ...)`` heading replaces the generic
-        ``Result i/n`` label so the consumer knows which tool ran and whether
-        the interface already showed it.
+        ``Result i/n`` label so the consumer knows which tool ran (or that the
+        entry is reasoning) and whether the interface already showed it.
         """
-        body = textualize_tool_results([self.result], include_header=False).strip()
-        tool = self.tool or "(unknown tool)"
+        if isinstance(self.result, CallToolResult):
+            body = textualize_tool_results([self.result], include_header=False).strip()
+            tool = self.tool or "(unknown tool)"
+        else:
+            body = str(self.result).strip()
+            tool = self.tool or "reasoning"
         shown = "yes" if self.displayed else "no"
         return f"### {tool} (displayed_to_user: {shown})\n{body}"
 
