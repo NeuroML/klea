@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import os
@@ -27,7 +28,7 @@ from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langgraph.types import RunnableConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from .errors import LLMInvocationErrorCategory
 from .imports import require_extra
@@ -563,6 +564,35 @@ def is_empty_structured_parse_error(exc: BaseException) -> bool:
         r"for troubleshooting", payload, maxsplit=1, flags=re.IGNORECASE
     )[0]
     return not payload.strip()
+
+
+def is_structured_output_failure(exc: BaseException) -> bool:
+    """Return True if *exc* means the structured call produced no usable output.
+
+    The structured path (``with_structured_output(...).ainvoke``) can fail in
+    ways the plain invoke cannot: the provider rejects the ``response_format``
+    parameter, or the model returns content that does not satisfy the schema.
+    Some SDKs surface the latter as a pydantic :class:`ValidationError` (the
+    OpenAI client validates JSON inside its own parser) rather than a LangChain
+    parser error, so both types are treated as a structured failure.
+
+    Detection is by exception type wherever possible, so a provider's new error
+    wording does not need a new pattern; the one message-classified case is
+    :data:`~klea_utils.errors.LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED`
+    (parameter refusal), which has no distinct exception type.
+
+    Empty responses are deliberately included: the caller decides whether to
+    retry them on the structured path or fall back to plain.
+
+    :param exc: Exception raised by the structured invoke.
+    :returns: True when the structured call should give way to a plain invoke.
+    """
+    if isinstance(exc, (ValidationError, OutputParserException, json.JSONDecodeError)):
+        return True
+    return (
+        classify_llm_invocation_error(exc)
+        is LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED
+    )
 
 
 def get_token_limit_param(provider: str) -> str:

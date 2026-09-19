@@ -43,6 +43,7 @@ from ..llm import (
     is_empty_structured_parse_error,
     is_output_empty,
     is_output_truncated,
+    is_structured_output_failure,
     load_prompt,
     parse_output_with_thought,
     resolve_langchain_endpoint,
@@ -428,41 +429,55 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
     ) -> AIMessage | dict[str, Any]:
         """Async invoke LLM with optional structured output + fallback.
 
-        Wraps the configurable model with ``with_structured_output``
-        when an output schema exists.  If the provider rejects the
-        ``response_format`` parameter (e.g. some custom OpenAI-compatible
-        endpoints), falls back to a plain invoke  ---  the prompt already
-        contains the JSON schema as text instructions.
+        When an output schema exists, the model is first invoked through
+        ``with_structured_output``.  Any structured-only failure  ---  a
+        schema validation/JSON parse error, or the provider rejecting the
+        ``response_format`` parameter  ---  latches the call to a plain invoke
+        for the rest of this invocation; the prompt already contains the JSON
+        schema as text instructions and :meth:`_process_output` parses it
+        tolerantly.
 
-        Both paths route through :meth:`_invoke_with_retries` for adaptive
-        retries on context overflow / truncated output.
+        Both strategies share one :meth:`_invoke_with_retries` loop so
+        context-overflow / truncation / empty retries and infra-error
+        classification apply uniformly.  Blank responses are the one exception:
+        they stay on the structured path so its existing empty-retry budget is
+        used before degrading.
         """
         prompt = self._add_cache_control(prompt, config)
         self.logger.debug(f"{prompt = }")
         inst = self._llm_entry.instance
-        if self.output_schema:
-            llm_wrapped = inst.with_structured_output(
-                self.output_schema, method="json_schema", include_raw=True
-            )
-            try:
-                output = await self._invoke_with_retries(
-                    llm_wrapped.ainvoke, prompt, config
-                )
-            except Exception as exc:
-                if (
-                    classify_llm_invocation_error(exc)
-                    is LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED
-                ):
-                    self.logger.warning(
-                        "Structured output not supported, falling back to prompt-based"
-                    )
-                    output = await self._invoke_with_retries(
-                        inst.ainvoke, prompt, config
-                    )
-                else:
-                    raise
-        else:
+
+        if not self.output_schema:
             output = await self._invoke_with_retries(inst.ainvoke, prompt, config)
+            self.logger.debug(f"{output = }")
+            return output
+
+        structured = inst.with_structured_output(
+            self.output_schema, method="json_schema", include_raw=True
+        )
+        use_structured = True
+
+        async def invoke(prompt: PromptValue, config: RunnableConfig):
+            nonlocal use_structured
+            if use_structured:
+                try:
+                    return await structured.ainvoke(prompt, config=config)
+                except Exception as exc:
+                    # Blank responses keep their structured retry budget: let
+                    # the retry loop see the error and apply the empty-output
+                    # backoff instead of switching strategy.
+                    if is_empty_structured_parse_error(exc):
+                        raise
+                    if not is_structured_output_failure(exc):
+                        raise
+                    self.logger.warning(
+                        f"Structured output unusable ({type(exc).__name__}: "
+                        f"{exc}); falling back to the plain invoke for this call"
+                    )
+                    use_structured = False
+            return await inst.ainvoke(prompt, config=config)
+
+        output = await self._invoke_with_retries(invoke, prompt, config)
         self.logger.debug(f"{output = }")
         return output
 

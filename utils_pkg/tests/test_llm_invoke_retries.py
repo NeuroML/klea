@@ -8,12 +8,13 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import json
 import logging
 from unittest import mock
 
 import pytest
 from klea_utils.graph.context import KleaRunContext
-from klea_utils.llm import LLMModel
+from klea_utils.llm import LLMModel, is_structured_output_failure
 from klea_utils.models_catalog import ModelLimits
 from klea_utils.nodes.base import (
     MAX_CONTEXT_OVERFLOW_RETRIES,
@@ -27,9 +28,18 @@ from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.prompt_values import StringPromptValue
 from langgraph.runtime import Runtime
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger("test")
+
+
+def _validation_error() -> ValidationError:
+    """Return a real ValidationError for ``_OutputSchema`` (a missing field)."""
+    try:
+        _OutputSchema.model_validate({})
+    except ValidationError as exc:
+        return exc
+    raise AssertionError("expected a ValidationError")
 
 
 def _runtime_context(model_overrides: dict | None = None):
@@ -655,24 +665,97 @@ class TestInvokeWithRetries:
 
         assert wrapped.ainvoke.await_count == 1 + MAX_EMPTY_OUTPUT_RETRIES
 
-    async def test_nonempty_invalid_json_not_retried_as_empty(self):
-        """A non-empty invalid payload is a schema mismatch, not an empty retry."""
+    async def test_nonempty_invalid_json_falls_back_to_plain(self):
+        """A non-empty invalid payload is a structured failure -> plain fallback."""
         inst = mock.Mock()
         wrapped = mock.Mock()
         inst.with_structured_output.return_value = wrapped
         wrapped.ainvoke = mock.AsyncMock(
             side_effect=OutputParserException("Invalid json output: {not json}")
         )
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
 
         node = make_node(inst, output_schema=_OutputSchema)
-        try:
-            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
-        except OutputParserException:
-            pass
-        else:
-            raise AssertionError("expected OutputParserException")
+        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
 
         assert wrapped.ainvoke.await_count == 1
+        assert inst.ainvoke.await_count == 1
+        assert out.content == "ok"
+
+    async def test_structured_validation_error_falls_back_to_plain(self):
+        """A pydantic ValidationError from the structured SDK parser -> plain."""
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(side_effect=_validation_error())
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
+
+        node = make_node(inst, output_schema=_OutputSchema)
+        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        assert wrapped.ainvoke.await_count == 1
+        assert inst.ainvoke.await_count == 1
+        assert out.content == "ok"
+
+    async def test_structured_fallback_latches_to_plain(self):
+        """After a structured failure, later retries use the plain invoke only."""
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(side_effect=_validation_error())
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                AIMessage(content="", response_metadata={"finish_reason": "stop"}),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+
+        node = make_node(inst, output_schema=_OutputSchema)
+        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        # One structured attempt, then the empty plain response is retried
+        # on the plain path (not the structured one).
+        assert wrapped.ainvoke.await_count == 1
+        assert inst.ainvoke.await_count == 2
+        assert out.content == "ok"
+
+
+class TestIsStructuredOutputFailure:
+    """Type-based classification of structured-output failures."""
+
+    def test_validation_error_true(self):
+        assert is_structured_output_failure(_validation_error())
+
+    def test_output_parser_error_true(self):
+        assert is_structured_output_failure(
+            OutputParserException("Invalid json output: {not json}")
+        )
+
+    def test_json_decode_error_true(self):
+        assert is_structured_output_failure(
+            json.JSONDecodeError("Expecting value", "{", 0)
+        )
+
+    def test_structured_rejection_true(self):
+        assert is_structured_output_failure(
+            RuntimeError("response_format not supported")
+        )
+
+    def test_rate_limit_false(self):
+        assert not is_structured_output_failure(
+            RuntimeError("Error code: 429 - rate limit")
+        )
+
+    def test_unrelated_error_false(self):
+        assert not is_structured_output_failure(RuntimeError("boom"))
 
 
 class _ValidatingNode(_MinimalLLMNode):
