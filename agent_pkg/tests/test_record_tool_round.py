@@ -101,6 +101,26 @@ def test_record_picker_failure_writes_synthetic_observation_and_reason():
     assert entries[0].result.is_error
 
 
+def test_clean_round_prunes_earlier_errors():
+    """Once a call succeeds, the step's superseded failures are dropped."""
+    agent = _agent()
+    state = KleaAgentState(plan=PlanSchema(current_step_index=0))
+    state.step_outputs = {1: [StepOutput(result=_error_result("old failure"))]}
+    update = agent._record_tool_round(state, [_result()], [False])
+    entries = update["step_outputs"][1]
+    assert len(entries) == 1
+    assert not entries[0].result.is_error
+
+
+def test_error_round_keeps_earlier_errors():
+    """A still-failing round keeps the accumulated errors as evidence."""
+    agent = _agent()
+    state = KleaAgentState(plan=PlanSchema(current_step_index=0))
+    state.step_outputs = {1: [StepOutput(result=_error_result("first"))]}
+    update = agent._record_tool_round(state, [_error_result("second")], [False])
+    assert len(update["step_outputs"][1]) == 2
+
+
 def test_records_tool_name_and_displayed_flag():
     """Each StepOutput carries the tool name and the displayed flag."""
     agent = _agent()

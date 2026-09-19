@@ -233,7 +233,9 @@ def test_tool_error_adds_its_text_to_feedback():
     )
     feedback = picker._get_prompt_variables(state)["picker_feedback"]
     assert "old_string matched 2 times" in feedback
-    assert "fix" in feedback.lower() or "adjust" in feedback.lower()
+    # Retries are arguments-only on the same tool; no switching.
+    assert "same tool" in feedback
+    assert "do not switch" in feedback.lower()
 
 
 def test_no_error_keeps_empty_selection_feedback():
