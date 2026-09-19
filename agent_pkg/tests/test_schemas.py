@@ -143,7 +143,12 @@ class TestPlannerPlanSchema:
 
     def test_planner_status_enum_excludes_runtime_statuses(self):
         status = PlannerPlanSchema.model_json_schema()["properties"]["status"]
-        assert set(status["enum"]) == {"in_progress", "in_review", "unplannable"}
+        assert set(status["enum"]) == {
+            "in_progress",
+            "in_review",
+            "needs_input",
+            "unplannable",
+        }
 
 
 class TestCheckpointMsgpack:

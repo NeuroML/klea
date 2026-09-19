@@ -114,14 +114,15 @@ class PlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
     #: Lifecycle + routing status.  The Planner authors only the entry values
     #: via :class:`PlannerPlanSchema` (``in_progress`` | ``in_review`` |
-    #: ``unplannable``); the Evaluator and budget guards write the terminal
-    #: ones (``completed``/``failed``/``aborted``), and ``InitGraphState``
-    #: resets to ``not_started``.  This single field is the post-Planner
-    #: routing source; no separate route flag exists.
+    #: ``needs_input`` | ``unplannable``); the Evaluator and budget guards
+    #: write the terminal ones (``completed``/``failed``/``aborted``), and
+    #: ``InitGraphState`` resets to ``not_started``.  This single field is the
+    #: post-Planner routing source; no separate route flag exists.
     status: Literal[
         "not_started",
         "in_review",
         "in_progress",
+        "needs_input",
         "completed",
         "failed",
         "aborted",
@@ -219,6 +220,9 @@ class PlannerPlanSchema(PlanSchema):
 
     * ``in_progress`` -- run the plan (default);
     * ``in_review`` -- the plan should be reviewed before it runs;
+    * ``needs_input`` -- cannot finalise a plan without a missing fact from
+      the user; the question is carried in the Planner's ``reason`` and may be
+      accompanied by a partial plan;
     * ``unplannable`` -- no workable plan with the available tools.
 
     All other behaviour (``render``, ``validate_plan``, ``current_step``) is
@@ -226,7 +230,7 @@ class PlannerPlanSchema(PlanSchema):
     ``PlanSchema``.
     """
 
-    status: Literal["in_progress", "in_review", "unplannable"] = Field(
+    status: Literal["in_progress", "in_review", "needs_input", "unplannable"] = Field(
         default="in_progress", validate_default=True
     )
 
@@ -454,6 +458,11 @@ class KleaAgentState(BaseGraphSchema):
     # had a failed call; read and cleared by the Planner.  Empty on the first
     # plan and after a human review (which supplies ``human_feedback``).
     replan_reason: str = ""
+    # the question the Planner needs answered when ``plan.status`` is
+    # ``needs_input`` (carried from the Planner's ``reason``); presented by
+    # ``AnswerFromResults`` and, once the HITL interrupt lands, answered by the
+    # user to resume the run.
+    pending_question: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()

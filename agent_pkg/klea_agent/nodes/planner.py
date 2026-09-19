@@ -194,7 +194,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         answers the user -- chat is handled by ``RouteDecision`` and the final
         reply by ``AnswerFromResults``.
 
-        An ``unplannable`` status (or an empty plan) fails the run, using
+        A ``needs_input`` status maps to the state plan with ``result.reason``
+        carried as ``pending_question`` (a partial plan is allowed); an
+        ``unplannable`` status (or an empty plan) fails the run, using
         ``result.reason`` as the failure explanation; a plan with steps maps
         the remaining statuses to the state plan.  ``result.reason`` is also
         recorded with the plan in ``messages`` for continuity.
@@ -232,12 +234,15 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             ]
             return update
 
-        # --- Unplannable: the Planner's explicit signal, or no steps at all.
+        # --- Unplannable: the Planner's explicit signal, or no steps at all
+        # (except ``needs_input``, which may carry a partial plan).
         # 'unplannable' with steps is rejected in _validate_result; a
         # non-unplannable status with no steps is a deterministic coercion.
         # Handled before the goal lock so a failed plan does not lock a goal.
         steps = result.plan.step_list
-        if result.plan.status == "unplannable" or not steps:
+        if result.plan.status == "unplannable" or (
+            not steps and result.plan.status != "needs_input"
+        ):
             update["plan"] = PlanSchema(status="unplannable")
             update["failure_reason"] = (
                 result.reason
@@ -259,6 +264,31 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             self.logger.warning(
                 "Planner proposed a different goal; keeping the fixed goal (ADR-0035)"
             )
+
+        if result.plan.status == "needs_input":
+            # A partial plan is allowed: some steps may be runnable, but the
+            # Planner needs a missing fact before it can finalise.  The
+            # question travels in ``pending_question``; short-term the run ends
+            # with the question (AnswerFromResults), and the HITL interrupt
+            # will later resume this run with the answer.
+            plan = PlanSchema(
+                step_list=steps,
+                status="needs_input",
+                current_step_index=result.plan.current_step_index,
+            )
+            update["plan"] = plan
+            update["pending_question"] = (
+                result.reason or "More information is needed to continue."
+            )
+            update["step_outputs"] = {}
+            update["tool_retry_counts"] = {}
+            update["step_attempt_counts"] = {}
+            message = f"Plan (needs_input):\n{plan.render()}"
+            if result.reason:
+                message += f"\nQuestion: {result.reason}"
+            update["messages"] = [*state.messages, AIMessage(content=message)]
+            self.logger.debug(f"{update = }")
+            return update
 
         # The Planner decides whether the plan needs human review before it
         # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``

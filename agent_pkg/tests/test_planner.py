@@ -398,6 +398,49 @@ class TestPlannerValidation(unittest.TestCase):
         assert error is not None
         self.assertIn("unplannable", error)
 
+    def test_accepts_needs_input_with_steps(self):
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                status="needs_input",
+                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+            )
+        )
+        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+
+    def test_accepts_needs_input_without_steps(self):
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(status="needs_input"), reason="which file?"
+        )
+        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+
+    def test_needs_input_sets_status_and_question(self):
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    status="needs_input",
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ],
+                ),
+                reason="which file?",
+            ),
+            KleaAgentState(query="q"),
+        )
+        self.assertEqual(update["plan"].status, "needs_input")
+        self.assertEqual(update["pending_question"], "which file?")
+        self.assertNotIn("failure_reason", update)
+
+    def test_needs_input_without_steps_is_not_unplannable(self):
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(status="needs_input"),
+                reason="which file?",
+            ),
+            KleaAgentState(),
+        )
+        self.assertEqual(update["plan"].status, "needs_input")
+        self.assertEqual(update["pending_question"], "which file?")
+
     def test_rejects_tool_step_without_tools(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(step_list=[StepSchema(description="s")])

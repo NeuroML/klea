@@ -183,6 +183,7 @@ class KleaAgent(BaseLangGraph):
         """Route on the Planner's ``plan.status`` (ADR-0035).
 
         ``unplannable`` -> failure answer; ``in_review`` -> human review;
+        ``needs_input`` -> the answer node asks the pending question;
         otherwise (``in_progress``) -> run the plan through the tool work loop.
         """
         status = state.plan.status
@@ -190,6 +191,8 @@ class KleaAgent(BaseLangGraph):
             return "failure"
         if status == "in_review":
             return "review"
+        if status == "needs_input":
+            return "needs_input"
         return "act"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
@@ -534,6 +537,7 @@ class KleaAgent(BaseLangGraph):
             {
                 "failure": self._answer_from_results_node.label,
                 "review": self._await_review_node.label,
+                "needs_input": self._answer_from_results_node.label,
                 "act": self._tools_picker_node.label,
             },
         )
