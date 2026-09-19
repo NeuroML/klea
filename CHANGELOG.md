@@ -29,6 +29,7 @@
 - The project is now released under the MIT License (previously GPL-3.0-or-later); license text, package metadata, and docs were updated.
 - `run_command` treats a non-zero exit as a normal command result (reported via `returncode`), not an MCP error; `isError` is reserved for a timeout, a denied working directory, or a spawn failure, so commands such as `diff`/`grep` no longer trigger retry/replan loops.
 - Web UI: the chat transcript uses full-width blocks (user tinted, agent plain, tool neutral), file-edit diffs render as their own blocks, code lines wrap instead of scrolling horizontally, the input is resizable, and the disclaimer and credits share one footer line.
+- Structured-output failures (`ValidationError` / JSON parse, or an endpoint refusing `response_format`) now fall back to the plain, tolerantly-parsed invoke instead of aborting the run; endpoints seen refusing the parameter are cached per `(provider, model, base_url)` for the process lifetime, so the structured attempt is not repeated on every node call.
 
 ### Fixed
 

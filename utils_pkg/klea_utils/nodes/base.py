@@ -43,11 +43,14 @@ from ..llm import (
     is_empty_structured_parse_error,
     is_output_empty,
     is_output_truncated,
+    is_structured_capability_rejection,
     is_structured_output_failure,
     load_prompt,
+    mark_structured_output_unsupported,
     parse_output_with_thought,
     resolve_langchain_endpoint,
     resolve_output_token_limit,
+    structured_output_known_unsupported,
 )
 from ..models_catalog import probe_endpoint_model_limits
 from .abstract import AbstractLLMNode
@@ -430,12 +433,15 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         """Async invoke LLM with optional structured output + fallback.
 
         When an output schema exists, the model is first invoked through
-        ``with_structured_output``.  Any structured-only failure  ---  a
-        schema validation/JSON parse error, or the provider rejecting the
-        ``response_format`` parameter  ---  latches the call to a plain invoke
-        for the rest of this invocation; the prompt already contains the JSON
-        schema as text instructions and :meth:`_process_output` parses it
-        tolerantly.
+        ``with_structured_output``, unless this ``(provider, model, base_url)``
+        was already seen refusing the parameter (process-local cache), in which
+        case the plain invoke is used directly.  Any structured-only failure
+        ---  a schema validation/JSON parse error, or the provider rejecting
+        the ``response_format`` parameter  ---  latches the call to a plain
+        invoke for the rest of this invocation; the prompt already contains the
+        JSON schema as text instructions and :meth:`_process_output` parses it
+        tolerantly.  Only a stable capability rejection is remembered in the
+        cache; parse failures are per-response and are never cached.
 
         Both strategies share one :meth:`_invoke_with_retries` loop so
         context-overflow / truncation / empty retries and infra-error
@@ -446,8 +452,21 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         prompt = self._add_cache_control(prompt, config)
         self.logger.debug(f"{prompt = }")
         inst = self._llm_entry.instance
+        configurable = config.get("configurable") or {}
+        provider = configurable.get("model_provider") or "openai"
+        model = configurable.get("model") or self._llm_entry.model_name
+        base_url = configurable.get("base_url")
 
         if not self.output_schema:
+            output = await self._invoke_with_retries(inst.ainvoke, prompt, config)
+            self.logger.debug(f"{output = }")
+            return output
+
+        if structured_output_known_unsupported(provider, model, base_url):
+            self.logger.debug(
+                f"Structured output known unsupported for {provider}:{model}; "
+                "using the plain invoke"
+            )
             output = await self._invoke_with_retries(inst.ainvoke, prompt, config)
             self.logger.debug(f"{output = }")
             return output
@@ -470,6 +489,8 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         raise
                     if not is_structured_output_failure(exc):
                         raise
+                    if is_structured_capability_rejection(exc):
+                        mark_structured_output_unsupported(provider, model, base_url)
                     self.logger.warning(
                         f"Structured output unusable ({type(exc).__name__}: "
                         f"{exc}); falling back to the plain invoke for this call"

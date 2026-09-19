@@ -14,7 +14,14 @@ from unittest import mock
 
 import pytest
 from klea_utils.graph.context import KleaRunContext
-from klea_utils.llm import LLMModel, is_structured_output_failure
+from klea_utils.llm import (
+    LLMModel,
+    clear_structured_output_cache,
+    is_structured_capability_rejection,
+    is_structured_output_failure,
+    mark_structured_output_unsupported,
+    structured_output_known_unsupported,
+)
 from klea_utils.models_catalog import ModelLimits
 from klea_utils.nodes.base import (
     MAX_CONTEXT_OVERFLOW_RETRIES,
@@ -160,9 +167,13 @@ class TestInvokeWithRetries:
             "klea_utils.llm.get_catalog_model_limits", return_value=None
         )
         self._catalog_patcher.start()
+        # The capability cache is process-global; reset between tests so a
+        # rejection recorded by one test cannot short-circuit the next.
+        clear_structured_output_cache()
 
     def teardown_method(self):
         self._catalog_patcher.stop()
+        clear_structured_output_cache()
 
     async def _invoke(self, inst, config=None):
         node = make_node(inst)
@@ -756,6 +767,101 @@ class TestIsStructuredOutputFailure:
 
     def test_unrelated_error_false(self):
         assert not is_structured_output_failure(RuntimeError("boom"))
+
+
+class TestStructuredOutputCapabilityCache:
+    """Process-local cache of endpoints that refuse structured output."""
+
+    def setup_method(self):
+        clear_structured_output_cache()
+        self._catalog_patcher = mock.patch(
+            "klea_utils.llm.get_catalog_model_limits", return_value=None
+        )
+        self._catalog_patcher.start()
+
+    def teardown_method(self):
+        self._catalog_patcher.stop()
+        clear_structured_output_cache()
+
+    def test_helpers_roundtrip_and_normalize(self):
+        assert not structured_output_known_unsupported("openai", "gpt-4o")
+        mark_structured_output_unsupported("openai", "gpt-4o")
+        assert structured_output_known_unsupported("openai", "gpt-4o")
+        # Case/whitespace normalisation shares the entry.
+        assert structured_output_known_unsupported("OpenAI", " GPT-4O ")
+
+    def test_base_url_is_part_of_key(self):
+        mark_structured_output_unsupported("openai", "gpt-4o", "https://a/v1/")
+        assert structured_output_known_unsupported("openai", "gpt-4o", "https://a/v1")
+        assert not structured_output_known_unsupported(
+            "openai", "gpt-4o", "https://b/v1"
+        )
+
+    async def test_known_unsupported_skips_structured(self):
+        mark_structured_output_unsupported("openai", "gpt-4o")
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
+        node = make_node(inst, output_schema=_OutputSchema)
+        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        inst.with_structured_output.assert_not_called()
+        assert inst.ainvoke.await_count == 1
+        assert out.content == "ok"
+
+    async def test_capability_rejection_cached_and_skipped_next_call(self):
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(
+            side_effect=RuntimeError("response_format is not supported")
+        )
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
+        node = make_node(inst, output_schema=_OutputSchema)
+        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        assert structured_output_known_unsupported("openai", "gpt-4o")
+        assert wrapped.ainvoke.await_count == 1
+
+        # Second call for the same key bypasses structured entirely.
+        inst.with_structured_output.reset_mock()
+        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        inst.with_structured_output.assert_not_called()
+        assert inst.ainvoke.await_count == 2
+
+    async def test_parse_failure_does_not_poison_cache(self):
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(side_effect=_validation_error())
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
+        node = make_node(inst, output_schema=_OutputSchema)
+        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+
+        assert not structured_output_known_unsupported("openai", "gpt-4o")
+
+    def test_strict_predicate_excludes_generic_400(self):
+        generic = RuntimeError(
+            "Error code: 400 - invalid_request_error: unsupported temperature"
+        )
+        # Broad classification still drives the per-call fallback ...
+        assert is_structured_output_failure(generic)
+        # ... but the generic 400 must not poison the capability cache.
+        assert not is_structured_capability_rejection(generic)
+        assert is_structured_capability_rejection(
+            RuntimeError("response_format is not supported")
+        )
 
 
 class _ValidatingNode(_MinimalLLMNode):

@@ -595,6 +595,78 @@ def is_structured_output_failure(exc: BaseException) -> bool:
     )
 
 
+#: Process-local negative cache of ``(provider, model, base_url)`` triples
+#: whose endpoint has been seen refusing structured output.  Populated only
+#: from a stable :func:`is_structured_capability_rejection` (see there): a
+#: per-response schema parse failure must never disable structured output for
+#: later calls.  Deliberately in-memory only -- a persisted negative could go
+#: stale if a deployment later adds ``response_format`` support, and one
+#: re-probe per process is cheap.
+_STRUCTURED_UNSUPPORTED: set[tuple[str, str, str | None]] = set()
+
+
+def _structured_output_cache_key(
+    provider: str, model: str, base_url: str | None
+) -> tuple[str, str, str | None]:
+    """Normalize a structured-output capability cache key.
+
+    ``openai``-shaped deployments can share a provider and model name while
+    pointing at different ``base_url``\\ s with different capabilities, so the
+    endpoint is part of the identity.  Values are trimmed and lower-cased so
+    trivially different spellings share an entry.
+    """
+    return (
+        provider.strip().lower(),
+        model.strip().lower(),
+        base_url.rstrip("/") if base_url else None,
+    )
+
+
+def structured_output_known_unsupported(
+    provider: str, model: str, base_url: str | None = None
+) -> bool:
+    """Return True if this endpoint was seen refusing structured output.
+
+    Consulted before building ``with_structured_output`` so a rejecting
+    endpoint is not re-probed on every node call.  A miss (``False``) may
+    still reject -- the first attempt for a key always probes.
+
+    :param provider: Resolved ``model_provider`` (e.g. ``"openai"``).
+    :param model: Resolved model identifier.
+    :param base_url: Endpoint base URL, when one applies.
+    :returns: True when the key is known to reject ``response_format``.
+    """
+    return _structured_output_cache_key(provider, model, base_url) in (
+        _STRUCTURED_UNSUPPORTED
+    )
+
+
+def mark_structured_output_unsupported(
+    provider: str, model: str, base_url: str | None = None
+) -> None:
+    """Record a stable capability rejection for the process lifetime.
+
+    :param provider: Resolved ``model_provider``.
+    :param model: Resolved model identifier.
+    :param base_url: Endpoint base URL, when one applies.
+    """
+    key = _structured_output_cache_key(provider, model, base_url)
+    if key not in _STRUCTURED_UNSUPPORTED:
+        _STRUCTURED_UNSUPPORTED.add(key)
+        logger.info(
+            "Structured output unsupported for provider %r model %r (base_url=%r); "
+            "using prompt-based output for the rest of this process",
+            provider,
+            model,
+            base_url,
+        )
+
+
+def clear_structured_output_cache() -> None:
+    """Clear the process-local structured-output capability cache (tests)."""
+    _STRUCTURED_UNSUPPORTED.clear()
+
+
 def get_token_limit_param(provider: str) -> str:
     """Return the max-output token parameter name for a provider.
 
@@ -980,6 +1052,19 @@ _STRUCTURED_OUTPUT_REJECTED_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\b400\b[^\n]*invalid_request_error", re.IGNORECASE),
 ]
 
+#: Strict subset of :data:`_STRUCTURED_OUTPUT_REJECTED_PATTERNS` naming the
+#: structured-output parameter itself.  Only these indicate a *stable
+#: capability gap* of the deployment, so only these may populate the
+#: process-local capability cache.  The generic
+#: ``400 invalid_request_error`` pattern is intentionally excluded: it can
+#: also match an unrelated bad request (e.g. an unsupported sampling
+#: parameter), and caching that would silently disable structured output.
+_STRUCTURED_OUTPUT_CAPABILITY_PATTERNS: list[re.Pattern[str]] = [
+    re.compile(r"response_format", re.IGNORECASE),
+    re.compile(r"json_schema", re.IGNORECASE),
+    re.compile(r"structured output", re.IGNORECASE),
+]
+
 
 def _flatten_exception_messages(exc: BaseException) -> list[str]:
     """Collect the message from an exception and its cause chain.
@@ -1035,6 +1120,24 @@ def classify_llm_invocation_error(exc: BaseException) -> LLMInvocationErrorCateg
     if _matches_any(_STRUCTURED_OUTPUT_REJECTED_PATTERNS, text):
         return LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED
     return LLMInvocationErrorCategory.UNKNOWN
+
+
+def is_structured_capability_rejection(exc: BaseException) -> bool:
+    """Return True if *exc* is a stable capability rejection of structured output.
+
+    Stricter than the ``STRUCTURED_OUTPUT_REJECTED`` category returned by
+    :func:`classify_llm_invocation_error`: only messages naming
+    ``response_format`` / ``json_schema`` / ``structured output`` qualify.  The
+    category's generic ``400 invalid_request_error`` pattern is excluded so an
+    unrelated bad request cannot poison the capability cache.
+
+    :param exc: The exception raised by the structured invoke.
+    :returns: True when the endpoint will keep refusing the parameter.
+    """
+    return _matches_any(
+        _STRUCTURED_OUTPUT_CAPABILITY_PATTERNS,
+        "\n".join(_flatten_exception_messages(exc)),
+    )
 
 
 # Extra fields accepted by provider model constructors that are not part
