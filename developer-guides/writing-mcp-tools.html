@@ -328,7 +328,10 @@ the LLM.</p></li>
 <li><p><strong>Parameters</strong> – describe each parameter in a Google-style <code class="docutils literal notranslate"><span class="pre">Args:</span></code>
 section.  fastmcp parses these into the tool’s input schema, and Klea
 renders them as compact one-line parameter entries (name, type,
-required flag, description).</p></li>
+required/optional, default, description).  Optionality is always stated
+explicitly and a non-null schema default is shown (for example
+<code class="docutils literal notranslate"><span class="pre">pattern</span> <span class="pre">(string,</span> <span class="pre">optional,</span> <span class="pre">default</span> <span class="pre">&quot;*&quot;)</span></code>), so the tool picker does not
+have to infer it.</p></li>
 <li><p><strong>Do not</strong> set the tool description to the raw full docstring.  Klea
 shows the opening text block as the description and the
 <code class="docutils literal notranslate"><span class="pre">Args:</span></code>-derived schema as the parameter list, so duplicating the

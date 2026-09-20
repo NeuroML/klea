@@ -307,6 +307,7 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
@@ -427,10 +428,17 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_format_tool_parameters</span><span class="p">(</span><span class="n">input_schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return a compact one-line-per-parameter summary of an MCP tool schema.</span>
 
-<span class="sd">    The raw JSON Schema ``properties`` dict is verbose (defaults, length and</span>
-<span class="sd">    range validators, ``anyOf`` unions); only the parameter name, type,</span>
-<span class="sd">    required flag, and description are useful for tool selection, so the</span>
-<span class="sd">    rest is dropped and whitespace is normalised.</span>
+<span class="sd">    The raw JSON Schema ``properties`` dict is verbose (length and range</span>
+<span class="sd">    validators, ``anyOf`` unions); only the parameter name, type, whether it</span>
+<span class="sd">    is required or optional, its default, and the description are useful for</span>
+<span class="sd">    argument binding, so the rest is dropped and whitespace is normalised.</span>
+
+<span class="sd">    Optionality and defaults are stated explicitly rather than left implicit:</span>
+<span class="sd">    a model should not have to infer that a parameter without ``required`` is</span>
+<span class="sd">    optional, and it cannot see that an omitted filter means "all" unless the</span>
+<span class="sd">    default is shown (for example ``pattern (string, optional, default "*")``).</span>
+<span class="sd">    A JSON ``null`` default is omitted: it means "unset" for these tools and</span>
+<span class="sd">    rendering it as ``default null`` invites the model to pass a literal null.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">input_schema</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">""</span>
@@ -444,8 +452,14 @@
             <span class="k">continue</span>
         <span class="n">ptype</span> <span class="o">=</span> <span class="n">_collapse_schema_type</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
         <span class="n">desc</span> <span class="o">=</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">((</span><span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"description"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
-        <span class="n">flag</span> <span class="o">=</span> <span class="s2">", required"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">else</span> <span class="s2">""</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ptype</span><span class="si">}{</span><span class="n">flag</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">rstrip</span><span class="p">())</span>
+        <span class="n">flag</span> <span class="o">=</span> <span class="s2">"required"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">else</span> <span class="s2">"optional"</span>
+        <span class="n">default</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"default"</span><span class="p">)</span>
+        <span class="n">default_part</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">", default </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">default</span><span class="p">,</span><span class="w"> </span><span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">if</span> <span class="s2">"default"</span> <span class="ow">in</span> <span class="n">schema</span> <span class="ow">and</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="s2">""</span>
+        <span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ptype</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">flag</span><span class="si">}{</span><span class="n">default_part</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">rstrip</span><span class="p">())</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">""</span>
     <span class="k">return</span> <span class="s2">"Parameters:</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
