@@ -23,6 +23,8 @@ cd "$(dirname "$0")/.."   # agent_pkg
 export KLEA_AGENT_PLAN_MODEL="${KLEA_AGENT_PLAN_MODEL:-opencode-go:mimo-v2.5}"
 export KLEA_AGENT_CHAT_MODEL="${KLEA_AGENT_CHAT_MODEL:-opencode-go:mimo-v2.5}"
 export KLEA_E2E_WORKDIR="${KLEA_E2E_WORKDIR:-/tmp/opencode/klea-e2e}"
+# Global wall-clock cap per CLI run (seconds); overrides each task's timeout.
+export KLEA_E2E_TIMEOUT="${KLEA_E2E_TIMEOUT:-600}"
 
 if [ -z "${OPENAI_API_KEY:-}" ] && command -v pass >/dev/null 2>&1; then
     OPENAI_API_KEY="$(pass API-keys/opencode.ai | head -1)"

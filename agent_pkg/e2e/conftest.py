@@ -30,6 +30,9 @@ from tasks import E2ETask
 _WORKDIR_ENV = "KLEA_E2E_WORKDIR"
 _DEFAULT_WORKDIR = "/tmp/opencode/klea-e2e"
 
+#: Global wall-clock cap for a CLI run; overrides the per-task timeout.
+_TIMEOUT_ENV = "KLEA_E2E_TIMEOUT"
+
 
 def _base_workdir() -> Path:
     """Return the scratch base, refusing obviously dangerous locations."""
@@ -97,6 +100,10 @@ def run_cli():
         workspace: Path, query: str, timeout: int
     ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
+        # A global wall-clock cap (KLEA_E2E_TIMEOUT) overrides the per-task
+        # timeout so a whole suite or one scenario can be given more headroom
+        # without editing tasks.py.
+        timeout = int(os.environ.get(_TIMEOUT_ENV, timeout))
         # Point the (optional) env file at a non-existent scratch path so the
         # run is deterministic: model settings come from the process env.
         env["KLEA_AGENT_ENV_FILE"] = str(workspace / "klea_agent.env")

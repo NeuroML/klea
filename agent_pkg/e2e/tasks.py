@@ -50,6 +50,25 @@ def _seed_notes(workspace: Path) -> None:
     (workspace / "notes.txt").write_text("first line\n")
 
 
+def _seed_project(workspace: Path) -> None:
+    """Seed a tiny three-file project for the reasoning scenario.
+
+    The graph dump files the CLI writes into the workspace root are out of
+    scope: the reasoning task only looks inside ``project/``.
+    """
+    project = workspace / "project"
+    project.mkdir()
+    (project / "README.md").write_text(
+        "# Demo Project\n\nA small example project used for end-to-end reasoning.\n"
+    )
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.1.0"\ndependencies = []\n'
+    )
+    (project / "main.py").write_text(
+        'def main():\n    print("demo")\n\n\nif __name__ == "__main__":\n    main()\n'
+    )
+
+
 def _check_create_file(workspace: Path, _output: str) -> None:
     target = workspace / "hello.txt"
     assert target.exists(), "hello.txt was not created"
@@ -99,15 +118,17 @@ TASKS: list[E2ETask] = [
         tags=["tools"],
         check=_check_run_command,
     ),
-    # --- reasoning step ---
+    # --- reasoning step (scoped to a seeded project/, no reads) ---
     E2ETask(
         id="reasoning",
         query=(
-            "Look at the files in this directory and decide which one is most "
-            "important for understanding this project. Explain your decision. "
-            "Do not modify anything."
+            "Look at the text file names in the project/ directory (do not "
+            "read them) and decide which single file is most important for "
+            "understanding the project. Explain your decision. Do not modify "
+            "anything."
         ),
         tags=["reasoning"],
+        setup=_seed_project,
     ),
     # --- review path (AwaitReview stub auto-approves) ---
     E2ETask(

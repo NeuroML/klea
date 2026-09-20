@@ -22,6 +22,10 @@ if needed, `OPENAI_API_KEY` from `pass API-keys/opencode.ai`. Override any of
 them by exporting them first. The suite skips itself when the CLI, a model, or
 the API key is missing.
 
+Each CLI run is capped by `KLEA_E2E_TIMEOUT` (default 600 s, exported by
+`run.sh`); set it lower/higher to override the per-task `timeout` without
+editing `tasks.py`.
+
 ## How it is isolated
 
 - Each scenario runs in `$KLEA_E2E_WORKDIR/<id>` (default
