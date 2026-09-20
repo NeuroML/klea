@@ -55,15 +55,15 @@ class TestFormatToolParameters(unittest.TestCase):
         self.assertIn("- path (string, required): A path.", result)
         self.assertNotIn("default", result)
 
-    def test_optional_param_without_required_flag(self):
+    def test_optional_param_labelled_optional(self):
         schema = {
             "type": "object",
             "properties": {"recursive": {"type": "boolean"}},
         }
         result = _format_tool_parameters(schema)
-        self.assertIn("- recursive (boolean):", result)
+        self.assertIn("- recursive (boolean, optional):", result)
 
-    def test_anyof_collapses_null(self):
+    def test_anyof_collapses_null_and_omits_null_default(self):
         schema = {
             "type": "object",
             "properties": {
@@ -75,10 +75,13 @@ class TestFormatToolParameters(unittest.TestCase):
             },
         }
         result = _format_tool_parameters(schema)
-        self.assertIn("- max_depth (integer): Depth.", result)
+        self.assertIn("- max_depth (integer, optional): Depth.", result)
         self.assertNotIn("anyOf", result)
+        # A null default means "unset"; rendering "default null" would invite
+        # the model to pass a literal null.
+        self.assertNotIn("default", result)
 
-    def test_validators_and_defaults_dropped(self):
+    def test_validators_dropped_and_default_kept(self):
         schema = {
             "type": "object",
             "properties": {
@@ -92,9 +95,35 @@ class TestFormatToolParameters(unittest.TestCase):
             },
         }
         result = _format_tool_parameters(schema)
-        self.assertIn("- k (integer): A number.", result)
-        self.assertNotIn("default", result)
+        self.assertIn("- k (integer, optional, default 5): A number.", result)
         self.assertNotIn("minimum", result)
+
+    def test_string_default_is_quoted(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "pattern": {"type": "string", "default": "*", "description": "Filter."}
+            },
+        }
+        result = _format_tool_parameters(schema)
+        self.assertIn('- pattern (string, optional, default "*"): Filter.', result)
+
+    def test_boolean_default_is_bare(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "include_files": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include files.",
+                }
+            },
+        }
+        result = _format_tool_parameters(schema)
+        self.assertIn(
+            "- include_files (boolean, optional, default true): Include files.",
+            result,
+        )
 
     def test_description_whitespace_normalised(self):
         schema = {
@@ -104,7 +133,7 @@ class TestFormatToolParameters(unittest.TestCase):
             },
         }
         result = _format_tool_parameters(schema)
-        self.assertIn("- pattern (string): a b c", result)
+        self.assertIn("- pattern (string, optional): a b c", result)
 
 
 class TestBuildToolDescription(unittest.TestCase):
@@ -119,7 +148,7 @@ class TestBuildToolDescription(unittest.TestCase):
         self.assertIn("## test_tool", full)
         self.assertIn("Does useful things.", full)
         self.assertIn("Parameters:", full)
-        self.assertIn("- path (string):", full)
+        self.assertIn("- path (string, optional):", full)
 
     def test_short_omits_parameters(self):
         schema = {
@@ -130,7 +159,7 @@ class TestBuildToolDescription(unittest.TestCase):
         self.assertIn("## test_tool", short)
         self.assertIn("Does useful things.", short)
         self.assertNotIn("Parameters:", short)
-        self.assertNotIn("- path (string):", short)
+        self.assertNotIn("- path (string, optional):", short)
 
     def test_full_equals_short_when_no_parameters(self):
         full, short = build_tool_description(_make_tool(input_schema=None))

@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import json
 import logging
 from typing import Any
 
@@ -122,10 +123,17 @@ def _collapse_schema_type(schema: dict[str, Any]) -> str:
 def _format_tool_parameters(input_schema: dict[str, Any] | None) -> str:
     """Return a compact one-line-per-parameter summary of an MCP tool schema.
 
-    The raw JSON Schema ``properties`` dict is verbose (defaults, length and
-    range validators, ``anyOf`` unions); only the parameter name, type,
-    required flag, and description are useful for tool selection, so the
-    rest is dropped and whitespace is normalised.
+    The raw JSON Schema ``properties`` dict is verbose (length and range
+    validators, ``anyOf`` unions); only the parameter name, type, whether it
+    is required or optional, its default, and the description are useful for
+    argument binding, so the rest is dropped and whitespace is normalised.
+
+    Optionality and defaults are stated explicitly rather than left implicit:
+    a model should not have to infer that a parameter without ``required`` is
+    optional, and it cannot see that an omitted filter means "all" unless the
+    default is shown (for example ``pattern (string, optional, default "*")``).
+    A JSON ``null`` default is omitted: it means "unset" for these tools and
+    rendering it as ``default null`` invites the model to pass a literal null.
     """
     if not input_schema:
         return ""
@@ -139,8 +147,14 @@ def _format_tool_parameters(input_schema: dict[str, Any] | None) -> str:
             continue
         ptype = _collapse_schema_type(schema)
         desc = " ".join((schema.get("description") or "").split())
-        flag = ", required" if name in required else ""
-        lines.append(f"- {name} ({ptype}{flag}): {desc}".rstrip())
+        flag = "required" if name in required else "optional"
+        default = schema.get("default")
+        default_part = (
+            f", default {json.dumps(default, ensure_ascii=False)}"
+            if "default" in schema and default is not None
+            else ""
+        )
+        lines.append(f"- {name} ({ptype}, {flag}{default_part}): {desc}".rstrip())
     if not lines:
         return ""
     return "Parameters:\n" + "\n".join(lines)

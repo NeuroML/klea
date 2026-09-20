@@ -31,6 +31,7 @@
 - Web UI: the chat transcript uses full-width blocks (user tinted, agent plain, tool neutral), file-edit diffs render as their own blocks, code lines wrap instead of scrolling horizontally, the input is resizable, and the disclaimer and credits share one footer line.
 - Structured-output failures (`ValidationError` / JSON parse, or an endpoint refusing `response_format`) now fall back to the plain, tolerantly-parsed invoke instead of aborting the run; endpoints seen refusing the parameter are cached per `(provider, model, base_url)` for the process lifetime, so the structured attempt is not repeated on every node call.
 - Output-token budgets now default to 16384 (guard stays at 2048) and the frozen per-node `max_output_tokens` caps are removed, so reasoning models no longer truncate even tiny structured calls; the budget is still clamped per model to its catalog output limit and context headroom, and remains tunable via the `providers` config.
+- Tool parameter lists shown to the model now label every argument `required` or `optional` explicitly and show non-null schema defaults (e.g. `pattern (string, optional, default "*")`), so the tool picker does not have to infer optionality from an absent flag or narrow a listing by setting a filter that defaults to "all".
 
 ### Fixed
 
