@@ -58,6 +58,7 @@ class TestReasoningNode(unittest.TestCase):
         assert len(entries) == 1
         assert entries[0].result == "H1: X causes Y"
         assert entries[0].tool == ""
+        assert entries[0].rationale == "from obs"
 
     def test_conclusion_renders_as_reasoning(self):
         update = self._node()._update_state(
@@ -66,6 +67,17 @@ class TestReasoningNode(unittest.TestCase):
         rendered = update["step_outputs"][1][0].render()
         assert rendered.startswith("### reasoning (displayed_to_user: no)")
         assert "H1: X causes Y" in rendered
+
+    def test_rationale_reaches_observations(self):
+        """The justification must be visible to the Evaluator/Planner."""
+        state = self._state()
+        update = self._node()._update_state(
+            ReasoningSchema(conclusion="H1", rationale="grounded in obs"), state
+        )
+        state.step_outputs = update["step_outputs"]
+        observations = state.observations_text()
+        assert "H1" in observations
+        assert "Rationale: grounded in obs" in observations
 
     def test_appends_ai_message_with_rationale(self):
         update = self._node()._update_state(

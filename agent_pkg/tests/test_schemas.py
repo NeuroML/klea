@@ -122,6 +122,23 @@ class TestStepOutputRender:
         assert rendered.startswith("### reasoning (displayed_to_user: no)")
         assert "H1: X causes Y" in rendered
 
+    def test_render_reasoning_includes_rationale(self):
+        """The reasoning rationale is rendered so observations carry it."""
+        entry = StepOutput(
+            result="H1: X causes Y",
+            tool="",
+            displayed=False,
+            rationale="grounded in the observations",
+        )
+        rendered = entry.render()
+        assert "H1: X causes Y" in rendered
+        assert "Rationale: grounded in the observations" in rendered
+
+    def test_render_tool_result_omits_empty_rationale(self):
+        """A tool result has no rationale, so none is rendered."""
+        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        assert "Rationale:" not in entry.render()
+
     def test_observations_text_groups_by_step(self):
         state = KleaAgentState(
             step_outputs={

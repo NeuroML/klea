@@ -69,6 +69,7 @@
 - Answer synthesis reports the correct success/failure outcome and no longer duplicates the failure-reason label.
 - Superseded failed tool outputs are dropped from a step's observations once a call succeeds, so stale errors no longer confuse evaluation or the final answer.
 - The evaluator is given the list of tools actually executed, and an empty retrieval renders a clear "no context" marker instead of a blank context section.
+- Reasoning steps now carry their `rationale` into `observations` (`StepOutput.rationale`, rendered as `Rationale: ...`), so the Evaluator and Planner see the justification instead of judging a bare conclusion and looping on "missing justification".
 
 ## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`
 

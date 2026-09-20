@@ -110,7 +110,12 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         """
         step = current_step_key(state)
         conclusion = result.conclusion.strip()
-        entry = StepOutput(result=conclusion, tool="", displayed=False)
+        entry = StepOutput(
+            result=conclusion,
+            tool="",
+            displayed=False,
+            rationale=result.rationale.strip(),
+        )
         outputs = dict(state.step_outputs or {})
         # Reasoning retries are bounded by the evaluator's step-attempt budget,
         # so the per-step list cannot grow without bound.

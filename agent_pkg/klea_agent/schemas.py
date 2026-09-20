@@ -396,26 +396,33 @@ class StepOutput(BaseModel):
 
     :attr:`result` is either a tool call's :class:`CallToolResult` or, for a
     reasoning step (ADR-0035 update 2026-09-19), the ``ReasoningNode``'s text
-    conclusion.  :attr:`tool` is the selected tool's name (``CallToolResult``
-    does not carry it) and is empty for a reasoning step.  :attr:`displayed`
-    records that the server streamed a display event for this result.  That is
-    *intent-to-display*, not a render guarantee: a client may not have shown
-    it.  The answer node uses the flag to avoid reprinting results the
-    interface already showed.
+    conclusion.  :attr:`rationale` carries the reasoning step's justification
+    (empty for tool results): the ``ReasoningNode`` prompt keeps the conclusion
+    concise and the justification separate, so it must be surfaced here for the
+    Evaluator and Planner, which read ``observations`` and never see the node's
+    raw ``rationale`` field otherwise.  :attr:`tool` is the selected tool's name
+    (``CallToolResult`` does not carry it) and is empty for a reasoning step.
+    :attr:`displayed` records that the server streamed a display event for this
+    result.  That is *intent-to-display*, not a render guarantee: a client may
+    not have shown it.  The answer node uses the flag to avoid reprinting
+    results the interface already showed.
     """
 
     result: CallToolResult | str
     tool: str = ""
     displayed: bool = False
+    rationale: str = ""
 
     def render(self) -> str:
         """Render this result with its tool/displayed metadata.
 
         The body is the shared single-result text (no batch header) for a tool
-        result, or the conclusion text for a reasoning step; the
-        ``### <tool> (displayed_to_user: ...)`` heading replaces the generic
-        ``Result i/n`` label so the consumer knows which tool ran (or that the
-        entry is reasoning) and whether the interface already showed it.
+        result, or the conclusion text for a reasoning step; a reasoning step's
+        ``rationale`` is appended so the justification is visible in
+        ``observations``.  The ``### <tool> (displayed_to_user: ...)`` heading
+        replaces the generic ``Result i/n`` label so the consumer knows which
+        tool ran (or that the entry is reasoning) and whether the interface
+        already showed it.
         """
         if isinstance(self.result, CallToolResult):
             body = textualize_tool_results([self.result], include_header=False).strip()
@@ -423,6 +430,8 @@ class StepOutput(BaseModel):
         else:
             body = str(self.result).strip()
             tool = self.tool or "reasoning"
+        if self.rationale.strip():
+            body = f"{body}\n\nRationale: {self.rationale.strip()}"
         shown = "yes" if self.displayed else "no"
         return f"### {tool} (displayed_to_user: {shown})\n{body}"
 
