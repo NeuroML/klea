@@ -159,9 +159,11 @@ architecture and component contracts in `devdocs/system/` (Mermaid diagrams
 and data-flow notes, e.g. `system/store-create.md`), Architecture Decision
 Records in `devdocs/adr/` in MADR format numbered as `NNNN-<slug>.md`
 (e.g. `adr/0001-chunk-workers.md` -- see `devdocs/adr-template.md`),
-plus design research and TODO context.  Keep work-in-progress notes out of
-the public `docs/` site; update `docs/` and `CHANGELOG.md` only when the
-work is implemented.
+plus design research and TODO context.  The consolidated open-work backlog
+is `devdocs/backlog.md` -- add deferred items there (not only in `.agents/`
+session logs) so they survive across sessions.  Keep work-in-progress notes
+out of the public `docs/` site; update `docs/` and `CHANGELOG.md` only when
+the work is implemented.
 
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
 semantic classes): `devdocs/system/web-theming.md`.

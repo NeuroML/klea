@@ -16,6 +16,8 @@ Rules:
 
 Structure:
 
+- `backlog.md` -- consolidated open-work backlog.  Add deferred items here
+  (not only in `.agents/` session logs) so they survive across sessions.
 - `system/` -- architecture and component contracts.  Mermaid diagrams
   and data-flow notes that explain how a subsystem works.  See
   `system/store-create.md` for ingestion.
@@ -31,6 +33,7 @@ Structure:
 
 | File | Topic |
 |------|-------|
+| `backlog.md` | Consolidated open-work backlog (HITL, agent path, tools, scientific mode, infra, UX, testing) |
 | `system/c4-system-context.md` | C4 model Level 1: system context diagram (whole Klea product as the system in scope) |
 | `system/c4-container.md` | C4 model Level 2: container diagram (Klea packages/services, datastores, shared lib, and their interactions + external systems) |
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
