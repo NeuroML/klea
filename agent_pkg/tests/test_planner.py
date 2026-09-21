@@ -257,6 +257,7 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(update["human_feedback"], "")
         self.assertEqual(update["plan"].status, "in_progress")
+        self.assertEqual(update["plan"].human_feedback_rounds, 1)
 
     def test_replan_reason_is_exposed(self):
         """The unified replan reason reaches the Planner on a replan."""
@@ -302,7 +303,7 @@ class TestPlannerState(unittest.TestCase):
             logger=logging.getLogger("test"),
             label="Planning",
             llm_models={"plan": object()},
-            max_plan_revisions=2,
+            max_automated_plan_revisions=2,
         )
         update = planner._update_state(
             PlannerOutput(
@@ -312,9 +313,13 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=2, replan_reason="tool failed"),
+            KleaAgentState(
+                plan=PlanSchema(plan_version=3, automated_plan_revisions=2),
+                replan_reason="tool failed",
+            ),
         )
         self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].automated_plan_revisions, 3)
         self.assertIn("failure_reason", update)
 
     def test_first_plan_does_not_count_as_revision(self):
@@ -329,7 +334,8 @@ class TestPlannerState(unittest.TestCase):
             ),
             KleaAgentState(),
         )
-        self.assertEqual(update["plan_revisions"], 0)
+        self.assertEqual(update["plan"].plan_version, 1)
+        self.assertEqual(update["plan"].automated_plan_revisions, 0)
 
     def test_human_review_resets_revision_counter(self):
         """A review re-entry (entry status in_review) resets the counter."""
@@ -341,9 +347,17 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=3, plan=PlanSchema(status="in_review")),
+            KleaAgentState(
+                human_feedback="looks good",
+                plan=PlanSchema(
+                    status="in_review", plan_version=1, automated_plan_revisions=3
+                ),
+            ),
         )
-        self.assertEqual(update["plan_revisions"], 0)
+        self.assertEqual(update["plan"].automated_plan_revisions, 0)
+        # The review round is recorded on the plan (durable history signal).
+        self.assertEqual(update["plan"].human_feedback_rounds, 1)
+        self.assertEqual(update["plan"].plan_version, 2)
 
     def test_automated_replan_increments_revision_counter(self):
         """A replan reason marks an automated replan and consumes the budget."""
@@ -356,12 +370,14 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             KleaAgentState(
-                plan_revisions=1,
                 replan_reason="tool failed",
-                plan=PlanSchema(status="in_progress"),
+                plan=PlanSchema(
+                    status="in_progress", plan_version=1, automated_plan_revisions=1
+                ),
             ),
         )
-        self.assertEqual(update["plan_revisions"], 2)
+        self.assertEqual(update["plan"].plan_version, 2)
+        self.assertEqual(update["plan"].automated_plan_revisions, 2)
 
     def test_replan_reason_links_counter_without_in_progress_status(self):
         """A reason alone marks a replan, even if the plan status is stale."""
@@ -373,9 +389,13 @@ class TestPlannerState(unittest.TestCase):
                     ]
                 )
             ),
-            KleaAgentState(plan_revisions=1, replan_reason="tool failed"),
+            KleaAgentState(
+                plan=PlanSchema(plan_version=1, automated_plan_revisions=1),
+                replan_reason="tool failed",
+            ),
         )
-        self.assertEqual(update["plan_revisions"], 2)
+        self.assertEqual(update["plan"].automated_plan_revisions, 2)
+        self.assertEqual(update["plan"].plan_version, 2)
 
 
 class TestPlannerValidation(unittest.TestCase):

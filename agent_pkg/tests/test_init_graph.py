@@ -34,10 +34,14 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
         context_summary="summary",
         summarised_till=3,
         mode=Mode(resolved="general"),
-        plan=PlanSchema(step_list=[StepSchema(description="x")]),
+        plan=PlanSchema(
+            step_list=[StepSchema(description="x")],
+            plan_version=2,
+            human_feedback_rounds=1,
+            automated_plan_revisions=1,
+        ),
         tool_retry_counts={0: 2},
         step_attempt_counts={0: 1},
-        plan_revisions=2,
         tool_rounds=4,
         failure_reason="boom",
         evaluation=EvaluationSchema(evaluation="step_done"),
@@ -47,10 +51,12 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     update = await node.execute(state)
 
     assert update["plan"].step_list == []
+    assert update["plan"].plan_version == 0
+    assert update["plan"].human_feedback_rounds == 0
+    assert update["plan"].automated_plan_revisions == 0
     assert update["goal"].goal == ""
     assert update["tool_retry_counts"] == {}
     assert update["step_attempt_counts"] == {}
-    assert update["plan_revisions"] == 0
     assert update["tool_rounds"] == 0
     assert update["failure_reason"] == ""
     assert update["replan_reason"] == ""

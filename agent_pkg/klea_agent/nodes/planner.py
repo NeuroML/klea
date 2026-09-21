@@ -51,7 +51,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
-        max_plan_revisions: int = 4,
+        max_automated_plan_revisions: int = 4,
     ):
         """Initialise the planner node.
 
@@ -61,8 +61,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :param memory: Whether to include recent conversation history.  The
             Planner needs prior context (follow-ups and earlier failed plans),
             so the orchestrator passes ``memory=self.memory``.
-        :param max_plan_revisions: Automated replans allowed in one run
-            (since the initial plan or the last human review) before the
+        :param max_automated_plan_revisions: Automated replans allowed in one
+            run (since the initial plan or the last human review) before the
             Planner gives up (deterministic budget).  Human review re-entries
             reset the counter.
         """
@@ -73,7 +73,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             output_schema=PlannerOutput,
             memory=memory,
         )
-        self.max_plan_revisions = max_plan_revisions
+        self.max_automated_plan_revisions = max_automated_plan_revisions
         self._tools_info: dict[str, dict[str, ToolInfo]] = {}
 
     def _get_tool_descriptions(self, state: KleaAgentState) -> str:
@@ -216,6 +216,16 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         """
         update: dict[str, Any] = {"human_feedback": "", "replan_reason": ""}
 
+        # --- Plan-history counters (durable run signal) -------------------
+        # ``plan_version`` increments on every authoring; ``human_feedback_rounds``
+        # increments when the Planner processes review feedback; the automated
+        # revision counter is the budget and resets on a human review.  These
+        # live on the plan (``PlanSchema``) so the answer synthesis can be told
+        # the final plan is a settled artifact without the raw feedback.
+        prior = state.plan
+        version = prior.plan_version + 1
+        review_rounds = prior.human_feedback_rounds + (1 if state.human_feedback else 0)
+
         # --- Replan budget (deterministic) -------------------------------
         # Link the counter to the unified replan reason: an entry carrying a
         # ``replan_reason`` is an automated replan (Triage escalation,
@@ -232,14 +242,18 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "Planner re-entered with an in_progress plan but no "
                 "replan_reason; counting it as a replan"
             )
-        revisions = state.plan_revisions + 1 if is_replan else 0
-        update["plan_revisions"] = revisions
-        if revisions > self.max_plan_revisions:
+        revisions = prior.automated_plan_revisions + 1 if is_replan else 0
+        if revisions > self.max_automated_plan_revisions:
             self.logger.warning(
                 "Plan revision budget (%d) exhausted; giving up",
-                self.max_plan_revisions,
+                self.max_automated_plan_revisions,
             )
-            update["plan"] = PlanSchema(status="unplannable")
+            update["plan"] = PlanSchema(
+                status="unplannable",
+                plan_version=version,
+                human_feedback_rounds=review_rounds,
+                automated_plan_revisions=revisions,
+            )
             update["failure_reason"] = "plan revision budget exhausted"
             update["messages"] = [
                 *state.messages,
@@ -256,7 +270,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         if result.plan.status == "unplannable" or (
             not steps and result.plan.status != "needs_input"
         ):
-            update["plan"] = PlanSchema(status="unplannable")
+            update["plan"] = PlanSchema(
+                status="unplannable",
+                plan_version=version,
+                human_feedback_rounds=review_rounds,
+                automated_plan_revisions=revisions,
+            )
             update["failure_reason"] = (
                 result.reason
                 or "planner could not produc a plan with the available information"
@@ -288,6 +307,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 step_list=steps,
                 status="needs_input",
                 current_step_index=result.plan.current_step_index,
+                plan_version=version,
+                human_feedback_rounds=review_rounds,
+                automated_plan_revisions=revisions,
             )
             update["plan"] = plan
             update["pending_question"] = (
@@ -314,6 +336,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             step_list=steps,
             status=status,
             current_step_index=result.plan.current_step_index,
+            plan_version=version,
+            human_feedback_rounds=review_rounds,
+            automated_plan_revisions=revisions,
         )
         update["plan"] = plan
         # A replan replaces the step list: clear per-step execution state so
