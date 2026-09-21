@@ -215,11 +215,18 @@ Decisions now settled (with the implementation increments):
 * **Planner prompt.** `depends_on` becomes a required, checked field
   (strictly-earlier references, acyclic); the "steps are linear (no
   branching)" line is replaced with plain-language DAG rules.
-* **Picker.** One invocation binds the whole frontier batch; calls carry their
-  originating step and are flattened in step order.
+* **Picker.** One invocation binds the batch (the maximal same-kind prefix of
+  the frontier); calls carry their originating step and are flattened in step
+  order.
 
 Still open:
 
+* **Reasoning batching.** A batch is currently the maximal *same-kind* prefix
+  of the frontier.  Tool steps are genuinely batched (one picker invocation
+  binds them all), but reasoning steps remain **serial**: `ReasoningNode`
+  produces a single conclusion for the current step, so a reasoning prefix of N
+  steps is drained one per round.  Batching it (a per-step conclusion map, like
+  the evaluator) is deferred.
 * **Measurement.** Build the evaluation-harness case for independent steps and
   confirm the win.
 * **Batch cap.** Default 8 steps / 16 calls; revisit once measured.
