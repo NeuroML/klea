@@ -19,6 +19,7 @@ from klea_agent.schemas import (
     PlannerPlanSchema,
     PlanSchema,
     RouteSchema,
+    StepEvaluation,
     StepOutput,
     StepSchema,
 )
@@ -54,7 +55,13 @@ class TestEvaluationSchema:
     """The evaluator verdict gains an explicit abort outcome."""
 
     def test_evaluation_accepts_abort(self):
-        assert EvaluationSchema(evaluation="abort").evaluation == "abort"
+        assert EvaluationSchema(overall="abort").overall == "abort"
+
+    def test_per_step_verdicts_map(self):
+        evaluation = EvaluationSchema(
+            evaluations={1: StepEvaluation(verdict="step_done", reason="ok")}
+        )
+        assert evaluation.evaluations[1].verdict == "step_done"
 
 
 class TestStateDefaults:
@@ -322,7 +329,7 @@ class TestCheckpointMsgpack:
                     step_list=[StepSchema(description="s")], status="in_progress"
                 ),
             ),
-            "evaluation": EvaluationSchema(evaluation="abort"),
+            "evaluation": EvaluationSchema(overall="abort"),
             "plan": PlanSchema(
                 step_list=[StepSchema(description="s")],
                 status="in_progress",

@@ -56,6 +56,7 @@ from .schemas import (
     PlanSchema,
     ReasoningSchema,
     RouteSchema,
+    StepEvaluation,
     StepOutput,
     StepSchema,
 )
@@ -142,6 +143,7 @@ class KleaAgent(BaseLangGraph):
             PlannerPlanSchema,
             ReasoningSchema,
             RouteSchema,
+            StepEvaluation,
             EvaluationSchema,
         ]
 
@@ -217,17 +219,20 @@ class KleaAgent(BaseLangGraph):
         return "reasoning" if step is not None and step.kind == "reasoning" else "tool"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
-        """Route on the Evaluator verdict and, if continuing, the step kind.
+        """Route on the Evaluator's plan updates (ADR-0041).
 
-        ``step_incomplete`` / ``step_done`` continue the work loop with the
-        current (or newly advanced) step dispatched by ``kind``;
-        ``need_replan`` escalates to the Planner; ``plan_done`` ends at the
-        answer and ``abort`` at the failure answer.
+        The Evaluator applies the per-step verdicts and the overall outcome and
+        leaves the plan in a routing state: ``completed`` -> answer,
+        ``aborted`` -> failure answer, a ``replan_reason`` -> Planner, otherwise
+        continue with the next runnable step by ``kind``.
         """
-        verdict = state.evaluation.evaluation
-        if verdict in ("step_incomplete", "step_done"):
-            return self._step_kind(state)
-        return verdict
+        if state.plan.status == "completed":
+            return "plan_done"
+        if state.plan.status == "aborted":
+            return "abort"
+        if state.replan_reason:
+            return "need_replan"
+        return self._step_kind(state)
 
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).

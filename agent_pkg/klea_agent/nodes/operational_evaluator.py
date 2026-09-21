@@ -16,8 +16,7 @@ from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from langchain_core.messages import AIMessage
 
-from klea_agent.nodes.triage_router import current_step_key
-from klea_agent.schemas import EvaluationSchema, KleaAgentState
+from klea_agent.schemas import EvaluationSchema, KleaAgentState, StepEvaluation
 
 
 class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
@@ -112,93 +111,68 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         """
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
-        evaluation = result.evaluation
-        current = plan.current_step()
 
-        # Robustness: a model may report ``step_done`` on the last remaining
-        # pending step ("criterion met, more steps remain") even though none
-        # remain.  Coerce to completion so the graph does not route back to the
-        # picker past the end of the plan.
-        if evaluation == "step_done" and current is not None:
-            other_pending = any(
-                s.status == "pending" and s.step_number != current.step_number
-                for s in plan.step_list
-            )
-            if not other_pending:
-                self.logger.debug(
-                    "step_done on the last pending step; coercing to plan_done"
-                )
-                result.evaluation = "plan_done"
-                evaluation = "plan_done"
+        # An empty evaluation (for example the node's LLM call failed) must not
+        # silently continue the loop: escalate deterministically to a replan for
+        # the current step, or abort when there is none.
+        if not result.evaluations and result.overall == "":
+            current = plan.current_step()
+            if current is not None:
+                result.evaluations = {
+                    current.step_number: StepEvaluation(
+                        verdict="need_replan",
+                        reason="evaluation produced no verdict; replanning",
+                    )
+                }
+            else:
+                result.overall = "abort"
+                result.reason = "evaluation produced no verdict"
 
         # --- Per-step semantic budget (deterministic) --------------------
-        # Count non-advancing evaluations; repeated ``step_incomplete`` on the
-        # same step escalates to a replan rather than looping.  The key is the
-        # plan step's 1-based number (see ``current_step_key``), matching the
-        # step identity used for outputs and tool-retry counters.
-        step = current_step_key(state)
+        # Repeated ``step_incomplete`` on the same step escalates that step to a
+        # replan rather than looping.
         attempts = dict(state.step_attempt_counts or {})
-        if evaluation == "step_incomplete":
-            attempts[step] = attempts.get(step, 0) + 1
-            if attempts[step] >= self.max_step_attempts:
-                self.logger.warning(
-                    "Step %d not progressing after %d attempts; replanning",
-                    step,
-                    attempts[step],
-                )
-                evaluation = "need_replan"
-                result.evaluation = "need_replan"
-        else:
-            attempts.pop(step, None)
+        by_number = {s.step_number: s for s in plan.step_list}
+        replan_reasons: list[str] = []
+        for number, verdict in result.evaluations.items():
+            if verdict.verdict == "step_incomplete":
+                attempts[number] = attempts.get(number, 0) + 1
+                if attempts[number] >= self.max_step_attempts:
+                    self.logger.warning(
+                        "Step %d not progressing after %d attempts; replanning",
+                        number,
+                        attempts[number],
+                    )
+                    verdict.verdict = "need_replan"
+                    verdict.reason = verdict.reason or "step not progressing"
+            else:
+                attempts.pop(number, None)
+            step = by_number.get(number)
+            if step is None:
+                continue
+            if verdict.verdict == "step_done":
+                step.status = "done"
+            elif verdict.verdict == "need_replan":
+                step.status = "failed"
+                replan_reasons.append(verdict.reason or f"step {number} needs revision")
         update["step_attempt_counts"] = attempts
 
         # --- Global run budget (deterministic backstop) ------------------
         budget_abort = False
-        if evaluation != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
+        if result.overall != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
             self.logger.warning(
                 "Tool-round budget (%d) exhausted; aborting",
                 self.max_tool_rounds,
             )
-            evaluation = "abort"
-            result.evaluation = "abort"
+            result.overall = "abort"
             budget_abort = True
 
-        if plan.step_list:
-            if evaluation == "step_done":
-                if current is not None:
-                    current.status = "done"
-                if not any(s.status == "pending" for s in plan.step_list):
-                    plan.status = "completed"
-                    evaluation = "plan_done"
-                    result.evaluation = "plan_done"
-                elif not plan.frontier():
-                    # Pending steps remain but none is runnable (for example a
-                    # dependency failed): escalate instead of stalling.
-                    plan.status = "in_progress"
-                    evaluation = "need_replan"
-                    result.evaluation = "need_replan"
-                    result.reason = "no runnable step remains; the plan needs revision"
-                else:
-                    plan.status = "in_progress"
-                update["plan"] = plan
-            elif evaluation == "plan_done":
-                # The run is complete: mark every remaining step done so the
-                # completed plan is coherent.
-                for step_item in plan.step_list:
-                    if step_item.status == "pending":
-                        step_item.status = "done"
-                plan.status = "completed"
-                update["plan"] = plan
-            elif evaluation == "need_replan":
-                if current is not None:
-                    current.status = "failed"
-                update["plan"] = plan
-
-        if evaluation == "abort":
+        # --- Determine the plan's routing state --------------------------
+        if result.overall == "abort":
+            current = plan.current_step()
             if current is not None:
                 current.status = "failed"
             plan.status = "aborted"
-            update["plan"] = plan
             if budget_abort:
                 update["failure_reason"] = (
                     f"tool-round budget exhausted: {result.reason}"
@@ -211,23 +185,48 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 update["failure_reason"] = (
                     result.reason or "the goal cannot be achieved"
                 )
-
-        if evaluation == "need_replan":
-            # Carry the reason to the Planner through the unified replan-reason
-            # field (ADR-0035 update 2026-09-19); the Planner clears it.
-            update["replan_reason"] = result.reason or "the plan needs revision"
+            update["replan_reason"] = ""
+        elif result.overall == "plan_done":
+            # The run is complete: mark every remaining step done so the
+            # completed plan is coherent.
+            for step in plan.step_list:
+                if step.status == "pending":
+                    step.status = "done"
+            plan.status = "completed"
+            update["replan_reason"] = ""
+        elif replan_reasons:
+            plan.status = "in_progress"
+            update["replan_reason"] = "; ".join(replan_reasons)
+        elif not any(step.status == "pending" for step in plan.step_list):
+            plan.status = "completed"
+            update["replan_reason"] = ""
+        elif not plan.frontier():
+            # Pending steps remain but none is runnable (for example a
+            # dependency failed): escalate instead of stalling.
+            plan.status = "in_progress"
+            update["replan_reason"] = (
+                "no runnable step remains; the plan needs revision"
+            )
         else:
-            # Any non-replan verdict clears the reason: the Evaluator is the
+            plan.status = "in_progress"
+            # Any non-replan outcome clears the reason: the Evaluator is the
             # last writer before the next action, so a stale failure cannot
-            # leak into a later replan (and a reasoning step, which never runs
-            # the tool-round recorder, is covered too).
+            # leak into a later replan.
             update["replan_reason"] = ""
 
-        # Record the verdict in run history so a replan (and summarisation)
-        # can see why the plan was sent back.
+        update["plan"] = plan
+
+        # Record the verdict in run history so a replan (and summarisation) can
+        # see why the plan was sent back.
+        summary = "; ".join(
+            f"step {number} {verdict.verdict} -- {verdict.reason}"
+            for number, verdict in result.evaluations.items()
+        )
+        if result.overall:
+            summary = f"{summary}; overall {result.overall}".strip("; ")
         update["messages"] = [
             *state.messages,
-            AIMessage(content=f"Evaluation: {evaluation} -- {result.reason}"),
+            AIMessage(content=f"Evaluation: {summary or 'no verdict'}"),
         ]
         self.logger.debug(f"{update = }")
         return update
@@ -241,9 +240,16 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         result = self._last_result
         details: dict[str, Any]
         if isinstance(result, EvaluationSchema):
-            summary = f"Verdict: {result.evaluation}"
+            parts = [f"step {n}: {v.verdict}" for n, v in result.evaluations.items()]
+            if result.overall:
+                parts.append(f"overall: {result.overall}")
+            summary = "Verdict: " + (", ".join(parts) or "(none)")
             details = {
-                "evaluation": result.evaluation,
+                "evaluations": {
+                    str(number): verdict.model_dump()
+                    for number, verdict in result.evaluations.items()
+                },
+                "overall": result.overall,
                 "reason": result.reason,
             }
         else:
@@ -287,8 +293,5 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
     @override
     def _get_default_error_result(self) -> EvaluationSchema:
-        """Escalate to the Planner when evaluation fails (never claim done)."""
-        return EvaluationSchema(
-            evaluation="need_replan",
-            reason="evaluation failed; escalating to replan",
-        )
+        """Return an empty evaluation; ``_update_state`` escalates to replan."""
+        return EvaluationSchema()

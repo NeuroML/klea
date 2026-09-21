@@ -28,4 +28,5 @@
 
 ---
 
-Evaluate progress and produce the verdict.
+Evaluate the step(s) marked `[CURRENT]` and return a verdict for each, plus an
+overall outcome when the plan is complete or unreachable.

@@ -438,26 +438,37 @@ class ReasoningSchema(BaseModel):
     rationale: str = ""
 
 
-class EvaluationSchema(BaseModel):
-    """Operational verdict produced by the general Evaluator (ADR-0035).
+class StepEvaluation(BaseModel):
+    """A verdict for one plan step in the evaluated batch (ADR-0041)."""
 
-    The Evaluator judges only: ``evaluation`` is the explicit routing outcome
-    and ``reason`` a short justification for inspection.  It never generates
-    the user-facing answer -- that is a separate synthesis stage
-    (``AnswerFromResults``), keeping evaluation independent of generation.
-    """
-
-    evaluation: Literal[
-        "step_incomplete",
-        "step_done",
-        "plan_done",
-        "need_replan",
-        "abort",
-    ] = Field(
-        default="plan_done",
-        description="Operational routing outcome for the current step/task",
+    verdict: Literal["step_done", "step_incomplete", "need_replan"] = Field(
+        default="step_done",
+        description="Outcome for this step",
     )
     reason: str = Field(default="", description="Short justification for the verdict")
+
+
+class EvaluationSchema(BaseModel):
+    """Per-step verdicts from the general Evaluator (ADR-0035/ADR-0041).
+
+    The Evaluator judges only: ``evaluations`` maps a 1-based plan step number
+    to its :class:`StepEvaluation`, and ``overall`` carries a whole-plan
+    outcome (``plan_done`` when the goal is met, ``abort`` when it cannot be
+    achieved) while ``reason`` explains it.  ``overall`` is empty while work
+    continues.  The Evaluator never generates the user-facing answer -- that is
+    a separate synthesis stage (``AnswerFromResults``), keeping evaluation
+    independent of generation.
+    """
+
+    evaluations: dict[int, StepEvaluation] = Field(
+        default_factory=dict,
+        description="Verdicts keyed by 1-based plan step number",
+    )
+    overall: Literal["", "plan_done", "abort"] = Field(
+        default="",
+        description="Whole-plan outcome; empty while work continues",
+    )
+    reason: str = Field(default="", description="Short justification for `overall`")
 
 
 class StepOutput(BaseModel):

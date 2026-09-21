@@ -17,7 +17,6 @@ from typing import Literal
 import pytest
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import (
-    EvaluationSchema,
     KleaAgentState,
     PlanSchema,
     StepSchema,
@@ -169,19 +168,22 @@ async def test_planner_router_dispatches_by_step_kind():
 
 
 @pytest.mark.asyncio
-async def test_evaluation_router_dispatches_by_step_kind():
-    """step_done/step_incomplete dispatch by the (advanced) current step kind."""
+async def test_evaluation_router_routes_on_plan_state():
+    """The Evaluator leaves the plan in a routing state (ADR-0041)."""
     agent = KleaAgent(checkpoint="inmemory")
-    for verdict in ("step_done", "step_incomplete"):
-        state = _plan_with_step("reasoning")
-        state.evaluation = EvaluationSchema(evaluation=verdict)
-        assert await agent._evaluation_router(state) == "reasoning"
 
-        state = _plan_with_step("tool")
-        state.evaluation = EvaluationSchema(evaluation=verdict)
-        assert await agent._evaluation_router(state) == "tool"
+    # in_progress with no replan reason: dispatch the next runnable step.
+    assert await agent._evaluation_router(_plan_with_step("reasoning")) == "reasoning"
+    assert await agent._evaluation_router(_plan_with_step("tool")) == "tool"
 
-    # Terminal/other verdicts pass through unchanged.
-    state = _plan_with_step("tool")
-    state.evaluation = EvaluationSchema(evaluation="need_replan")
-    assert await agent._evaluation_router(state) == "need_replan"
+    replan = _plan_with_step("tool")
+    replan.replan_reason = "no progress"
+    assert await agent._evaluation_router(replan) == "need_replan"
+
+    completed = _plan_with_step("tool")
+    completed.plan.status = "completed"
+    assert await agent._evaluation_router(completed) == "plan_done"
+
+    aborted = _plan_with_step("tool")
+    aborted.plan.status = "aborted"
+    assert await agent._evaluation_router(aborted) == "abort"
