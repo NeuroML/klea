@@ -210,3 +210,50 @@ def list_files(
     }
 
     return result
+
+
+def nearby_entries(
+    path: str | Path,
+    project_root: str | None = None,
+    max_results: int = 20,
+) -> tuple[str, list[str]]:
+    """Return the nearest existing directory and its entries for *path*.
+
+    Diagnostic helper for the file tools: when a requested target is missing,
+    the tool includes this so the caller can see what actually exists (the
+    same "show what is there" idea as the ``list_files`` fallback, reused).
+    Walks up from the target's parent to the nearest existing ancestor and
+    lists its immediate entries.
+
+    :param path: The requested (possibly missing) path.
+    :param project_root: Boundary directory for the permission check, passed
+        through to :func:`list_files`.
+    :param max_results: Maximum number of entries to return.
+    :returns: ``(directory, names)``, or ``("", [])`` when no existing ancestor
+        directory could be found or listed.
+    """
+    target = Path(path)
+    directory = target.parent
+    while not directory.is_dir() and directory != directory.parent:
+        directory = directory.parent
+    if not directory.is_dir():
+        return "", []
+    result = list_files(
+        path=str(directory), project_root=project_root, max_results=max_results
+    )
+    names = sorted({Path(entry["path"]).name for entry in result.get("files", [])})
+    return str(directory), names
+
+
+def missing_target_note(path: str, directory: str, nearby: list[str]) -> str:
+    """Return a "target missing; nearby entries" note for a file-tool result.
+
+    :param path: The requested (missing) path.
+    :param directory: The nearest existing directory, or ``""``.
+    :param nearby: Entry names found in *directory*.
+    :returns: A one-line, human-readable note.
+    """
+    if not directory:
+        return f"No file at {path!r}."
+    entries = ", ".join(nearby) if nearby else "(empty)"
+    return f"No file at {path!r}; entries in {directory!r}: {entries}"

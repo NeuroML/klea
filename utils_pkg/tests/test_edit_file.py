@@ -109,6 +109,30 @@ def test_edit_file_missing_file(tmp_path):
     assert "not found" in result["error"].lower()
 
 
+def test_edit_file_missing_file_lists_nearby(tmp_path):
+    """A missing edit target reports what does exist in the directory."""
+    (tmp_path / "present.txt").write_text("x")
+
+    result = edit_file(str(tmp_path / "nope.txt"), "a", "b", project_root=str(tmp_path))
+
+    logger.debug(f"{result = }")
+    assert "not found" in result["error"].lower()
+    assert "present.txt" in result["nearby"]
+    assert "nope.txt" in result["note"]
+
+
+def test_edit_file_success_has_empty_note(tmp_path):
+    """The nearby/note fields stay empty on a successful edit."""
+    target = tmp_path / "a.txt"
+    target.write_text("alpha\n")
+
+    result = edit_file(str(target), "alpha", "beta", project_root=str(tmp_path))
+
+    assert result["error"] == ""
+    assert result["nearby"] == []
+    assert result["note"] == ""
+
+
 def test_edit_file_rejects_directory(tmp_path):
     result = edit_file(str(tmp_path), "a", "b", project_root=str(tmp_path))
 

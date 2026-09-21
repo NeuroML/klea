@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.errors import DocumentConversionError, PermissionDeniedError
+from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
 from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.web_fetch import _html_to_text
 
@@ -109,7 +110,8 @@ def read_file(
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
     :returns: dict with path, content, line_start, line_end, total_lines,
-        truncated, error.
+        truncated, error, nearby, note.  ``nearby``/``note`` are populated on a
+        missing/not-a-file error so the caller can see what exists instead.
     """
     logger.debug(
         f"Reading file\n"
@@ -140,6 +142,7 @@ def read_file(
 
     if not the_path.is_file():
         logger.warning(f"Not a readable file: {path}")
+        directory, nearby = nearby_entries(the_path, project_root)
         return {
             "path": str(the_path),
             "content": "",
@@ -148,6 +151,8 @@ def read_file(
             "total_lines": 0,
             "truncated": False,
             "error": f"Not a file: {path}",
+            "nearby": nearby,
+            "note": missing_target_note(path, directory, nearby),
         }
 
     size = the_path.stat().st_size

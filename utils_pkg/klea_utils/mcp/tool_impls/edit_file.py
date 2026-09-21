@@ -14,6 +14,7 @@ from typing import Any
 
 from klea_utils.mcp.errors import FileEditError, PermissionDeniedError
 from klea_utils.mcp.tool_impls import edit_replacers, file_ops
+from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
 from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,8 @@ def _result(
     matcher: str = "",
     diff: str = "",
     error: str = "",
+    nearby: list[str] | None = None,
+    note: str = "",
 ) -> dict[str, Any]:
     """Build the standard edit result dict.
 
@@ -38,6 +41,8 @@ def _result(
     :param matcher: Name of the replacer that matched (empty on failure).
     :param diff: Unified diff of the change (possibly truncated).
     :param error: Empty on success; a message otherwise.
+    :param nearby: Entries in the nearest existing directory (missing target).
+    :param note: Human-readable note for a missing/not-a-file error.
     :returns: The result dict returned to the MCP wrapper.
     """
     return {
@@ -48,6 +53,8 @@ def _result(
         "matcher": matcher,
         "diff": diff,
         "error": error,
+        "nearby": nearby or [],
+        "note": note,
     }
 
 
@@ -77,7 +84,8 @@ def edit_file(
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
     :returns: dict with path, replacements, additions, deletions, matcher,
-        diff, error.
+        diff, error, nearby, note.  ``nearby``/``note`` are populated on a
+        missing/not-a-file error so the caller can see what exists instead.
     """
     logger.debug(
         f"Editing file\n"
@@ -94,6 +102,23 @@ def edit_file(
     except PermissionDeniedError as exc:
         logger.warning(f"Permission denied for {path}")
         return _result(path, error=str(exc))
+
+    if not the_path.is_file():
+        # Missing target (or a directory): include the nearest existing
+        # directory's entries so the caller can see what is actually there.
+        directory, nearby = nearby_entries(the_path, project_root)
+        if the_path.exists():
+            logger.warning(f"Not a regular file: {path}")
+            error = f"Not a regular file: {the_path}"
+        else:
+            logger.warning(f"Edit target not found: {path}")
+            error = f"File not found: {the_path}"
+        return _result(
+            str(the_path),
+            error=error,
+            nearby=nearby,
+            note=missing_target_note(path, directory, nearby),
+        )
 
     try:
         doc = file_ops.read_whole_text(the_path)

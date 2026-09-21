@@ -876,6 +876,31 @@ def test_read_file_missing_file(tmp_path):
     assert "not a file" in result["error"].lower()
 
 
+def test_read_file_missing_file_lists_nearby(tmp_path):
+    """A missing target reports what does exist in the directory."""
+    (tmp_path / "present.txt").write_text("x")
+    (tmp_path / "other.py").write_text("y")
+
+    result = read_file(str(tmp_path / "nope.txt"), project_root=str(tmp_path))
+
+    logger.debug(f"{result = }")
+    assert "not a file" in result["error"].lower()
+    assert set(result["nearby"]) >= {"present.txt", "other.py"}
+    assert "nope.txt" in result["note"]
+
+
+def test_read_file_present_file_has_empty_note(tmp_path):
+    """The nearby/note fields are only populated on the missing-file path."""
+    f = tmp_path / "a.txt"
+    f.write_text("hello\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["error"] == ""
+    assert result.get("nearby", []) == []
+    assert result.get("note", "") == ""
+
+
 def test_read_file_too_large(tmp_path):
     f = _write_lines(tmp_path, "t.txt", 5)
     result = read_file(str(f), max_bytes=10, project_root=str(tmp_path))

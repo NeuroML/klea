@@ -307,6 +307,9 @@ async def read_file(
 
     Returns:
         Dictionary with content, line range, total_lines, truncated, error.
+        On a missing/not-a-file error, ``nearby`` (entries in the nearest
+        existing directory) and ``note`` are populated so the caller can see
+        what exists instead.
     """
     result = read_file_impl(
         path=path,
@@ -405,7 +408,9 @@ async def edit_file(
 
     Returns:
         Dictionary with path, replacements, additions, deletions, matcher,
-        diff, error.
+        diff, error.  On a missing/not-a-file error, ``nearby`` (entries in
+        the nearest existing directory) and ``note`` are populated so the
+        caller can see what exists instead.
     """
     result = edit_file_impl(
         path=path,
