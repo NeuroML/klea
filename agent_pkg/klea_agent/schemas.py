@@ -135,7 +135,9 @@ class PlannerPlanSchema(BaseModel):
         default="in_progress", validate_default=True
     )
 
-    def render(self, *, markdown: bool = False) -> str:
+    def render(
+        self, *, markdown: bool = False, current_numbers: set[int] | None = None
+    ) -> str:
         """Render the plan as text (or the status-pane preformatted block).
 
         Prompts (``markdown=False``) render each step as ``[STATUS] N.
@@ -144,22 +146,29 @@ class PlannerPlanSchema(BaseModel):
         Step N: description (...)`` lines with symbol markers, separated by a
         blank line and rendered preformatted so tool names stay literal.
 
-        The next runnable step (the first in the frontier, ADR-0041) is marked
-        as current.
+        Steps whose number is in *current_numbers* are marked as current.  By
+        default that is the next runnable step (the first in the frontier); a
+        node judging a whole batch passes the batch's step numbers instead
+        (ADR-0041).
 
         :param markdown: ``True`` for the status-pane render, ``False`` for
             the prompt render.
+        :param current_numbers: Step numbers to mark as current; defaults to
+            the next runnable step.
         :returns: The rendered plan, or ``"(no plan)"`` when there are no steps.
         """
         if not self.step_list:
             return "(no plan)"
-        current = self.current_step()
-        current_number = current.step_number if current is not None else None
+        if current_numbers is None:
+            current = self.current_step()
+            current_numbers = {current.step_number} if current is not None else set()
         lines: list[str] = []
         if not markdown:
             lines.append("Steps:")
         for step in self.step_list:
-            is_current = step.step_number == current_number and step.status == "pending"
+            is_current = (
+                step.step_number in current_numbers and step.status == "pending"
+            )
             lines.append(step.render(current=is_current, markdown=markdown))
         separator = "\n\n" if markdown else "\n"
         return separator.join(lines)
@@ -198,6 +207,31 @@ class PlannerPlanSchema(BaseModel):
             if s.status == "pending" and all(dep in done for dep in s.depends_on)
         ]
         return runnable[:max_steps] if max_steps is not None else runnable
+
+    def next_batch(self, max_steps: int | None = None) -> list[StepSchema]:
+        """Return the maximal same-kind prefix of the frontier (ADR-0041).
+
+        Parallel work is bound in one batch, but a batch must be uniform: tool
+        steps go through the picker/caller, reasoning steps through the
+        reasoning node, so only a run of steps of the same ``kind`` (from the
+        start of the frontier) is returned.  A mixed frontier is therefore
+        drained one kind at a time, in step order.
+
+        :param max_steps: Optional cap on the batch size.
+        :returns: The batch steps, in step order (possibly empty).
+        """
+        frontier = self.frontier()
+        if not frontier:
+            return []
+        kind = frontier[0].kind
+        batch: list[StepSchema] = []
+        for step in frontier:
+            if step.kind != kind:
+                break
+            batch.append(step)
+            if max_steps is not None and len(batch) >= max_steps:
+                break
+        return batch
 
     def validate_plan(self) -> list[str]:
         """Return structural-consistency errors for this plan (empty if valid).

@@ -210,13 +210,14 @@ class KleaAgent(BaseLangGraph):
 
     @staticmethod
     def _step_kind(state: KleaAgentState) -> str:
-        """Return the current step's dispatch label: ``tool`` | ``reasoning``.
+        """Return the batch's dispatch label: ``tool`` | ``reasoning``.
 
-        A missing current step defaults to ``tool``: the picker then has nothing
-        to bind and escalates, which is harmless.
+        Uses the maximal same-kind prefix of the frontier (ADR-0041); a missing
+        batch defaults to ``tool``: the picker then has nothing to bind and
+        escalates, which is harmless.
         """
-        step = state.plan.current_step()
-        return "reasoning" if step is not None and step.kind == "reasoning" else "tool"
+        batch = state.plan.next_batch()
+        return batch[0].kind if batch else "tool"
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
         """Route on the Evaluator's plan updates (ADR-0041).

@@ -61,6 +61,11 @@ class PlanLike(BaseModel):
             return self.step_list[self.current_step_index]
         return None
 
+    def next_batch(self, max_steps: int | None = None) -> list[Step]:
+        # The double models a single current step (its own index).
+        current = self.current_step()
+        return [current] if current is not None else []
+
 
 class AgentLikeState(BaseModel):
     query: str = "q"
@@ -481,3 +486,29 @@ def test_rag_calls_keep_step_zero():
         ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), RagLikeState()
     )
     assert update["tool_calls"][0].step == 0
+
+
+def test_calls_are_attributed_to_batch_steps_with_fallback():
+    """Each call keeps its batch step; an invalid step falls back to the first."""
+
+    class MultiPlan(PlanLike):
+        def next_batch(self, max_steps: int | None = None) -> list[Step]:
+            return self.step_list
+
+    picker = _make_picker()
+    state = AgentLikeState(
+        plan=MultiPlan(step_list=[Step(step_number=1), Step(step_number=2)])
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[
+                ToolCallSchema(tool="get_models", step=2),
+                ToolCallSchema(tool="other_tool"),  # no step -> first batch step
+                ToolCallSchema(tool="get_models", step=9),  # invalid -> first
+            ]
+        ),
+        state,
+    )
+
+    assert [call.step for call in update["tool_calls"]] == [2, 1, 1]

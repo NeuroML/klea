@@ -23,6 +23,11 @@ from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.tools import last_tool_error_text
 
+#: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).
+MAX_BATCH_STEPS = 8
+#: Maximum tool calls bound in one picker invocation (ADR-0041 batch cap).
+MAX_BATCH_CALLS = 16
+
 
 class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     """Node that selects MCP tools for the current step or query.
@@ -165,9 +170,13 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["observations"] = state.tool_results
         plan = getattr(state, "plan", None)
         if plan is not None:
-            current = plan.current_step()
+            batch = (
+                plan.next_batch(MAX_BATCH_STEPS) if hasattr(plan, "next_batch") else []
+            )
             variables["current_step"] = (
-                current.render(current=True) if current else "(no plan)"
+                "\n".join(step.render(current=True) for step in batch)
+                if batch
+                else "(no plan)"
             )
         # Appended last (its own prompt section) so the stable prefix above
         # stays cache-friendly; omitted entirely on a normal pick (prompt
@@ -273,20 +282,39 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             usable = False
 
         plan = getattr(state, "plan", None)
-        current = (
-            plan.current_step()
-            if plan is not None and hasattr(plan, "current_step")
-            else None
+        batch = (
+            plan.next_batch(MAX_BATCH_STEPS)
+            if plan is not None and hasattr(plan, "next_batch")
+            else []
         )
-        step = int(getattr(current, "step_number", -1) or -1)
+        batch_numbers = [step_item.step_number for step_item in batch]
+        step = batch_numbers[0] if batch_numbers else -1
 
-        # Stamp the originating plan step on each usable call, so a batch of
-        # calls can be attributed back to its step (ADR-0041).  RAG has no plan,
-        # so its calls keep ``step = 0``.
-        if step > 0:
+        # Attribute each usable call to its originating batch step (ADR-0041).
+        # The model tags calls with `step`; a call with an absent/invalid step
+        # falls back to the first batch step.  RAG has no plan, so its calls
+        # keep ``step = 0``.
+        if batch_numbers:
             for call in tool_calls:
-                if call.tool.strip():
-                    call.step = step
+                if not call.tool.strip():
+                    continue
+                if call.step not in batch_numbers:
+                    self.logger.warning(
+                        f"picker call step is not in the current batch; "
+                        f"attributing it to the first batch step\n"
+                        f"{call.step = }\n{batch_numbers = }"
+                    )
+                    call.step = batch_numbers[0]
+            usable_calls = [c for c in tool_calls if c.tool.strip()]
+            if len(usable_calls) > MAX_BATCH_CALLS:
+                self.logger.warning(
+                    f"picker emitted more calls than the batch cap; truncating\n"
+                    f"{len(usable_calls) = }\n{MAX_BATCH_CALLS = }"
+                )
+                keep = {id(c) for c in usable_calls[:MAX_BATCH_CALLS]}
+                tool_calls = [
+                    c for c in tool_calls if not c.tool.strip() or id(c) in keep
+                ]
 
         update: dict[str, Any] = {"tool_calls": tool_calls}
 

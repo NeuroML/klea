@@ -14,6 +14,7 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import EvaluationSchema, KleaAgentState, StepEvaluation
@@ -86,10 +87,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         plan = state.plan
+        batch_numbers = {step.step_number for step in plan.next_batch(MAX_BATCH_STEPS)}
         variables = {
             "query": state.query,
             "goal": goal_text,
-            "plan": plan.render(),
+            "plan": plan.render(current_numbers=batch_numbers),
             "executed_tools": self._executed_tools_text(state),
             "observations": self._observations_text(state),
         }

@@ -280,6 +280,36 @@ class TestPlanFrontier:
         plan = PlanSchema(step_list=[StepSchema(step_number=i + 1) for i in range(5)])
         assert [s.step_number for s in plan.frontier(max_steps=2)] == [1, 2]
 
+    def test_next_batch_is_same_kind_prefix(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, kind="tool"),
+                StepSchema(step_number=2, kind="tool"),
+                StepSchema(step_number=3, kind="reasoning"),
+                StepSchema(step_number=4, kind="tool"),
+            ]
+        )
+        assert [s.step_number for s in plan.next_batch()] == [1, 2]
+        assert [s.step_number for s in plan.next_batch(max_steps=1)] == [1]
+
+    def test_next_batch_stops_at_blocked_step(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, kind="reasoning"),
+                StepSchema(step_number=2, kind="reasoning", depends_on=[1]),
+                StepSchema(step_number=3, kind="tool"),
+            ]
+        )
+        assert [s.step_number for s in plan.next_batch()] == [1]
+
+    def test_render_marks_supplied_current_numbers(self):
+        plan = PlanSchema(
+            step_list=[StepSchema(step_number=1), StepSchema(step_number=2)]
+        )
+        rendered = plan.render(current_numbers={2})
+        assert "[CURRENT] 2." in rendered
+        assert "[CURRENT] 1." not in rendered
+
 
 class TestPlanValidation:
     """``validate_plan`` enforces the DAG invariants (ADR-0041)."""
