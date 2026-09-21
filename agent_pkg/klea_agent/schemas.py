@@ -110,24 +110,29 @@ class StepSchema(BaseModel):
         return f"{marker} {self.step_number}. {detail}"
 
 
-class PlanSchema(BaseModel):
+class PlannerPlanSchema(BaseModel):
+    """The plan as the Planner authors it (ADR-0035).
+
+    The core plan: the steps, the status the Planner may set, and the current
+    step index.  This is both the Planner's structured-output contract and the
+    base for the runtime :class:`PlanSchema`, which widens ``status`` with the
+    lifecycle values written by code and adds the plan-history counters.  All
+    shared behaviour (``render``, ``current_step``, ``validate_plan``) lives
+    here.
+    """
+
     step_list: list[StepSchema] = Field(default_factory=list)
-    #: Lifecycle + routing status.  The Planner authors only the entry values
-    #: via :class:`PlannerPlanSchema` (``in_progress`` | ``in_review`` |
-    #: ``needs_input`` | ``unplannable``); the Evaluator and budget guards
-    #: write the terminal ones (``completed``/``failed``/``aborted``), and
-    #: ``InitGraphState`` resets to ``not_started``.  This single field is the
-    #: post-Planner routing source; no separate route flag exists.
-    status: Literal[
-        "not_started",
-        "in_review",
-        "in_progress",
-        "needs_input",
-        "completed",
-        "failed",
-        "aborted",
-        "unplannable",
-    ] = Field(default="not_started", validate_default=True)
+    #: The statuses the Planner may set:
+    #:
+    #: * ``in_progress`` -- run the plan (default);
+    #: * ``in_review`` -- the plan should be reviewed before it runs;
+    #: * ``needs_input`` -- cannot finalise a plan without a missing fact from
+    #:   the user; the question is carried in the Planner's ``reason`` and may
+    #:   be accompanied by a partial plan;
+    #: * ``unplannable`` -- no workable plan with the available tools.
+    status: Literal["in_progress", "in_review", "needs_input", "unplannable"] = Field(
+        default="in_progress", validate_default=True
+    )
     current_step_index: int = 0
 
     def render(self, *, markdown: bool = False) -> str:
@@ -208,31 +213,63 @@ class PlanSchema(BaseModel):
         return errors
 
 
-class PlannerPlanSchema(PlanSchema):
-    """The plan as the Planner may author it (ADR-0035 update 2026-09-19).
+class PlanSchema(PlannerPlanSchema):
+    """The runtime plan: the authored plan plus lifecycle and history counters.
 
-    The state :class:`PlanSchema` carries runtime lifecycle statuses written by
-    code (``not_started`` from ``InitGraphState``; ``completed``/``failed``/
-    ``aborted`` from the Evaluator and budget guards).  Exposing that whole
-    enum as the Planner's structured output was misleading -- the generated
-    example even showed ``not_started``.  This subclass exposes only the
-    statuses the Planner may set:
+    Extends :class:`PlannerPlanSchema` with:
 
-    * ``in_progress`` -- run the plan (default);
-    * ``in_review`` -- the plan should be reviewed before it runs;
-    * ``needs_input`` -- cannot finalise a plan without a missing fact from
-      the user; the question is carried in the Planner's ``reason`` and may be
-      accompanied by a partial plan;
-    * ``unplannable`` -- no workable plan with the available tools.
-
-    All other behaviour (``render``, ``validate_plan``, ``current_step``) is
-    inherited unchanged; :meth:`Planner._update_state` maps this to the state
-    ``PlanSchema``.
+    * the widened lifecycle ``status`` written by code (``not_started`` from
+      ``InitGraphState``; ``completed``/``failed``/``aborted`` from the
+      Evaluator and budget guards) alongside the Planner's entry values.  This
+      single field is the post-Planner routing source; no separate route flag
+      exists.
+    * run-history counters.  These let a downstream node (the answer synthesis)
+      be told the final plan is a settled artifact reached through iterations
+      *without* being handed the raw feedback or every plan version - feedback is
+      only meaningful attached to the version it refers to, which the answer
+      does not receive, so a count is the right abstraction.
     """
 
-    status: Literal["in_progress", "in_review", "needs_input", "unplannable"] = Field(
-        default="in_progress", validate_default=True
-    )
+    status: Literal[
+        "not_started",
+        "in_review",
+        "in_progress",
+        "needs_input",
+        "completed",
+        "failed",
+        "aborted",
+        "unplannable",
+    ] = Field(default="not_started", validate_default=True)
+
+    #: Monotonic count of plans authored by the Planner in this run: ``0`` is
+    #: the reset (no plan) state, the first authored plan is ``1``.
+    plan_version: int = 0
+    #: Monotonic count of human review rounds the Planner has processed.
+    human_feedback_rounds: int = 0
+    #: Consecutive automated replans since the initial plan or the last human
+    #: review (budget; reset to 0 on the first plan and on human review).  This
+    #: is the system's own revision count, with no human feedback involved.
+    automated_plan_revisions: int = 0
+
+    def revision_summary(self) -> str:
+        """Return a context-free plan-history signal for the answer node.
+
+        The answer synthesis must not claim the plan was executed unilaterally
+        when it followed iterations or human review, but it must not be handed
+        the raw feedback either: feedback is only meaningful attached to the
+        plan version it refers to, which the answer does not receive.  A count
+        is the right abstraction - it signals that the final plan is a settled
+        artifact without pretending to explain the iterations.
+
+        :returns: A one-sentence summary, or ``""`` when the plan was authored
+            once with no human review (nothing to signal).
+        """
+        if self.plan_version <= 1 and self.human_feedback_rounds == 0:
+            return ""
+        return (
+            f"This final plan is version {self.plan_version}, reached after "
+            f"{self.human_feedback_rounds} human review round(s)."
+        )
 
 
 class GoalSchema(BaseModel):
@@ -460,9 +497,6 @@ class KleaAgentState(BaseGraphSchema):
     tool_retry_counts: dict[int, int] = Field(default_factory=dict)
     # per-step non-advancing evaluation counter (semantic loop budget)
     step_attempt_counts: dict[int, int] = Field(default_factory=dict)
-    # number of automated replans since the initial plan or the last human
-    # review (budget; reset to 0 on the first plan and on human review)
-    plan_revisions: int = 0
     # consecutive empty ToolsPicker selections for the current step (picker
     # retry budget).  Lives in state, not on the shared node instance, so it
     # is thread-isolated (ADR-0033).
@@ -475,12 +509,20 @@ class KleaAgentState(BaseGraphSchema):
     tool_rounds: int = 0
     # why the run failed or could not be planned (for the failure answer)
     failure_reason: str = ""
-    # latest human review input (empty unless a plan is under review)
+
+    # --- Transient node-to-node signals --------------------------------
+    # Carry information from one node to the next and are consumed (cleared)
+    # within the run; not durable run state and not rendered into downstream
+    # prompts.  The plan's counters are the durable history signal instead.
+    #
+    #: Latest human review input (empty unless a plan is under review).  Written
+    #: by ``AwaitReview``; read and cleared by the Planner, which interprets it
+    #: and records the round on ``plan.human_feedback_rounds``.
     human_feedback: str = ""
-    # why the Planner is being re-entered for an automated replan: set by the
-    # Evaluator on ``need_replan`` and by the tool-round recorder when a batch
-    # had a failed call; read and cleared by the Planner.  Empty on the first
-    # plan and after a human review (which supplies ``human_feedback``).
+    #: Why the Planner is being re-entered for an automated replan: set by the
+    #: Evaluator on ``need_replan`` and by the tool-round recorder when a batch
+    #: had a failed call; read and cleared by the Planner.  Empty on the first
+    #: plan and after a human review (which supplies ``human_feedback``).
     replan_reason: str = ""
     # the question the Planner needs answered when ``plan.status`` is
     # ``needs_input`` (carried from the Planner's ``reason``); presented by

@@ -64,7 +64,9 @@ class TestStateDefaults:
         state = KleaAgentState()
         assert state.tool_retry_counts == {}
         assert state.step_attempt_counts == {}
-        assert state.plan_revisions == 0
+        assert state.plan.plan_version == 0
+        assert state.plan.human_feedback_rounds == 0
+        assert state.plan.automated_plan_revisions == 0
         assert state.tool_rounds == 0
         assert state.failure_reason == ""
         assert state.human_feedback == ""
@@ -196,6 +198,44 @@ class TestPlannerPlanSchema:
         }
 
 
+class TestPlanSchemaRuntime:
+    """PlanSchema extends PlannerPlanSchema with lifecycle + history counters."""
+
+    def test_plan_schema_extends_planner_plan_schema(self):
+        assert issubclass(PlanSchema, PlannerPlanSchema)
+
+    def test_runtime_status_enum_includes_lifecycle(self):
+        status = PlanSchema.model_json_schema()["properties"]["status"]
+        assert set(status["enum"]) == {
+            "not_started",
+            "in_review",
+            "in_progress",
+            "needs_input",
+            "completed",
+            "failed",
+            "aborted",
+            "unplannable",
+        }
+
+    def test_counters_default_zero(self):
+        plan = PlanSchema()
+        assert plan.plan_version == 0
+        assert plan.human_feedback_rounds == 0
+        assert plan.automated_plan_revisions == 0
+
+    def test_revision_summary_empty_for_single_plan_without_review(self):
+        assert PlanSchema(plan_version=1).revision_summary() == ""
+
+    def test_revision_summary_reports_version_and_review_rounds(self):
+        summary = PlanSchema(plan_version=3, human_feedback_rounds=2).revision_summary()
+        assert "version 3" in summary
+        assert "2 human review round(s)" in summary
+
+    def test_revision_summary_present_on_review_without_extra_version(self):
+        summary = PlanSchema(plan_version=1, human_feedback_rounds=1).revision_summary()
+        assert summary != ""
+
+
 class TestCheckpointMsgpack:
     """Nested state models round-trip through the checkpoint serializer."""
 
@@ -211,6 +251,13 @@ class TestCheckpointMsgpack:
                 ),
             ),
             "evaluation": EvaluationSchema(evaluation="abort"),
+            "plan": PlanSchema(
+                step_list=[StepSchema(description="s")],
+                status="in_progress",
+                plan_version=2,
+                human_feedback_rounds=1,
+                automated_plan_revisions=1,
+            ),
             "tool_calls": [ToolCallSchema(tool="list_files", args={"path": "."})],
             "step_outputs": {
                 1: [
@@ -231,7 +278,6 @@ class TestCheckpointMsgpack:
                 input_tokens=1, output_tokens=2, total_tokens=3
             ),
             "step_attempt_counts": {0: 2},
-            "plan_revisions": 1,
             "tool_rounds": 3,
             "failure_reason": "x",
         }
