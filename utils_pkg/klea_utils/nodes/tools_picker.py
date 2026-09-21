@@ -298,7 +298,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         # are the same failure: no usable tool call.  Unknown-but-non-empty
         # names are left to dispatch (which reports a clear error).
         plan = getattr(state, "plan", None)
-        step = getattr(plan, "current_step_index", -1) if plan is not None else -1
+        current = (
+            plan.current_step()
+            if plan is not None and hasattr(plan, "current_step")
+            else None
+        )
+        step = int(getattr(current, "step_number", -1) or -1)
         prev_step = getattr(state, "picker_step", -1)
         prev_attempts = int(getattr(state, "picker_attempts", 0) or 0)
         if usable or step != prev_step:

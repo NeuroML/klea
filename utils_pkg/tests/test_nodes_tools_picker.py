@@ -44,6 +44,7 @@ class RagLikeState(BaseModel):
 
 
 class Step(BaseModel):
+    step_number: int = 1
     description: str = "do it"
     status: str = "pending"
 
@@ -197,11 +198,11 @@ def test_empty_selection_counts_up_and_adds_feedback():
 
     update = picker._update_state(ToolCallsSchema(tool_calls=[]), state)
     assert update["picker_attempts"] == 1
-    assert update["picker_step"] == 0
+    assert update["picker_step"] == 1
 
     # The prompt feedback is derived from the incoming state counter.
     state_after = AgentLikeState(
-        plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
+        plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=1
     )
     assert (
         "no usable tool call"
@@ -211,7 +212,7 @@ def test_empty_selection_counts_up_and_adds_feedback():
     update2 = picker._update_state(
         ToolCallsSchema(tool_calls=[]),
         AgentLikeState(
-            plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
+            plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=1
         ),
     )
     assert update2["picker_attempts"] == 2
@@ -276,23 +277,26 @@ def test_attempts_reset_when_step_changes():
     update = picker._update_state(
         ToolCallsSchema(tool_calls=[]),
         AgentLikeState(
-            plan=PlanLike(step_list=[Step()]), picker_attempts=3, picker_step=0
+            plan=PlanLike(step_list=[Step()]), picker_attempts=3, picker_step=1
         ),
     )
     assert update["picker_attempts"] == 4
-    assert update["picker_step"] == 0
+    assert update["picker_step"] == 1
 
-    # A new step (index 1) resets the counter to 1.
+    # A new step (number 2) resets the counter to 1.
     update2 = picker._update_state(
         ToolCallsSchema(tool_calls=[]),
         AgentLikeState(
-            plan=PlanLike(current_step_index=1, step_list=[Step(), Step()]),
+            plan=PlanLike(
+                current_step_index=1,
+                step_list=[Step(step_number=1), Step(step_number=2)],
+            ),
             picker_attempts=3,
-            picker_step=0,
+            picker_step=1,
         ),
     )
     assert update2["picker_attempts"] == 1
-    assert update2["picker_step"] == 1
+    assert update2["picker_step"] == 2
 
 
 def test_empty_name_list_counts_as_no_usable_call():
