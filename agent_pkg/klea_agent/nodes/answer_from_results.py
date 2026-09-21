@@ -112,7 +112,10 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
 
         The failure reason and pending question are mutually exclusive and are
         folded into one ``outcome_details`` block that is empty on success, so
-        the prompt never carries an empty label (prompt conventions).
+        the prompt never carries an empty label (prompt conventions).  The
+        ``plan_history_block`` is a context-free signal (counts only) that the
+        final plan followed iterations/human review; the raw feedback is
+        deliberately not included (see :meth:`PlanSchema.revision_summary`).
         """
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
@@ -123,6 +126,9 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             "outcome_details": self._outcome_details(state),
             "goal": goal_text,
             "plan": state.plan.render(),
+            "plan_history_block": self._optional_section(
+                "Plan history", state.plan.revision_summary()
+            ),
             "observations": self._observations_text(state),
         }
         self.logger.debug(f"{variables = }")

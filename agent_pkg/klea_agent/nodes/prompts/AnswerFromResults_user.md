@@ -8,6 +8,8 @@
 
 {plan}
 
+{plan_history_block}
+
 ### Plan outcome
 
 {outcome}

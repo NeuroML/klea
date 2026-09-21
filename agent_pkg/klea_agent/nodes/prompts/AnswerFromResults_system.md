@@ -13,7 +13,16 @@
 * `outcome_details`: the failure reason (when `outcome` is `failure`) or the pending question (when `outcome` is `needs_input`); empty on success
 * `goal` and its success criteria
 * `plan`: the steps with their statuses and success criteria
+* `plan_history` (optional): a context-free signal that the final plan followed
+  iterations and/or human review (counts only; absent when the plan was authored
+  once with no review). The raw review feedback and earlier plan versions are
+  deliberately not provided.
 * `observations`: the tool outputs collected while executing the plan
+
+When `plan_history` is present, the plan was revised and/or reviewed before it
+ran. Do not claim it was executed without the user's involvement, and do not
+narrate the internal iterations in detail -- the reply is still a result
+summary.
 
 ---
 
