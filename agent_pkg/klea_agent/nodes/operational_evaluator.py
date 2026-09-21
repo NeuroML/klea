@@ -88,6 +88,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         plan = state.plan
         batch_numbers = {step.step_number for step in plan.next_batch(MAX_BATCH_STEPS)}
+        self.logger.debug(f"{batch_numbers = }")
         variables = {
             "query": state.query,
             "goal": goal_text,
@@ -177,6 +178,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 step.status = "failed"
                 replan_reasons.append(verdict.reason or f"step {number} needs revision")
         update["step_attempt_counts"] = attempts
+        self.logger.debug(
+            f"evaluator verdicts\n"
+            f"{ {n: v.verdict for n, v in result.evaluations.items()} = }\n"
+            f"{replan_reasons = }"
+        )
 
         # --- Global run budget (deterministic backstop) ------------------
         budget_abort = False
@@ -236,6 +242,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             update["replan_reason"] = ""
 
         update["plan"] = plan
+        self.logger.debug(
+            f"evaluator outcome\n{plan.status = }\n"
+            f"{update.get('replan_reason') = }\n"
+            f"{update.get('failure_reason') = }"
+        )
 
         # Record the verdict in run history so a replan (and summarisation) can
         # see why the plan was sent back.

@@ -173,6 +173,10 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             batch = (
                 plan.next_batch(MAX_BATCH_STEPS) if hasattr(plan, "next_batch") else []
             )
+            self.logger.debug(
+                f"picker batch\n{len(batch) = }\n"
+                f"{[step.step_number for step in batch] = }"
+            )
             variables["current_step"] = (
                 "\n".join(step.render(current=True) for step in batch)
                 if batch
@@ -315,6 +319,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 tool_calls = [
                     c for c in tool_calls if not c.tool.strip() or id(c) in keep
                 ]
+
+        self.logger.debug(
+            f"picker batch attribution\n{batch_numbers = }\n"
+            f"{[call.step for call in tool_calls if call.tool.strip()] = }\n"
+            f"{len(tool_calls) = }"
+        )
 
         update: dict[str, Any] = {"tool_calls": tool_calls}
 

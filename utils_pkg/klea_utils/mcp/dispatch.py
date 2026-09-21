@@ -287,6 +287,12 @@ async def dispatch_tool_calls(
                 elif key not in added_groups:
                     added_groups.add(key)
                     wrappers.append(_run_sequential(groups[key]))
+            logger.debug(
+                f"Resource grouping\n"
+                f"{ {tuple(sorted(k)): [i for i, _ in v] for k, v in groups.items()} = }\n"
+                f"{[idx for idx, _, key in ordered if not key] = }\n"
+                f"{len(wrappers) = }"
+            )
             gathered = await asyncio.gather(*wrappers)
             for item in gathered:
                 pairs = item if isinstance(item, list) else [item]

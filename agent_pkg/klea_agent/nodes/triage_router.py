@@ -20,6 +20,8 @@ from klea_utils.nodes.abstract import (
 
 from klea_agent.schemas import KleaAgentState
 
+logger = logging.getLogger(__name__)
+
 
 def current_step_key(state: KleaAgentState) -> int:
     """Return the 1-based identity of the current plan step.
@@ -87,6 +89,7 @@ def update_tool_retry_counts(
             counts[step] = counts.get(step, 0) + 1
         else:
             counts.pop(step, None)
+    logger.debug(f"updated tool retry counts\n{errored = }\n{counts = }")
     return counts
 
 
@@ -138,6 +141,9 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
             for i, r in enumerate(results)
             if getattr(r, "is_error", False)
         }
+        self.logger.debug(
+            f"triage decide\n{errored_steps = }\n{counts = }\n{self.max_retries = }"
+        )
         if not errored_steps:
             return "evaluate"
         if any(int(counts.get(step, 0)) > self.max_retries for step in errored_steps):
