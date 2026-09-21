@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -17,7 +18,7 @@ from pydantic import BaseModel
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
-from klea_utils.mcp.schemas import ToolCallsSchema, ToolInfo
+from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.tools import last_tool_error_text
@@ -198,6 +199,45 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         )
         return variables
 
+    @staticmethod
+    def _selection_key(call: ToolCallSchema) -> tuple[str, str]:
+        """Return a canonical ``(tool, args)`` key for comparing selections."""
+        return (
+            call.tool,
+            json.dumps(call.args or {}, sort_keys=True, default=str),
+        )
+
+    def _is_identical_failed_retry(
+        self, tool_calls: list[ToolCallSchema], state: BaseModel
+    ) -> bool:
+        """Return whether *tool_calls* repeat the just-failed batch exactly.
+
+        A deterministic anti-waste guard: re-emitting the same call with the
+        same arguments cannot repair a call-level error, so the picker should
+        escalate to the app (which replans) rather than loop.  Only active when
+        an ``on_unusable`` callback is installed (the agent has a replan edge;
+        RAG does not), and only when the immediately-previous batch actually
+        errored -- a repeat after a successful round, or on a new step, is left
+        alone.
+
+        :param tool_calls: The picker's new selection.
+        :param state: The incoming state (still holding the previous batch).
+        :returns: ``True`` when the new selection repeats the failed batch.
+        """
+        if self._on_unusable is None or not tool_calls:
+            return False
+        previous_calls = getattr(state, "tool_calls", None) or []
+        previous_results = getattr(state, "tool_results", None) or []
+        if not previous_calls:
+            return False
+        if not any(getattr(r, "is_error", False) for r in previous_results):
+            return False
+        if len(tool_calls) != len(previous_calls):
+            return False
+        return sorted(self._selection_key(c) for c in tool_calls) == sorted(
+            self._selection_key(c) for c in previous_calls
+        )
+
     @override
     def _update_state(
         self, result: ToolCallsSchema, state: BaseModel
@@ -211,9 +251,27 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         selection with no reason is an emission glitch: the counter is kept in
         graph state (thread-isolated, ADR-0033) so the orchestrator can retry
         the picker a bounded number of times before escalating.
+
+        A selection that *exactly repeats the previous failed batch* is
+        converted to a deliberate failure (with an explanatory reason) so it is
+        escalated instead of dispatched again: identical retries cannot succeed
+        and only waste a round.
         """
         tool_calls = result.tool_calls
         usable = any(tc.tool.strip() for tc in tool_calls)
+
+        if usable and self._is_identical_failed_retry(tool_calls, state):
+            reason = (
+                "The picker repeated the previous tool call with identical "
+                "arguments after it failed; repeating the same call cannot "
+                "succeed. Replan the step or correct the approach."
+            )
+            self.logger.warning(
+                f"picker repeated the identical failed call; escalating\n{reason = }"
+            )
+            tool_calls = [ToolCallSchema(tool="", args={}, reason=reason)]
+            usable = False
+
         update: dict[str, Any] = {"tool_calls": tool_calls}
 
         # Deliberate failure: no usable call, but the picker explained why.  The

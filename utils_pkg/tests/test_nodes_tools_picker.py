@@ -64,6 +64,7 @@ class PlanLike(BaseModel):
 class AgentLikeState(BaseModel):
     query: str = "q"
     artefacts: dict = Field(default_factory=dict)
+    tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
     plan: PlanLike = Field(default_factory=PlanLike)
     access_level: str = "full"
@@ -363,3 +364,95 @@ def test_empty_list_does_not_invoke_on_unusable():
     )
     assert calls == []
     assert "replan_reason" not in update
+
+
+def _error_result(text: str = "boom") -> CallToolResult:
+    """Return an ``is_error`` tool result carrying *text*."""
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=True,
+    )
+
+
+def test_identical_failed_retry_is_escalated():
+    """Repeating the exact failed call escalates instead of dispatching again."""
+    seen: dict[str, str] = {}
+
+    def on_unusable(state, reason):
+        seen["reason"] = reason
+        return {"replan_reason": reason}
+
+    picker = _make_picker(on_unusable=on_unusable)
+    call = ToolCallSchema(tool="read_file", args={"path": "missing.txt"})
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=[call],
+        tool_results=[_error_result("Not a file: missing.txt")],
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool=call.tool, args=call.args)]),
+        state,
+    )
+
+    assert "identical" in seen["reason"]
+    # The dispatched selection is replaced by the empty-name escalation call.
+    assert update["tool_calls"][0].tool == ""
+    assert "identical" in update["replan_reason"]
+
+
+def test_corrected_args_after_failure_are_dispatched():
+    """A changed argument binds normally; the guard does not fire."""
+    calls: list[str] = []
+    picker = _make_picker(on_unusable=lambda state, reason: calls.append(reason) or {})
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=[ToolCallSchema(tool="read_file", args={"path": "a.txt"})],
+        tool_results=[_error_result("Not a file: a.txt")],
+    )
+    new = [ToolCallSchema(tool="read_file", args={"path": "b.txt"})]
+
+    update = picker._update_state(ToolCallsSchema(tool_calls=new), state)
+
+    assert calls == []
+    assert update["tool_calls"] == new
+    assert update["picker_attempts"] == 0
+
+
+def test_identical_repeat_after_success_is_allowed():
+    """A repeat is only blocked when the previous batch actually failed."""
+    calls: list[str] = []
+    picker = _make_picker(on_unusable=lambda state, reason: calls.append(reason) or {})
+    call = ToolCallSchema(tool="read_file", args={"path": "a.txt"})
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=[call],
+        tool_results=[
+            CallToolResult(
+                content=[],
+                structured_content=None,
+                meta=None,
+                data=None,
+                is_error=False,
+            )
+        ],
+    )
+
+    update = picker._update_state(ToolCallsSchema(tool_calls=[call]), state)
+
+    assert calls == []
+    assert update["tool_calls"] == [call]
+
+
+def test_identical_repeat_without_on_unusable_is_allowed():
+    """The guard is inert without an app callback (RAG has no replan edge)."""
+    picker = _make_picker()
+    call = ToolCallSchema(tool="read_file", args={"path": "a.txt"})
+    state = RagLikeState(tool_results=[_error_result("boom")])
+
+    update = picker._update_state(ToolCallsSchema(tool_calls=[call]), state)
+
+    assert update["tool_calls"] == [call]
