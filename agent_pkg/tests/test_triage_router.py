@@ -18,6 +18,13 @@ from klea_agent.nodes.triage_router import (
     update_tool_retry_counts,
 )
 from klea_agent.schemas import KleaAgentState, PlanSchema, StepSchema
+from klea_utils.mcp.schemas import ToolCallSchema
+
+
+def _tool_result(*, error: bool):
+    return CallToolResult(
+        content=[], structured_content=None, meta=None, is_error=error
+    )
 
 
 def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
@@ -61,6 +68,24 @@ class TestRetryCounts:
         counts = update_tool_retry_counts(_state(error=True, step=3))
         assert counts == {4: 1}
 
+    def test_retry_counts_attributed_per_call_step(self):
+        """Each result counts against its call's originating step (ADR-0041)."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, status="done"),
+                    StepSchema(step_number=2),
+                    StepSchema(step_number=3),
+                ]
+            ),
+            tool_calls=[
+                ToolCallSchema(tool="a", step=2),
+                ToolCallSchema(tool="b", step=3),
+            ],
+            tool_results=[_tool_result(error=True), _tool_result(error=False)],
+        )
+        assert update_tool_retry_counts(state) == {2: 1}
+
 
 class TestTriageDecide:
     """Pure routing policy."""
@@ -83,6 +108,25 @@ class TestTriageDecide:
     def test_error_without_counter_retries(self):
         # Counter not yet maintained: treat as first failure.
         assert self.router.decide(_state(error=True)) == "retry"
+
+    def _mixed_batch(self, counts: dict[int, int]) -> KleaAgentState:
+        return KleaAgentState(
+            plan=PlanSchema(
+                step_list=[StepSchema(step_number=1), StepSchema(step_number=2)]
+            ),
+            tool_calls=[
+                ToolCallSchema(tool="a", step=1),
+                ToolCallSchema(tool="b", step=2),
+            ],
+            tool_results=[_tool_result(error=True), _tool_result(error=True)],
+            tool_retry_counts=counts,
+        )
+
+    def test_decide_retries_while_all_errored_steps_in_budget(self):
+        assert self.router.decide(self._mixed_batch({1: 1, 2: 2})) == "retry"
+
+    def test_decide_replans_when_any_errored_step_over_budget(self):
+        assert self.router.decide(self._mixed_batch({1: 1, 2: 9})) == "replan"
 
 
 class TestTriageExecute:

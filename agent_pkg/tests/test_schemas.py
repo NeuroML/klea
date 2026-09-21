@@ -276,6 +276,10 @@ class TestPlanFrontier:
         )
         assert [s.step_number for s in plan.frontier()] == [3]
 
+    def test_frontier_caps_steps(self):
+        plan = PlanSchema(step_list=[StepSchema(step_number=i + 1) for i in range(5)])
+        assert [s.step_number for s in plan.frontier(max_steps=2)] == [1, 2]
+
 
 class TestPlanValidation:
     """``validate_plan`` enforces the DAG invariants (ADR-0041)."""

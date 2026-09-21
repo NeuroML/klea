@@ -196,7 +196,7 @@ async def dispatch_tool_calls(
     """
     n = len(tool_calls)
     results: list[CallToolResult | None] = [None] * n
-    pending: list[tuple[int, Any]] = []
+    pending: list[tuple[int, str, dict[str, Any], Any]] = []
     timeout = call_timeout if call_timeout is not None else tool_call_timeout_seconds()
     if timeout is not None and timeout <= 0:
         timeout = None
@@ -242,6 +242,8 @@ async def dispatch_tool_calls(
                 pending.append(
                     (
                         i,
+                        tool_name,
+                        args,
                         mcp_client.call_tool(
                             name=tool_name,
                             arguments=args,
@@ -252,30 +254,64 @@ async def dispatch_tool_calls(
                 )
 
         if pending:
-            indices, coros = zip(*pending)
-            gathered = await asyncio.gather(*coros, return_exceptions=True)
-            for idx, res in zip(indices, gathered):
-                if isinstance(res, BaseException):
-                    tool_name, args = tool_calls[idx]
-                    logger.warning(
-                        f"Tool call failed\n{tool_name = }\n{idx = }\n{args = }\n{res = }"
-                    )
-                    if _is_timeout_error(res) and timeout is not None:
-                        text = (
-                            f"Tool '{tool_name}' timed out after {timeout:g} s "
-                            "and was cancelled; the server-side operation may "
-                            "still be running."
+            # Dispatch concurrently, but run calls that target the same
+            # resource sequentially in call order (ADR-0041): two writes to one
+            # file must not race, so a missed dependency edge costs parallelism,
+            # never a lost update.  Calls with no identifiable resource run
+            # concurrently, as before.  Wrappers are created in input order so
+            # the dispatch order stays stable.
+            groups: dict[frozenset[str], list[tuple[int, Any]]] = {}
+            ordered: list[tuple[int, Any, frozenset[str]]] = []
+            for idx, name, args, coro in pending:
+                key = resource_key(ToolCallSchema(tool=name, args=args), tool_infos)
+                ordered.append((idx, coro, key))
+                if key:
+                    groups.setdefault(key, []).append((idx, coro))
+
+            async def _await_one(idx: int, coro: Any) -> tuple[int, Any]:
+                try:
+                    return idx, await coro
+                except BaseException as exc:  # noqa: BLE001 - surfaced as a result
+                    return idx, exc
+
+            async def _run_sequential(
+                items: list[tuple[int, Any]],
+            ) -> list[tuple[int, Any]]:
+                return [await _await_one(idx, coro) for idx, coro in items]
+
+            wrappers: list[Any] = []
+            added_groups: set[frozenset[str]] = set()
+            for idx, coro, key in ordered:
+                if not key:
+                    wrappers.append(_await_one(idx, coro))
+                elif key not in added_groups:
+                    added_groups.add(key)
+                    wrappers.append(_run_sequential(groups[key]))
+            gathered = await asyncio.gather(*wrappers)
+            for item in gathered:
+                pairs = item if isinstance(item, list) else [item]
+                for idx, res in pairs:
+                    if isinstance(res, BaseException):
+                        tool_name, args = tool_calls[idx]
+                        logger.warning(
+                            f"Tool call failed\n{tool_name = }\n{idx = }\n{args = }\n{res = }"
+                        )
+                        if _is_timeout_error(res) and timeout is not None:
+                            text = (
+                                f"Tool '{tool_name}' timed out after {timeout:g} s "
+                                "and was cancelled; the server-side operation may "
+                                "still be running."
+                            )
+                        else:
+                            text = f"{res.__class__.__name__}: {res}"
+                        results[idx] = CallToolResult(
+                            content=[TextContent(type="text", text=text)],
+                            structured_content=None,
+                            meta=None,
+                            is_error=True,
                         )
                     else:
-                        text = f"{res.__class__.__name__}: {res}"
-                    results[idx] = CallToolResult(
-                        content=[TextContent(type="text", text=text)],
-                        structured_content=None,
-                        meta=None,
-                        is_error=True,
-                    )
-                else:
-                    results[idx] = res  # type: ignore[assignment]
+                        results[idx] = res  # type: ignore[assignment]
 
     if any(r is None for r in results):
         missing = [i for i, r in enumerate(results) if r is None]

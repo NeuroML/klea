@@ -40,29 +40,53 @@ def current_step_key(state: KleaAgentState) -> int:
     return 1
 
 
+def _result_step(state: KleaAgentState, index: int, default_step: int) -> int:
+    """Return the plan step a result at *index* belongs to (ADR-0041).
+
+    Uses the corresponding call's ``step`` (set by the picker), falling back to
+    *default_step* when the call carries none.
+    """
+    calls = getattr(state, "tool_calls", None) or []
+    if index < len(calls):
+        step = int(getattr(calls[index], "step", 0) or 0)
+        if step > 0:
+            return step
+    return default_step
+
+
 def update_tool_retry_counts(
     state: KleaAgentState, results: list[CallToolResult] | None = None
 ) -> dict[int, int]:
     """Return the updated per-step consecutive-failure counter (ADaPT).
 
     A conditional-edge router cannot update state, so the tool caller's
-    post-dispatch callback calls this and merges the result.  The counter for
-    the current step is incremented when the batch contained any ``is_error``
-    result, and cleared when the batch had no errors (progress resets the
-    budget).  ``TriageRouter.decide`` then compares the count against
-    ``max_retries``.
+    post-dispatch callback calls this and merges the result.  Each result is
+    attributed to its call's originating step (ADR-0041); a step with any
+    ``is_error`` result this batch increments, and a step with none is cleared
+    (progress resets the budget).  ``TriageRouter.decide`` then compares the
+    count against ``max_retries``.
 
     :param state: Current graph state.
     :param results: The batch's tool results; defaults to ``state.tool_results``
         when not supplied (e.g. in tests).
     """
     counts = dict(getattr(state, "tool_retry_counts", None) or {})
-    step = current_step_key(state)
+    default_step = current_step_key(state)
     batch = results if results is not None else (state.tool_results or [])
-    if any(getattr(r, "is_error", False) for r in batch):
-        counts[step] = counts.get(step, 0) + 1
-    else:
-        counts.pop(step, None)
+    errored: dict[int, bool] = {}
+    for i, result in enumerate(batch):
+        step = _result_step(state, i, default_step)
+        errored[step] = errored.get(step, False) or bool(
+            getattr(result, "is_error", False)
+        )
+    if not errored:
+        # No results at all: clear the current step's counter.
+        counts.pop(default_step, None)
+    for step, had_error in errored.items():
+        if had_error:
+            counts[step] = counts.get(step, 0) + 1
+        else:
+            counts.pop(step, None)
     return counts
 
 
@@ -100,18 +124,25 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
         """Return the routing label (pure, no streaming).
 
         Kept separate from :meth:`execute` so the policy is unit-testable
-        without a graph run.
+        without a graph run.  Errors are attributed per step (ADR-0041): retry
+        while every errored step is still within budget, otherwise replan.
 
         :param state: Current graph state.
         :returns: ``retry`` | ``evaluate`` | ``replan``.
         """
         results = getattr(state, "tool_results", None) or []
-        has_error = any(getattr(r, "is_error", False) for r in results)
-        if not has_error:
+        default_step = current_step_key(state)
+        counts = getattr(state, "tool_retry_counts", None) or {}
+        errored_steps = {
+            _result_step(state, i, default_step)
+            for i, r in enumerate(results)
+            if getattr(r, "is_error", False)
+        }
+        if not errored_steps:
             return "evaluate"
-        step = current_step_key(state)
-        count = int((getattr(state, "tool_retry_counts", None) or {}).get(step, 0))
-        return "retry" if count <= self.max_retries else "replan"
+        if any(int(counts.get(step, 0)) > self.max_retries for step in errored_steps):
+            return "replan"
+        return "retry"
 
     @override
     async def execute(self, state: KleaAgentState) -> str:

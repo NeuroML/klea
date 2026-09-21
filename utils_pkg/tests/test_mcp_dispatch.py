@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
 
 from fastmcp.client.client import CallToolResult
@@ -355,3 +356,61 @@ def test_resource_key_flags_same_file_across_tools():
     a = resource_key(ToolCallSchema(tool="edit_file", args={"path": "X"}), infos)
     b = resource_key(ToolCallSchema(tool="write_file", args={"path": "./X"}), infos)
     assert a & b == frozenset({"X"})
+
+
+class _ConcurrencyClient:
+    """Fake client tracking concurrent execution per ``path`` resource."""
+
+    def __init__(self):
+        self.events: list[str] = []
+        self._active: set[str] = set()
+        self._active_count = 0
+        self.max_active = 0
+        self.same_resource_overlap = False
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        return False
+
+    async def call_tool(self, name, arguments, raise_on_error=False, timeout=None):
+        path = arguments.get("path", "")
+        if path in self._active:
+            self.same_resource_overlap = True
+        self._active.add(path)
+        self._active_count += 1
+        self.max_active = max(self.max_active, self._active_count)
+        self.events.append(f"start:{path}")
+        await asyncio.sleep(0.01)
+        self._active.discard(path)
+        self._active_count -= 1
+        self.events.append(f"end:{path}")
+        return CallToolResult(content=[], structured_content=None, meta=None)
+
+
+async def test_dispatch_serialises_same_resource_calls():
+    client = _ConcurrencyClient()
+    infos = {"edit_file": ToolInfo(checkpaths=["path"])}
+
+    await dispatch_tool_calls(
+        client,
+        [("edit_file", {"path": "X"}), ("edit_file", {"path": "X"})],
+        tool_infos=infos,
+    )
+
+    assert client.same_resource_overlap is False
+    assert client.events == ["start:X", "end:X", "start:X", "end:X"]
+
+
+async def test_dispatch_runs_different_resources_concurrently():
+    client = _ConcurrencyClient()
+    infos = {"edit_file": ToolInfo(checkpaths=["path"])}
+
+    await dispatch_tool_calls(
+        client,
+        [("edit_file", {"path": "X"}), ("edit_file", {"path": "Y"})],
+        tool_infos=infos,
+    )
+
+    assert client.max_active == 2

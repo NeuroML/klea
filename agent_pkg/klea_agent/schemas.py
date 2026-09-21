@@ -178,7 +178,7 @@ class PlannerPlanSchema(BaseModel):
         frontier = self.frontier()
         return frontier[0] if frontier else None
 
-    def frontier(self) -> list[StepSchema]:
+    def frontier(self, max_steps: int | None = None) -> list[StepSchema]:
         """Return the unblocked pending steps, in step order (ADR-0041).
 
         The dependency frontier used for parallel execution: a step is
@@ -187,14 +187,17 @@ class PlannerPlanSchema(BaseModel):
         are excluded.  ``depends_on: []`` needs nothing, so a step with no
         declared dependencies is unblocked from the start.
 
+        :param max_steps: Optional cap on the number of steps returned (the
+            batch-selection cap, ADR-0041).
         :returns: The runnable steps, in ``step_list`` order.
         """
         done = {s.step_number for s in self.step_list if s.status == "done"}
-        return [
+        runnable = [
             s
             for s in self.step_list
             if s.status == "pending" and all(dep in done for dep in s.depends_on)
         ]
+        return runnable[:max_steps] if max_steps is not None else runnable
 
     def validate_plan(self) -> list[str]:
         """Return structural-consistency errors for this plan (empty if valid).
