@@ -5,7 +5,11 @@ Level 3 view of the same graph is `c4-component-agent.md`.
 Written 2026-09-10 by opencode (model: deepseek-flash); revised same day to
 the narrow-router + task-path topology; revised 2026-09-19 for reasoning
 steps, the tool-identity contract, the unified replan reason, ``needs_input``
-and session-scoped artefacts (ADR-0035 update 2026-09-19).
+and session-scoped artefacts (ADR-0035 update 2026-09-19); revised 2026-09-21
+for the ADR-0041 dependency-frontier model: per-step statuses replace the
+``current_step_index`` cursor, work is dispatched in same-kind frontier
+batches, the Evaluator returns per-step verdicts, and the caller serialises
+same-resource calls.
 
 ## Scope
 
@@ -28,29 +32,34 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   |-- chat --> AnswerUser -> END
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
+                 |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
                  |-- status in_review -----> AwaitReview --(user input only)--> Planner
                  |-- status needs_input ---> AnswerFromResults (question) -> AnswerUser -> END
-                 '-- status in_progress ---> step entry (dispatch by step kind)
+                 '-- status in_progress ---> batch entry (ADR-0041)
 
-Step entry (the Planner selects the tool; the picker binds arguments):
+Batch entry (maximal same-kind prefix of the frontier, capped at 8 steps):
   kind = tool:
-    ToolsPicker --usable call(s)------> ToolsCaller -> TriageRouter
-                --deliberate failure--> Planner   (synthetic error observation + replan_reason)
-                --empty (glitch)------> ToolsPicker (bounded retry), then Planner
+    ToolsPicker (binds every batch step's calls, each tagged with its step)
+      --usable call(s)------> ToolsCaller -> TriageRouter
+      --deliberate failure--> Planner   (synthetic error observation + replan_reason)
+      --empty (glitch)------> ToolsPicker (bounded retry), then Planner
   kind = reasoning:
-    ReasoningNode -> Evaluator
+    ReasoningNode (one reasoning step per round) -> Evaluator
 
-TriageRouter (deterministic, tool-error triage):
-  error, retries left  -> ToolsPicker
-  retries exhausted    -> Planner
-  no error             -> Evaluator
+ToolsCaller (ADR-0041): groups the batch's calls by resource (``checkpaths``)
+  and runs same-resource calls sequentially in step order; the rest run
+  concurrently.
 
-Evaluator (operational judge):
-  step_incomplete -> step entry (current step, by kind)
-  step_done       -> step entry (next step, by kind)
-  need_replan     -> Planner
-  plan_done       -> AnswerFromResults (persists the deliverable) -> AnswerUser -> END
-  abort           -> AnswerFromResults (failure) -> AnswerUser -> END
+TriageRouter (deterministic, per-step tool-error triage):
+  every errored step within budget -> ToolsPicker
+  any errored step over budget     -> Planner
+  no error                         -> Evaluator
+
+Evaluator (operational judge, per-step verdict map):
+  each step_done / step_incomplete -> batch entry (updated frontier, by kind)
+  any step need_replan             -> Planner
+  overall plan_done                -> AnswerFromResults (persists the deliverable) -> AnswerUser -> END
+  overall abort                    -> AnswerFromResults (failure) -> AnswerUser -> END
 ```
 
 Trivial chat: Guard + RouteDecision (2 calls); the router answers inline and the
@@ -69,10 +78,10 @@ answered from assumption.
 | RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan, flag review (ADR-0035); never answers the user | yes (plan role) |
 | AwaitReview | capture human review input only (no LLM); free-text feedback | no |
-| ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for the step's suggested tools and dispatch (ADR-0020/0034); never substitute a different tool | picker yes, caller no |
-| ReasoningNode (``kind=reasoning``) | produce the step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller | yes (chat role) |
-| TriageRouter | deterministic tool-error triage: error present? retries left? | no |
-| Evaluator | operational judge only: goal + step criterion; explicit verdict enum | yes (chat role; separate node from Act) |
+| ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
+| ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
+| TriageRouter | deterministic per-step tool-error triage: which steps errored? retries left? | no |
+| Evaluator | operational judge only: goal + each batch step's criterion; per-step verdict map plus an overall outcome | yes (chat role; separate node from Act) |
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
 | AnswerUser | deliver the final user-facing message | no |
 
@@ -94,7 +103,7 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 | ``in_review`` | plan produced, awaiting human review | ``AwaitReview`` |
 | ``needs_input`` | blocked on a missing fact only the user can supply; the question is in ``reason`` (a partial plan is allowed) | ``AnswerFromResults`` (question) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | ready; execute the current step by its ``kind`` | step entry |
+| ``in_progress`` | ready; execute the next batch (same-kind frontier prefix) by its ``kind`` | batch entry |
 
 ``Planner._update_state``: ``needs_input`` -> state ``needs_input`` with
 ``pending_question`` from ``reason``; steps + review -> ``in_review``; steps ->
@@ -106,24 +115,23 @@ the model; the state ``PlanSchema`` also carries the runtime ones
 ### Planner plan ownership (Design A)
 
 The Planner is the **sole author of the whole plan**, including each step's
-``status`` and the ``current_step_index``.  Code does **not** mutate the plan:
-there is no re-application of completion markers and no recomputation of the
-current step by matching step numbers across plans.  That positional matching
-was brittle -- on a replan the model may renumber or merge steps, so an old
-``done`` step ``1`` could collide with a new step ``1``, be wrongly forced
-``done``, and leave ``current_step_index`` past the end of the list while
-``step_outputs`` were cleared (observed: an unrecoverable picker loop).
+``status`` and ``depends_on``.  Code does **not** mutate the plan: there is no
+re-application of completion markers and no recomputation of positions by
+matching step numbers across plans.  That positional matching was brittle --
+on a replan the model may renumber or merge steps, so an old ``done`` step
+``1`` could collide with a new step ``1`` and be wrongly forced ``done``
+(observed: an unrecoverable picker loop).
 
 Instead:
 
 * the model is given the prior plan with its ``[DONE]`` markers and is
-  responsible for carrying completed steps forward and for setting
-  ``current_step_index`` (0-based index of the first non-``done`` step, or the
-  step count when all are done);
+  responsible for carrying completed steps forward and for authoring
+  ``depends_on`` (the earlier steps each step needs);
 * the returned ``PlannerOutput`` is validated **structurally** by
-  ``PlanSchema.validate_plan()`` (positive/unique step numbers, ``depends_on``
-  resolving inside the plan, in-range ``current_step_index``); ``Planner._validate_result``
-  surfaces any error;
+  ``PlanSchema.validate_plan()`` (positive/unique step numbers,
+  ``depends_on`` referencing only in-plan and strictly-earlier steps, an
+  acyclic graph via ``graphlib``); ``Planner._validate_result`` surfaces any
+  error;
 * a validation failure triggers a bounded re-invoke through the generic
   ``AbstractLLMNode`` validation-retry loop (``max_validation_retries``;
   the error is exposed to the prompt as ``validation_feedback``), after which
@@ -205,16 +213,41 @@ replan) without per-step outputs, while the picker runs after each batch with
 the latest observations so it can bind arguments that depend on prior outputs
 (ADR-0020/0035).
 
+## Parallel execution (ADR-0041)
+
+The plan is a directed acyclic graph: ``StepSchema.depends_on`` names the
+earlier steps a step needs.  Execution position is **derived, not stored**:
+
+* **Frontier** -- pending steps whose ``depends_on`` are all ``done``, in step
+  order.  ``depends_on: []`` is immediately runnable.
+* **Batch** -- the maximal *same-kind* prefix of the frontier (capped at 8
+  steps), so tool steps go through the picker/caller and reasoning steps
+  through the reasoning node.  A mixed frontier is drained one kind at a time.
+* **Picker binding** -- one invocation binds every batch step's calls, each
+  tagged with its originating ``step`` (the picker caps the batch at 16 calls).
+* **Resource guard** -- the caller groups the batch's calls by resource (the
+  tool's ``checkpaths`` arguments, compared lexically with ``os.path.normpath``)
+  and runs same-resource calls sequentially in step order, the rest
+  concurrently.  A missed ``depends_on`` edge therefore costs parallelism
+  rather than a lost update; calls with no identifiable resource run
+  concurrently.
+* **Evaluator** -- judges the whole batch and returns a per-step verdict map.
+
+Reasoning steps remain serial (one conclusion per round); batching them is a
+deferred ADR-0041 open item.
+
 ## State (relevant fields)
 
 * ``route: RouteSchema`` (entry routing: ``chat`` | ``task``, with the inline
   chat answer).
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
-* ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``/
-  ``kind``/``suggested_tools``, current step index, and the lifecycle ``status``
+* ``plan: PlanSchema`` (steps with their ``success_criteria``/``status``/
+  ``kind``/``suggested_tools``/``depends_on``, and the lifecycle ``status``
   used for routing).  The Planner authors all of it (Design A, above); code only
-  validates structure.  ``PlanSchema`` extends the authored
+  validates structure.  Execution position is **derived**, not stored: the
+  frontier and the next batch are computed from per-step statuses and
+  ``depends_on`` (ADR-0041).  ``PlanSchema`` extends the authored
   ``PlannerPlanSchema`` and also carries the run-history counters:
   ``plan_version`` (monotonic; 0 = no plan, first authored plan = 1),
   ``human_feedback_rounds`` (human review rounds processed), and
@@ -238,7 +271,8 @@ the latest observations so it can bind arguments that depend on prior outputs
 * ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run;
   global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
-* ``evaluation: EvaluationSchema`` (latest operational verdict + reason).
+* ``evaluation: EvaluationSchema`` (latest per-step verdict map plus the
+  ``overall`` outcome and a reason; ADR-0041).
 * ``artefacts: dict[str, ArtefactSchema]`` (session-scoped durable results; the
   completed task's deliverable is persisted here, see Persistence below).
 * ``messages`` (run history: query, plan/verdict progress, review input,
@@ -318,22 +352,37 @@ so a new request gets a fresh goal without a new session.
 
 ## Evaluator verdicts and routing
 
-The Evaluator judges only and runs after every tool round.  Its
-verdict is a pydantic model whose next-step is a ``Literal``:
+The Evaluator judges only and runs after every tool round.  It judges the
+**batch** -- the steps marked ``[CURRENT]`` in its prompt (the same-kind
+frontier prefix the picker/caller or reasoning node just ran) -- and returns an
+``EvaluationSchema``: a map ``{step_number: {verdict, reason}}`` plus an
+optional ``overall`` outcome.
 
-* ``step_incomplete`` -> step entry (more calls for the current step)
-* ``step_done`` -> step entry (next step) if steps remain
-* ``plan_done`` -> AnswerFromResults -> AnswerUser
-* ``need_replan`` -> Planner
-* ``abort`` -> AnswerFromResults (failure)
+Per-step verdicts:
 
-It judges the goal and the current step's criterion, not merely whether tools
-succeeded; it is given the executed tool names and judges the **outcome**, so a
-different tool that meets the criteria is fine, while a material mismatch is
-reported in ``reason``.  It never writes ``message_for_user``.  A final-step
-``step_done`` is coerced to ``plan_done`` so the graph does not route back to
-the picker past the end of the plan.  Scientific mode uses a separate,
-independent, epistemic verifier with the same judge-only contract.
+* ``step_done`` -> the step is marked ``done`` and the frontier advances (if it
+  was the last pending step the plan becomes ``completed``);
+* ``step_incomplete`` -> the step stays ``pending``; its attempt counter grows;
+* ``need_replan`` -> the step is marked ``failed`` and its reason becomes the
+  Planner's ``replan_reason``.
+
+Overall outcome (when the plan is finished or unreachable):
+
+* ``plan_done`` -> every remaining step is marked ``done``, the plan is
+  ``completed`` -> AnswerFromResults -> AnswerUser;
+* ``abort`` -> the plan is ``aborted`` -> AnswerFromResults (failure).
+
+After the plan updates, the router derives the next edge from the plan state:
+``completed`` -> answer, ``aborted`` -> failure answer, a ``replan_reason`` ->
+Planner, otherwise the next batch by kind.
+
+It judges the goal and each step's criterion against the **outcome**, not
+merely whether tools succeeded; ``executed_tools`` is rendered grouped by step
+and the observations are per step, so a different tool that meets the criteria
+is fine, while a material mismatch is reported in the step's ``reason``.  It
+never writes ``message_for_user``.  An empty or failed evaluation escalates
+deterministically to a replan.  Scientific mode uses a separate, independent,
+epistemic verifier with the same judge-only contract.
 
 ### Reachability and ``abort``
 

@@ -163,6 +163,12 @@ class, same-resource read-modify-write, is what the caller guard closes.
 * Prompt/schema tests: the Planner authors an acyclic DAG; the Evaluator
   returns a per-step verdict map.
 
+Implemented 2026-09-21: `frontier()`/`next_batch()` and the `validate_plan`
+extensions (strictly-earlier `depends_on` + `graphlib` acyclicity) in
+`agent_pkg/klea_agent/schemas.py`; `resource_key()` and the caller-side
+resource grouping in `utils_pkg/klea_utils/mcp/dispatch.py`; the batch picker
+and per-step Evaluator map (`ToolCallSchema.step`, `EvaluationSchema`).
+
 ## Pros and Cons of the Options
 
 ### A. Planner composes multi-call steps

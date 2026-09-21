@@ -80,6 +80,14 @@ def _check_edit_file(workspace: Path, _output: str) -> None:
     assert "second line" in text, "notes.txt was not appended"
 
 
+def _check_parallel_files(workspace: Path, _output: str) -> None:
+    """Two independent writes must both land (ADR-0041 parallel batch)."""
+    for name, text in (("alpha.txt", "alpha"), ("beta.txt", "beta")):
+        target = workspace / name
+        assert target.exists(), f"{name} was not created"
+        assert text in target.read_text(), f"{name} has unexpected content"
+
+
 def _check_run_command(_workspace: Path, output: str) -> None:
     assert "hi" in output, "command output 'hi' not present in the reply"
 
@@ -117,6 +125,16 @@ TASKS: list[E2ETask] = [
         query="Run the command `echo hi` and tell me the output.",
         tags=["tools"],
         check=_check_run_command,
+    ),
+    # --- independent steps (parallel batch, ADR-0041) ---
+    E2ETask(
+        id="parallel_writes",
+        query=(
+            "Create two independent files in the current directory: "
+            "alpha.txt containing 'alpha' and beta.txt containing 'beta'."
+        ),
+        tags=["parallel"],
+        check=_check_parallel_files,
     ),
     # --- reasoning step (scoped to a seeded project/, no reads) ---
     E2ETask(

@@ -25,13 +25,12 @@ Last updated: 2026-09-21.
 
 ## Agent general path
 
-- ADR-0041 (accepted 2026-09-21): implement the dependency-frontier scheduler
-  in increments - pure `frontier()`/validation helpers, DAG plan-state model,
-  batch picker + per-step evaluator verdicts, caller-side resource-grouped
-  parallel dispatch (cap 8 steps/16 calls); then measure.
 - ADR-0041 residual: reasoning steps remain serial (one `ReasoningNode`
   conclusion per round); batching a reasoning prefix into one call (a per-step
   conclusion map) is deferred.
+- ADR-0041 measurement: the `parallel_writes` E2E scenario observes a
+  two-independent-write batch; a dedicated evaluation-harness case still needs
+  the `eval_pkg` harness (below).
 - Phase-2 deterministic tool-substitution backstop; planner
   catalogue-membership validation.
 - `add_artefact` tool; promote `_slug` / artefact-id derivation to a shared

@@ -42,7 +42,8 @@ Standard pytest options work because each task is a parametrized case id:
 
 - id: `-k <id>` (e.g. `-k create_file`)
 - feature marker: `-m e2e_<tag>` (`e2e_chat`, `e2e_tools`, `e2e_reasoning`,
-  `e2e_review`, `e2e_failure`, `e2e_picker`, `e2e_persistence`)
+  `e2e_review`, `e2e_failure`, `e2e_picker`, `e2e_persistence`,
+  `e2e_parallel`)
 - list: `--collect-only -q`
 - stop early: `-x`
 
