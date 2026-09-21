@@ -191,14 +191,14 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     ) -> dict[str, Any]:
         """Write the goal (locked) and the plan, trusting the model's plan.
 
-        Design (ADR-0035): the Planner is the **sole author** of the plan,
-        including each step's ``status`` and the ``current_step_index``.  Code
-        does not re-apply completion markers or recompute the pointer by
-        matching step numbers across plans (that positional matching was
-        brittle and corrupt on renumbering).  The model is given the prior
-        plan with its ``[DONE]`` markers and is responsible for carrying
-        completed steps forward; ``PlannerOutput`` is validated structurally
-        in :meth:`_validate_result` and retried if inconsistent.
+        Design (ADR-0035/ADR-0041): the Planner is the **sole author** of the
+        plan, including each step's ``status`` and ``depends_on``.  Code does
+        not re-apply completion markers or recompute positions by matching step
+        numbers across plans (that positional matching was brittle and corrupt
+        on renumbering).  The model is given the prior plan with its ``[DONE]``
+        markers and is responsible for carrying completed steps forward;
+        ``PlannerOutput`` is validated structurally in :meth:`_validate_result`
+        and retried if inconsistent.
 
         Goal handling (ADR-0035): the Planner is the sole goal writer, but it
         only sets the goal while it is unset, so a replan or review revision
@@ -306,7 +306,6 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             plan = PlanSchema(
                 step_list=steps,
                 status="needs_input",
-                current_step_index=result.plan.current_step_index,
                 plan_version=version,
                 human_feedback_rounds=review_rounds,
                 automated_plan_revisions=revisions,
@@ -328,18 +327,24 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         # The Planner decides whether the plan needs human review before it
         # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
         # has been consumed by this LLM call and is cleared above.  The model's
-        # per-step statuses and ``current_step_index`` are used unchanged.
+        # per-step statuses and ``depends_on`` are used unchanged (ADR-0041).
         status: Literal["in_review", "in_progress"] = (
             "in_review" if result.plan.status == "in_review" else "in_progress"
         )
         plan = PlanSchema(
             step_list=steps,
             status=status,
-            current_step_index=result.plan.current_step_index,
             plan_version=version,
             human_feedback_rounds=review_rounds,
             automated_plan_revisions=revisions,
         )
+        # If the Planner carried every step forward as ``done`` there is
+        # nothing left to run: mark the plan complete deterministically, so the
+        # graph routes to the answer instead of the step entry (ADR-0041).
+        if status == "in_progress" and all(
+            step.status == "done" for step in plan.step_list
+        ):
+            plan.status = "completed"
         update["plan"] = plan
         # A replan replaces the step list: clear per-step execution state so
         # stale step keys cannot merge into (or trip the retry budgets of) the

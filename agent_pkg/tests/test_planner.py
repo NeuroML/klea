@@ -79,7 +79,7 @@ class TestPlannerState(unittest.TestCase):
         self.assertIn("failure_reason", update)
 
     def test_model_plan_statuses_are_used_verbatim(self):
-        """Design A: the Planner's per-step statuses/pointer are not mutated.
+        """Design A: the Planner's per-step statuses are not mutated.
 
         Code no longer re-applies completion markers by matching step numbers
         across plans; the model returns the complete plan and owns its state.
@@ -91,7 +91,6 @@ class TestPlannerState(unittest.TestCase):
                     StepSchema(step_number=2),
                 ],
                 status="in_progress",
-                current_step_index=1,
             )
         )
         update = self._planner()._update_state(
@@ -110,7 +109,6 @@ class TestPlannerState(unittest.TestCase):
                             suggested_tools=["read_file"],
                         ),
                     ],
-                    current_step_index=1,
                 )
             ),
             state,
@@ -118,7 +116,7 @@ class TestPlannerState(unittest.TestCase):
         plan = update["plan"]
         self.assertEqual(plan.step_list[0].status, "done")
         self.assertEqual(plan.step_list[1].status, "pending")
-        self.assertEqual(plan.current_step_index, 1)
+        self.assertEqual(plan.current_step().step_number, 2)
 
     def test_renumbered_plan_is_not_force_marked_done(self):
         """A renumbered fresh plan keeps the model's pending status.
@@ -134,7 +132,6 @@ class TestPlannerState(unittest.TestCase):
                     StepSchema(step_number=3),
                 ],
                 status="in_progress",
-                current_step_index=2,
             )
         )
         update = self._planner()._update_state(
@@ -147,14 +144,13 @@ class TestPlannerState(unittest.TestCase):
                             suggested_tools=["read_file"],
                         )
                     ],
-                    current_step_index=0,
                 )
             ),
             state,
         )
         plan = update["plan"]
         self.assertEqual(plan.step_list[0].status, "pending")
-        self.assertEqual(plan.current_step_index, 0)
+        self.assertEqual(plan.current_step().step_number, 1)
 
     def test_validate_result_rejects_dangling_dependency(self):
         planner = self._planner()
@@ -167,7 +163,6 @@ class TestPlannerState(unittest.TestCase):
                         depends_on=[2],
                     )
                 ],
-                current_step_index=0,
             )
         )
         error = planner._validate_result(output, KleaAgentState())
@@ -175,7 +170,7 @@ class TestPlannerState(unittest.TestCase):
         assert error is not None
         self.assertIn("depends on 2", error)
 
-    def test_validate_result_rejects_out_of_range_index(self):
+    def test_validate_result_rejects_forward_dependency(self):
         planner = self._planner()
         output = PlannerOutput(
             plan=PlannerPlanSchema(
@@ -183,21 +178,16 @@ class TestPlannerState(unittest.TestCase):
                     StepSchema(
                         step_number=1,
                         suggested_tools=["read_file"],
-                        status="done",
-                    )
+                        depends_on=[2],
+                    ),
+                    StepSchema(step_number=2, suggested_tools=["read_file"]),
                 ],
-                current_step_index=1,
             )
         )
         error = planner._validate_result(output, KleaAgentState())
-        # index == len is valid when all steps are done
-        self.assertIsNone(error)
-
-        output.plan.current_step_index = 5
-        error = planner._validate_result(output, KleaAgentState())
         self.assertIsNotNone(error)
         assert error is not None
-        self.assertIn("out of range", error)
+        self.assertIn("earlier", error)
 
     def test_validate_result_accepts_a_consistent_plan(self):
         planner = self._planner()
@@ -215,7 +205,6 @@ class TestPlannerState(unittest.TestCase):
                         depends_on=[1],
                     ),
                 ],
-                current_step_index=1,
             )
         )
         self.assertIsNone(planner._validate_result(output, KleaAgentState()))
