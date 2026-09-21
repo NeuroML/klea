@@ -12,7 +12,7 @@
 * `query`: the user's request
 * `goal` and its success criteria (fixed; do not change them)
 * `plan`: the full plan with ordered steps, their success criteria and suggested tools; the step(s) you are judging are marked `[CURRENT]`
-* `executed_tools`: the tools actually run in the latest batch
+* `executed_tools`: the tools run in the latest batch, grouped by step
 * `observations`: the tool outputs so far
 
 ---

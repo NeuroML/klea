@@ -21,6 +21,7 @@ from klea_agent.schemas import (
     StepEvaluation,
     StepSchema,
 )
+from klea_utils.mcp.schemas import ToolCallSchema
 
 
 def _verdict(
@@ -208,6 +209,20 @@ class TestOperationalEvaluator(unittest.TestCase):
         """The declared ``executed_tools`` input is always rendered."""
         variables = self._evaluator()._get_prompt_variables(self._state())
         self.assertEqual(variables["executed_tools"], "(none)")
+
+    def test_prompt_variables_group_executed_tools_by_step(self):
+        """The flat call list is rendered grouped by originating step."""
+        state = self._state()
+        state.tool_calls = [
+            ToolCallSchema(tool="list_files", step=1),
+            ToolCallSchema(tool="read_file", step=1),
+            ToolCallSchema(tool="write_file", step=2),
+        ]
+        variables = self._evaluator()._get_prompt_variables(state)
+        self.assertEqual(
+            variables["executed_tools"],
+            "Step 1: list_files, read_file\nStep 2: write_file",
+        )
 
     def test_status_refreshes_live_plan_section(self):
         """The Evaluator updates the Planner's plan section in place."""

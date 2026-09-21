@@ -81,21 +81,40 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState) -> dict:
-        """Format prompt with goal, plan, current step and observations."""
+        """Format prompt with goal, plan, per-step executed tools and observations."""
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         plan = state.plan
-        executed = ", ".join(call.tool for call in state.tool_calls) or "(none)"
         variables = {
             "query": state.query,
             "goal": goal_text,
             "plan": plan.render(),
-            "executed_tools": executed,
+            "executed_tools": self._executed_tools_text(state),
             "observations": self._observations_text(state),
         }
         self.logger.debug(f"{variables = }")
         return variables
+
+    @staticmethod
+    def _executed_tools_text(state: KleaAgentState) -> str:
+        """Render the latest batch's tools grouped by originating step.
+
+        The calls carry their step (``ToolCallSchema.step``), so the flat
+        ``state.tool_calls`` list is grouped back into per-step lines
+        (ADR-0041).  Returns ``"(none)"`` when no tool ran (for example a
+        reasoning-only batch).
+        """
+        by_step: dict[int, list[str]] = {}
+        for call in state.tool_calls:
+            by_step.setdefault(call.step, []).append(call.tool)
+        return (
+            "\n".join(
+                f"Step {number}: {', '.join(tools)}"
+                for number, tools in sorted(by_step.items())
+            )
+            or "(none)"
+        )
 
     @override
     def _update_state(
