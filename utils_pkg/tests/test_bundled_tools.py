@@ -600,6 +600,54 @@ def test_list_files_recursive(tmp_path):
     assert result["error"] == ""
 
 
+def test_list_files_unfiltered_fallback(tmp_path):
+    # Observed failure: a *.txt filter on a directory of .md/.toml/.py files
+    # returned nothing and misled the agent into an abort.  The unfiltered
+    # listing is now returned so the available entries are visible.
+    (tmp_path / "README.md").write_text("")
+    (tmp_path / "pyproject.toml").write_text("")
+    (tmp_path / "main.py").write_text("")
+
+    result = list_files(
+        path=str(tmp_path),
+        pattern="*.txt",
+        include_directories=False,
+        project_root=str(tmp_path),
+    )
+
+    names = {f["path"].split("/")[-1] for f in result["files"]}
+    logger.debug(f"{names = }\n{result['note'] = }")
+    assert names == {"README.md", "pyproject.toml", "main.py"}
+    assert result["note"] != ""
+    assert result["error"] == ""
+
+
+def test_list_files_empty_dir_has_no_fallback(tmp_path):
+    result = list_files(path=str(tmp_path), pattern="*", project_root=str(tmp_path))
+
+    logger.debug(f"{result = }")
+    assert result["files"] == []
+    assert result["note"] == ""
+    assert result["error"] == ""
+
+
+def test_list_files_include_flags_fallback(tmp_path):
+    # Only files exist, but files were excluded: the fallback restores them.
+    (tmp_path / "f.py").write_text("")
+
+    result = list_files(
+        path=str(tmp_path),
+        pattern="*",
+        include_files=False,
+        project_root=str(tmp_path),
+    )
+
+    names = {f["path"].split("/")[-1] for f in result["files"]}
+    logger.debug(f"{names = }\n{result['note'] = }")
+    assert names == {"f.py"}
+    assert result["note"] != ""
+
+
 def test_list_files_truncates(tmp_path):
     for i in range(5):
         (tmp_path / f"f{i}.txt").write_text("")
@@ -630,7 +678,11 @@ def test_list_files_max_depth(tmp_path):
     )
     names = {f["path"].split("/")[-1] for f in result["files"]}
     logger.debug(f"max_depth=1: {names = }")
-    assert names == set()
+    # The *.py filter matches nothing at depth 1, so list_files falls back to
+    # the unfiltered listing: the directory 'a' is visible, but no .py file
+    # below the depth limit is.
+    assert names == {"a"}
+    assert result["note"] != ""
 
     result = list_files(
         path=str(tmp_path),

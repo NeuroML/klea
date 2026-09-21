@@ -48,7 +48,9 @@ def list_files(
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
 
-    :returns: dict with files, error, truncated.
+    :returns: dict with files, error, truncated, note.  ``note`` is non-empty
+        when the requested filter matched nothing and the fallback below
+        returned an unfiltered listing instead.
     """
     logger.debug(
         f"Listing files\n"
@@ -64,6 +66,7 @@ def list_files(
     the_path = Path(path)
     truncated = False
     error = ""
+    note = ""
     files: list[dict[str, Any]] = []
     paths: list[Path] = []
 
@@ -75,31 +78,60 @@ def list_files(
             "files": [],
             "truncated": False,
             "error": str(exc),
+            "note": "",
         }
 
     patterns = list(set(pattern.split()))
 
-    def _matches(entry: Path) -> bool:
-        return any(fnmatch.fnmatch(entry.name, p) for p in patterns)
+    def _matches(entry: Path, patterns_to_match: list[str]) -> bool:
+        """Return whether *entry*'s name matches any of *patterns_to_match*.
 
-    def _include(entry: Path) -> bool:
-        # Symlinks are always listed: they carry their own `link` type so the
-        # caller can decide how to treat them; the include_* flags only apply
-        # to real files and directories.
+        :param entry: Directory entry to test.
+        :param patterns_to_match: Glob patterns to match against the name.
+        :returns: ``True`` on the first matching pattern.
+        """
+        return any(fnmatch.fnmatch(entry.name, p) for p in patterns_to_match)
+
+    def _include(entry: Path, files_flag: bool, directories_flag: bool) -> bool:
+        """Return whether *entry* passes the include flags.
+
+        Symlinks are always included: they carry their own ``link`` type so
+        the caller can decide how to treat them; the ``include_*`` flags only
+        apply to real files and directories.
+
+        :param entry: Directory entry to test.
+        :param files_flag: Whether real files are included.
+        :param directories_flag: Whether real directories are included.
+        :returns: ``True`` when the entry should be listed.
+        """
         if entry.is_symlink():
             return True
-        is_dir = entry.is_dir()
-        if is_dir:
-            return include_directories
-        return include_files
+        if entry.is_dir():
+            return directories_flag
+        return files_flag
 
-    try:
+    def _collect(
+        patterns_to_match: list[str], files_flag: bool, directories_flag: bool
+    ) -> list[Path]:
+        """Return the entries under ``the_path`` passing the given filters.
+
+        Used for the requested listing and, unchanged in structure, for the
+        unfiltered fallback below (called with ``["*"], True, True``).
+
+        :param patterns_to_match: Glob patterns a name must match.
+        :param files_flag: Whether real files are included.
+        :param directories_flag: Whether real directories are included.
+        :returns: Matching paths, subject to ``recursive``/``max_depth``.
+        """
+        collected: list[Path] = []
         if not recursive:
             with os.scandir(the_path) as it:
                 for entry in it:
                     p = Path(entry.path)
-                    if _matches(p) and _include(p):
-                        paths.append(p)
+                    if _matches(p, patterns_to_match) and _include(
+                        p, files_flag, directories_flag
+                    ):
+                        collected.append(p)
         else:
             depth_limit = max_depth if max_depth is not None else float("inf")
             stack: list[tuple[Path, int]] = [(the_path, 1)]
@@ -111,14 +143,38 @@ def list_files(
                     entries = list(it)
                 for entry in entries:
                     p = Path(entry.path)
-                    if _matches(p) and _include(p):
-                        paths.append(p)
+                    if _matches(p, patterns_to_match) and _include(
+                        p, files_flag, directories_flag
+                    ):
+                        collected.append(p)
                     if (
                         p.is_dir()
                         and not p.is_symlink()
                         and (max_depth is None or depth < max_depth)
                     ):
                         stack.append((p, depth + 1))
+        return collected
+
+    try:
+        paths = _collect(patterns, include_files, include_directories)
+
+        # A filtered listing that matches nothing can mislead the loop into
+        # concluding the directory is empty (observed: ``list_files`` with
+        # ``pattern="*.txt"`` on a directory of .md/.toml/.py files returned
+        # ``files: []`` and the agent aborted).  When entries exist that the
+        # filter hid, return the unfiltered listing instead and say so in
+        # ``note``, so the caller can see what is actually there.
+        filtered = "*" not in patterns or not include_files or not include_directories
+        if not paths and filtered:
+            unfiltered = _collect(["*"], True, True)
+            if unfiltered:
+                paths = unfiltered
+                note = (
+                    f"No entries matched the requested filter "
+                    f"(pattern={pattern!r}, include_files={include_files}, "
+                    f"include_directories={include_directories}); "
+                    f"showing the unfiltered directory listing instead."
+                )
 
         if len(paths) > max_results:
             truncated = True
@@ -142,9 +198,15 @@ def list_files(
         error = e.__str__()
 
     logger.debug(
-        f"Listed files\n{path = }\n{len(files) = }\n{truncated = }\n{error = }"
+        f"Listed files\n{path = }\n{len(files) = }\n{truncated = }\n"
+        f"{note = }\n{error = }"
     )
 
-    result = {"files": files, "error": error, "truncated": truncated}
+    result = {
+        "files": files,
+        "error": error,
+        "truncated": truncated,
+        "note": note,
+    }
 
     return result

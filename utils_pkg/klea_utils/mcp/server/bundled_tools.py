@@ -136,6 +136,10 @@ async def list_files(
     - Finding a file anywhere under a directory tree by path pattern (use
       the find files tool instead).
 
+    If the ``pattern`` or the ``include_*`` filters match nothing but the
+    directory is not empty, the unfiltered listing is returned instead and
+    ``note`` explains why, so the response still shows what is there.
+
     Example: ``list_files(path=".", pattern="*.py", recursive=True)``
 
     Args:
@@ -149,7 +153,9 @@ async def list_files(
         max_results: Maximum number of entries to return.
 
     Returns:
-        Dictionary with list of files, truncated flag, and error.
+        Dictionary with list of files, truncated flag, error, and note (empty
+        unless a filter matched nothing and the unfiltered listing was
+        substituted).
     """
     result = list_files_impl(
         path=path,
