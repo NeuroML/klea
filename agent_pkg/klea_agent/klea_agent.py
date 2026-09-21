@@ -188,8 +188,10 @@ class KleaAgent(BaseLangGraph):
 
         ``unplannable`` -> failure answer; ``in_review`` -> human review;
         ``needs_input`` -> the answer node asks the pending question;
-        otherwise (``in_progress``) -> dispatch the current step by ``kind``:
-        ``tool`` -> picker/caller, ``reasoning`` -> ``ReasoningNode``.
+        ``completed`` (all steps already done) -> answer; otherwise
+        (``in_progress``) -> dispatch the next runnable step by ``kind``
+        (ADR-0041).  An ``in_progress`` plan with no runnable step is blocked
+        and fails closed.
         """
         status = state.plan.status
         if status == "unplannable":
@@ -198,6 +200,10 @@ class KleaAgent(BaseLangGraph):
             return "review"
         if status == "needs_input":
             return "needs_input"
+        if status == "completed":
+            return "plan_done"
+        if state.plan.current_step() is None:
+            return "failure"
         return self._step_kind(state)
 
     @staticmethod
@@ -621,9 +627,9 @@ class KleaAgent(BaseLangGraph):
                 "task": self._planner_node.label,
             },
         )
-        # Planner routing (ADR-0035): route on ``plan.status``; when running,
-        # dispatch the current step by its kind (tool -> picker, reasoning ->
-        # ReasoningNode).
+        # Planner routing (ADR-0035/ADR-0041): route on ``plan.status``; when
+        # running, dispatch the next runnable step by its kind (tool -> picker,
+        # reasoning -> ReasoningNode).
         self.workflow.add_conditional_edges(
             self._planner_node.label,
             self._planner_router,
@@ -631,6 +637,7 @@ class KleaAgent(BaseLangGraph):
                 "failure": self._answer_from_results_node.label,
                 "review": self._await_review_node.label,
                 "needs_input": self._answer_from_results_node.label,
+                "plan_done": self._answer_from_results_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
             },

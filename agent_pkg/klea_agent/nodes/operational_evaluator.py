@@ -113,19 +113,23 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
         evaluation = result.evaluation
+        current = plan.current_step()
 
-        # Robustness: a model may report the *final* step as ``step_done``
-        # ("criterion met, more steps remain") even though no steps remain.
-        # Coerce to completion so the graph does not route back to the picker
-        # past the end of the plan.
-        if (
-            evaluation == "step_done"
-            and plan.step_list
-            and plan.current_step_index >= len(plan.step_list) - 1
-        ):
-            self.logger.debug("step_done on the final step; coercing to plan_done")
-            result.evaluation = "plan_done"
-            evaluation = "plan_done"
+        # Robustness: a model may report ``step_done`` on the last remaining
+        # pending step ("criterion met, more steps remain") even though none
+        # remain.  Coerce to completion so the graph does not route back to the
+        # picker past the end of the plan.
+        if evaluation == "step_done" and current is not None:
+            other_pending = any(
+                s.status == "pending" and s.step_number != current.step_number
+                for s in plan.step_list
+            )
+            if not other_pending:
+                self.logger.debug(
+                    "step_done on the last pending step; coercing to plan_done"
+                )
+                result.evaluation = "plan_done"
+                evaluation = "plan_done"
 
         # --- Per-step semantic budget (deterministic) --------------------
         # Count non-advancing evaluations; repeated ``step_incomplete`` on the
@@ -160,25 +164,39 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             budget_abort = True
 
         if plan.step_list:
-            index = plan.current_step_index
-            if evaluation == "step_done" and 0 <= index < len(plan.step_list):
-                plan.step_list[index].status = "done"
-                plan.current_step_index = index + 1
-                plan.status = "in_progress"
+            if evaluation == "step_done":
+                if current is not None:
+                    current.status = "done"
+                if not any(s.status == "pending" for s in plan.step_list):
+                    plan.status = "completed"
+                    evaluation = "plan_done"
+                    result.evaluation = "plan_done"
+                elif not plan.frontier():
+                    # Pending steps remain but none is runnable (for example a
+                    # dependency failed): escalate instead of stalling.
+                    plan.status = "in_progress"
+                    evaluation = "need_replan"
+                    result.evaluation = "need_replan"
+                    result.reason = "no runnable step remains; the plan needs revision"
+                else:
+                    plan.status = "in_progress"
                 update["plan"] = plan
             elif evaluation == "plan_done":
-                if 0 <= index < len(plan.step_list):
-                    plan.step_list[index].status = "done"
-                plan.current_step_index = len(plan.step_list)
+                # The run is complete: mark every remaining step done so the
+                # completed plan is coherent.
+                for step_item in plan.step_list:
+                    if step_item.status == "pending":
+                        step_item.status = "done"
                 plan.status = "completed"
                 update["plan"] = plan
-            elif evaluation == "need_replan" and 0 <= index < len(plan.step_list):
-                plan.step_list[index].status = "failed"
+            elif evaluation == "need_replan":
+                if current is not None:
+                    current.status = "failed"
                 update["plan"] = plan
 
         if evaluation == "abort":
-            if plan.step_list and 0 <= plan.current_step_index < len(plan.step_list):
-                plan.step_list[plan.current_step_index].status = "failed"
+            if current is not None:
+                current.status = "failed"
             plan.status = "aborted"
             update["plan"] = plan
             if budget_abort:

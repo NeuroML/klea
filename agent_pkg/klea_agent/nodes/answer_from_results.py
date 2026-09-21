@@ -213,8 +213,8 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         if state.tool_results:
             return textualize_tool_results(state.tool_results)
         step = state.plan.current_step()
-        # A completed plan has ``current_step_index == len(step_list)``, so
-        # fall back to the final step's description.
+        # A completed plan has no runnable step left (the frontier is empty),
+        # so fall back to the final step's description.
         if step is None and state.plan.step_list:
             step = state.plan.step_list[-1]
         if step and step.description:

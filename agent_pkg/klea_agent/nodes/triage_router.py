@@ -26,8 +26,9 @@ def current_step_key(state: KleaAgentState) -> int:
 
     Uses the step's own ``step_number`` so observations and retry counters
     match the plan's displayed numbering (``Step 3`` for plan step ``3.``).
-    Falls back to ``current_step_index + 1`` when there is no plan/step (the
-    planless ``act`` path) or the step has no usable number.
+    The current step is the first runnable step in the dependency frontier
+    (ADR-0041).  Falls back to ``1`` when there is no plan/step (the planless
+    ``act`` path).
     """
     plan = getattr(state, "plan", None)
     if plan is not None:
@@ -36,7 +37,6 @@ def current_step_key(state: KleaAgentState) -> int:
             number = getattr(step, "step_number", 0)
             if isinstance(number, int) and number > 0:
                 return number
-        return int(getattr(plan, "current_step_index", 0) or 0) + 1
     return 1
 
 
