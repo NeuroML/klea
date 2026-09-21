@@ -134,7 +134,6 @@ class PlannerPlanSchema(BaseModel):
     status: Literal["in_progress", "in_review", "needs_input", "unplannable"] = Field(
         default="in_progress", validate_default=True
     )
-    current_step_index: int = 0
 
     def render(self, *, markdown: bool = False) -> str:
         """Render the plan as text (or the status-pane preformatted block).
@@ -145,33 +144,39 @@ class PlannerPlanSchema(BaseModel):
         Step N: description (...)`` lines with symbol markers, separated by a
         blank line and rendered preformatted so tool names stay literal.
 
+        The next runnable step (the first in the frontier, ADR-0041) is marked
+        as current.
+
         :param markdown: ``True`` for the status-pane render, ``False`` for
             the prompt render.
         :returns: The rendered plan, or ``"(no plan)"`` when there are no steps.
         """
         if not self.step_list:
             return "(no plan)"
+        current = self.current_step()
+        current_number = current.step_number if current is not None else None
         lines: list[str] = []
         if not markdown:
             lines.append("Steps:")
-        for index, step in enumerate(self.step_list):
-            current = index == self.current_step_index and step.status == "pending"
-            lines.append(step.render(current=current, markdown=markdown))
+        for step in self.step_list:
+            is_current = step.step_number == current_number and step.status == "pending"
+            lines.append(step.render(current=is_current, markdown=markdown))
         separator = "\n\n" if markdown else "\n"
         return separator.join(lines)
 
     def current_step(self) -> StepSchema | None:
-        """Return the plan's current step, or ``None`` when there is none.
+        """Return the next runnable step, or ``None`` when there is none.
 
-        :returns: The step at :attr:`current_step_index`, or ``None`` when the
-            plan is empty or the index is out of range.
+        The current step is the first step in the dependency frontier
+        (ADR-0041): the first pending step whose dependencies are all ``done``.
+        The single-``current_step_index`` cursor is gone; the position is
+        derived from per-step statuses and ``depends_on``.
+
+        :returns: The next runnable step, or ``None`` when the plan is empty or
+            no pending step is unblocked.
         """
-        if not self.step_list:
-            return None
-        index = self.current_step_index
-        if 0 <= index < len(self.step_list):
-            return self.step_list[index]
-        return None
+        frontier = self.frontier()
+        return frontier[0] if frontier else None
 
     def frontier(self) -> list[StepSchema]:
         """Return the unblocked pending steps, in step order (ADR-0041).
@@ -194,18 +199,16 @@ class PlannerPlanSchema(BaseModel):
     def validate_plan(self) -> list[str]:
         """Return structural-consistency errors for this plan (empty if valid).
 
-        The Planner is the sole author of the plan (including per-step status
-        and ``current_step_index``); code does not mutate it.  This check
-        enforces the machine-checkable invariants so an inconsistent plan is
-        rejected and retried instead of silently corrupting execution:
+        The Planner is the sole author of the plan (including per-step statuses
+        and ``depends_on``); code does not mutate it.  This check enforces the
+        machine-checkable invariants so an inconsistent plan is rejected and
+        retried instead of silently corrupting execution:
 
         * step numbers are positive and unique;
         * ``depends_on`` references only step numbers present in this plan, and
           only *earlier* step numbers, so dependencies point one way;
         * the plan is acyclic (``graphlib``); redundant with the
-          strictly-earlier rule, kept as a deterministic backstop (ADR-0041);
-        * ``current_step_index`` is within ``[-1, len-1]`` and points at the
-          first non-``done`` step (``len(step_list)`` when all are done).
+          strictly-earlier rule, kept as a deterministic backstop (ADR-0041).
 
         :returns: A list of human-readable error strings.
         """
@@ -239,13 +242,6 @@ class PlannerPlanSchema(BaseModel):
             ).prepare()
         except CycleError as exc:
             errors.append(f"steps form a dependency cycle: {exc}")
-        # ``current_step_index`` may legitimately be ``len`` when all steps
-        # are done; ``-1`` is accepted as "no current step" for an empty plan.
-        if not (-1 <= self.current_step_index <= len(self.step_list)):
-            errors.append(
-                f"current_step_index {self.current_step_index} is out of range "
-                f"for {len(self.step_list)} step(s)"
-            )
         return errors
 
 
