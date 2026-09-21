@@ -18,5 +18,6 @@ markers = [
     "e2e_failure",
     "e2e_picker",
     "e2e_persistence",
+    "e2e_parallel",
 ]
 asyncio_mode = "auto"
