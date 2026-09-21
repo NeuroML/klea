@@ -324,7 +324,10 @@ class KleaAgent(BaseLangGraph):
         ``step_outputs`` as :class:`StepOutput` entries (tool name + whether the
         interface displayed it) so the Evaluator and Planner see every
         observation for the step (bounded to the most recent
-        ``MAX_STEP_RESULTS``), and counts the round in ``tool_rounds``.
+        ``MAX_STEP_RESULTS``), and counts the round in ``tool_rounds``.  Each
+        result is recorded under its call's originating step (``call.step``),
+        so a batch spanning several steps stays attributed correctly
+        (ADR-0041).
 
         It also maintains ``replan_reason``: a batch with an ``is_error``
         result records the failed call's text as the unified reason the
@@ -345,24 +348,28 @@ class KleaAgent(BaseLangGraph):
             the replan reason.
         """
         counts = update_tool_retry_counts(state, results)
-        step = current_step_key(state)
+        default_step = current_step_key(state)
         calls = getattr(state, "tool_calls", [])
-        entries = [
-            StepOutput(
+        outputs = dict(state.step_outputs or {})
+        # Attribute each result to its call's originating step (``call.step``,
+        # set by the picker) so a batch spanning several steps records each
+        # observation under the right step (ADR-0041); fall back to the current
+        # step when the call carries none.
+        for i, result in enumerate(results):
+            call = calls[i] if i < len(calls) else None
+            step = int(getattr(call, "step", 0) or 0) or default_step
+            entry = StepOutput(
                 result=result,
-                tool=calls[i].tool if i < len(calls) else "",
+                tool=call.tool if call is not None else "",
                 displayed=displayed[i] if i < len(displayed) else False,
             )
-            for i, result in enumerate(results)
-        ]
-        has_error = any(getattr(r, "is_error", False) for r in results)
-        outputs = dict(state.step_outputs or {})
-        prior = outputs.get(step, [])
-        if not has_error:
-            # Progress: drop earlier errored entries for this step.
-            prior = [entry for entry in prior if not self._entry_is_error(entry)]
-        outputs[step] = [*prior, *entries][-self.MAX_STEP_RESULTS :]
+            prior = outputs.get(step, [])
+            if not getattr(result, "is_error", False):
+                # Progress on this step: drop its earlier errored entries.
+                prior = [e for e in prior if not self._entry_is_error(e)]
+            outputs[step] = [*prior, entry][-self.MAX_STEP_RESULTS :]
         rounds = state.tool_rounds + 1
+        has_error = any(getattr(r, "is_error", False) for r in results)
         # A failed batch feeds the Planner's unified replan reason; a clean
         # batch clears it (progress), so a stale tool error cannot mislead a
         # later replan (ADR-0035 update 2026-09-19).
@@ -370,7 +377,7 @@ class KleaAgent(BaseLangGraph):
             (last_tool_error_text(results) or "a tool call failed") if has_error else ""
         )
         self.logger.debug(
-            f"{counts = }\n{step = }\n{len(outputs.get(step, [])) = }\n{rounds = }\n"
+            f"{counts = }\n{outputs.keys() = }\n{rounds = }\n"
             f"{has_error = }\n{replan_reason = }"
         )
         return {

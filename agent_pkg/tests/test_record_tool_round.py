@@ -144,3 +144,24 @@ def test_records_tool_name_and_displayed_flag():
         ("edit_file", True),
         ("run_command", False),
     ]
+
+
+def test_results_attributed_to_call_step():
+    """Each result is recorded under its call's originating step (ADR-0041)."""
+    agent = _agent()
+    state = KleaAgentState(
+        plan=PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="done"),
+                StepSchema(step_number=2),
+            ]
+        ),
+        tool_calls=[
+            ToolCallSchema(tool="edit_file", step=2),
+            ToolCallSchema(tool="read_file", step=1),
+        ],
+    )
+    update = agent._record_tool_round(state, [_result(), _result()], [False, False])
+
+    assert update["step_outputs"][2][0].tool == "edit_file"
+    assert update["step_outputs"][1][0].tool == "read_file"

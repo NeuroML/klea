@@ -272,6 +272,22 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             tool_calls = [ToolCallSchema(tool="", args={}, reason=reason)]
             usable = False
 
+        plan = getattr(state, "plan", None)
+        current = (
+            plan.current_step()
+            if plan is not None and hasattr(plan, "current_step")
+            else None
+        )
+        step = int(getattr(current, "step_number", -1) or -1)
+
+        # Stamp the originating plan step on each usable call, so a batch of
+        # calls can be attributed back to its step (ADR-0041).  RAG has no plan,
+        # so its calls keep ``step = 0``.
+        if step > 0:
+            for call in tool_calls:
+                if call.tool.strip():
+                    call.step = step
+
         update: dict[str, Any] = {"tool_calls": tool_calls}
 
         # Deliberate failure: no usable call, but the picker explained why.  The
@@ -297,13 +313,6 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         # An empty list and a list whose calls all have empty/whitespace names
         # are the same failure: no usable tool call.  Unknown-but-non-empty
         # names are left to dispatch (which reports a clear error).
-        plan = getattr(state, "plan", None)
-        current = (
-            plan.current_step()
-            if plan is not None and hasattr(plan, "current_step")
-            else None
-        )
-        step = int(getattr(current, "step_number", -1) or -1)
         prev_step = getattr(state, "picker_step", -1)
         prev_attempts = int(getattr(state, "picker_attempts", 0) or 0)
         if usable or step != prev_step:

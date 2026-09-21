@@ -55,6 +55,10 @@ class ToolCallSchema(BaseModel):
     tool: str = ""
     args: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
+    #: 1-based plan step this call belongs to (0 when there is no plan, e.g.
+    #: RAG).  Set by the agent's picker so a batch of calls can be attributed
+    #: back to their originating step (ADR-0041).
+    step: int = 0
 
 
 class ToolCallsSchema(BaseModel):

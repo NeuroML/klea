@@ -460,3 +460,24 @@ def test_identical_repeat_without_on_unusable_is_allowed():
     update = picker._update_state(ToolCallsSchema(tool_calls=[call]), state)
 
     assert update["tool_calls"] == [call]
+
+
+def test_usable_calls_are_stamped_with_the_current_step():
+    """The agent picker stamps each call with its originating step (ADR-0041)."""
+    picker = _make_picker()
+    state = AgentLikeState(plan=PlanLike(step_list=[Step(step_number=3)]))
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), state
+    )
+
+    assert update["tool_calls"][0].step == 3
+
+
+def test_rag_calls_keep_step_zero():
+    """RAG has no plan, so its calls are not stamped."""
+    picker = _make_picker()
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), RagLikeState()
+    )
+    assert update["tool_calls"][0].step == 0
