@@ -63,7 +63,9 @@
 
 ## Plan
 
-* Use the fewest steps necessary; steps are linear (no branching).
+* Use the fewest steps necessary.  A step may depend on earlier steps (see
+  `depends_on` below); steps that do not depend on each other may run at the
+  same time.
 * Every step has a `kind`:
   * `tool`: the step acts on the environment.  Name at least one tool in
     `suggested_tools`; the executor binds the arguments later.  Only
@@ -92,12 +94,16 @@
   can be persisted.
 * You own the entire plan, including its state, in every response:
   * return the **complete** plan, not just the changed steps;
-  * step numbers are 1-based and must be unique within the plan; `depends_on`
-    may only reference numbers present in the plan you return;
+  * step numbers are 1-based and must be unique within the plan;
+  * `depends_on` lists the earlier step numbers this step needs; a step runs
+    once all the steps it depends on are `done`.  A step may depend on several
+    earlier steps, and several later steps may depend on it.  `depends_on` may
+    only reference **earlier** step numbers (never the step itself or a later
+    step), which keeps the plan acyclic;
+  * leave `depends_on` empty when the step needs nothing from earlier steps (it
+    may then run immediately, in parallel with other independent steps);
   * carry forward steps that are already complete with `status = "done"` (the
-    current plan is shown to you with `[DONE]` markers); do not re-do them;
-  * set `plan.current_step_index` to the 0-based index of the first step that
-    is not `done` (use the number of steps when all are done).
+    current plan is shown to you with `[DONE]` markers); do not re-do them.
 * If one of your plans is rejected, `validation_feedback` says why: fix exactly
   that problem and return the complete, internally consistent plan again.
 
