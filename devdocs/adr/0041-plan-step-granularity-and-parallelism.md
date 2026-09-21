@@ -1,8 +1,8 @@
 ---
-status: "draft"
-date: 2026-09-19
+status: "accepted"
+date: 2026-09-21
 decision-makers: Ankur Sinha
-consulted: "opencode (design session 2026-09-19)"
+consulted: "opencode (design sessions 2026-09-19 and 2026-09-21)"
 informed: klea contributors
 ---
 
@@ -49,10 +49,11 @@ Evaluator). It does not change RAG, which has no plan.
 
 * Correctness must not depend on the accuracy of LLM-produced dependency
   information.
-* Tool effects are already known deterministically: `ToolInfo` carries
-  `read_only`, `idempotent` and `destructive` MCP annotations
-  (`mcp/schemas.py:46-49`; ADR-0037), and the tool picker/caller already gate
-  on them.
+* A tool's effect *kind* is known deterministically (`ToolInfo` carries
+  `read_only`, `idempotent` and `destructive` MCP annotations,
+  `mcp/schemas.py:46-49`; ADR-0037), and its *resource* arguments are declared
+  by `ToolInfo.checkpaths` (`registry.py:170-176`).  The resource - not the
+  effect kind - is what decides whether two calls conflict.
 * Retry and per-step success criteria stay simple when a step is one action,
   one tool identity and (ideally) one call; partial-batch failure and
   compounded success criteria are avoided.
@@ -76,67 +77,91 @@ Evaluator). It does not change RAG, which has no plan.
 
 ## Decision Outcome
 
-Draft -- not yet decided. The current leaning is **B, conditional on the
-deterministic controls below**, with the explicit understanding that this
-requires more thought and is revisited before implementation. It would
-supersede the "no cross-step DAG scheduling" clause of ADR-0035 (only that
-clause; the rest of ADR-0035 stands).
+Accepted: **B - atomic steps plus explicit `depends_on`, executed by a
+deterministic frontier scheduler**, with a **caller-side resource guard**
+rather than the effect gate the draft proposed.  This supersedes the "no
+cross-step DAG scheduling" clause of ADR-0035 (only that clause; the rest of
+ADR-0035 stands).
 
-The controls that make B different from A in terms of safety, and which are
-the actual subject of the decision:
+The plan is a directed acyclic graph over the ordered step list: `depends_on`
+names the earlier steps a step needs.  `PlanSchema.validate_plan` enforces
+positive/unique step numbers, in-plan references, references only to
+*strictly earlier* steps, and acyclicity (`graphlib.TopologicalSorter`).  Code
+computes the **frontier** - the pending steps whose dependencies are all
+`done` - and dispatches it.
 
-1. **Effect gate.** Only steps whose tool is `read_only` or `idempotent` (and
-   not `destructive`) may run concurrently. Any mutating step serializes,
-   regardless of what the Planner claims. Because each step carries a tool
-   identity under the picker/planner contract, the scheduler can look this up
-   from `tools_info`.
-2. **Fail-safe default.** Assume dependence (serialize) unless independence is
-   explicitly declared. A missing dependency then costs only parallelism,
-   never correctness. (Note the current representation is the opposite:
-   `depends_on: []` means "no dependencies" and would run immediately.)
-3. **Structural validation.** `PlanSchema.validate_plan()` already rejects
-   dangling `depends_on` references and duplicate step numbers
-   (`schemas.py:152-190`); a frontier scheduler additionally requires an
-   acyclic graph, checked deterministically.
-4. **Binding check.** A step whose arguments actually depend on an earlier
-   step's output cannot be bound by the picker (the argument is absent) and
-   fails to the Planner. A dependent-but-declared-independent step is thus
-   caught at execution, not silently mis-executed.
+Work progresses in a **batch**: the frontier (capped at 8 steps / 16 calls by
+default, configurable) is bound in one picker invocation.  Each call carries
+its originating step and the calls are flattened in step order.  The caller
+groups the bound calls by **resource** (a tool's `checkpaths` arguments,
+compared lexically with `os.path.normpath`) and runs calls that share a
+resource **sequentially in step order**; every other call runs concurrently
+(`asyncio.gather`).  A tool whose resource cannot be identified runs
+concurrently, as today; resource paths are neither resolved nor validated.
 
-With these, LLM dependency data affects performance and replan frequency, not
-result correctness. Without controls 1-2, B is no safer than A and should not
-be pursued.
+The Evaluator judges the whole batch at once - given the batch's steps (with
+their success criteria), the executed tools and the per-step observations - and
+returns a verdict **per step** (a map), so one evaluation round covers the
+frontier.
 
-Because the mode of execution changes (a single current step vs a set of
-runnable steps), this decision also requires a plan-state model change (see
-Open Questions); that is the main reason it is left as a draft.
+### Controls that make this safe
+
+1. **Structural validation.** `PlanSchema.validate_plan` rejects duplicate or
+   non-positive step numbers, dangling `depends_on`, non-backward references,
+   and dependency cycles (`graphlib.TopologicalSorter`).  LLM dependency data
+   therefore affects performance, not well-formedness.
+2. **Serialize by resource conflict.** The caller runs same-resource calls in
+   step order; everything else is concurrent.  A missed dependency edge costs
+   parallelism, never a silent lost update.
+3. **Unknown resources run concurrently.** A call whose resource cannot be
+   identified is not serialised or validated - today's behaviour.
+4. **Binding check (retained).** A step whose argument depends on an earlier
+   step's output cannot be bound by the picker (the value is absent); it
+   escalates to the Planner.
+
+### Why not the effect gate
+
+The draft proposed gating concurrency on `read_only`/`idempotent` annotations.
+That rejects legitimate parallelism (independent writes to different files)
+and does not actually identify conflicts: the annotations describe an effect
+*kind*, not the *resource*.  A deterministic caller-side resource guard uses
+the bound arguments, where the information actually exists, and cannot be
+fooled by a missing dependency edge: two writes to the same file serialise
+even when `depends_on` is absent.
+
+Dependencies that are not resource-local (for example "download, then read")
+are not caught deterministically, but they fail loudly - the later call errors
+- and the Evaluator loop returns that failure to the Planner.  The silent
+class, same-resource read-modify-write, is what the caller guard closes.
 
 ### Consequences
 
-* Good, because a wrong parallel/dependency judgement cannot corrupt results:
-  writers serialize and the default is serialized.
-* Good, because the scheduler is deterministic and inspectable, and reuses the
-  existing MCP effect annotations rather than asking a model to judge safety.
+* Good, because a wrong or missing resource dependency cannot corrupt results:
+  same-resource calls serialise in step order.
+* Good, because the scheduler is deterministic and inspectable, and uses the
+  existing `checkpaths` metadata rather than asking a model to judge safety.
 * Good, because atomic steps keep retry semantics (same tool, arguments only)
-  and per-step `success_criteria` simple.
-* Bad, because it needs a new plan-state model and evaluator changes (multiple
-  runnable steps; per-step statuses rather than one `current_step_index`).
+  and per-step `success_criteria` simple, and independent writes parallelise.
+* Bad, because it needs a new plan-state model (per-step statuses and a
+  frontier, replacing `current_step_index`) and per-step Evaluator verdicts.
 * Bad, because it supersedes part of an accepted decision (ADR-0035), and the
-  parallelism win is currently unmeasured.
-* Neutral, because the intra-step multi-call allowance becomes optional and
-  possibly removable; the decision about keeping it is deferred.
+  parallelism win is unmeasured until the harness case lands.
+* Neutral, because the intra-step multi-call allowance becomes the batch
+  binding capability.
 
 ### Confirmation
 
-To be defined once a direction is chosen. Candidate checks:
-
-* Deterministic unit tests for the scheduler: only `read_only`/`idempotent`
-  steps ever appear in the same frontier batch; a mutating step is never
-  co-scheduled; a dependency cycle is rejected at plan validation.
-* A graph test where two independent read-only steps are observed to dispatch
-  in one frontier, and the same steps with a declared dependency do not.
-* Prompt/schema tests: each step carries a tool identity; `depends_on`
-  validates.
+* Deterministic unit tests for `frontier()`: only steps whose dependencies are
+  `done` appear; `depends_on` requires strictly earlier references; a cycle is
+  rejected (`graphlib.CycleError`).
+* Deterministic unit tests for the resource guard: same-resource calls run in
+  step order, different-resource calls run concurrently, unknown-resource
+  calls are not serialised.
+* A graph test where two independent steps dispatch in one frontier, and the
+  same steps with a declared dependency do not.
+* A batch cap test: the frontier is truncated to the configured step/call cap.
+* Prompt/schema tests: the Planner authors an acyclic DAG; the Evaluator
+  returns a per-step verdict map.
 
 ## Pros and Cons of the Options
 
@@ -157,7 +182,7 @@ To be defined once a direction is chosen. Candidate checks:
 
 * Good, because the dependency claim is explicit and structurally validatable.
 * Good, because the LLM's dependency data becomes a performance hint: the
-  effect gate and serialize-by-default rule prevent correctness damage.
+  caller-side resource guard prevents correctness damage.
 * Good, because atomic steps keep retry and success criteria simple.
 * Bad, because it needs a new plan-state model, a scheduler and evaluator
   changes.
@@ -178,33 +203,39 @@ To be defined once a direction is chosen. Candidate checks:
 
 ## More Information
 
-Open questions to settle before accepting this ADR:
+Decisions now settled (with the implementation increments):
 
-* **Plan-state model.** Replace the single `PlanSchema.current_step_index`
-  (`schemas.py:113`) with per-step statuses and a runnable set/queue; how the
-  Evaluator advances a frontier and how `plan_done` is detected
-  (`operational_evaluator.py:163-178`).
-* **Fail-safe representation.** How to express "serialize unless independent":
-  invert the `depends_on` default, add an explicit independence flag, or
-  require the Planner to enumerate the stable/no-arg steps it can batch.
-* **Planner prompt.** Whether to keep `depends_on` advisory or make it a
-  required, checked field, and how to prompt it without asking the model to
-  reason about tool effect annotations.
-* **Picker multi-call allowance.** Keep the intra-step multi-call capability
-  for picker-driven batching of intent-level steps, or restrict the picker to
-  one call per step (which makes partial-batch retry moot).
-* **Measurement.** Build the evaluation-harness case for independent reads
-  and confirm the win before committing to the scheduler complexity.
+* **Plan-state model.** Per-step `status` plus a computed `frontier()`
+  replaces the single `PlanSchema.current_step_index`
+  (`schemas.py`); the Evaluator advances step statuses and the router
+  recomputes the frontier.
+* **Fail-safe representation.** `depends_on` is trusted as the Planner's
+  ordering; correctness comes from the caller-side resource guard, not from a
+  serialize-by-default rule.
+* **Planner prompt.** `depends_on` becomes a required, checked field
+  (strictly-earlier references, acyclic); the "steps are linear (no
+  branching)" line is replaced with plain-language DAG rules.
+* **Picker.** One invocation binds the whole frontier batch; calls carry their
+  originating step and are flattened in step order.
+
+Still open:
+
+* **Measurement.** Build the evaluation-harness case for independent steps and
+  confirm the win.
+* **Batch cap.** Default 8 steps / 16 calls; revisit once measured.
+* **Path normalisation.** Lexical `os.path.normpath` only; absolute-vs-relative
+  forms of the same file are not grouped.
 * **Interaction with HITL.** How plan review (`AwaitReview`) presents a
   frontier/DAG plan rather than a linear one.
 
 Related decisions and references:
 
 * ADR-0035 general operational agent path (`:85,121,129-134,137-138`), which
-  this ADR would partially supersede.
+  this ADR partially supersedes.
 * ADR-0025 (superseded) `:68` "a plan step allows parallel tool calls by
   default".
-* ADR-0037 tool access levels and the `ToolInfo` effect annotations.
+* ADR-0037 tool access levels and the `ToolInfo` effect annotations;
+  `ToolInfo.checkpaths` (`registry.py:170-176`) supplies the resource args.
 * ADR-0028 prompt cache (stable prefix).
 * Session log `.agents/2026-09-18-2359.md:111` ("dependency-frontier batching
   ADR"), which recorded this as carry-over work.

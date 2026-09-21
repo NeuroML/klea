@@ -323,8 +323,8 @@ graph TD;
 * The HITL interrupt/resume stage (``AwaitReview`` -> real LangGraph
   ``interrupt``/``Command(resume=...)`` and wiring ``needs_input`` to
   resume the same run) will change the review and ``needs_input`` edges.
-* Parallel step execution (ADR-0041, draft) and dependency-frontier
-  batching will change the step-entry structure.
+* Parallel step execution (ADR-0041, accepted 2026-09-21) and
+  dependency-frontier batching will change the step-entry structure.
 * The retrieval tool (``search_stores``) that wires RAG stores into the
   agent is deferred per the control-flow note; when added it is a new
   ``Running tools`` target (an MCP/tool component, not a graph node).

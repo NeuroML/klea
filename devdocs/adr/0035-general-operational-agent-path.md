@@ -480,8 +480,9 @@ State lifetime is explicit; the aim is a bounded working set, not the
 ### Parallelism
 
 Step granularity, explicit dependencies and parallel execution are a
-separate decision: ADR-0041 (draft).  A reasoning step is effect-free and
-therefore parallelisable under that decision's effect gate.
+separate decision: ADR-0041 (accepted 2026-09-21), which supersedes the "no
+cross-step DAG scheduling" clause above.  A reasoning step is effect-free and
+therefore parallelisable under that decision.
 
 ## Update (2026-09-21): plan schema direction and plan-history counters
 
