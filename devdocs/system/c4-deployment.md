@@ -3,10 +3,10 @@
 Status: architecture documentation. Reflects the deployed Klea
 containers at the time of writing. This is the deployment view of the
 Klea C4 model; the Level 1 system context is in `c4-system-context.md`,
-Level 2 containers in `c4-container.md`, and Level 3 RAG components in
-`c4-component-rag.md`.  The agent's components are still `proposed`
-(ADR-0025) and the deployment view for the agent is the same topology
-with the agent container added.
+Level 2 containers in `c4-container.md`, and Level 3 components in
+`c4-component-rag.md` and `c4-component-agent.md`.  The deployment view
+for the agent is the same topology with the agent container added (the
+agent is WIP and not yet part of the HuggingFace Space image).
 
 ## Scope and intent
 
@@ -126,7 +126,7 @@ a run-time node vs dotted external ``System_Ext`` edges mirror Level 1.
 | Deployment node | Hosts | Containers / data | Notes |
 |------------------|-------|------------------|-------|
 | Developer Workstation (Build-time) | Author's laptop / CI | ``klea-stores-create`` (Typer), ``.klea-cache/`` (``*.pkl``/``*.pkl.corrupt``/``doi-cache.json``/``metadata-map.template.json``), built ``chroma.sqlite3`` + BM25 ``.pkl`` | ``chunk_all`` worker-isolated (ADR-0001) + ``_save_to_cache`` atomic / ``_prune_cache`` (demoted 0022) + OCR ``pre-check`` / ``store-lint``/``map-lint`` (demoted 0023-0024) + ``char-budget`` ``max_refs_size`` (demoted 0027) |
-| Local Machine (Direct or Docker) | ``uv pip install`` or ``docker run`` | ``klea_rag`` (``:8005`` + ``:7860`` web), ``bundled klea-mcp`` stdio, ``nml-mcp`` ``:8542``, ``Vector/BM25 Stores`` (file vs Qdrant/pgvector service per URI), ``Session/Checkpoint`` SQLite, plus ``agent`` ``:8006`` when ``ADR-0025`` accepted | ``KLEA_*_ENV_FILE`` / ``--profile`` (``platformdirs`` ``~/.config/klea-rag/``, ``XDG_CONFIG_HOME`` per ADR-0015; ``KLEA_*_GUARD_MODEL`` empty skips guard per ADR-0010); per-request model switching per ADR-0014 |
+| Local Machine (Direct or Docker) | ``uv pip install`` or ``docker run`` | ``klea_rag`` (``:8005`` + ``:7860`` web), ``bundled klea-mcp`` stdio, ``nml-mcp`` ``:8542``, ``Vector/BM25 Stores`` (file vs Qdrant/pgvector service per URI), ``Session/Checkpoint`` SQLite, plus ``klea_agent`` ``:8006`` (WIP) | ``KLEA_*_ENV_FILE`` / ``--profile`` (``platformdirs`` ``~/.config/klea-rag/``, ``XDG_CONFIG_HOME`` per ADR-0015; ``KLEA_*_GUARD_MODEL`` empty skips guard per ADR-0010); per-request model switching per ADR-0014 |
 | Container Platform (Docker) -- generic | Any Docker host | Same ``klea_rag``/``nml-mcp``/``bundled``/``SQLite`` containers as Local | The ``deployments/huggingface/Dockerfile`` image is not HF-only |
 | -- HuggingFace Spaces (inside Container Platform) | HF Spaces ``sdk: docker`` | Same containers, plus baked ``vector-stores/**`` (``chroma:/app/vector-stores/**``) | Logical monorepo ``deployments/huggingface/`` submodule vs HF Space repo; ``.gitattributes`` ``vector-stores/** filter=lfs/xet``; ``README.md`` ``suggested_hardware: cpu-basic`` |
 
@@ -146,7 +146,8 @@ a run-time node vs dotted external ``System_Ext`` edges mirror Level 1.
 ## Open items
 
 * The agent's deployment (``klea_agent :8006``) is the same topology with
-  the agent container added; it will be drawn when ``ADR-0025`` is
-  accepted.
+  the agent container added; it is WIP (general path implemented, see
+  `c4-component-agent.md`/ADR-0035) and not yet drawn or shipped in the
+  HuggingFace Space image.
 * BioFAIR institutional deployment (``Data Commons``/``Method Commons``
   via APIs) is planned (``c4-system-context.md:118``).

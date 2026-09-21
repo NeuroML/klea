@@ -2,9 +2,10 @@
 
 Status: architecture documentation. Reflects the monorepo at the time of
 writing. This is the Level 2 view of the Klea C4 model; the Level 1 system
-context is in `c4-system-context.md`, the RAG Level 3 view is in
-`c4-component-rag.md`, and the deployment view is in `c4-deployment.md`.
-Lower-level code views live in sibling files to be added as needed.
+context is in `c4-system-context.md`, the RAG and Agent Level 3 views are in
+`c4-component-rag.md` and `c4-component-agent.md`, and the deployment view is
+in `c4-deployment.md`.  Lower-level code views live in sibling files to be
+added as needed.
 
 ## Scope and intent
 
@@ -153,9 +154,13 @@ The internals of the RAG container (``classify_question``,
 ``evaluator`` etc.) are shown at Level 3 in `c4-component-rag.md`
 (auto-generated Mermaid core + ``elk`` augmentation, with drift check
 against ``rag_pkg/example-configs/rag-lang-graph.mmd``).  The agent's graph
-nodes (``planner``, ``explore_planner``, ``goal_setter``,
-``evaluator``, ``tools_router``) will be shown at Level 3 when the
-correctness architecture (``ADR-0029``, ``accepted``; superseding ``ADR-0025``) is implemented.  The ``nml-mcp``
-tool/sandbox layout and the ``klea_utils`` API/stores internals are
-future code-level views.  The deployment view (local vs container
-platform with HuggingFace Spaces as a nested node) is ``c4-deployment.md``.
+(``planner``, ``route_decision``, ``reasoning``, ``operational_evaluator``,
+the shared picker/caller, the ``AwaitReview`` stub) is shown at Level 3 in
+`c4-component-agent.md` (same convention, drift check against
+``agent_pkg/example-configs/klea-agent-lang-graph.mmd``); it implements the
+general operational path (``ADR-0035``, which supersedes the ``ADR-0025``
+topology proposal) and the scientific-mode correctness layer
+(``ADR-0029``) is not yet implemented.  The ``nml-mcp`` tool/sandbox layout
+and the ``klea_utils`` API/stores internals are future code-level views.
+The deployment view (local vs container platform with HuggingFace Spaces as
+a nested node) is ``c4-deployment.md``.

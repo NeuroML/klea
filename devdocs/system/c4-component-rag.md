@@ -4,8 +4,7 @@ Status: architecture documentation. Reflects the RAG container at the
 time of writing. This is the Level 3 view for the ``klea_rag`` container
 (``rag_pkg``); the Level 1 system context is in `c4-system-context.md`
 and the Level 2 container diagram is in `c4-container.md`.  The agent's
-components live in a sibling file to be added when its topology is
-accepted (ADR-0025 proposed).
+components are the sibling view in `c4-component-agent.md`.
 
 ## Scope and intent
 
@@ -236,12 +235,12 @@ graph TD;
 
 ## How the components interact (mirrors Level 2)
 
-* The RAG pipeline is the mature path (``c4-system-context.md:54`` ``Domain-configurable … RAG mature``); the agent's components are a sibling C3 file to be added when ``ADR-0025`` is accepted.
+* The RAG pipeline is the mature path (``c4-system-context.md:54`` ``Domain-configurable … RAG mature``); the agent's components are the sibling view in `c4-component-agent.md`.
 * Every RAG component that needs an LLM (guard, classify, generate-search, picker, answer, evaluate, answer-general) is a ``BaseLLMNode`` (``ADR-0019``) and goes through the shared ``_make_retryer_httpx`` + token-window ladder (``ADR-0017``) and the ``BaseLangGraph`` per-request model switching (``ADR-0014``).
 * ``RetrieveInfoNode`` is the composition point for ADR-0012 hybrid (vector+BM25, RRF, ``_source_scores`` debug, ``max_refs_size``) and ADR-0022 filter system (per-domain scoping); ``ToolsCallerNode`` is the composition point for ADR-0007 permissions and ADR-0003 ``isError``.
 * Diagrams live in ``devdocs/system/`` as the single source of truth (``devdocs/README.md:27``); ``docs/developer-info.rst`` links to them on GitHub.
 
 ## Open items (Level 3+)
 
-* The agent's component diagram (``klea_agent/klea_agent/nodes/`` -- ``goal_setter``, ``planner``, ``explore_planner`` etc.) is ``proposed`` (``ADR-0025``) and not yet accepted.
+* The agent's component diagram is the sibling view in `c4-component-agent.md` (ADR-0035, superseding the ``ADR-0025`` topology proposal); the scientific-mode correctness layer (ADR-0029) it shows is not yet implemented.
 * The deployment view (local ``uv``/Ollama ``:8005/:8006/:8542`` vs HuggingFace Space ``deployments/huggingface/Dockerfile`` three-service container) is a separate diagram.

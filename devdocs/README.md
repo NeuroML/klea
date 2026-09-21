@@ -41,7 +41,7 @@ Structure:
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
-| `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; future C4 diagram) |
+| `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; companion to the C4 Agent component diagram) |
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |
 | `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
@@ -85,4 +85,5 @@ Structure:
 | `adr/0039-file-editing-tools.md` | ADR-0039: File editing tools: whole-file write plus exact search/replace with bounded replacer recovery |
 | `adr/0040-stream-contract-inspect-tool-token.md` | ADR-0040: Stream contract: `inspect` events, chat-renderable `tool` events, gated `token` (amends ADR-0013) |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
+| `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

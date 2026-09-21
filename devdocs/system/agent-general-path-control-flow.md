@@ -1,7 +1,7 @@
 # General-path control flow
 
-Status: design note, not an ADR.  Concrete mechanics for ADR-0035; to be
-replaced by the C4 agent component diagram once the graph is implemented.
+Status: design note, not an ADR.  Concrete mechanics for ADR-0035; the C4
+Level 3 view of the same graph is `c4-component-agent.md`.
 Written 2026-09-10 by opencode (model: deepseek-flash); revised same day to
 the narrow-router + task-path topology; revised 2026-09-19 for reasoning
 steps, the tool-identity contract, the unified replan reason, ``needs_input``

@@ -3,8 +3,8 @@
 Status: architecture documentation. Reflects the monorepo at the time of
 writing. This is the top of a C4 model of Klea; lower levels live in sibling
 files: `c4-container.md` (Level 2), `c4-component-rag.md` (Level 3 RAG),
-and `c4-deployment.md` (deployment), with the agent Level 3 to be added
-when its topology is accepted (ADR-0025 proposed).
+`c4-component-agent.md` (Level 3 Agent), and `c4-deployment.md`
+(deployment).
 
 ## Scope and intent
 
@@ -126,8 +126,9 @@ How the agent consumes the RAG's curated information is an open decision and is
 out of scope for this diagram (both are inside the Klea boundary).  Candidate
 mechanisms are the RAG HTTP API versus direct vector-store access, noting that
 RAG returns natural-language answers for humans while the agent needs the
-retrieved documents.  Tracked as a future ADR.  See also ``ADR-0025`` agent
-topology (``proposed``).  The relationship is drawn at Level 2.
+retrieved documents.  Tracked as a future ADR.  See also the agent correctness
+architecture ``ADR-0029`` (``accepted``; supersedes the ``ADR-0025`` topology
+proposal).  The relationship is drawn at Level 2.
 
 ## Out of scope (Level 2+)
 
@@ -137,5 +138,6 @@ stores, bundled MCP server) -- plus the FastAPI serving layer, the TUI / Web
 UIs, the bundled `klea-mcp` stdio server, and the SQLite session / checkpoint
 stores are all *inside* the Klea boundary.  They are containers and are shown
 in the Level 2 container diagram (`c4-container.md`).  RAG internals are shown
-at Level 3 in `c4-component-rag.md`; deployment is shown in `c4-deployment.md`.
-The agent's internals will be shown at Level 3 when ``ADR-0025`` is accepted.
+at Level 3 in `c4-component-rag.md` and the agent's in
+`c4-component-agent.md` (ADR-0035, which supersedes the ADR-0025 proposal);
+deployment is shown in `c4-deployment.md`.
