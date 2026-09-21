@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-09-19.
+Last updated: 2026-09-21.
 
 ## HITL / plan review
 
@@ -25,10 +25,10 @@ Last updated: 2026-09-19.
 
 ## Agent general path
 
-- ADR-0041 draft (plan-step granularity and parallelism): settle the
-  plan-state model, the fail-safe dependency default, the picker multi-call
-  allowance, and whether to measure the parallelism win; dependency-frontier
-  batching.
+- ADR-0041 (accepted 2026-09-21): implement the dependency-frontier scheduler
+  in increments - pure `frontier()`/validation helpers, DAG plan-state model,
+  batch picker + per-step evaluator verdicts, caller-side resource-grouped
+  parallel dispatch (cap 8 steps/16 calls); then measure.
 - Phase-2 deterministic tool-substitution backstop; planner
   catalogue-membership validation.
 - `add_artefact` tool; promote `_slug` / artefact-id derivation to a shared
@@ -36,11 +36,14 @@ Last updated: 2026-09-19.
 - Session-as-invocation / "what next" ADR; cached project explorer.
 - Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path
-  is missing (an agent may reach for `find /`).  `run_command` is not
-  boundary-checked like the file tools, so consider a guard; gather a concrete
-  case before coding.
-- Picker error feedback for weak models (T3 residual): make it more
-  actionable or accept as a model-capability limit.
+  is missing (an agent may reach for `find /`).  `read_file`/`edit_file` now
+  report nearby entries on a missing target, and the picker escalates identical
+  failed calls, but `run_command` is still not boundary-checked like the file
+  tools, so consider a guard; gather a concrete case before coding.
+- Planner completion gap: the Planner can mark a plan's only/all steps `done`
+  with `status=in_progress` (it has no `completed` status), which routes to the
+  step entry with no current step and forces an empty-picker replan (observed in
+  the `missing_file` E2E).  Consider a deterministic completion path.
 
 ## Tools
 
@@ -88,9 +91,6 @@ Last updated: 2026-09-19.
 
 ## Testing
 
-- E2E: re-run `reasoning` to confirm the picker leaves `pattern` unset and
-  lists all three files, then run `review` and `missing_file` (previously
-  timed out) one at a time.
 - `rag_pkg/klea_rag/nodes/generate_retrieval_query.py`:
   `_get_default_error_result` returns an all-default `RetrievalQueryOutput()`
   (empty `search_query`); decide whether that should degrade to a clear
