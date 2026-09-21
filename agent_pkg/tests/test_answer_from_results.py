@@ -61,6 +61,19 @@ class TestAnswerFromResults(unittest.TestCase):
         # On success the outcome-detail block is omitted entirely.
         self.assertEqual(variables["outcome_details"], "")
 
+    def test_prompt_omits_plan_history_for_single_plan(self):
+        variables = self._node()._get_prompt_variables(self._state())
+        self.assertEqual(variables["plan_history_block"], "")
+
+    def test_prompt_includes_plan_history_after_review(self):
+        state = self._state()
+        state.plan.plan_version = 2
+        state.plan.human_feedback_rounds = 1
+        variables = self._node()._get_prompt_variables(state)
+        self.assertIn("## Plan history", variables["plan_history_block"])
+        self.assertIn("version 2", variables["plan_history_block"])
+        self.assertIn("1 human review round(s)", variables["plan_history_block"])
+
     def _failed_state(self) -> KleaAgentState:
         state = KleaAgentState(query="do x")
         state.plan = PlanSchema(status="aborted")
