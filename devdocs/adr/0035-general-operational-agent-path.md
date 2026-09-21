@@ -350,7 +350,7 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan),
   repeated non-advancing evaluations (`step_attempt_counts` -> replan),
-  Planner entries (`plan_revisions` -> `unplannable`) and total picker+caller
+  Planner entries (`automated_plan_revisions` -> `unplannable`) and total picker+caller
   rounds (`tool_rounds` -> `abort`).  Consecutive empty picker selections are
   bounded in the picker node itself (`picker_attempts`, reset on a successful
   pick or a step change); after the budget the empty round proceeds to the
@@ -482,6 +482,42 @@ State lifetime is explicit; the aim is a bounded working set, not the
 Step granularity, explicit dependencies and parallel execution are a
 separate decision: ADR-0041 (draft).  A reasoning step is effect-free and
 therefore parallelisable under that decision's effect gate.
+
+## Update (2026-09-21): plan schema direction and plan-history counters
+
+The plan model is split so the authored plan is the base and the runtime plan
+extends it:
+
+* ``PlannerPlanSchema`` is now the base: the steps, the statuses the Planner may
+  set (``in_progress``/``in_review``/``needs_input``/``unplannable``), and
+  ``current_step_index``, plus the shared ``render``/``current_step``/
+  ``validate_plan`` behaviour.
+* ``PlanSchema(PlannerPlanSchema)`` widens ``status`` with the lifecycle values
+  written by code and adds the run-history counters.  This direction (authored
+  plan as base, runtime bookkeeping as derived) is the inverse of the earlier
+  subclass-for-the-model arrangement; the Planner's structured-output schema is
+  unchanged.
+
+Plan-history counters live on the plan, not as floating state fields:
+
+* ``plan_version`` -- monotonic count of plans the Planner authored in the run
+  (0 = no plan; the first authored plan is 1);
+* ``human_feedback_rounds`` -- monotonic count of human review rounds processed;
+* ``automated_plan_revisions`` -- renamed from ``plan_revisions``; consecutive
+  automated replans since the initial plan or last human review (the budget
+  counter, reset on review).
+
+These are a **context-free signal**, not content.  ``AnswerFromResults`` is told
+the final plan is version V after M human review round(s) (``revision_summary``)
+so it does not claim the plan was executed unilaterally, but it is not given the
+raw feedback or earlier plan versions: feedback is only meaningful attached to
+the plan version it refers to, which the answer does not receive.  A future
+verifier that needs the full path (e.g. scientific mode, ADR-0029) would require
+a retained plan-revision journal; that is deferred.
+
+``human_feedback`` and ``replan_reason`` remain separate **transient** state
+fields: node-to-node signals consumed (cleared) within the run, not durable
+state and not rendered into downstream prompts.
 
 Cross-references: ADR-0018 (message memory), ADR-0020 (picker/caller),
 ADR-0028 (prompt cache), ADR-0029 (correctness and artefacts), ADR-0032

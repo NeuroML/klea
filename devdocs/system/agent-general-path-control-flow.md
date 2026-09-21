@@ -214,7 +214,14 @@ the latest observations so it can bind arguments that depend on prior outputs
 * ``plan: PlanSchema`` (steps, per-step ``success_criteria``/``status``/
   ``kind``/``suggested_tools``, current step index, and the lifecycle ``status``
   used for routing).  The Planner authors all of it (Design A, above); code only
-  validates structure.
+  validates structure.  ``PlanSchema`` extends the authored
+  ``PlannerPlanSchema`` and also carries the run-history counters:
+  ``plan_version`` (monotonic; 0 = no plan, first authored plan = 1),
+  ``human_feedback_rounds`` (human review rounds processed), and
+  ``automated_plan_revisions`` (consecutive automated replans since the initial
+  plan or last review; the budget counter, reset on review).  These counters
+  are a context-free signal for the answer synthesis (ADR-0035 update
+  2026-09-21).
 * ``step_outputs: dict[int, list[StepOutput]]`` (per-step results; a
   ``StepOutput.result`` is either a ``CallToolResult`` or, for a reasoning
   step, a plain ``str`` conclusion).  Plan-scoped: cleared each turn and on a
@@ -224,25 +231,29 @@ the latest observations so it can bind arguments that depend on prior outputs
   step; ADaPT re-pick budget).
 * ``step_attempt_counts: dict[int, int]`` (non-advancing evaluations per step;
   semantic no-progress budget).
-* ``plan_revisions: int`` (automated replans since the initial plan or the last
-  human review; replan budget; review entries reset it).
 * ``picker_attempts``/``picker_step`` (consecutive unusable picker selections
   and the step they belong to; bounded retry before escalating).
-* ``replan_reason: str`` (unified reason the Planner is re-entered: set by the
-  Evaluator on ``need_replan`` and by the tool-round recorder on a failed
-  batch; read and cleared by the Planner).
 * ``pending_question: str`` (the question to ask when ``plan.status`` is
   ``needs_input``).
 * ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run;
   global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
-* ``human_feedback: str`` (latest review input; empty otherwise).
 * ``evaluation: EvaluationSchema`` (latest operational verdict + reason).
 * ``artefacts: dict[str, ArtefactSchema]`` (session-scoped durable results; the
   completed task's deliverable is persisted here, see Persistence below).
 * ``messages`` (run history: query, plan/verdict progress, review input,
   final answer).
 * ``mode: Mode`` (requested / resolved / note).
+
+**Transient node-to-node signals** (not durable state; consumed/cleared within
+the run; not rendered into downstream prompts):
+
+* ``human_feedback: str`` -- the latest review input, written by ``AwaitReview``
+  and interpreted then cleared by the Planner (which records the round on
+  ``plan.human_feedback_rounds``).
+* ``replan_reason: str`` -- the unified automated-replan trigger, set by the
+  Evaluator on ``need_replan`` and by the tool-round recorder on a failed batch;
+  read and cleared by the Planner.
 
 ## Persistence (plan-scoped vs session-scoped)
 
@@ -288,7 +299,7 @@ level 2 verifier with provenance.
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` N re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
-| plan cannot be revised usefully | failure answer | ``plan_revisions``/``tool_rounds`` cap -> ``abort`` |
+| plan cannot be revised usefully | failure answer | ``automated_plan_revisions``/``tool_rounds`` cap -> ``abort`` |
 
 Failure is attributed per call, not per round: successful calls in a round are
 kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
@@ -348,8 +359,9 @@ The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
 counters live in state (incremented by the acting nodes) and the caps are
 enforced deterministically in the Evaluator/Planner ``_update_state`` (not by
 the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
-``plan_revisions`` escalate to a replan/``unplannable``; ``tool_rounds`` sets
-``abort`` and the failure answer, so the act/eval loop always terminates.  The
+``automated_plan_revisions`` escalate to a replan/``unplannable``;
+``tool_rounds`` sets ``abort`` and the failure answer, so the act/eval loop
+always terminates.  The
 Evaluator prompt uses ``step_incomplete`` only when a specific further call is
 expected, ``need_replan`` when the observations show no progress toward the
 criterion, and ``abort`` when they show the goal is unreachable (above).

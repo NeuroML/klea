@@ -34,7 +34,7 @@ Last updated: 2026-09-19.
 - `add_artefact` tool; promote `_slug` / artefact-id derivation to a shared
   helper or `ArtefactSchema`.
 - Session-as-invocation / "what next" ADR; cached project explorer.
-- Revisit the `max_plan_revisions` default (4 automated replans).
+- Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path
   is missing (an agent may reach for `find /`).  `run_command` is not
   boundary-checked like the file tools, so consider a guard; gather a concrete

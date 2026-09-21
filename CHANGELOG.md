@@ -61,6 +61,7 @@
 
 - Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
 - The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.
+- Plan state is now `PlanSchema` extending the authored `PlannerPlanSchema`, with run-history counters (`plan_version`, `human_feedback_rounds`, `automated_plan_revisions`) carried on the plan; `human_feedback`/`replan_reason` remain documented transient node-to-node signals.
 - Per-step observations, retry counters and status use the plan step's 1-based number, and per-step state is cleared when the planner writes a plan, so replans no longer merge stale outputs.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
@@ -71,6 +72,7 @@
 - Superseded failed tool outputs are dropped from a step's observations once a call succeeds, so stale errors no longer confuse evaluation or the final answer.
 - The evaluator is given the list of tools actually executed, and an empty retrieval renders a clear "no context" marker instead of a blank context section.
 - Reasoning steps now carry their `rationale` into `observations` (`StepOutput.rationale`, rendered as `Rationale: ...`), so the Evaluator and Planner see the justification instead of judging a bare conclusion and looping on "missing justification".
+- The final answer is given a plan-history signal (plan version and human-review round counts) and no longer claims a reviewed or revised plan was executed without the user's approval.
 
 ## v0.5.0 (2026-09-09)  ---  `klea_utils` / `klea_rag`
 
