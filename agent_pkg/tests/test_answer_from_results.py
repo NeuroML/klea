@@ -38,7 +38,6 @@ class TestAnswerFromResults(unittest.TestCase):
                 )
             ],
             status="completed",
-            current_step_index=1,
         )
         return state
 

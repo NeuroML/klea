@@ -25,13 +25,17 @@ def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
     state.tool_results = [
         CallToolResult(content=[], structured_content=None, meta=None, is_error=error)
     ]
-    # A plan with one step per index; the step identity is its 1-based number.
+    # A plan with one step per index; steps up to *step* are done, so the
+    # current (frontier) step is *step* + 1, its 1-based number.
     state.plan = PlanSchema(
         step_list=[
-            StepSchema(step_number=i + 1, description=f"s{i + 1}")
+            StepSchema(
+                step_number=i + 1,
+                description=f"s{i + 1}",
+                status="done" if i < step else "pending",
+            )
             for i in range(step + 1)
         ],
-        current_step_index=step,
     )
     state.tool_retry_counts = counts or {}
     return state

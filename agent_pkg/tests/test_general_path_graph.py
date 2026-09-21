@@ -156,7 +156,6 @@ def _plan_with_step(
     state.plan = PlanSchema(
         step_list=[StepSchema(step_number=1, description="s", kind=kind)],
         status=status,
-        current_step_index=0,
     )
     return state
 

@@ -40,7 +40,6 @@ class TestOperationalEvaluator(unittest.TestCase):
                     StepSchema(step_number=1, description="step one"),
                     StepSchema(step_number=2, description="step two"),
                 ],
-                current_step_index=0,
             )
         return state
 
@@ -50,9 +49,9 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertNotIn("message_for_user", update)
         plan = update["plan"]
-        self.assertEqual(plan.current_step_index, 1)
         self.assertEqual(plan.step_list[0].status, "done")
         self.assertEqual(plan.status, "in_progress")
+        self.assertEqual(plan.current_step().step_number, 2)
 
     def test_plan_done_completes_plan_without_answering(self):
         """The Evaluator never writes ``message_for_user`` (that is AnswerFromResults)."""
@@ -62,7 +61,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         self.assertNotIn("message_for_user", update)
         plan = update["plan"]
         self.assertEqual(plan.status, "completed")
-        self.assertEqual(plan.current_step_index, len(plan.step_list))
+        self.assertTrue(all(step.status == "done" for step in plan.step_list))
 
     def test_need_replan_marks_step_failed_without_answering(self):
         update = self._evaluator()._update_state(
@@ -109,7 +108,6 @@ class TestOperationalEvaluator(unittest.TestCase):
         state = KleaAgentState()
         state.plan = PlanSchema(
             step_list=[StepSchema(step_number=1, description="only step")],
-            current_step_index=0,
         )
         update = evaluator._update_state(
             EvaluationSchema(evaluation="step_done", reason="looks done"), state

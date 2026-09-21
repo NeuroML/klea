@@ -27,7 +27,6 @@ class TestPlanRender(unittest.TestCase):
                 StepSchema(step_number=3, description="c"),
                 StepSchema(step_number=4, description="d"),
             ],
-            current_step_index=2,
         )
         rendered = plan.render()
         self.assertIn("[DONE] 1. a", rendered)
@@ -43,7 +42,6 @@ class TestPlanRender(unittest.TestCase):
                 StepSchema(step_number=3, description="c"),
                 StepSchema(step_number=4, description="d"),
             ],
-            current_step_index=2,
         )
         rendered = plan.render(markdown=True)
         self.assertIn("[x] Step 1: a", rendered)
@@ -54,7 +52,6 @@ class TestPlanRender(unittest.TestCase):
     def test_success_criteria_included(self):
         plan = PlanSchema(
             step_list=[StepSchema(description="x", success_criteria="x done")],
-            current_step_index=0,
         )
         self.assertIn("success criteria: x done", plan.render())
 
@@ -123,7 +120,6 @@ class TestPlanRender(unittest.TestCase):
                 StepSchema(step_number=1, description="a", status="done"),
                 StepSchema(step_number=2, description="b"),
             ],
-            current_step_index=1,
         )
         current = plan.current_step()
         assert current is not None

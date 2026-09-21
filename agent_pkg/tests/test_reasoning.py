@@ -45,7 +45,6 @@ class TestReasoningNode(unittest.TestCase):
                 )
             ],
             status="in_progress",
-            current_step_index=0,
         )
         return state
 
