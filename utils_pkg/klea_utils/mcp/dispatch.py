@@ -18,7 +18,7 @@ from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
-from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.mcp.tool_impls.permission import check_tool_arguments_permissions
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,46 @@ def _unknown_tool_error(tool_name: str) -> CallToolResult:
     """
     shown = tool_name if tool_name else "(empty)"
     return _denied_result([f"Unknown tool: {shown!r} (not available to the picker)"])
+
+
+def resource_key(
+    call: ToolCallSchema, tool_infos: dict[str, ToolInfo] | None
+) -> frozenset[str]:
+    """Return the resource identifiers a tool call touches (ADR-0041).
+
+    Best-effort and deterministic: reads the tool's declared ``checkpaths``
+    (from ``ToolInfo.checkpaths`` or the folded ``ToolInfo.meta['checkpaths']``)
+    and normalises the string value of each declared argument lexically with
+    ``os.path.normpath``.  The caller uses this to serialise calls that share a
+    resource, so a missed dependency edge cannot cause a lost update.
+
+    An empty set means no identifiable resource: the tool is unknown, declares
+    no ``checkpaths``, or the declared argument is absent/not a string.  Such a
+    call is left to run concurrently.
+
+    :param call: The bound tool call.
+    :param tool_infos: Mapping of tool name to :class:`ToolInfo`, or ``None``.
+    :returns: A frozenset of normalised resource identifiers (possibly empty).
+    """
+    if tool_infos is None:
+        return frozenset()
+    info = tool_infos.get(call.tool)
+    if info is None:
+        return frozenset()
+    checkpaths = info.checkpaths
+    if not checkpaths and info.meta:
+        folded = info.meta.get("checkpaths")
+        if isinstance(folded, list):
+            checkpaths = folded
+    if not checkpaths:
+        return frozenset()
+    args = call.args or {}
+    resources: set[str] = set()
+    for arg_name in checkpaths:
+        value = args.get(arg_name)
+        if isinstance(value, str) and value:
+            resources.add(os.path.normpath(value))
+    return frozenset(resources)
 
 
 async def dispatch_tool_calls(

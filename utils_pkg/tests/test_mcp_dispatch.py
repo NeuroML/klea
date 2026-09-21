@@ -15,9 +15,10 @@ from klea_utils.mcp.dispatch import (
     DEFAULT_TOOL_CALL_TIMEOUT_SECONDS,
     TOOL_CALL_TIMEOUT_ENV_VAR,
     dispatch_tool_calls,
+    resource_key,
     tool_call_timeout_seconds,
 )
-from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from mcp.types import TextContent
 
 
@@ -308,3 +309,49 @@ async def test_dispatch_timeout_becomes_error():
 
     assert results[0].is_error is True
     assert "timed out" in str(results[0].content)
+
+
+def test_resource_key_normalises_checkpath_values():
+    infos = {"edit_file": ToolInfo(checkpaths=["path"], destructive=True)}
+    call = ToolCallSchema(tool="edit_file", args={"path": "./a/b.txt"})
+    assert resource_key(call, infos) == frozenset({"a/b.txt"})
+
+
+def test_resource_key_empty_without_identifiable_resource():
+    infos = {
+        "plain": ToolInfo(),
+        "grep": ToolInfo(checkpaths=["path"]),
+    }
+    assert (
+        resource_key(ToolCallSchema(tool="nope", args={"path": "x"}), infos)
+        == frozenset()
+    )
+    assert (
+        resource_key(ToolCallSchema(tool="plain", args={"path": "x"}), infos)
+        == frozenset()
+    )
+    # Declared checkpath absent from the arguments.
+    assert resource_key(ToolCallSchema(tool="grep", args={}), infos) == frozenset()
+
+
+def test_resource_key_reads_folded_meta_checkpaths():
+    infos = {"edit_file": ToolInfo(meta={"checkpaths": ["path"]})}
+    call = ToolCallSchema(tool="edit_file", args={"path": "a.txt"})
+    assert resource_key(call, infos) == frozenset({"a.txt"})
+
+
+def test_resource_key_without_tool_infos():
+    assert (
+        resource_key(ToolCallSchema(tool="edit_file", args={"path": "a"}), None)
+        == frozenset()
+    )
+
+
+def test_resource_key_flags_same_file_across_tools():
+    infos = {
+        "edit_file": ToolInfo(checkpaths=["path"]),
+        "write_file": ToolInfo(checkpaths=["path"]),
+    }
+    a = resource_key(ToolCallSchema(tool="edit_file", args={"path": "X"}), infos)
+    b = resource_key(ToolCallSchema(tool="write_file", args={"path": "./X"}), infos)
+    assert a & b == frozenset({"X"})
