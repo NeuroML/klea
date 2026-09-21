@@ -236,6 +236,78 @@ class TestPlanSchemaRuntime:
         assert summary != ""
 
 
+class TestPlanFrontier:
+    """``frontier()`` returns the unblocked pending steps (ADR-0041)."""
+
+    def test_empty_plan_has_empty_frontier(self):
+        assert PlanSchema().frontier() == []
+
+    def test_no_dependencies_all_pending_are_runnable(self):
+        plan = PlanSchema(
+            step_list=[StepSchema(step_number=1), StepSchema(step_number=2)]
+        )
+        assert [s.step_number for s in plan.frontier()] == [1, 2]
+
+    def test_dependency_blocks_until_done(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1),
+                StepSchema(step_number=2, depends_on=[1]),
+            ]
+        )
+        assert [s.step_number for s in plan.frontier()] == [1]
+        plan.step_list[0].status = "done"
+        assert [s.step_number for s in plan.frontier()] == [2]
+
+    def test_done_and_failed_steps_excluded(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="done"),
+                StepSchema(step_number=2, status="failed"),
+                StepSchema(step_number=3),
+            ]
+        )
+        assert [s.step_number for s in plan.frontier()] == [3]
+
+
+class TestPlanValidation:
+    """``validate_plan`` enforces the DAG invariants (ADR-0041)."""
+
+    def test_backward_dependency_is_valid(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1),
+                StepSchema(step_number=2, depends_on=[1]),
+            ]
+        )
+        assert plan.validate_plan() == []
+
+    def test_dangling_dependency_is_rejected(self):
+        plan = PlanSchema(step_list=[StepSchema(step_number=1, depends_on=[9])])
+        assert any("not a step" in e for e in plan.validate_plan())
+
+    def test_forward_dependency_is_rejected(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, depends_on=[2]),
+                StepSchema(step_number=2),
+            ]
+        )
+        assert any("earlier" in e for e in plan.validate_plan())
+
+    def test_cycle_is_rejected(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, depends_on=[3]),
+                StepSchema(step_number=2, depends_on=[1]),
+                StepSchema(step_number=3, depends_on=[2]),
+            ]
+        )
+        errors = plan.validate_plan()
+        assert any("earlier" in e for e in errors)
+        assert any("cycle" in e for e in errors)
+
+
 class TestCheckpointMsgpack:
     """Nested state models round-trip through the checkpoint serializer."""
 

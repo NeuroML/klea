@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from graphlib import CycleError, TopologicalSorter
 from typing import Literal
 
 from fastmcp.client.client import CallToolResult
@@ -172,6 +173,24 @@ class PlannerPlanSchema(BaseModel):
             return self.step_list[index]
         return None
 
+    def frontier(self) -> list[StepSchema]:
+        """Return the unblocked pending steps, in step order (ADR-0041).
+
+        The dependency frontier used for parallel execution: a step is
+        unblocked when every step number in its ``depends_on`` has status
+        ``done``.  ``done``/``failed`` steps and steps with unmet dependencies
+        are excluded.  ``depends_on: []`` needs nothing, so a step with no
+        declared dependencies is unblocked from the start.
+
+        :returns: The runnable steps, in ``step_list`` order.
+        """
+        done = {s.step_number for s in self.step_list if s.status == "done"}
+        return [
+            s
+            for s in self.step_list
+            if s.status == "pending" and all(dep in done for dep in s.depends_on)
+        ]
+
     def validate_plan(self) -> list[str]:
         """Return structural-consistency errors for this plan (empty if valid).
 
@@ -181,7 +200,10 @@ class PlannerPlanSchema(BaseModel):
         rejected and retried instead of silently corrupting execution:
 
         * step numbers are positive and unique;
-        * ``depends_on`` references only step numbers present in this plan;
+        * ``depends_on`` references only step numbers present in this plan, and
+          only *earlier* step numbers, so dependencies point one way;
+        * the plan is acyclic (``graphlib``); redundant with the
+          strictly-earlier rule, kept as a deterministic backstop (ADR-0041);
         * ``current_step_index`` is within ``[-1, len-1]`` and points at the
           first non-``done`` step (``len(step_list)`` when all are done).
 
@@ -203,6 +225,20 @@ class PlannerPlanSchema(BaseModel):
                         f"step {step.step_number} depends on {dep}, "
                         "which is not a step in this plan"
                     )
+                elif dep >= step.step_number:
+                    errors.append(
+                        f"step {step.step_number} depends on {dep}, "
+                        "which is not an earlier step (dependencies must point "
+                        "to earlier step numbers)"
+                    )
+        # Acyclic backstop; the strictly-earlier rule above already prevents
+        # cycles, so this only fires on an inconsistent set of errors.
+        try:
+            TopologicalSorter(
+                {step.step_number: set(step.depends_on) for step in self.step_list}
+            ).prepare()
+        except CycleError as exc:
+            errors.append(f"steps form a dependency cycle: {exc}")
         # ``current_step_index`` may legitimately be ``len`` when all steps
         # are done; ``-1`` is accepted as "no current step" for an empty plan.
         if not (-1 <= self.current_step_index <= len(self.step_list)):
