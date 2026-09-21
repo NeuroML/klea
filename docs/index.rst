@@ -55,6 +55,8 @@ Features
   planner -- Scientific mode awaits a curated knowledge source
 * A human plan-review step, currently auto-approved; interactive pause/resume
   is pending
+* Dependency-aware plan execution: independent steps run together in parallel,
+  while a step that needs an earlier step's result waits for it
 * Capabilities supplied by MCP tools rather than hard-coded, so the agent
   extends as tools are added
 * Tool access levels (``read_only`` / ``full``) and sandboxed command execution

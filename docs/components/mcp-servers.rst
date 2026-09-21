@@ -159,6 +159,14 @@ matcher fired.  Both tools write atomically and preserve the file's mode,
 line endings and BOM; ``read_file`` accepts ``line_numbers: false`` to return
 raw text suitable for an ``edit_file`` ``old_string``.  See ADR-0039.
 
+The file tools are also defensive about missing or over-filtered input.
+``list_files`` returns the unfiltered listing (with a ``note``) when a
+``pattern`` / ``include_*`` filter matches nothing but the directory is not
+empty, and ``read_file`` / ``edit_file`` return the nearest existing
+directory's entries (``nearby``) plus a ``note`` when the target is missing.
+This keeps an empty filtered result from being mistaken for an empty
+directory, or a typo for a missing project.
+
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
