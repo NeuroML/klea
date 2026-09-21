@@ -48,11 +48,14 @@ state machine.  In outline:
 3. **Review** -- the plan can pause for human review.  The review step
    currently auto-approves (a canned approval); real interactivity
    (LangGraph interrupt/resume) is pending.
-4. **Work loop** -- for each step the tools picker selects tools, the tool
-   caller dispatches them (in parallel), and a deterministic triage router
-   plus an operational evaluator decide whether to retry the step, replan,
-   or move on.  If the picker finds no suitable tool, the plan is
-   revised rather than looping.
+4. **Work loop** -- the plan is a dependency graph: independent steps run
+   together in a batch, while a step that needs an earlier step's result waits
+   for it.  The tools picker binds the arguments for the batch, the tool caller
+   dispatches them concurrently (except calls that touch the same file, which
+   run in order), and a deterministic triage router plus an operational
+   evaluator decide, per step, whether to retry the step, replan, or move on.
+   If the picker finds no suitable tool, the plan is revised rather than
+   looping.
 5. **Answer** -- once the plan is done, the answer is composed from the
    step results and delivered.
 

@@ -356,6 +356,8 @@ planning, coding, pipeline execution, and analysis</p></li>
 planner – Scientific mode awaits a curated knowledge source</p></li>
 <li><p>A human plan-review step, currently auto-approved; interactive pause/resume
 is pending</p></li>
+<li><p>Dependency-aware plan execution: independent steps run together in parallel,
+while a step that needs an earlier step’s result waits for it</p></li>
 <li><p>Capabilities supplied by MCP tools rather than hard-coded, so the agent
 extends as tools are added</p></li>
 <li><p>Tool access levels (<code class="docutils literal notranslate"><span class="pre">read_only</span></code> / <code class="docutils literal notranslate"><span class="pre">full</span></code>) and sandboxed command execution

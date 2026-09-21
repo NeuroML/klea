@@ -451,6 +451,13 @@ indentation-flexible, context-aware) before refusing, and reports which
 matcher fired.  Both tools write atomically and preserve the file’s mode,
 line endings and BOM; <code class="docutils literal notranslate"><span class="pre">read_file</span></code> accepts <code class="docutils literal notranslate"><span class="pre">line_numbers:</span> <span class="pre">false</span></code> to return
 raw text suitable for an <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> <code class="docutils literal notranslate"><span class="pre">old_string</span></code>.  See ADR-0039.</p>
+<p>The file tools are also defensive about missing or over-filtered input.
+<code class="docutils literal notranslate"><span class="pre">list_files</span></code> returns the unfiltered listing (with a <code class="docutils literal notranslate"><span class="pre">note</span></code>) when a
+<code class="docutils literal notranslate"><span class="pre">pattern</span></code> / <code class="docutils literal notranslate"><span class="pre">include_*</span></code> filter matches nothing but the directory is not
+empty, and <code class="docutils literal notranslate"><span class="pre">read_file</span></code> / <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> return the nearest existing
+directory’s entries (<code class="docutils literal notranslate"><span class="pre">nearby</span></code>) plus a <code class="docutils literal notranslate"><span class="pre">note</span></code> when the target is missing.
+This keeps an empty filtered result from being mistaken for an empty
+directory, or a typo for a missing project.</p>
 </section>
 <section id="the-bundled-tools-server">
 <h3>The bundled tools server<a class="headerlink" href="#the-bundled-tools-server" title="Link to this heading">¶</a></h3>

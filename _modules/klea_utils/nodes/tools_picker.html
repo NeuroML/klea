@@ -307,6 +307,7 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
@@ -316,10 +317,15 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">extract_llm_output_content</span><span class="p">,</span> <span class="n">prompt_value_to_messages</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span> <span class="n">filter_tools_info</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallsSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolCallsSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeStreamData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLLMNode</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">last_tool_error_text</span>
+
+<span class="c1">#: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).</span>
+<span class="n">MAX_BATCH_STEPS</span> <span class="o">=</span> <span class="mi">8</span>
+<span class="c1">#: Maximum tool calls bound in one picker invocation (ADR-0041 batch cap).</span>
+<span class="n">MAX_BATCH_CALLS</span> <span class="o">=</span> <span class="mi">16</span>
 
 
 <div class="viewcode-block" id="ToolsPicker">
@@ -465,9 +471,17 @@
             <span class="n">variables</span><span class="p">[</span><span class="s2">"observations"</span><span class="p">]</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">tool_results</span>
         <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="n">plan</span><span class="o">.</span><span class="n">current_step</span><span class="p">()</span>
+            <span class="n">batch</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">plan</span><span class="o">.</span><span class="n">next_batch</span><span class="p">(</span><span class="n">MAX_BATCH_STEPS</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">"next_batch"</span><span class="p">)</span> <span class="k">else</span> <span class="p">[]</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"picker batch</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">step</span><span class="o">.</span><span class="n">step_number</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">batch</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
             <span class="n">variables</span><span class="p">[</span><span class="s2">"current_step"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="n">current</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">current</span> <span class="k">else</span> <span class="s2">"(no plan)"</span>
+                <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">render</span><span class="p">(</span><span class="n">current</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">batch</span>
+                <span class="k">else</span> <span class="s2">"(no plan)"</span>
             <span class="p">)</span>
         <span class="c1"># Appended last (its own prompt section) so the stable prefix above</span>
         <span class="c1"># stays cache-friendly; omitted entirely on a normal pick (prompt</span>
@@ -499,6 +513,45 @@
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">variables</span>
 
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_selection_key</span><span class="p">(</span><span class="n">call</span><span class="p">:</span> <span class="n">ToolCallSchema</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return a canonical ``(tool, args)`` key for comparing selections."""</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+            <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">args</span> <span class="ow">or</span> <span class="p">{},</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_is_identical_failed_retry</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ToolCallSchema</span><span class="p">],</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return whether *tool_calls* repeat the just-failed batch exactly.</span>
+
+<span class="sd">        A deterministic anti-waste guard: re-emitting the same call with the</span>
+<span class="sd">        same arguments cannot repair a call-level error, so the picker should</span>
+<span class="sd">        escalate to the app (which replans) rather than loop.  Only active when</span>
+<span class="sd">        an ``on_unusable`` callback is installed (the agent has a replan edge;</span>
+<span class="sd">        RAG does not), and only when the immediately-previous batch actually</span>
+<span class="sd">        errored -- a repeat after a successful round, or on a new step, is left</span>
+<span class="sd">        alone.</span>
+
+<span class="sd">        :param tool_calls: The picker's new selection.</span>
+<span class="sd">        :param state: The incoming state (still holding the previous batch).</span>
+<span class="sd">        :returns: ``True`` when the new selection repeats the failed batch.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_unusable</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">tool_calls</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="n">previous_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">previous_results</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">previous_calls</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">previous_results</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">previous_calls</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">previous_calls</span>
+        <span class="p">)</span>
+
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">ToolCallsSchema</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span>
@@ -512,9 +565,68 @@
 <span class="sd">        selection with no reason is an emission glitch: the counter is kept in</span>
 <span class="sd">        graph state (thread-isolated, ADR-0033) so the orchestrator can retry</span>
 <span class="sd">        the picker a bounded number of times before escalating.</span>
+
+<span class="sd">        A selection that *exactly repeats the previous failed batch* is</span>
+<span class="sd">        converted to a deliberate failure (with an explanatory reason) so it is</span>
+<span class="sd">        escalated instead of dispatched again: identical retries cannot succeed</span>
+<span class="sd">        and only waste a round.</span>
 <span class="sd">        """</span>
         <span class="n">tool_calls</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">tool_calls</span>
         <span class="n">usable</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">usable</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_identical_failed_retry</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+            <span class="n">reason</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">"The picker repeated the previous tool call with identical "</span>
+                <span class="s2">"arguments after it failed; repeating the same call cannot "</span>
+                <span class="s2">"succeed. Replan the step or correct the approach."</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"picker repeated the identical failed call; escalating</span><span class="se">\n</span><span class="si">{</span><span class="n">reason</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">tool_calls</span> <span class="o">=</span> <span class="p">[</span><span class="n">ToolCallSchema</span><span class="p">(</span><span class="n">tool</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">{},</span> <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">)]</span>
+            <span class="n">usable</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">batch</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">plan</span><span class="o">.</span><span class="n">next_batch</span><span class="p">(</span><span class="n">MAX_BATCH_STEPS</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">"next_batch"</span><span class="p">)</span>
+            <span class="k">else</span> <span class="p">[]</span>
+        <span class="p">)</span>
+        <span class="n">batch_numbers</span> <span class="o">=</span> <span class="p">[</span><span class="n">step_item</span><span class="o">.</span><span class="n">step_number</span> <span class="k">for</span> <span class="n">step_item</span> <span class="ow">in</span> <span class="n">batch</span><span class="p">]</span>
+        <span class="n">step</span> <span class="o">=</span> <span class="n">batch_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">batch_numbers</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+
+        <span class="c1"># Attribute each usable call to its originating batch step (ADR-0041).</span>
+        <span class="c1"># The model tags calls with `step`; a call with an absent/invalid step</span>
+        <span class="c1"># falls back to the first batch step.  RAG has no plan, so its calls</span>
+        <span class="c1"># keep ``step = 0``.</span>
+        <span class="k">if</span> <span class="n">batch_numbers</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">call</span><span class="o">.</span><span class="n">step</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">batch_numbers</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"picker call step is not in the current batch; "</span>
+                        <span class="sa">f</span><span class="s2">"attributing it to the first batch step</span><span class="se">\n</span><span class="s2">"</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">step</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">batch_numbers</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                    <span class="p">)</span>
+                    <span class="n">call</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">batch_numbers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">usable_calls</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tool_calls</span> <span class="k">if</span> <span class="n">c</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">usable_calls</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">MAX_BATCH_CALLS</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"picker emitted more calls than the batch cap; truncating</span><span class="se">\n</span><span class="s2">"</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">usable_calls</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">MAX_BATCH_CALLS</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                <span class="p">)</span>
+                <span class="n">keep</span> <span class="o">=</span> <span class="p">{</span><span class="nb">id</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">usable_calls</span><span class="p">[:</span><span class="n">MAX_BATCH_CALLS</span><span class="p">]}</span>
+                <span class="n">tool_calls</span> <span class="o">=</span> <span class="p">[</span>
+                    <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tool_calls</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">c</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="nb">id</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="ow">in</span> <span class="n">keep</span>
+                <span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"picker batch attribution</span><span class="se">\n</span><span class="si">{</span><span class="n">batch_numbers</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">call</span><span class="o">.</span><span class="n">step</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">tool_calls</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
+
         <span class="n">update</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tool_calls"</span><span class="p">:</span> <span class="n">tool_calls</span><span class="p">}</span>
 
         <span class="c1"># Deliberate failure: no usable call, but the picker explained why.  The</span>
@@ -540,8 +652,6 @@
         <span class="c1"># An empty list and a list whose calls all have empty/whitespace names</span>
         <span class="c1"># are the same failure: no usable tool call.  Unknown-but-non-empty</span>
         <span class="c1"># names are left to dispatch (which reports a clear error).</span>
-        <span class="n">plan</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"plan"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">step</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="s2">"current_step_index"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">plan</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
         <span class="n">prev_step</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_step"</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
         <span class="n">prev_attempts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">usable</span> <span class="ow">or</span> <span class="n">step</span> <span class="o">!=</span> <span class="n">prev_step</span><span class="p">:</span>

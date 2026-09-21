@@ -313,6 +313,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileEditError</span><span class="p">,</span> <span class="n">PermissionDeniedError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls</span><span class="w"> </span><span class="kn">import</span> <span class="n">edit_replacers</span><span class="p">,</span> <span class="n">file_ops</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_target_note</span><span class="p">,</span> <span class="n">nearby_entries</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -327,6 +328,8 @@
     <span class="n">matcher</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">diff</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">error</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">nearby</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">note</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Build the standard edit result dict.</span>
 
@@ -337,6 +340,8 @@
 <span class="sd">    :param matcher: Name of the replacer that matched (empty on failure).</span>
 <span class="sd">    :param diff: Unified diff of the change (possibly truncated).</span>
 <span class="sd">    :param error: Empty on success; a message otherwise.</span>
+<span class="sd">    :param nearby: Entries in the nearest existing directory (missing target).</span>
+<span class="sd">    :param note: Human-readable note for a missing/not-a-file error.</span>
 <span class="sd">    :returns: The result dict returned to the MCP wrapper.</span>
 <span class="sd">    """</span>
     <span class="k">return</span> <span class="p">{</span>
@@ -347,6 +352,8 @@
         <span class="s2">"matcher"</span><span class="p">:</span> <span class="n">matcher</span><span class="p">,</span>
         <span class="s2">"diff"</span><span class="p">:</span> <span class="n">diff</span><span class="p">,</span>
         <span class="s2">"error"</span><span class="p">:</span> <span class="n">error</span><span class="p">,</span>
+        <span class="s2">"nearby"</span><span class="p">:</span> <span class="n">nearby</span> <span class="ow">or</span> <span class="p">[],</span>
+        <span class="s2">"note"</span><span class="p">:</span> <span class="n">note</span><span class="p">,</span>
     <span class="p">}</span>
 
 
@@ -378,7 +385,8 @@
 <span class="sd">    :param project_root: Boundary directory for the permission check.</span>
 <span class="sd">        Defaults to the current working directory.</span>
 <span class="sd">    :returns: dict with path, replacements, additions, deletions, matcher,</span>
-<span class="sd">        diff, error.</span>
+<span class="sd">        diff, error, nearby, note.  ``nearby``/``note`` are populated on a</span>
+<span class="sd">        missing/not-a-file error so the caller can see what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Editing file</span><span class="se">\n</span><span class="s2">"</span>
@@ -395,6 +403,23 @@
     <span class="k">except</span> <span class="n">PermissionDeniedError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied for </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">_result</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">the_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="c1"># Missing target (or a directory): include the nearest existing</span>
+        <span class="c1"># directory's entries so the caller can see what is actually there.</span>
+        <span class="n">directory</span><span class="p">,</span> <span class="n">nearby</span> <span class="o">=</span> <span class="n">nearby_entries</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">the_path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not a regular file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Not a regular file: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Edit target not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">error</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"File not found: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">return</span> <span class="n">_result</span><span class="p">(</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
+            <span class="n">error</span><span class="o">=</span><span class="n">error</span><span class="p">,</span>
+            <span class="n">nearby</span><span class="o">=</span><span class="n">nearby</span><span class="p">,</span>
+            <span class="n">note</span><span class="o">=</span><span class="n">missing_target_note</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">nearby</span><span class="p">),</span>
+        <span class="p">)</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">doc</span> <span class="o">=</span> <span class="n">file_ops</span><span class="o">.</span><span class="n">read_whole_text</span><span class="p">(</span><span class="n">the_path</span><span class="p">)</span>

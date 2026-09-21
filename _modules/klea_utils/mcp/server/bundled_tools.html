@@ -440,6 +440,10 @@
 <span class="sd">    - Finding a file anywhere under a directory tree by path pattern (use</span>
 <span class="sd">      the find files tool instead).</span>
 
+<span class="sd">    If the ``pattern`` or the ``include_*`` filters match nothing but the</span>
+<span class="sd">    directory is not empty, the unfiltered listing is returned instead and</span>
+<span class="sd">    ``note`` explains why, so the response still shows what is there.</span>
+
 <span class="sd">    Example: ``list_files(path=".", pattern="*.py", recursive=True)``</span>
 
 <span class="sd">    Args:</span>
@@ -453,7 +457,9 @@
 <span class="sd">        max_results: Maximum number of entries to return.</span>
 
 <span class="sd">    Returns:</span>
-<span class="sd">        Dictionary with list of files, truncated flag, and error.</span>
+<span class="sd">        Dictionary with list of files, truncated flag, error, and note (empty</span>
+<span class="sd">        unless a filter matched nothing and the unfiltered listing was</span>
+<span class="sd">        substituted).</span>
 <span class="sd">    """</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">list_files_impl</span><span class="p">(</span>
         <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
@@ -611,6 +617,9 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Dictionary with content, line range, total_lines, truncated, error.</span>
+<span class="sd">        On a missing/not-a-file error, ``nearby`` (entries in the nearest</span>
+<span class="sd">        existing directory) and ``note`` are populated so the caller can see</span>
+<span class="sd">        what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">read_file_impl</span><span class="p">(</span>
         <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
@@ -715,7 +724,9 @@
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Dictionary with path, replacements, additions, deletions, matcher,</span>
-<span class="sd">        diff, error.</span>
+<span class="sd">        diff, error.  On a missing/not-a-file error, ``nearby`` (entries in</span>
+<span class="sd">        the nearest existing directory) and ``note`` are populated so the</span>
+<span class="sd">        caller can see what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">edit_file_impl</span><span class="p">(</span>
         <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>

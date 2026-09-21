@@ -320,13 +320,21 @@ lifespan, path permission checks, and the reusable bundled tools server.</p>
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 <dl class="py class">
 <dt class="sig sig-object py" id="klea_utils.mcp.schemas.ToolCallSchema">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.schemas.</span></span><span class="sig-name descname"><span class="pre">ToolCallSchema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reason</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/mcp/schemas.html#ToolCallSchema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.schemas.ToolCallSchema" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.schemas.</span></span><span class="sig-name descname"><span class="pre">ToolCallSchema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">args</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict[str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">~typing.Any]</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">&lt;factory&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reason</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">step</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/mcp/schemas.html#ToolCallSchema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.schemas.ToolCallSchema" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
 <p>A single tool call selected by a tools picker node.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="klea_utils.mcp.schemas.ToolCallSchema.model_config">
 <span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.mcp.schemas.ToolCallSchema.model_config" title="Link to this definition">¶</a></dt>
 <dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.mcp.schemas.ToolCallSchema.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><a class="headerlink" href="#klea_utils.mcp.schemas.ToolCallSchema.step" title="Link to this definition">¶</a></dt>
+<dd><p>1-based plan step this call belongs to (0 when there is no plan, e.g.
+RAG).  Set by the agent’s picker so a batch of calls can be attributed
+back to their originating step (ADR-0041).</p>
 </dd></dl>
 
 </dd></dl>
@@ -522,6 +530,31 @@ synthetic non-halting error.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>One <code class="xref py py-class docutils literal notranslate"><span class="pre">CallToolResult</span></code> per input call, in input order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.dispatch.resource_key">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.dispatch.</span></span><span class="sig-name descname"><span class="pre">resource_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">call</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.mcp.schemas.ToolCallSchema" title="klea_utils.mcp.schemas.ToolCallSchema"><span class="pre">ToolCallSchema</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_infos</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.mcp.schemas.ToolInfo" title="klea_utils.mcp.schemas.ToolInfo"><span class="pre">ToolInfo</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/dispatch.html#resource_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.dispatch.resource_key" title="Link to this definition">¶</a></dt>
+<dd><p>Return the resource identifiers a tool call touches (ADR-0041).</p>
+<p>Best-effort and deterministic: reads the tool’s declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>
+(from <code class="docutils literal notranslate"><span class="pre">ToolInfo.checkpaths</span></code> or the folded <code class="docutils literal notranslate"><span class="pre">ToolInfo.meta['checkpaths']</span></code>)
+and normalises the string value of each declared argument lexically with
+<code class="docutils literal notranslate"><span class="pre">os.path.normpath</span></code>.  The caller uses this to serialise calls that share a
+resource, so a missed dependency edge cannot cause a lost update.</p>
+<p>An empty set means no identifiable resource: the tool is unknown, declares
+no <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>, or the declared argument is absent/not a string.  Such a
+call is left to run concurrently.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>call</strong> – The bound tool call.</p></li>
+<li><p><strong>tool_infos</strong> – Mapping of tool name to <code class="xref py py-class docutils literal notranslate"><span class="pre">ToolInfo</span></code>, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A frozenset of normalised resource identifiers (possibly empty).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -949,7 +982,52 @@ Defaults to the current working directory.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>dict with files, error, truncated.</p>
+<dd class="field-even"><p>dict with files, error, truncated, note.  <code class="docutils literal notranslate"><span class="pre">note</span></code> is non-empty
+when the requested filter matched nothing and the fallback below
+returned an unfiltered listing instead.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.list_files.missing_target_note">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.list_files.</span></span><span class="sig-name descname"><span class="pre">missing_target_note</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nearby</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/tool_impls/list_files.html#missing_target_note"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.tool_impls.list_files.missing_target_note" title="Link to this definition">¶</a></dt>
+<dd><p>Return a “target missing; nearby entries” note for a file-tool result.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> – The requested (missing) path.</p></li>
+<li><p><strong>directory</strong> – The nearest existing directory, or <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code>.</p></li>
+<li><p><strong>nearby</strong> – Entry names found in <em>directory</em>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A one-line, human-readable note.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.tool_impls.list_files.nearby_entries">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.tool_impls.list_files.</span></span><span class="sig-name descname"><span class="pre">nearby_entries</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.14)"><span class="pre">Path</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_results</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/tool_impls/list_files.html#nearby_entries"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.tool_impls.list_files.nearby_entries" title="Link to this definition">¶</a></dt>
+<dd><p>Return the nearest existing directory and its entries for <em>path</em>.</p>
+<p>Diagnostic helper for the file tools: when a requested target is missing,
+the tool includes this so the caller can see what actually exists (the
+same “show what is there” idea as the <code class="docutils literal notranslate"><span class="pre">list_files</span></code> fallback, reused).
+Walks up from the target’s parent to the nearest existing ancestor and
+lists its immediate entries.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> – The requested (possibly missing) path.</p></li>
+<li><p><strong>project_root</strong> – Boundary directory for the permission check, passed
+through to <a class="reference internal" href="#klea_utils.mcp.tool_impls.list_files.list_files" title="klea_utils.mcp.tool_impls.list_files.list_files"><code class="xref py py-func docutils literal notranslate"><span class="pre">list_files()</span></code></a>.</p></li>
+<li><p><strong>max_results</strong> – Maximum number of entries to return.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">(directory,</span> <span class="pre">names)</span></code>, or <code class="docutils literal notranslate"><span class="pre">(&quot;&quot;,</span> <span class="pre">[])</span></code> when no existing ancestor
+directory could be found or listed.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -990,7 +1068,8 @@ Defaults to the current working directory.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>dict with path, content, line_start, line_end, total_lines,
-truncated, error.</p>
+truncated, error, nearby, note.  <code class="docutils literal notranslate"><span class="pre">nearby</span></code>/<code class="docutils literal notranslate"><span class="pre">note</span></code> are populated on a
+missing/not-a-file error so the caller can see what exists instead.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1603,7 +1682,8 @@ Defaults to the current working directory.</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>dict with path, replacements, additions, deletions, matcher,
-diff, error.</p>
+diff, error, nearby, note.  <code class="docutils literal notranslate"><span class="pre">nearby</span></code>/<code class="docutils literal notranslate"><span class="pre">note</span></code> are populated on a
+missing/not-a-file error so the caller can see what exists instead.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2656,7 +2736,9 @@ match).</p></li>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Dictionary with path, replacements, additions, deletions, matcher,
-diff, error.</p>
+diff, error.  On a missing/not-a-file error, <code class="docutils literal notranslate"><span class="pre">nearby</span></code> (entries in
+the nearest existing directory) and <code class="docutils literal notranslate"><span class="pre">note</span></code> are populated so the
+caller can see what exists instead.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2750,6 +2832,9 @@ specific files.</p>
 <li><p>Finding a file anywhere under a directory tree by path pattern (use
 the find files tool instead).</p></li>
 </ul>
+<p>If the <code class="docutils literal notranslate"><span class="pre">pattern</span></code> or the <code class="docutils literal notranslate"><span class="pre">include_*</span></code> filters match nothing but the
+directory is not empty, the unfiltered listing is returned instead and
+<code class="docutils literal notranslate"><span class="pre">note</span></code> explains why, so the response still shows what is there.</p>
 <p>Example: <code class="docutils literal notranslate"><span class="pre">list_files(path=&quot;.&quot;,</span> <span class="pre">pattern=&quot;*.py&quot;,</span> <span class="pre">recursive=True)</span></code></p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -2765,7 +2850,9 @@ directory and cannot contain ‘..’ for security.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Dictionary with list of files, truncated flag, and error.</p>
+<dd class="field-even"><p>Dictionary with list of files, truncated flag, error, and note (empty
+unless a filter matched nothing and the unfiltered listing was
+substituted).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2796,7 +2883,10 @@ text to copy into an edit.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Dictionary with content, line range, total_lines, truncated, error.</p>
+<dd class="field-even"><p>Dictionary with content, line range, total_lines, truncated, error.
+On a missing/not-a-file error, <code class="docutils literal notranslate"><span class="pre">nearby</span></code> (entries in the nearest
+existing directory) and <code class="docutils literal notranslate"><span class="pre">note</span></code> are populated so the caller can see
+what exists instead.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2950,6 +3040,7 @@ diff, error.</p>
 <li><a class="reference internal" href="#module-klea_utils.mcp.schemas">Schemas</a><ul>
 <li><a class="reference internal" href="#klea_utils.mcp.schemas.ToolCallSchema"><code class="docutils literal notranslate"><span class="pre">ToolCallSchema</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.mcp.schemas.ToolCallSchema.model_config"><code class="docutils literal notranslate"><span class="pre">ToolCallSchema.model_config</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.schemas.ToolCallSchema.step"><code class="docutils literal notranslate"><span class="pre">ToolCallSchema.step</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.mcp.schemas.ToolCallsSchema"><code class="docutils literal notranslate"><span class="pre">ToolCallsSchema</span></code></a><ul>
@@ -2977,6 +3068,7 @@ diff, error.</p>
 <li><a class="reference internal" href="#klea_utils.mcp.dispatch.DEFAULT_TOOL_CALL_TIMEOUT_SECONDS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.dispatch.TOOL_CALL_TIMEOUT_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">TOOL_CALL_TIMEOUT_ENV_VAR</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.dispatch.dispatch_tool_calls"><code class="docutils literal notranslate"><span class="pre">dispatch_tool_calls()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.dispatch.resource_key"><code class="docutils literal notranslate"><span class="pre">resource_key()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.dispatch.tool_call_timeout_seconds"><code class="docutils literal notranslate"><span class="pre">tool_call_timeout_seconds()</span></code></a></li>
 </ul>
 </li>
@@ -3011,6 +3103,8 @@ diff, error.</p>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.ssrf.is_private_or_reserved"><code class="docutils literal notranslate"><span class="pre">is_private_or_reserved()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.web_fetch.web_fetch"><code class="docutils literal notranslate"><span class="pre">web_fetch()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.list_files.list_files"><code class="docutils literal notranslate"><span class="pre">list_files()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.list_files.missing_target_note"><code class="docutils literal notranslate"><span class="pre">missing_target_note()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.tool_impls.list_files.nearby_entries"><code class="docutils literal notranslate"><span class="pre">nearby_entries()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.read_file.read_file"><code class="docutils literal notranslate"><span class="pre">read_file()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.find_files.DEFAULT_MAX_RESULTS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MAX_RESULTS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.tool_impls.find_files.find_files"><code class="docutils literal notranslate"><span class="pre">find_files()</span></code></a></li>
