@@ -32,6 +32,8 @@
 - Structured-output failures (`ValidationError` / JSON parse, or an endpoint refusing `response_format`) now fall back to the plain, tolerantly-parsed invoke instead of aborting the run; endpoints seen refusing the parameter are cached per `(provider, model, base_url)` for the process lifetime, so the structured attempt is not repeated on every node call.
 - Output-token budgets now default to 16384 (guard stays at 2048) and the frozen per-node `max_output_tokens` caps are removed, so reasoning models no longer truncate even tiny structured calls; the budget is still clamped per model to its catalog output limit and context headroom, and remains tunable via the `providers` config.
 - Tool parameter lists shown to the model now label every argument `required` or `optional` explicitly and show non-null schema defaults (e.g. `pattern (string, optional, default "*")`), so the tool picker does not have to infer optionality from an absent flag or narrow a listing by setting a filter that defaults to "all".
+- Bundled `list_files` returns the unfiltered listing (with a `note`) when a `pattern`/`include_*` filter matches nothing but the directory is not empty, so an empty filtered result is not mistaken for an empty directory.
+- Bundled `read_file`/`edit_file` report `nearby` entries (the nearest existing directory's contents) and a `note` when the target is missing, so the caller sees what actually exists instead of only an error.
 
 ### Fixed
 
@@ -62,6 +64,7 @@
 - Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
 - The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.
 - Plan state is now `PlanSchema` extending the authored `PlannerPlanSchema`, with run-history counters (`plan_version`, `human_feedback_rounds`, `automated_plan_revisions`) carried on the plan; `human_feedback`/`replan_reason` remain documented transient node-to-node signals.
+- The tool picker escalates to a replan instead of re-dispatching an identical failed tool call, so a non-correctable error no longer burns the retry budget on repeated identical calls.
 - Per-step observations, retry counters and status use the plan step's 1-based number, and per-step state is cleared when the planner writes a plan, so replans no longer merge stale outputs.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
 
