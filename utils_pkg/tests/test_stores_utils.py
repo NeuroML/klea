@@ -15,6 +15,7 @@ import pytest
 from klea_utils.stores.utils import (
     CACHE_DIR_NAME,
     REF_DOC_OVERHEAD,
+    cross_encoder_rerank,
     display_person_names,
     drop_collection,
     expand_person_names,
@@ -203,6 +204,109 @@ def test_rrf_merge_preserves_source_scores():
         "vector store": 0.8,
         "BM25": 4.1,
     }
+
+
+class _FakeCrossEncoder:
+    """Minimal stand-in; scores passages by a fixed per-content value."""
+
+    def __init__(self, model_name: str):
+        self.model_name = model_name
+
+    def predict(self, pairs: list[tuple[str, str]]) -> list[float]:
+        scores = {"low relevance": 0.2, "high relevance": 0.9, "mid relevance": 0.5}
+        return [scores.get(passage, 0.0) for _, passage in pairs]
+
+
+def test_cross_encoder_rerank_disabled_returns_unchanged():
+    """When model_name is None, docs are returned in the original order."""
+    docs = [(_doc("low relevance"), 0.8), (_doc("high relevance"), 0.2)]
+
+    result = cross_encoder_rerank("NeuroML channels", docs, model_name=None)
+    logger.info(f"disabled rerank kept order: {[d.page_content for d, _ in result]}")
+
+    assert result == docs
+
+
+def test_cross_encoder_rerank_empty_input():
+    """An empty doc list stays empty."""
+    assert cross_encoder_rerank("query", [], model_name="fake-model") == []
+
+
+def test_cross_encoder_rerank_reorders_by_predicted_score(monkeypatch):
+    """Cross-encoder scores replace RRF scores and reorder the list."""
+    monkeypatch.setattr(
+        "klea_utils.stores.utils._load_cross_encoder",
+        lambda model_name: _FakeCrossEncoder(model_name),
+    )
+    d_low = _doc("low relevance")
+    d_high = _doc("high relevance")
+    docs = [(d_low, 0.9), (d_high, 0.1)]
+
+    ranked = cross_encoder_rerank("NeuroML ion channels", docs, model_name="fake-model")
+    logger.info(f"reranked order: {[(d.page_content, s) for d, s in ranked]}")
+
+    assert [d.page_content for d, _ in ranked] == ["high relevance", "low relevance"]
+    assert ranked[0][1] == pytest.approx(0.9)
+    assert ranked[1][1] == pytest.approx(0.2)
+
+
+def test_cross_encoder_rerank_top_k(monkeypatch):
+    """top_k caps the reranked result list."""
+    monkeypatch.setattr(
+        "klea_utils.stores.utils._load_cross_encoder",
+        lambda model_name: _FakeCrossEncoder(model_name),
+    )
+    docs = [
+        (_doc("low relevance"), 0.3),
+        (_doc("high relevance"), 0.2),
+        (_doc("mid relevance"), 0.1),
+    ]
+
+    ranked = cross_encoder_rerank("query", docs, model_name="fake-model", top_k=2)
+    logger.info(f"top_k=2 kept: {[d.page_content for d, _ in ranked]}")
+
+    assert len(ranked) == 2
+    assert [d.page_content for d, _ in ranked] == [
+        "high relevance",
+        "mid relevance",
+    ]
+
+
+def test_cross_encoder_rerank_preserves_source_scores(monkeypatch):
+    """Per-source metadata from rrf_merge survives reranking."""
+    monkeypatch.setattr(
+        "klea_utils.stores.utils._load_cross_encoder",
+        lambda model_name: _FakeCrossEncoder(model_name),
+    )
+    d1 = _doc("high relevance")
+    d1.metadata["_source_scores"] = {"vector store": 0.8, "BM25": 4.1}
+
+    ranked = cross_encoder_rerank("query", [(d1, 0.02)], model_name="fake-model")
+
+    assert ranked[0][0].metadata["_source_scores"] == {
+        "vector store": 0.8,
+        "BM25": 4.1,
+    }
+
+
+def test_load_cross_encoder_import_error(monkeypatch):
+    """Missing sentence-transformers raises a clear install hint."""
+    import builtins
+
+    import klea_utils.stores.utils as stores_utils
+
+    stores_utils._cross_encoder_cache.clear()
+    real_import = builtins.__import__
+
+    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "sentence_transformers":
+            raise ImportError("no sentence_transformers")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    with pytest.raises(ImportError, match=r"klea_utils\[rerank\]"):
+        stores_utils._load_cross_encoder("fake-model")
 
 
 def _doc_with_year(content: str, year: int | None) -> Document:
