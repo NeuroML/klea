@@ -17,7 +17,7 @@ import os
 import re
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
@@ -1597,6 +1597,45 @@ class LLMModel(BaseModel):
 
         # Wrap in the "configurable" key expected by _ConfigurableModel.
         return cast(RunnableConfig, {"configurable": overrides})
+
+
+def _role_is_missing(cfg: Any) -> bool:
+    """Return whether a single role's model config has no usable model.
+
+    Accepts either the resolved API config dict (``{"model": ...,
+    "required": ...}``) or an :class:`LLMModel` (``model_name`` /
+    ``required`` attributes), so the same predicate serves the graph's
+    startup check and the frontends.
+    """
+    if isinstance(cfg, Mapping):
+        required = cfg.get("required", True)
+        model = cfg.get("model")
+    else:
+        required = getattr(cfg, "required", True)
+        model = getattr(cfg, "model_name", None)
+    return bool(required) and not model
+
+
+def missing_required_roles(models: Mapping[str, Any]) -> list[str]:
+    """Return the roles that are required but have no model configured.
+
+    Single source of truth for the "is a required model missing?"
+    predicate, shared by the graph's startup warning
+    (``BaseLangGraph._check_required_models``) and the frontends (which
+    need it to decide whether a query may be sent and to point the user
+    at the model selector).
+
+    Values may be either the resolved API config dict returned by the
+    model endpoints (e.g. ``GET /chat/{user_id}/models/active``, with
+    ``model`` / ``required`` keys) or :class:`LLMModel` instances (with
+    ``model_name`` / ``required``).  A role is missing when ``required``
+    is true (the default) and its model is empty.  Roles are returned in
+    the input's iteration order.
+
+    :param models: Mapping of role name to its config dict or object.
+    :returns: Required role names with no model set.
+    """
+    return [role for role, cfg in models.items() if _role_is_missing(cfg)]
 
 
 def get_last_n_conversations(

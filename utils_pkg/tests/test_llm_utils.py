@@ -12,11 +12,13 @@ import unittest
 
 import pytest
 from klea_utils.llm import (
+    LLMModel,
     add_memory_to_prompt,
     estimate_input_tokens,
     format_alert,
     get_last_n_conversations,
     get_recent_messages,
+    missing_required_roles,
     parse_model_name,
     resolve_langchain_endpoint,
     split_output_by_section,
@@ -334,6 +336,46 @@ def test_resolve_langchain_endpoint_model_error_returns_none():
             raise RuntimeError("bad params")
 
     assert resolve_langchain_endpoint(_Boom(), {}) is None
+
+
+def test_missing_required_roles_lists_unset_required():
+    """Required roles with an empty model are reported, in order."""
+    info = {
+        "chat": {"model": "ollama:qwen3", "required": True},
+        "plan": {"model": "", "required": True},
+        "guard": {"model": "", "required": False},
+    }
+    assert missing_required_roles(info) == ["plan"]
+
+
+def test_missing_required_roles_defaults_required_true():
+    """A missing ``required`` flag is treated as required (LLMModel default)."""
+    info = {"chat": {"model": ""}}
+    assert missing_required_roles(info) == ["chat"]
+
+
+def test_missing_required_roles_empty_when_all_set():
+    """A fully configured set reports no missing roles."""
+    info = {
+        "chat": {"model": "ollama:qwen3", "required": True},
+        "plan": {"model": "ollama:qwen3:0.6b", "required": True},
+    }
+    assert missing_required_roles(info) == []
+
+
+def test_missing_required_roles_empty_info():
+    """An empty model-info mapping reports no missing roles."""
+    assert missing_required_roles({}) == []
+
+
+def test_missing_required_roles_accepts_llm_model_objects():
+    """The predicate also works on LLMModel objects (graph startup path)."""
+    models = {
+        "chat": LLMModel(instance=None, model_name="ollama:qwen3"),
+        "plan": LLMModel(instance=None, model_name="", required=True),
+        "guard": LLMModel(instance=None, model_name="", required=False),
+    }
+    assert missing_required_roles(models) == ["plan"]
 
 
 if __name__ == "__main__":
