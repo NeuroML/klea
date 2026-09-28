@@ -35,6 +35,7 @@ from .imports import require_extra
 from .models_catalog import (
     MODELS_DEV_PROVIDERS_IGNORED,
     get_catalog_model_limits,
+    get_provider_api_key_env,
     get_provider_endpoint,
     probe_endpoint_model_limits,
 )
@@ -93,6 +94,65 @@ def parse_model_name(raw: str) -> ParsedModelName:
         )
 
     return ParsedModelName(provider=provider, model_name=parts[1], suffix=parts[2])
+
+
+class CredentialScope(NamedTuple):
+    """Provider (and, for custom endpoints, endpoint) a credential belongs to.
+
+    API keys are credentials for a provider -- and for an explicit or
+    ``custom:`` endpoint, that endpoint -- not for a role or a model.
+    Two models sharing a provider (``openai:gpt-4o`` and
+    ``openai:gpt-4.1``) share a scope; ``custom:m:<url>`` and any
+    ``http(s)`` endpoint suffix scope to that URL.
+    """
+
+    provider: str
+    endpoint: str | None = None
+
+
+#: Providers that authenticate locally/anonymously and therefore need no
+#: API key.  Used so readiness checks do not flag e.g. a local Ollama
+#: deployment as missing a credential.
+PROVIDERS_WITHOUT_API_KEY: frozenset[str] = frozenset({"ollama"})
+
+
+def credential_scope(model_name: str) -> CredentialScope:
+    """Return the credential scope for *model_name*.
+
+    :param model_name: Provider-prefixed model string, e.g.
+        ``openai:gpt-4o`` or ``custom:model:https://host/v1``.
+    :returns: :class:`CredentialScope` -- a lowercased provider and an
+        optional endpoint for custom / explicit-URL models.
+    """
+    parsed = parse_model_name(model_name or "")
+    provider = parsed.provider or ""
+    endpoint: str | None = None
+    if parsed.suffix and (
+        parsed.provider == "custom" or parsed.suffix.startswith(("http://", "https://"))
+    ):
+        endpoint = parsed.suffix
+    return CredentialScope(provider=provider, endpoint=endpoint)
+
+
+def provider_requires_api_key(provider: str) -> bool:
+    """Return whether *provider* needs an API key.
+
+    Local providers (e.g. Ollama) authenticate anonymously, so they must
+    not be treated as missing a credential.
+    """
+    return bool(provider) and provider.lower() not in PROVIDERS_WITHOUT_API_KEY
+
+
+def provider_api_key_env(provider: str) -> str | None:
+    """Return the env var holding *provider*'s API key, or ``None``.
+
+    Providers that need no key (see :func:`provider_requires_api_key`)
+    return ``None``.  Otherwise mirrors the SDK convention so the UI can
+    report whether a credential comes from the environment.
+    """
+    if not provider_requires_api_key(provider):
+        return None
+    return get_provider_api_key_env(provider)
 
 
 #: Recognised wire-API endpoint suffixes for ``custom:`` model URLs, mapped to
