@@ -33,6 +33,10 @@ def _noop_arg(_: str) -> None:
     """No-op default for one-argument callbacks (e.g. chat switching)."""
 
 
+def _noop_args(*_args: Any, **_kwargs: Any) -> None:
+    """No-op default for callbacks that take arguments."""
+
+
 @dataclass
 class PageContext:
     """Shared mutable state and element/callback registry for a Klea page.
@@ -77,6 +81,9 @@ class PageContext:
     # Mutable runtime state
     expanded: set[int] = field(default_factory=set)
     is_streaming: bool = False
+    #: Chat currently being streamed, so the inspector can tell if it is
+    #: appending to the active chat.
+    streaming_chat_id: str = ""
     mini_state: bool = True
 
     # Extra request fields merged into the ``/query/stream`` POST body
@@ -94,6 +101,9 @@ class PageContext:
     stream_container: Any = None
     text: Any = None
     loading_row: Any = None
+    #: Stable inspector pane content column / scroll area (incremental append).
+    inspector_container: Any = None
+    inspector_scroll: Any = None
     #: Hidden container used as an explicit slot when building dialogs from
     #: a context that has no ambient slot (e.g. the first-run prompt runs in
     #: a background task).  See the slot warning in the class docstring.
@@ -106,6 +116,10 @@ class PageContext:
     refresh_chat_list: Callable[..., Any] = field(default=_noop)
     refresh_status_pane: Callable[..., Any] = field(default=_noop)
     refresh_inspector: Callable[..., Any] = field(default=_noop)
+    #: Incremental inspector updates: open a new query section (chat_id,
+    #: marker) and append one entry (chat_id, entry) without a full rebuild.
+    begin_inspector_section: Callable[..., None] = field(default=_noop_args)
+    append_inspector: Callable[..., None] = field(default=_noop_args)
     reset_center_tab: Callable[[], None] = field(default=_noop)
     refresh_send_state: Callable[[], None] = field(default=_noop)
     fetch_model_info: Callable[[], Any] | None = None

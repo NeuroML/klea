@@ -57,6 +57,18 @@ class InspectorEntry(TypedDict):
     timing_seconds: NotRequired[float | None]
 
 
+class InspectorMarker(TypedDict):
+    """A per-query heading in the inspector pane.
+
+    Marks the start of a query's inspection section, so entries from
+    different queries can be told apart when the pane keeps them all.
+    """
+
+    type: str
+    text: str
+    stamp: str
+
+
 class TokenUsage(TypedDict):
     """Accumulated token totals for an in-memory chat session."""
 
@@ -81,10 +93,14 @@ class ChatData(TypedDict):
     pinned: bool
     #: Rendered transcript messages.
     messages: list[MessageData]
-    #: Inspector entries for the most recent query in this chat.
-    inspector_entries: list[InspectorEntry]
+    #: Inspector items for this chat, in order: a per-query
+    #: :class:`InspectorMarker` followed by that query's entries.  Kept
+    #: for the browser session (not persisted).
+    inspector_entries: list[InspectorEntry | InspectorMarker]
     #: Indices into ``inspector_entries`` currently expanded in the UI.
     inspector_expanded: set[int]
+    #: Indices of inspector query sections currently collapsed.
+    inspector_sections_collapsed: set[int]
     #: Status-pane sections, keyed by node label / section key.
     state_sections: dict[str, StateSection]
     #: Active model config per role (from ``fetch_active_models``).
@@ -93,8 +109,9 @@ class ChatData(TypedDict):
     token_usage: TokenUsage
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
-    #: Transient inspector buffer for the in-flight query.
-    inspector_buffer: NotRequired[list[InspectorEntry]]
+    #: Transient inspector buffer for the in-flight query (retained until the
+    #: stream component appends inspector entries live).
+    inspector_buffer: NotRequired[list[InspectorEntry | InspectorMarker]]
     #: App-defined context-control preferences (mode / access level).
     mode_pref: NotRequired[str]
     access_pref: NotRequired[str]
@@ -123,6 +140,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
             "messages": [],
             "inspector_entries": [],
             "inspector_expanded": set(),
+            "inspector_sections_collapsed": set(),
             "state_sections": {},
             "model_info": {},
             "token_usage": {
