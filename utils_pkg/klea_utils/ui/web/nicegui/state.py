@@ -134,6 +134,28 @@ def resolve_chat_choice(
     return resolve_choice(pending, pref, context_value, allowed, default)
 
 
+def missing_credentials(model_info: dict[str, Any]) -> list[str]:
+    """Return roles whose resolved model needs an API key that is not set.
+
+    Used by the UI to flag roles that cannot run until the user stores a
+    provider credential (or sets the provider's environment variable).
+    Roles whose provider needs no key (e.g. local Ollama) are ignored, as
+    are roles with no model resolved yet.
+
+    :param model_info: The resolved per-role config from ``fetch_active_models``
+        / ``fetch_session_models`` (each value carries a ``credential`` block).
+    :returns: Role names whose credential source is ``none`` but required.
+    """
+    missing: list[str] = []
+    for role, cfg in model_info.items():
+        if not cfg.get("model"):
+            continue
+        credential = cfg.get("credential") or {}
+        if credential.get("requires_key") and credential.get("source") == "none":
+            missing.append(role)
+    return missing
+
+
 def get_chats_sorted(user_id: str) -> list[tuple[str, dict]]:
     """Return (chat_id, data) pairs for *user_id*, pinned first, then by creation desc.
 
