@@ -22,14 +22,14 @@ from nicegui import ui
 
 from klea_utils.api.sse import stream_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import ensure_chat
+from klea_utils.ui.web.nicegui.state import ChatData, ensure_chat
 
 logger = logging.getLogger(__name__)
 
 INSPECTOR_BUFFER_KEY = "inspector_buffer"
 
 
-def apply_stream_event(chat: dict[str, Any], event: dict[str, Any]) -> str | None:
+def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     """Apply one stream event's pure state mutations to the *chat* dict.
 
     Mutates *chat* in place (token usage, status sections, inspector
