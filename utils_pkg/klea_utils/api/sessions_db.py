@@ -358,6 +358,31 @@ class SessionStore:
             self._conn.commit()
         logger.debug("clear_override(%s, %s, role=%s)", user_id, chat_id, role)
 
+    def all_chat_overrides(self) -> list[dict[str, Any]]:
+        """Return every chat that has (parsed) overrides.
+
+        Each entry is ``{user_id, chat_id, overrides}``.  Used by the
+        startup migration that moves legacy per-chat ``api_key`` values
+        into the provider credential store.
+        """
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT user_id, chat_id, overrides FROM chat_sessions"
+            ).fetchall()
+        result: list[dict[str, Any]] = []
+        for r in rows:
+            overrides = self._json_loads(r["overrides"])
+            if overrides:
+                result.append(
+                    {
+                        "user_id": r["user_id"],
+                        "chat_id": r["chat_id"],
+                        "overrides": overrides,
+                    }
+                )
+        logger.debug("all_chat_overrides(): %d chat(s) with overrides", len(result))
+        return result
+
     # ------------------------------------------------------------------
     # Per-user default model overrides (session_overrides.overrides)
     # ------------------------------------------------------------------

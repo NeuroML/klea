@@ -16,6 +16,7 @@ from fastapi import APIRouter, FastAPI
 
 logger = logging.getLogger(__name__)
 
+from klea_utils.api.chat_core import migrate_legacy_overrides
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.paths import init_dir
@@ -60,6 +61,8 @@ def make_app(
         # Drop stored API credentials unused past their TTL (short-lived
         # processes still expire keys without a background task).
         app.state.chat_sessions.purge_expired_credentials()
+        # Move any legacy inline per-chat api_key into provider credentials.
+        migrate_legacy_overrides(app.state.chat_sessions)
         logger.debug("Session store ready at %s", db_path)
 
         app.state.is_ready = True

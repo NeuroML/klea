@@ -56,33 +56,33 @@ def _role_is_modifiable(graph: object, role: str) -> bool:
 
 def _role_config(
     role: str,
-    entry: Any,
+    role_entry: Any,
     session_override: dict[str, Any],
     chat_override: dict[str, Any],
 ) -> dict[str, Any]:
-    """Resolve one role's effective config (graph default < user < chat)."""
-    model = getattr(entry, "model_name", "") if entry else ""
+    """Resolve one role's effective config (graph default < session < chat)."""
+    model_name = getattr(role_entry, "model_name", "") if role_entry else ""
     if session_override.get("model"):
-        model = session_override["model"]
+        model_name = session_override["model"]
     if chat_override.get("model"):
-        model = chat_override["model"]
+        model_name = chat_override["model"]
 
-    cfg: dict[str, Any] = {
-        "model": model,
-        "modifiable": getattr(entry, "modifiable", True) if entry else True,
-        "required": getattr(entry, "required", True) if entry else True,
+    role_config: dict[str, Any] = {
+        "model": model_name,
+        "modifiable": getattr(role_entry, "modifiable", True) if role_entry else True,
+        "required": getattr(role_entry, "required", True) if role_entry else True,
     }
-    parsed = parse_model_name(model) if model else None
+    parsed = parse_model_name(model_name) if model_name else None
     if parsed and parsed.provider:
-        cfg["provider"] = parsed.provider
+        role_config["provider"] = parsed.provider
     # Carry any legacy base_url/api_key (masked) present in the overrides.
     for override in (session_override, chat_override):
         if override.get("base_url"):
-            cfg["base_url"] = override["base_url"]
+            role_config["base_url"] = override["base_url"]
         if override.get("api_key"):
-            cfg["api_key"] = mask_secret(override["api_key"])
-    logger.debug(f"{role = }\n{cfg = }")
-    return cfg
+            role_config["api_key"] = mask_secret(override["api_key"])
+    logger.debug(f"{role = }\n{role_config = }")
+    return role_config
 
 
 def _resolve_active(
@@ -101,30 +101,35 @@ def _resolve_active(
     :returns: ``{role: config}`` with ``overridden`` (this scope) and,
         for a chat, ``session_overridden``, plus a ``credential`` block.
     """
-    session_ov = store.get_session_overrides(user_id)
-    chat_ov = store.get_overrides(user_id, chat_id) if chat_id else {}
+    session_overrides = store.get_session_overrides(user_id)
+    chat_overrides = store.get_overrides(user_id, chat_id) if chat_id else {}
+    llm_models = getattr(graph, "llm_models", {})
 
-    roles: list[str] = list(getattr(graph, "llm_models", {}))
-    for role in (*session_ov, *chat_ov):
+    roles: list[str] = list(llm_models)
+    for role in (*session_overrides, *chat_overrides):
         if role not in roles:
             roles.append(role)
     logger.debug(
         f"{user_id = }\n{chat_id = }\n"
-        f"{list(session_ov) = }\n{list(chat_ov) = }\n{roles = }"
+        f"{list(session_overrides) = }\n{list(chat_overrides) = }\n{roles = }"
     )
 
-    result: dict[str, dict[str, Any]] = {}
+    resolved: dict[str, dict[str, Any]] = {}
     for role in roles:
-        entry = getattr(graph, "llm_models", {}).get(role)
-        sov = session_ov.get(role) or {}
-        cov = chat_ov.get(role) or {}
-        cfg = _role_config(role, entry, sov, cov)
-        cfg["overridden"] = bool(cov) if chat_id else bool(sov)
+        role_entry = llm_models.get(role)
+        session_override = session_overrides.get(role) or {}
+        chat_override = chat_overrides.get(role) or {}
+        role_config = _role_config(role, role_entry, session_override, chat_override)
+        role_config["overridden"] = (
+            bool(chat_override) if chat_id else bool(session_override)
+        )
         if chat_id:
-            cfg["session_overridden"] = bool(sov)
-        cfg["credential"] = credential_status(store, user_id, cfg["model"])
-        result[role] = cfg
-    return result
+            role_config["session_overridden"] = bool(session_override)
+        role_config["credential"] = credential_status(
+            store, user_id, role_config["model"]
+        )
+        resolved[role] = role_config
+    return resolved
 
 
 def create_models_router() -> APIRouter:

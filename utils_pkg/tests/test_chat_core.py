@@ -22,6 +22,7 @@ import pytest
 from fastapi import Request
 from klea_utils.api import chat_core
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.llm import LLMModel
 
 
 def _make_request(store: SessionStore, graph) -> Request:
@@ -137,3 +138,76 @@ class TestRunQueryContext:
         chunks = [c async for c in response.body_iterator]
         assert any("complete" in str(c) for c in chunks)
         assert seen["context"] == {"model_overrides": {}, "project_root": "/y"}
+
+
+class TestModelOverrideResolution:
+    """chat_core.resolve_model_overrides merges layers + injects credentials."""
+
+    def test_chat_override_wins_role_level(self, store):
+        """A chat override replaces the session default for that role."""
+        store.create_chat("u", "c")
+        store.set_session_override("u", "chat", {"model": "openai:a"})
+        store.set_override("u", "c", "chat", {"model": "openai:b"})
+        graph = SimpleNamespace(llm_models={})
+        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        assert result["chat"]["model"] == "openai:b"
+
+    def test_inherits_session_default(self, store):
+        """With no chat override, the session default applies."""
+        store.set_session_override("u", "chat", {"model": "openai:a"})
+        graph = SimpleNamespace(llm_models={})
+        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        assert result["chat"]["model"] == "openai:a"
+
+    def test_injects_credential_for_override(self, store):
+        """A stored provider credential is injected as api_key."""
+        store.set_session_override("u", "chat", {"model": "openai:gpt-4o"})
+        store.set_credential("u", "openai", "", "sk-secret")
+        graph = SimpleNamespace(llm_models={})
+        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        assert result["chat"]["api_key"] == "sk-secret"
+
+    def test_injects_credential_for_env_default(self, store):
+        """A credential applies even without an override (env default model)."""
+        graph = SimpleNamespace(
+            llm_models={"chat": LLMModel(instance=None, model_name="openai:gpt-4o")}
+        )
+        store.set_credential("u", "openai", "", "sk-secret")
+        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        assert result["chat"] == {"api_key": "sk-secret"}
+
+    def test_skips_locked_role(self, store):
+        """Locked roles are left to the graph/env (no user credential)."""
+        store.set_session_override("u", "guard", {"model": "openai:gpt-4o"})
+        store.set_credential("u", "openai", "", "sk-secret")
+        graph = SimpleNamespace(
+            llm_models={
+                "guard": LLMModel(
+                    instance=None, model_name="openai:gpt-4o", modifiable=False
+                )
+            }
+        )
+        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        assert result["guard"] == {"model": "openai:gpt-4o"}
+
+    def test_migrate_legacy_overrides(self, store):
+        """Legacy inline api_keys move to credentials and leave the override."""
+        store.create_chat("u", "c")
+        store.set_override(
+            "u", "c", "chat", {"model": "openai:gpt-4o", "api_key": "sk-legacy"}
+        )
+        migrated = chat_core.migrate_legacy_overrides(store)
+        assert migrated == 1
+        assert store.get_overrides("u", "c")["chat"] == {"model": "openai:gpt-4o"}
+        assert store.get_credential("u", "openai") == "sk-legacy"
+
+    def test_migrate_keeps_existing_credential(self, store):
+        """An existing provider credential is not overwritten by migration."""
+        store.create_chat("u", "c")
+        store.set_override(
+            "u", "c", "chat", {"model": "openai:gpt-4o", "api_key": "sk-legacy"}
+        )
+        store.set_credential("u", "openai", "", "sk-new")
+        chat_core.migrate_legacy_overrides(store)
+        assert store.get_credential("u", "openai") == "sk-new"
+        assert "api_key" not in store.get_overrides("u", "c")["chat"]
