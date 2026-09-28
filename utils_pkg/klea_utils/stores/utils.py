@@ -357,7 +357,7 @@ DEFAULT_CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 CROSS_ENCODER_CACHE: dict[str, Any] = {}
 
 
-def _load_cross_encoder(model_name: str) -> Any:
+def load_cross_encoder(model_name: str) -> Any:
     """Return a cached :class:`~sentence_transformers.CrossEncoder` instance."""
     cached = CROSS_ENCODER_CACHE.get(model_name)
     if cached is not None:
@@ -367,7 +367,7 @@ def _load_cross_encoder(model_name: str) -> Any:
     # try to initialize the same model concurrently.
     import threading
 
-    lock = _load_cross_encoder.__dict__.setdefault("_lock", threading.Lock())
+    lock = load_cross_encoder.__dict__.setdefault("_lock", threading.Lock())
     with lock:
         cached = CROSS_ENCODER_CACHE.get(model_name)
         if cached is not None:
@@ -417,7 +417,7 @@ def cross_encoder_rerank(
     if model_name is None or not docs:
         return docs
 
-    model = _load_cross_encoder(model_name)
+    model = load_cross_encoder(model_name)
     pairs = [(query, doc.page_content) for doc, _ in docs]
     raw_scores = model.predict(pairs)
 

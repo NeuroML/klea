@@ -235,7 +235,7 @@ def test_cross_encoder_rerank_empty_input():
 def test_cross_encoder_rerank_reorders_by_predicted_score(monkeypatch):
     """Cross-encoder scores replace RRF scores and reorder the list."""
     monkeypatch.setattr(
-        "klea_utils.stores.utils._load_cross_encoder",
+        "klea_utils.stores.utils.load_cross_encoder",
         lambda model_name: _FakeCrossEncoder(model_name),
     )
     d_low = _doc("low relevance")
@@ -253,7 +253,7 @@ def test_cross_encoder_rerank_reorders_by_predicted_score(monkeypatch):
 def test_cross_encoder_rerank_top_k(monkeypatch):
     """top_k caps the reranked result list."""
     monkeypatch.setattr(
-        "klea_utils.stores.utils._load_cross_encoder",
+        "klea_utils.stores.utils.load_cross_encoder",
         lambda model_name: _FakeCrossEncoder(model_name),
     )
     docs = [
@@ -275,7 +275,7 @@ def test_cross_encoder_rerank_top_k(monkeypatch):
 def test_cross_encoder_rerank_preserves_source_scores(monkeypatch):
     """Per-source metadata from rrf_merge survives reranking."""
     monkeypatch.setattr(
-        "klea_utils.stores.utils._load_cross_encoder",
+        "klea_utils.stores.utils.load_cross_encoder",
         lambda model_name: _FakeCrossEncoder(model_name),
     )
     d1 = _doc("high relevance")
@@ -306,7 +306,7 @@ def test_load_cross_encoder_import_error(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
     with pytest.raises(ImportError, match=r"klea_utils\[rerank\]"):
-        stores_utils._load_cross_encoder("fake-model")
+        stores_utils.load_cross_encoder("fake-model")
 
 
 def _doc_with_year(content: str, year: int | None) -> Document:
