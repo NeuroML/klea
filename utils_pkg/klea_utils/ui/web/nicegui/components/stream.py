@@ -22,18 +22,16 @@ from nicegui import ui
 
 from klea_utils.api.sse import stream_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import ChatData, ensure_chat
+from klea_utils.ui.web.nicegui.state import ChatData, InspectorMarker, ensure_chat
 
 logger = logging.getLogger(__name__)
-
-INSPECTOR_BUFFER_KEY = "inspector_buffer"
 
 
 def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     """Apply one stream event's pure state mutations to the *chat* dict.
 
     Mutates *chat* in place (token usage, status sections, inspector
-    buffer, and, on completion, the final message) and returns the
+    entries, and, on completion, the final message) and returns the
     action the UI layer reacts to:
 
     ==============  =====================================================
@@ -41,16 +39,16 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     ==============  =====================================================
     ``"usage"``     token usage totals were incremented
     ``"state"``     a status-pane section was stored
-    ``"inspect"``   an inspection entry was buffered
+    ``"inspect"``   an inspection entry was appended
     ``"context"``   session context (e.g. the operating mode) was stored
     ``"complete"``  the final assistant message was appended
     ``"error"``     the backend signalled an error
     ``None``        no state change (progress / info / token events)
     ==============  =====================================================
 
-    Inspector entries are buffered under :data:`INSPECTOR_BUFFER_KEY`;
-    the caller clears the buffer at stream start and commits it to
-    ``inspector_entries`` when the ``complete`` event arrives.
+    Inspector entries are appended to ``inspector_entries`` as they
+    arrive; the caller renders each one incrementally.  A per-query
+    marker is prepended by the caller at stream start.
 
     :param chat: Chat session dict (see ``state.ensure_chat``).
     :param event: Parsed SSE event dict from ``stream_events``.
@@ -68,7 +66,7 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
 
     if t == "inspect":
         data = event.get("data", {})
-        chat.setdefault(INSPECTOR_BUFFER_KEY, []).append(
+        chat.setdefault("inspector_entries", []).append(
             {
                 "type": t,
                 "node": event.get("node", ""),
@@ -158,8 +156,17 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
     current_chat = ensure_chat(ctx.user_id, chat_id)
     logger.debug("Streaming query for chat %s", chat_id)
     ctx.is_streaming = True
+    ctx.streaming_chat_id = chat_id
     current_chat["state_sections"] = {}
-    current_chat[INSPECTOR_BUFFER_KEY] = []
+    # Start a new inspector section for this query.  Entries are appended
+    # live; sections (and their entries) are kept for the session.
+    marker: InspectorMarker = {
+        "type": "query",
+        "text": query,
+        "stamp": datetime.now().astimezone().strftime("%X"),
+    }
+    current_chat["inspector_entries"].append(marker)
+    ctx.begin_inspector_section(chat_id, marker)
     ctx.refresh_status_pane()
 
     # run_stream runs in a background task, which has no ambient slot; enter
@@ -187,6 +194,9 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
             action = apply_stream_event(current_chat, event)
             if action in ("usage", "state", "context"):
                 ctx.refresh_status_pane()
+            elif action == "inspect":
+                entry = current_chat["inspector_entries"][-1]
+                ctx.append_inspector(chat_id, entry)
             elif action == "tool":
                 ctx.render_chat_area()
             elif action == "complete":
@@ -194,11 +204,8 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
                 logger.debug("chat=%s stream complete", chat_id)
                 ctx.render_chat_area()
                 ctx.is_streaming = False
+                ctx.streaming_chat_id = ""
                 ctx.refresh_status_pane()
-                current_chat["inspector_entries"] = current_chat.get(
-                    INSPECTOR_BUFFER_KEY, []
-                )
-                current_chat["inspector_expanded"] = set()
                 ctx.refresh_inspector()
                 break
             elif action == "error":
@@ -222,6 +229,7 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
                         close_button=True,
                     )
                 ctx.is_streaming = False
+                ctx.streaming_chat_id = ""
                 ctx.refresh_status_pane()
                 break
     except httpx.RequestError as e:
@@ -235,4 +243,5 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
                 close_button=True,
             )
         ctx.is_streaming = False
+        ctx.streaming_chat_id = ""
         ctx.refresh_status_pane()

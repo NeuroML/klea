@@ -17,10 +17,7 @@ import logging
 import httpx
 import pytest
 from klea_utils.api.sse import stream_events, stream_events_sync
-from klea_utils.ui.web.nicegui.components.stream import (
-    INSPECTOR_BUFFER_KEY,
-    apply_stream_event,
-)
+from klea_utils.ui.web.nicegui.components.stream import apply_stream_event
 from klea_utils.ui.web.nicegui.state import chats, ensure_chat
 
 
@@ -48,8 +45,8 @@ class TestApplyStreamEvent:
         """A token event mutates nothing."""
         assert apply_stream_event(chat, {"type": "token", "content": "hi"}) is None
 
-    def test_inspect_buffers_inspector_entry(self, chat):
-        """inspect events append to the inspector buffer."""
+    def test_inspect_appends_inspector_entry(self, chat):
+        """inspect events append to inspector_entries (rendered live)."""
         result = apply_stream_event(
             chat,
             {
@@ -64,8 +61,8 @@ class TestApplyStreamEvent:
             },
         )
         assert result == "inspect"
-        assert len(chat[INSPECTOR_BUFFER_KEY]) == 1
-        entry = chat[INSPECTOR_BUFFER_KEY][0]
+        assert len(chat["inspector_entries"]) == 1
+        entry = chat["inspector_entries"][0]
         assert entry["heading"] == "Plan"
         assert entry["summary"] == "Made a plan"
         assert entry["details"] == {"steps": 3}

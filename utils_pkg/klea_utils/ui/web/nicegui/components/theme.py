@@ -182,6 +182,18 @@ def _add_css_overrides() -> None:
         ".inspector-entry > summary::before { content: '\\25B6'; font-size: 0.65rem; margin-right: 0.35rem; transition: transform 0.15s; }"
     )
     ui.add_css(".inspector-entry[open] > summary::before { content: '\\25BC'; }")
+    # Inspector query sections: same disclosure triangle as entries, plus a
+    # separating rule between sections so consecutive queries are distinct.
+    ui.add_css(
+        ".inspector-section > summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; padding-bottom: 0.5rem; }"
+    )
+    ui.add_css(
+        ".inspector-section > summary::before { content: '\\25B6'; font-size: 0.8rem; margin-right: 0.35rem; transition: transform 0.15s; }"
+    )
+    ui.add_css(".inspector-section[open] > summary::before { content: '\\25BC'; }")
+    ui.add_css(
+        ".inspector-section + .inspector-section { border-top: 1px solid rgba(127, 127, 127, 0.3); padding-top: 0.4rem; }"
+    )
     ui.add_css(
         ".inspector-details summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; }"
     )

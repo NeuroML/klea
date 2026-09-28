@@ -109,26 +109,26 @@ def attach_inspector_panel(ctx: PageContext) -> None:
         collapsed_sections: set[int],
     ) -> Any:
         """Render one query section; returns its body element."""
-        details = ui.element("details").classes("inspector-section mb-3 w-full")
+        details = ui.element("details").classes("inspector-section mb-2 w-full")
         with details:
             if section_idx not in collapsed_sections:
                 details.props("open")
-            with (
+            with (  # noqa: SIM117
                 ui.element("summary")
-                .classes("text-xs font-bold cursor-pointer w-full")
+                .classes("cursor-pointer w-full")
                 .on(
                     "click",
                     lambda i=section_idx: _toggle_inspector_section(ctx, i),
-                ),
-                ui.row().classes("w-full flex-nowrap items-center gap-2"),
+                )
             ):
-                stamp = marker.get("stamp", "")
-                text = marker.get("text", "")
-                if stamp:
-                    ui.label(stamp).classes("text-xs text-grey-5")
-                label = ui.label(_truncate_query(text)).classes("text-xs font-bold")
-                if text:
-                    label.tooltip(text)
+                with ui.row().classes("w-full flex-nowrap items-baseline gap-2"):
+                    stamp = marker.get("stamp", "")
+                    text = marker.get("text", "")
+                    if stamp:
+                        ui.label(stamp).classes("text-sm text-grey-5")
+                    label = ui.label(_truncate_query(text)).classes("text-sm font-bold")
+                    if text:
+                        label.tooltip(text)
             body = ui.column().classes("w-full gap-0 pl-3")
             with body:
                 for idx, entry in items:

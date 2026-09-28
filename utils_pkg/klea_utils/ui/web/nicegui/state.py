@@ -109,9 +109,6 @@ class ChatData(TypedDict):
     token_usage: TokenUsage
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
-    #: Transient inspector buffer for the in-flight query (retained until the
-    #: stream component appends inspector entries live).
-    inspector_buffer: NotRequired[list[InspectorEntry | InspectorMarker]]
     #: App-defined context-control preferences (mode / access level).
     mode_pref: NotRequired[str]
     access_pref: NotRequired[str]
