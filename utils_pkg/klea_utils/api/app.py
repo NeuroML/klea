@@ -57,6 +57,9 @@ def make_app(
 
         db_path = init_dir(graph.paths.user_data_dir) / "sessions.db"
         app.state.chat_sessions = SessionStore(str(db_path))
+        # Drop stored API credentials unused past their TTL (short-lived
+        # processes still expire keys without a background task).
+        app.state.chat_sessions.purge_expired_credentials()
         logger.debug("Session store ready at %s", db_path)
 
         app.state.is_ready = True

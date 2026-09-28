@@ -2,9 +2,10 @@
 """
 Persistent SQLite-backed store for chat session data.
 
-Manages three tables alongside the LangGraph checkpoint DB:
+Manages four tables alongside the LangGraph checkpoint DB:
     - chat_sessions (chat metadata, listing, and per-chat model overrides)
     - session_overrides (per-user default model overrides)
+    - user_credentials (per-user provider API credentials)
     - messages (curated Q&A history for chat display)
 
 There is no separate ``state`` table.  Graph state (plan, goal,
@@ -21,6 +22,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import json
 import logging
+import os
 import sqlite3
 import threading
 from collections.abc import Sequence
@@ -29,6 +31,45 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+#: Default lifetime for an unused per-user API credential.  Credentials
+#: untouched for longer are purged so plaintext keys are not retained
+#: indefinitely.
+DEFAULT_CREDENTIAL_TTL_SECONDS = 7 * 24 * 60 * 60
+
+#: Env var overriding the credential TTL, in days (``0`` disables expiry).
+CREDENTIAL_TTL_ENV_VAR = "KLEA_CREDENTIAL_TTL_DAYS"
+
+#: Minimum gap between opportunistic credential purges.
+CREDENTIAL_PURGE_INTERVAL_SECONDS = 60 * 60
+
+#: Minimum gap between ``last_used_at`` bumps for a credential.
+CREDENTIAL_TOUCH_INTERVAL_SECONDS = 60 * 60
+
+
+def resolve_credential_ttl_seconds() -> float:
+    """Resolve the credential TTL (seconds) from the environment.
+
+    Reads :data:`CREDENTIAL_TTL_ENV_VAR` (days).  A missing/invalid value
+    falls back to :data:`DEFAULT_CREDENTIAL_TTL_SECONDS`; ``0`` or a
+    negative value disables expiry.
+    """
+    raw = os.environ.get(CREDENTIAL_TTL_ENV_VAR, "").strip()
+    if not raw:
+        return float(DEFAULT_CREDENTIAL_TTL_SECONDS)
+    try:
+        days = float(raw)
+    except ValueError:
+        logger.warning(
+            "Invalid %s=%r; using default %d days",
+            CREDENTIAL_TTL_ENV_VAR,
+            raw,
+            DEFAULT_CREDENTIAL_TTL_SECONDS // (24 * 60 * 60),
+        )
+        return float(DEFAULT_CREDENTIAL_TTL_SECONDS)
+    if days <= 0:
+        return 0.0
+    return days * 24 * 60 * 60
 
 
 class SessionStore:
@@ -62,6 +103,24 @@ class SessionStore:
         overrides   TEXT NOT NULL DEFAULT '{}'
     );
 
+    -- Per-user API credentials, keyed by provider (plus the endpoint for
+    -- custom / explicit-URL models).  Secrets are stored in plaintext,
+    -- mirroring the opencode config behaviour; the API never returns them
+    -- raw (only a masked suffix).  ``last_used_at`` drives the unused-key
+    -- TTL purge (see ``purge_expired_credentials``).
+    CREATE TABLE IF NOT EXISTS user_credentials (
+        user_id      TEXT NOT NULL,
+        provider     TEXT NOT NULL,
+        endpoint     TEXT NOT NULL DEFAULT '',
+        secret       TEXT NOT NULL,
+        created_at   REAL NOT NULL DEFAULT 0,
+        last_used_at REAL NOT NULL DEFAULT 0,
+        PRIMARY KEY (user_id, provider, endpoint)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_credentials_last_used
+        ON user_credentials(last_used_at);
+
     CREATE TABLE IF NOT EXISTS messages (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id     TEXT NOT NULL,
@@ -77,7 +136,11 @@ class SessionStore:
 
     """
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        credential_ttl_seconds: float | None = None,
+    ) -> None:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(
@@ -85,6 +148,15 @@ class SessionStore:
         )
         self._conn.row_factory = sqlite3.Row
         self._lock = threading.Lock()
+        # Unused-credential TTL.  ``None`` resolves from the environment
+        # (KLEA_CREDENTIAL_TTL_DAYS); <=0 disables expiry.
+        self._credential_ttl_seconds = (
+            resolve_credential_ttl_seconds()
+            if credential_ttl_seconds is None
+            else float(credential_ttl_seconds)
+        )
+        # Timestamp of the last opportunistic purge (0 forces one on first use).
+        self._last_credential_purge = 0.0
         # Improve concurrency and durability for threaded access
         try:
             self._conn.execute("PRAGMA journal_mode=WAL")
@@ -174,7 +246,7 @@ class SessionStore:
         logger.debug("delete_chat(%s, %s)", user_id, chat_id)
 
     def delete_user_chats(self, user_id: str) -> None:
-        """Remove all chats, messages, and default overrides for a user."""
+        """Remove all chats, messages, overrides, and credentials for a user."""
         with self._lock:
             self._conn.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
             self._conn.execute(
@@ -182,6 +254,9 @@ class SessionStore:
             )
             self._conn.execute(
                 "DELETE FROM session_overrides WHERE user_id = ?", (user_id,)
+            )
+            self._conn.execute(
+                "DELETE FROM user_credentials WHERE user_id = ?", (user_id,)
             )
             self._conn.commit()
         logger.debug("delete_user_chats(%s)", user_id)
@@ -355,6 +430,164 @@ class SessionStore:
             )
             self._conn.commit()
         logger.debug("clear_session_overrides(%s)", user_id)
+
+    # ------------------------------------------------------------------
+    # API credentials (user_credentials; provider + optional endpoint)
+    # ------------------------------------------------------------------
+
+    def _purge_expired_credentials_locked(self) -> int:
+        """Delete credentials unused past the TTL (caller holds the lock)."""
+        if self._credential_ttl_seconds <= 0:
+            return 0
+        cutoff = self._now() - self._credential_ttl_seconds
+        cur = self._conn.execute(
+            "DELETE FROM user_credentials WHERE last_used_at < ?", (cutoff,)
+        )
+        removed = int(cur.rowcount or 0)
+        if removed:
+            self._conn.commit()
+        return removed
+
+    def _maybe_purge_expired_credentials_locked(self) -> None:
+        """Opportunistic TTL purge, at most once per interval."""
+        now = self._now()
+        if now - self._last_credential_purge < CREDENTIAL_PURGE_INTERVAL_SECONDS:
+            return
+        self._last_credential_purge = now
+        removed = self._purge_expired_credentials_locked()
+        if removed:
+            logger.info("Purged %d unused credential(s) past TTL", removed)
+
+    def purge_expired_credentials(self) -> int:
+        """Delete credentials unused for longer than the configured TTL.
+
+        Called at startup and (opportunistically) on credential access, so
+        short-lived processes still clean up without a background task.  A
+        non-positive TTL disables expiry.  Returns the number of rows
+        removed.
+        """
+        with self._lock:
+            self._last_credential_purge = self._now()
+            removed = self._purge_expired_credentials_locked()
+        if removed:
+            logger.info("Purged %d unused credential(s) past TTL", removed)
+        return removed
+
+    def get_credential(
+        self, user_id: str, provider: str, endpoint: str = ""
+    ) -> str | None:
+        """Return the stored secret for a provider(+endpoint), or ``None``."""
+        with self._lock:
+            self._maybe_purge_expired_credentials_locked()
+            row = self._conn.execute(
+                "SELECT secret FROM user_credentials "
+                "WHERE user_id = ? AND provider = ? AND endpoint = ?",
+                (user_id, provider, endpoint or ""),
+            ).fetchone()
+        secret = row["secret"] if row else None
+        logger.debug(
+            "get_credential(%s, %s, %s): %s",
+            user_id,
+            provider,
+            endpoint or "",
+            "found" if secret else "none",
+        )
+        return secret
+
+    def list_credentials(self, user_id: str) -> list[dict[str, Any]]:
+        """Return credentials for *user_id* with timestamps.
+
+        Each entry is ``{provider, endpoint, secret, created_at,
+        last_used_at}``.  Callers must mask ``secret`` before returning it
+        to a client.
+        """
+        with self._lock:
+            self._maybe_purge_expired_credentials_locked()
+            rows = self._conn.execute(
+                "SELECT provider, endpoint, secret, created_at, last_used_at "
+                "FROM user_credentials "
+                "WHERE user_id = ? ORDER BY provider, endpoint",
+                (user_id,),
+            ).fetchall()
+        result = [dict(r) for r in rows]
+        logger.debug("list_credentials(%s): %d", user_id, len(result))
+        return result
+
+    def set_credential(
+        self, user_id: str, provider: str, endpoint: str, secret: str
+    ) -> None:
+        """Store (or replace) the secret for a provider(+endpoint).
+
+        Records ``created_at``/``last_used_at`` so the unused-key TTL can
+        apply.  The secret is never logged.
+        """
+        now = self._now()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO user_credentials "
+                "(user_id, provider, endpoint, secret, created_at, last_used_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(user_id, provider, endpoint) "
+                "DO UPDATE SET secret = excluded.secret, "
+                "last_used_at = excluded.last_used_at",
+                (user_id, provider, endpoint or "", secret, now, now),
+            )
+            self._conn.commit()
+            self._maybe_purge_expired_credentials_locked()
+        logger.debug("set_credential(%s, %s, %s)", user_id, provider, endpoint or "")
+
+    def touch_credential(
+        self,
+        user_id: str,
+        provider: str,
+        endpoint: str = "",
+        min_interval_seconds: float = CREDENTIAL_TOUCH_INTERVAL_SECONDS,
+    ) -> None:
+        """Mark a stored credential as used now (throttled).
+
+        Bumps ``last_used_at`` so the TTL measures *unused* time.  Writes
+        are skipped while the previous bump is younger than
+        *min_interval_seconds* to avoid write amplification on hot paths.
+        """
+        now = self._now()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT last_used_at FROM user_credentials "
+                "WHERE user_id = ? AND provider = ? AND endpoint = ?",
+                (user_id, provider, endpoint or ""),
+            ).fetchone()
+            if row is None:
+                return
+            if now - float(row["last_used_at"] or 0) < min_interval_seconds:
+                return
+            self._conn.execute(
+                "UPDATE user_credentials SET last_used_at = ? "
+                "WHERE user_id = ? AND provider = ? AND endpoint = ?",
+                (now, user_id, provider, endpoint or ""),
+            )
+            self._conn.commit()
+            self._maybe_purge_expired_credentials_locked()
+        logger.debug("touch_credential(%s, %s, %s)", user_id, provider, endpoint or "")
+
+    def clear_credential(self, user_id: str, provider: str, endpoint: str = "") -> None:
+        """Remove the stored secret for a provider(+endpoint)."""
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM user_credentials "
+                "WHERE user_id = ? AND provider = ? AND endpoint = ?",
+                (user_id, provider, endpoint or ""),
+            )
+            self._conn.commit()
+        logger.debug("clear_credential(%s, %s, %s)", user_id, provider, endpoint or "")
+
+    def clear_credentials(self, user_id: str) -> None:
+        """Remove all stored credentials for *user_id*."""
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM user_credentials WHERE user_id = ?", (user_id,)
+            )
+            self._conn.commit()
+        logger.debug("clear_credentials(%s)", user_id)
 
     # ------------------------------------------------------------------
     # Messages (curated Q&A for frontend display)

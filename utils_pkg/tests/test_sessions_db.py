@@ -11,7 +11,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 
 import pytest
-from klea_utils.api.sessions_db import SessionStore
+from klea_utils.api.sessions_db import (
+    SessionStore,
+    resolve_credential_ttl_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -147,3 +150,70 @@ def test_delete_user_chats_clears_credentials(store):
     store.set_credential("u1", "openai", "", "sk-oai")
     store.delete_user_chats("u1")
     assert store.list_credentials("u1") == []
+
+
+def test_resolve_credential_ttl_defaults_to_seven_days(monkeypatch):
+    """With no env override the TTL is seven days."""
+    monkeypatch.delenv("KLEA_CREDENTIAL_TTL_DAYS", raising=False)
+    assert resolve_credential_ttl_seconds() == 7 * 24 * 3600
+
+
+def test_resolve_credential_ttl_from_days(monkeypatch):
+    """A day value is converted to seconds."""
+    monkeypatch.setenv("KLEA_CREDENTIAL_TTL_DAYS", "1")
+    assert resolve_credential_ttl_seconds() == 24 * 3600
+
+
+def test_resolve_credential_ttl_zero_disables(monkeypatch):
+    """Zero disables expiry."""
+    monkeypatch.setenv("KLEA_CREDENTIAL_TTL_DAYS", "0")
+    assert resolve_credential_ttl_seconds() == 0.0
+
+
+def test_resolve_credential_ttl_invalid_falls_back(monkeypatch):
+    """An unparseable value falls back to the default."""
+    monkeypatch.setenv("KLEA_CREDENTIAL_TTL_DAYS", "nonsense")
+    assert resolve_credential_ttl_seconds() == 7 * 24 * 3600
+
+
+def test_purge_expired_credentials(store, monkeypatch):
+    """Credentials unused beyond the TTL are removed (secret included)."""
+    store.set_credential("u1", "openai", "", "sk")
+    future = store._now() + 8 * 24 * 3600
+    monkeypatch.setattr(store, "_now", lambda: future)
+    assert store.purge_expired_credentials() == 1
+    assert store.get_credential("u1", "openai") is None
+
+
+def test_purge_keeps_recent_credentials(store):
+    """A freshly used credential is not purged."""
+    store.set_credential("u1", "openai", "", "sk")
+    assert store.purge_expired_credentials() == 0
+    assert store.get_credential("u1", "openai") == "sk"
+
+
+def test_ttl_zero_disables_purge(tmp_path, monkeypatch):
+    """A zero TTL keeps credentials indefinitely."""
+    _store = SessionStore(str(tmp_path / "ttl0.db"), credential_ttl_seconds=0)
+    try:
+        _store.set_credential("u1", "openai", "", "sk")
+        future = _store._now() + 365 * 24 * 3600
+        monkeypatch.setattr(_store, "_now", lambda: future)
+        assert _store.purge_expired_credentials() == 0
+        assert _store.get_credential("u1", "openai") == "sk"
+    finally:
+        _store.close()
+
+
+def test_touch_credential_throttled_then_bumps(store, monkeypatch):
+    """touch_credential is throttled, then bumps last_used_at once due."""
+    store.set_credential("u1", "openai", "", "sk")
+    first = store.list_credentials("u1")[0]["last_used_at"]
+    # Within the throttle window: no write.
+    store.touch_credential("u1", "openai")
+    assert store.list_credentials("u1")[0]["last_used_at"] == first
+    # Past the window: last_used_at is bumped.
+    future = first + 2 * 3600
+    monkeypatch.setattr(store, "_now", lambda: future)
+    store.touch_credential("u1", "openai")
+    assert store.list_credentials("u1")[0]["last_used_at"] == future
