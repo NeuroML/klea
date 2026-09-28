@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,9 @@ def create_models_router() -> APIRouter:
             chat_id,
             len(overrides),
         )
-        return overrides
+        # Never return a stored secret: mask any (legacy) plaintext
+        # ``api_key`` before serialising.
+        return mask_sensitive(overrides)
 
     @router.get("/{user_id}/{chat_id}/models/active")
     async def get_chat_active_models(user_id: str, chat_id: str, request: Request):
