@@ -354,13 +354,12 @@ def rrf_merge(
 #: enable reranking.  Small MS MARCO model; runs locally via
 #: ``sentence-transformers``.
 DEFAULT_CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-
-_cross_encoder_cache: dict[str, Any] = {}
+CROSS_ENCODER_CACHE: dict[str, Any] = {}
 
 
 def _load_cross_encoder(model_name: str) -> Any:
     """Return a cached :class:`~sentence_transformers.CrossEncoder` instance."""
-    cached = _cross_encoder_cache.get(model_name)
+    cached = CROSS_ENCODER_CACHE.get(model_name)
     if cached is not None:
         return cached
 
@@ -370,7 +369,7 @@ def _load_cross_encoder(model_name: str) -> Any:
 
     lock = _load_cross_encoder.__dict__.setdefault("_lock", threading.Lock())
     with lock:
-        cached = _cross_encoder_cache.get(model_name)
+        cached = CROSS_ENCODER_CACHE.get(model_name)
         if cached is not None:
             return cached
         try:
@@ -380,8 +379,8 @@ def _load_cross_encoder(model_name: str) -> Any:
                 "Cross-encoder reranking requires sentence-transformers. "
                 "Install: pip install klea_utils[rerank]"
             ) from None
-        _cross_encoder_cache[model_name] = CrossEncoder(model_name)
-        return _cross_encoder_cache[model_name]
+        CROSS_ENCODER_CACHE[model_name] = CrossEncoder(model_name)
+        return CROSS_ENCODER_CACHE[model_name]
 
 
 def cross_encoder_rerank(

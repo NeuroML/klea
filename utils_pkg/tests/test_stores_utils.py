@@ -295,7 +295,7 @@ def test_load_cross_encoder_import_error(monkeypatch):
 
     import klea_utils.stores.utils as stores_utils
 
-    stores_utils._cross_encoder_cache.clear()
+    stores_utils.CROSS_ENCODER_CACHE.clear()
     real_import = builtins.__import__
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
