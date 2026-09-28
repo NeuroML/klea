@@ -2,8 +2,9 @@
 """
 Persistent SQLite-backed store for chat session data.
 
-Manages two tables alongside the LangGraph checkpoint DB:
-    - chat_sessions (chat metadata, listing, and model overrides)
+Manages three tables alongside the LangGraph checkpoint DB:
+    - chat_sessions (chat metadata, listing, and per-chat model overrides)
+    - session_overrides (per-user default model overrides)
     - messages (curated Q&A history for chat display)
 
 There is no separate ``state`` table.  Graph state (plan, goal,
@@ -52,6 +53,14 @@ class SessionStore:
 
     -- State is NOT stored here.  Read from LangGraph checkpoint
     -- via ``graph.aget_state(thread_id)`` instead.
+
+    -- Per-user default model overrides, applied to every chat below any
+    -- per-chat overrides.  Keyed by user alone (no chat).  JSON blob:
+    -- {"rag":{"model":...,},"guard":{...}}
+    CREATE TABLE IF NOT EXISTS session_overrides (
+        user_id     TEXT PRIMARY KEY,
+        overrides   TEXT NOT NULL DEFAULT '{}'
+    );
 
     CREATE TABLE IF NOT EXISTS messages (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -165,11 +174,14 @@ class SessionStore:
         logger.debug("delete_chat(%s, %s)", user_id, chat_id)
 
     def delete_user_chats(self, user_id: str) -> None:
-        """Remove all chats and messages for a user."""
+        """Remove all chats, messages, and default overrides for a user."""
         with self._lock:
             self._conn.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
             self._conn.execute(
                 "DELETE FROM chat_sessions WHERE user_id = ?", (user_id,)
+            )
+            self._conn.execute(
+                "DELETE FROM session_overrides WHERE user_id = ?", (user_id,)
             )
             self._conn.commit()
         logger.debug("delete_user_chats(%s)", user_id)
@@ -270,6 +282,79 @@ class SessionStore:
             )
             self._conn.commit()
         logger.debug("clear_override(%s, %s, role=%s)", user_id, chat_id, role)
+
+    # ------------------------------------------------------------------
+    # Per-user default model overrides (session_overrides.overrides)
+    # ------------------------------------------------------------------
+
+    def get_session_overrides(self, user_id: str) -> dict[str, dict[str, Any]]:
+        """Return per-role default model overrides for *user_id*.
+
+        These are the user's "last used" defaults, applied to every chat
+        below any per-chat overrides.  Returns
+        ``{"rag": {"model": "...", "provider": "..."}, ...}``.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT overrides FROM session_overrides WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        result = self._json_loads(row["overrides"] if row else None)
+        logger.debug("get_session_overrides(%s): %d role(s)", user_id, len(result))
+        return result
+
+    def set_session_override(
+        self,
+        user_id: str,
+        role: str,
+        config: dict[str, Any],
+    ) -> None:
+        """Set or replace the per-user default override for a given role."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT overrides FROM session_overrides WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            current = self._json_loads(row["overrides"]) if row else {}
+            current[role] = config
+            self._conn.execute(
+                "INSERT INTO session_overrides (user_id, overrides) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET overrides = excluded.overrides",
+                (user_id, self._json_dumps(current)),
+            )
+            self._conn.commit()
+        logger.debug(
+            "set_session_override(%s, role=%s, model=%s)",
+            user_id,
+            role,
+            config.get("model", "?"),
+        )
+
+    def clear_session_override(self, user_id: str, role: str) -> None:
+        """Remove the per-user default override for a single role."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT overrides FROM session_overrides WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            current = self._json_loads(row["overrides"]) if row else {}
+            current.pop(role, None)
+            self._conn.execute(
+                "INSERT INTO session_overrides (user_id, overrides) VALUES (?, ?) "
+                "ON CONFLICT(user_id) DO UPDATE SET overrides = excluded.overrides",
+                (user_id, self._json_dumps(current)),
+            )
+            self._conn.commit()
+        logger.debug("clear_session_override(%s, role=%s)", user_id, role)
+
+    def clear_session_overrides(self, user_id: str) -> None:
+        """Remove all per-user default overrides for *user_id*."""
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM session_overrides WHERE user_id = ?", (user_id,)
+            )
+            self._conn.commit()
+        logger.debug("clear_session_overrides(%s)", user_id)
 
     # ------------------------------------------------------------------
     # Messages (curated Q&A for frontend display)
