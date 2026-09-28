@@ -17,10 +17,11 @@ import logging
 
 from nicegui import ui
 
+from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
+from klea_utils.ui.web.nicegui.state import chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,39 @@ def _render_messages(ctx: PageContext) -> None:
                 ui.label("Type your message below to begin").classes(
                     "text-sm text-grey-5"
                 )
+                # First-run setup call-to-action: point the user straight
+                # at the model dialog when anything required is missing.
+                missing_models = missing_required_roles(ctx.session_model_info)
+                missing_keys = missing_credentials(ctx.session_model_info)
+                if missing_models or missing_keys:
+                    with ui.card().classes("items-center gap-1 mt-2 p-4"):
+                        ui.label("Models are not configured").classes(
+                            "text-sm font-bold"
+                        )
+                        if missing_models:
+                            ui.label(
+                                "Set the required models to start: "
+                                + ", ".join(
+                                    role.capitalize() for role in missing_models
+                                )
+                            ).classes("text-xs text-grey-6")
+                        elif missing_keys:
+                            providers = sorted(
+                                {
+                                    (
+                                        ctx.session_model_info[role].get("credential")
+                                        or {}
+                                    ).get("provider", "")
+                                    for role in missing_keys
+                                }
+                                - {""}
+                            )
+                            ui.label(
+                                "Add an API key for: " + ", ".join(providers)
+                            ).classes("text-xs text-grey-6")
+                        ui.button(
+                            "Choose models", on_click=ctx.model_config_dialog
+                        ).props("unelevated color=primary")
         else:
             current_chat = chats.get(f"{ctx.user_id}:{current}")
             msgs = current_chat["messages"] if current_chat else []

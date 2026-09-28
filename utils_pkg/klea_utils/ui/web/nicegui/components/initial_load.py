@@ -17,9 +17,11 @@ import logging
 from nicegui import background_tasks, ui
 
 from klea_utils.api.utils import check_api_is_ready
+from klea_utils.llm import missing_required_roles
 from klea_utils.ui.web.nicegui.client import hydrate_chats
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
+from klea_utils.ui.web.nicegui.components.storage import user_storage_or_none
+from klea_utils.ui.web.nicegui.state import chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,31 @@ def attach_initial_load(ctx: PageContext) -> None:
 
     :param ctx: The shared page context.
     """
+
+    async def _maybe_prompt_models() -> None:
+        """Open the model dialog once per browser if setup is incomplete.
+
+        Models may come from the environment, so the prompt only appears
+        when required models (or their API keys) are genuinely missing.
+        """
+        store = user_storage_or_none()
+        if store is not None and store.get("models_prompt_shown"):
+            logger.debug("model prompt already shown for this session")
+            return
+        missing_models = missing_required_roles(ctx.session_model_info)
+        missing_keys = missing_credentials(ctx.session_model_info)
+        if not (missing_models or missing_keys):
+            logger.debug("models configured; no first-run prompt needed")
+            return
+        logger.info(
+            "first run: missing models=%s missing API keys=%s; prompting",
+            missing_models,
+            missing_keys,
+        )
+        if store is not None:
+            store["models_prompt_shown"] = True
+        if ctx.model_config_dialog is not None:
+            await ctx.model_config_dialog()
 
     async def _initial_load() -> None:
         """Wait for backend, hydrate chats, then refresh UI."""
@@ -66,6 +93,16 @@ def attach_initial_load(ctx: PageContext) -> None:
             logger.debug("hydrate done, chats keys=%s", list(chats.keys()))
         except Exception as e:  # noqa: BLE001
             logger.warning("hydrate failed: %s", e)
+
+        # Per-session default models: needed for the first-run CTA and the
+        # status pane.  Fetch before rendering so the CTA shows immediately.
+        if ctx.fetch_session_model_info is not None:
+            try:
+                await ctx.fetch_session_model_info()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("session model fetch failed: %s", e)
+
+        await _maybe_prompt_models()
 
         # Clear banner and enable input.
         ctx.loading_row.clear()
