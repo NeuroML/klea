@@ -419,14 +419,17 @@ def cross_encoder_rerank(
     if not docs:
         return docs
 
+    logger.debug(f"Cross-encoder reranking {len(docs)} documents")
     pairs = [(query, doc.page_content) for doc, _ in docs]
     raw_scores = model.predict(pairs)
 
-    return sorted(
+    ranked = sorted(
         ((doc, float(score)) for (doc, _), score in zip(docs, raw_scores, strict=True)),
         key=lambda item: item[1],
         reverse=True,
     )
+    logger.debug(f"{len(ranked) = }\n{ranked[0][1] = }\n{ranked[-1][1] = }")
+    return ranked
 
 
 #: Weight given to the normalized relevance (RRF) component of the final
@@ -450,29 +453,30 @@ def rerank_by_recency(
     relevance_weight: float = RECENCY_WEIGHT_RELEVANCE,
     time_weight: float = RECENCY_WEIGHT_TIME,
 ) -> list[tuple[Document, float]]:
-    """Re-rank RRF results blending in document recency.
+    """Re-rank results blending in document recency.
 
     Keeps :func:`rrf_merge` pure (relevance only) and applies recency as a
-    separate post-fusion re-rank.  Each document's pure RRF score is
+    separate post-fusion re-rank.  Each document's relevance score is
     min-max normalized to ``[0, 1]`` across the result set, a time score is
     computed from its ``year`` metadata, and the final score is a weighted
     combination:
 
-    ``final = relevance_weight * norm_rrf + time_weight * time_score``
+    ``final = relevance_weight * norm_relevance + time_weight * time_score``
 
     The time score is ``(year - year_min) / (year_max - year_min)`` where
     ``year_min``/``year_max`` are the min and max ``year`` across the
     retrieved set (relative normalization).  Documents without a usable
     ``year`` (missing or non-int) get :data:`RECENCY_MISSING_YEAR_SCORE`.
 
-    Division-by-zero cases are guarded: a single distinct RRF value maps to
-    ``1.0`` and a single distinct year maps to ``1.0``.
+    Division-by-zero cases are guarded: a single distinct relevance value
+    maps to ``1.0`` and a single distinct year maps to ``1.0``.
 
-    :param merged: ``(doc, rrf_score)`` tuples from :func:`rrf_merge`
+    :param merged: ``(document, score)`` tuples, typically from
+        :func:`rrf_merge` (or the cross-encoder rerank when enabled)
     :param relevance_weight: Weight for the normalized relevance component
     :param time_weight: Weight for the recency component
     :returns: The same documents, re-sorted descending by the blended score,
-        with the blended score replacing the pure RRF score in each tuple
+        with the blended score replacing the input score in each tuple
     """
     if not merged:
         return []
@@ -487,6 +491,11 @@ def rerank_by_recency(
     ]
     year_min = min(years) if years else None
     year_max = max(years) if years else None
+
+    logger.debug(
+        f"Recency reranking {len(merged)} documents: "
+        f"{year_min = }, {year_max = }, {rrf_min = }, {rrf_max = }"
+    )
 
     blended: list[tuple[Document, float]] = []
     for doc, score in merged:
@@ -507,7 +516,9 @@ def rerank_by_recency(
         final = relevance_weight * norm_rrf + time_weight * time_score
         blended.append((doc, final))
 
-    return sorted(blended, key=lambda tup: tup[1], reverse=True)
+    ranked = sorted(blended, key=lambda tup: tup[1], reverse=True)
+    logger.debug(f"{len(ranked) = }\n{ranked[0][1] = }\n{ranked[-1][1] = }")
+    return ranked
 
 
 def truncate_reference_material(
