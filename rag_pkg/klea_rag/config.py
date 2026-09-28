@@ -14,6 +14,7 @@ from typing import Any
 from klea_utils.mcp.access import ToolAccessOverride
 from klea_utils.mcp.server.config import BundledToolsConfig
 from klea_utils.stores.config import PerDomainConfig as BasePerDomainConfig
+from klea_utils.stores.utils import DEFAULT_CROSS_ENCODER_MODEL
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -34,6 +35,11 @@ class GeneralConfig(BaseModel):
     # char budget for the reference material serialized into the LLM context
     # (see klea_utils.stores.utils.truncate_reference_material)
     max_refs_size: int = Field(default=20000, ge=1)
+    #: Cross-encoder model that re-ranks fused retrieval results before the
+    #: recency blend (see klea_utils.stores.utils.cross_encoder_rerank).
+    #: Reranking is always on; the model is downloaded at startup and cached
+    #: by Hugging Face, so this only needs overriding to change the model.
+    cross_encoder_model: str = Field(default=DEFAULT_CROSS_ENCODER_MODEL, min_length=1)
     # TODO: unused---what is this for?
     pre_prompt: str = ""
     non_domain_chat: bool = True
