@@ -78,3 +78,72 @@ def test_delete_user_chats_clears_session_overrides(store):
     assert store.get_session_overrides("u1") == {}
     assert store.get_overrides("u1", "c1") == {}
     assert store.get_chat("u1", "c1") is None
+
+
+def test_credential_empty_by_default(store):
+    """A provider with no stored credential returns None."""
+    assert store.get_credential("u1", "openai") is None
+
+
+def test_set_and_get_credential(store):
+    """A stored provider credential is returned."""
+    store.set_credential("u1", "openai", "", "sk-oai")
+    logger.info("stored openai credential for u1")
+    assert store.get_credential("u1", "openai") == "sk-oai"
+
+
+def test_set_credential_replaces(store):
+    """Setting a credential again replaces the previous secret."""
+    store.set_credential("u1", "openai", "", "sk-old")
+    store.set_credential("u1", "openai", "", "sk-new")
+    assert store.get_credential("u1", "openai") == "sk-new"
+
+
+def test_credentials_are_endpoint_scoped(store):
+    """Two custom endpoints under the same provider are distinct scopes."""
+    store.set_credential("u1", "custom", "https://a/v1", "sk-a")
+    store.set_credential("u1", "custom", "https://b/v1", "sk-b")
+    assert store.get_credential("u1", "custom", "https://a/v1") == "sk-a"
+    assert store.get_credential("u1", "custom", "https://b/v1") == "sk-b"
+
+
+def test_credentials_are_per_user(store):
+    """Credentials are isolated per user."""
+    store.set_credential("u1", "openai", "", "sk-u1")
+    store.set_credential("u2", "openai", "", "sk-u2")
+    assert store.get_credential("u1", "openai") == "sk-u1"
+    assert store.get_credential("u2", "openai") == "sk-u2"
+
+
+def test_list_credentials(store):
+    """Listing returns every provider(+endpoint) scope with its secret."""
+    store.set_credential("u1", "openai", "", "sk-oai")
+    store.set_credential("u1", "custom", "https://a/v1", "sk-a")
+    creds = {
+        (c["provider"], c["endpoint"]): c["secret"]
+        for c in store.list_credentials("u1")
+    }
+    assert creds == {("openai", ""): "sk-oai", ("custom", "https://a/v1"): "sk-a"}
+
+
+def test_clear_credential_removes_single_scope(store):
+    """Clearing one scope leaves the others intact."""
+    store.set_credential("u1", "openai", "", "sk-oai")
+    store.set_credential("u1", "anthropic", "", "sk-ant")
+    store.clear_credential("u1", "openai")
+    assert store.get_credential("u1", "openai") is None
+    assert store.get_credential("u1", "anthropic") == "sk-ant"
+
+
+def test_clear_credentials_removes_all(store):
+    """Clearing all credentials empties the user's list."""
+    store.set_credential("u1", "openai", "", "sk-oai")
+    store.clear_credentials("u1")
+    assert store.list_credentials("u1") == []
+
+
+def test_delete_user_chats_clears_credentials(store):
+    """Deleting a user session also drops its credentials."""
+    store.set_credential("u1", "openai", "", "sk-oai")
+    store.delete_user_chats("u1")
+    assert store.list_credentials("u1") == []

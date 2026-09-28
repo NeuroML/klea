@@ -346,7 +346,7 @@ _ENDPOINT_LIMITS_CACHE: dict[tuple[str, str], tuple[float, ModelLimits]] = {}
 _LANGCHAIN_PROVIDER_API_KEY_ENV: dict[str, str] = {"mistralai": "MISTRAL_API_KEY"}
 
 
-def _langchain_provider_api_key_env(provider: str) -> str:
+def get_provider_api_key_env(provider: str) -> str:
     """Return the API key env var name a LangChain SDK reads for *provider*.
 
     The provider id here is a LangChain ``_BUILTIN_PROVIDERS`` key, and
@@ -355,9 +355,14 @@ def _langchain_provider_api_key_env(provider: str) -> str:
     model invoke would use.  Follows the ``{PROVIDER}_API_KEY`` convention
     unless an explicit alias is registered in
     :data:`_LANGCHAIN_PROVIDER_API_KEY_ENV`.
+
+    Also used by the UI to report whether a model's credential comes from
+    the environment; pass a lowercase Klea model prefix.
     """
     return (
-        _LANGCHAIN_PROVIDER_API_KEY_ENV.get(provider) or f"{provider.upper()}_API_KEY"
+        _LANGCHAIN_PROVIDER_API_KEY_ENV.get(provider)
+        or _LANGCHAIN_PROVIDER_API_KEY_ENV.get(provider.lower())
+        or f"{provider.upper()}_API_KEY"
     )
 
 
@@ -429,11 +434,11 @@ def _fetch_endpoint_max_model_len(
 
     When no explicit *api_key* is given, falls back to the standard
     ``{PROVIDER}_API_KEY`` environment variable derived from *provider*
-    via :func:`_langchain_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,
+    via :func:`get_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,
     ``MISTRAL_API_KEY``), matching how the LangChain/OpenAI SDKs resolve
     credentials for each provider.
     """
-    resolved_key = api_key or os.environ.get(_langchain_provider_api_key_env(provider))
+    resolved_key = api_key or os.environ.get(get_provider_api_key_env(provider))
     headers = {"Authorization": f"Bearer {resolved_key}"} if resolved_key else {}
     url = base_url.rstrip("/") + "/models"
     try:

@@ -12,14 +12,18 @@ import unittest
 
 import pytest
 from klea_utils.llm import (
+    CredentialScope,
     LLMModel,
     add_memory_to_prompt,
+    credential_scope,
     estimate_input_tokens,
     format_alert,
     get_last_n_conversations,
     get_recent_messages,
     missing_required_roles,
     parse_model_name,
+    provider_api_key_env,
+    provider_requires_api_key,
     resolve_langchain_endpoint,
     split_output_by_section,
 )
@@ -376,6 +380,49 @@ def test_missing_required_roles_accepts_llm_model_objects():
         "guard": LLMModel(instance=None, model_name="", required=False),
     }
     assert missing_required_roles(models) == ["plan"]
+
+
+def test_credential_scope_provider_only():
+    """A plain provider:model scopes to the provider, no endpoint."""
+    assert credential_scope("openai:gpt-4o") == CredentialScope("openai", None)
+
+
+def test_credential_scope_ignores_non_url_suffix():
+    """A non-URL suffix (e.g. a HF backend tag) is not an endpoint."""
+    assert credential_scope("huggingface:org/model:auto") == CredentialScope(
+        "huggingface", None
+    )
+
+
+def test_credential_scope_custom_url():
+    """A custom: URL suffix scopes to provider + endpoint."""
+    scope = credential_scope("custom:model:https://host/v1/chat/completions")
+    assert scope == CredentialScope("custom", "https://host/v1/chat/completions")
+
+
+def test_credential_scope_explicit_http_endpoint_on_named_provider():
+    """An http(s) suffix on any provider is treated as an endpoint."""
+    scope = credential_scope("openai:gpt-4o:https://proxy/v1")
+    assert scope == CredentialScope("openai", "https://proxy/v1")
+
+
+def test_credential_scope_same_provider_models_share_scope():
+    """Two models from the same provider share one credential scope."""
+    assert credential_scope("openai:gpt-4o") == credential_scope("openai:gpt-4.1")
+
+
+def test_provider_requires_api_key_excludes_local():
+    """Ollama (and an empty provider) need no API key."""
+    assert provider_requires_api_key("openai") is True
+    assert provider_requires_api_key("ollama") is False
+    assert provider_requires_api_key("") is False
+
+
+def test_provider_api_key_env_convention():
+    """Env var names follow the SDK convention, with known aliases."""
+    assert provider_api_key_env("openai") == "OPENAI_API_KEY"
+    assert provider_api_key_env("mistralai") == "MISTRAL_API_KEY"
+    assert provider_api_key_env("ollama") is None
 
 
 if __name__ == "__main__":
