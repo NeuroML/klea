@@ -24,6 +24,8 @@ from klea_utils.stores.metadata import (
     SHARED_DOC_METADATA_KEYS,
 )
 
+logger = logging.getLogger(__name__)
+
 #: Name of the chunk-cache directory created inside a source directory by
 #: the ingestion pipeline (holds the per-file pickled chunks, the
 #: generated metadata-map template, the DOI cache, and store manifests).
@@ -350,51 +352,57 @@ def rrf_merge(
     return merged[:num_refs_max]
 
 
-#: Default cross-encoder model for :func:`cross_encoder_rerank` when callers
-#: enable reranking.  Small MS MARCO model; runs locally via
-#: ``sentence-transformers``.
+#: Default cross-encoder model for reranking.  Small MS MARCO model; runs
+#: locally via ``sentence-transformers``.
 DEFAULT_CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-CROSS_ENCODER_CACHE: dict[str, Any] = {}
 
 
 def load_cross_encoder(model_name: str) -> Any:
-    """Return a cached :class:`~sentence_transformers.CrossEncoder` instance."""
-    cached = CROSS_ENCODER_CACHE.get(model_name)
-    if cached is not None:
-        return cached
+    """Load a :class:`~sentence_transformers.CrossEncoder` instance.
 
-    # Lazily create a per-function lock to avoid races when multiple callers
-    # try to initialize the same model concurrently.
-    import threading
+    A plain factory: it imports ``sentence-transformers``, downloads the
+    weights on first use (into the Hugging Face cache), and returns a new
+    instance.  It performs no caching and holds no shared state, so callers
+    that need one shared model must load it once and reuse the instance
+    themselves.  It is likewise not safe for concurrent loads (each call
+    constructs a new model), so load once at startup rather than from several
+    worker threads.
 
-    lock = load_cross_encoder.__dict__.setdefault("_lock", threading.Lock())
-    with lock:
-        cached = CROSS_ENCODER_CACHE.get(model_name)
-        if cached is not None:
-            return cached
-        try:
-            from sentence_transformers import CrossEncoder
-        except ImportError:
-            raise ImportError(
-                "Cross-encoder reranking requires sentence-transformers. "
-                "Install: pip install klea_utils[rerank]"
-            ) from None
-        CROSS_ENCODER_CACHE[model_name] = CrossEncoder(model_name)
-        return CROSS_ENCODER_CACHE[model_name]
+    :param model_name: Hugging Face cross-encoder model id.  Must be a
+        non-empty string.
+    :returns: A newly constructed cross-encoder for *model_name*
+    :raises ValueError: If *model_name* is empty or ``None``
+    :raises ImportError: If ``sentence-transformers`` is not installed
+    """
+    if not model_name:
+        raise ValueError("A cross-encoder model name is required")
+    try:
+        from sentence_transformers import CrossEncoder
+    except ImportError:
+        raise ImportError(
+            "Cross-encoder reranking requires sentence-transformers. "
+            "Install: pip install klea_utils[rerank]"
+        ) from None
+    logger.info(
+        f"Loading cross-encoder {model_name} (the first use downloads the weights)"
+    )
+    return CrossEncoder(model_name)
 
 
 def cross_encoder_rerank(
     query: str,
     docs: list[tuple[Document, float]],
     *,
-    model_name: str | None = None,
+    model: Any,
 ) -> list[tuple[Document, float]]:
-    """Re-rank fused retrieval results with a cross-encoder.
+    """Re-rank fused retrieval results with a cross-encoder instance.
 
     Intended to run after :func:`rrf_merge` and before downstream steps such
     as :func:`rerank_by_recency` and :func:`truncate_reference_material`.
-    When *model_name* is ``None`` (the default), *docs* are returned
-    unchanged so existing deployments keep their current behaviour.
+
+    The caller owns the model: load it once (see :func:`load_cross_encoder`)
+    and pass the same instance here.  This function neither caches nor skips,
+    so "reranking disabled" is the caller's decision.
 
     Each document is scored by a query--passage cross-encoder (local/offline
     via ``sentence-transformers``).  Original per-source scores in
@@ -405,16 +413,12 @@ def cross_encoder_rerank(
         retrievers)
     :param docs: ``(document, score)`` tuples, typically from
         :func:`rrf_merge`
-    :param model_name: Hugging Face cross-encoder model id, or ``None`` to
-        skip reranking.  See :data:`DEFAULT_CROSS_ENCODER_MODEL` for a
-        sensible default when enabling reranking.
-    :returns: Documents ordered by cross-encoder score (descending), or
-        *docs* unchanged when reranking is disabled
+    :param model: A loaded cross-encoder exposing ``predict(pairs) -> scores``
+    :returns: Documents ordered by cross-encoder score (descending)
     """
-    if model_name is None or not docs:
+    if not docs:
         return docs
 
-    model = load_cross_encoder(model_name)
     pairs = [(query, doc.page_content) for doc, _ in docs]
     raw_scores = model.predict(pairs)
 
