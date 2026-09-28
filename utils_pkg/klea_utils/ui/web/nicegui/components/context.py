@@ -43,6 +43,20 @@ class PageContext:
     page assembly creates one context, attaches all components, then
     lets handlers resolve references at event time.
 
+    .. warning::
+       **Do not create NiceGUI elements from a
+       ``nicegui.background_tasks`` task.**  NiceGUI resolves a new
+       element's parent from a per-task slot stack; a background task has
+       an empty stack and raises "The current slot cannot be determined
+       because the slot stack for this task is empty".  Either wire the
+       work as an ``async`` event handler (NiceGUI awaits it in the
+       client/slot context, so ``ui.dialog()`` etc. work), or enter a
+       slot explicitly before creating elements, e.g. ``with
+       ctx.stream_container:`` (streaming rows) or ``with
+       ctx.dialog_container:`` (dialogs opened from a background task).
+       Updating existing elements and ``app.storage`` from a background
+       task is fine.
+
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
     :param title: Bold application title in the header bar.
@@ -80,6 +94,10 @@ class PageContext:
     stream_container: Any = None
     text: Any = None
     loading_row: Any = None
+    #: Hidden container used as an explicit slot when building dialogs from
+    #: a context that has no ambient slot (e.g. the first-run prompt runs in
+    #: a background task).  See the slot warning in the class docstring.
+    dialog_container: Any = None
 
     # Cross-component callbacks (registered by components at attach time
     # and invoked by handlers after the page is fully assembled)

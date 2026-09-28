@@ -162,6 +162,9 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
     current_chat[INSPECTOR_BUFFER_KEY] = []
     ctx.refresh_status_pane()
 
+    # run_stream runs in a background task, which has no ambient slot; enter
+    # the stream container explicitly before creating elements (see the slot
+    # warning on PageContext).
     with ctx.stream_container:
         pg_row = ui.row().classes("w-full items-center gap-2 p-2")
         with pg_row:

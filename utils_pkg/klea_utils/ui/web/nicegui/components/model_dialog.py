@@ -18,7 +18,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
-from nicegui import background_tasks, ui
+from nicegui import ui
 
 from klea_utils.api.sse import (
     fetch_active_models,
@@ -47,6 +47,9 @@ def attach_model_info(ctx: PageContext) -> None:
         here.
     """
     logger.debug(f"{ctx.user_id = }")
+    # A valid slot for building dialogs when invoked from a context without
+    # an ambient slot (the first-run prompt runs in a background task).
+    ctx.dialog_container = ui.element("div").classes("hidden")
 
     async def _fetch_model_info() -> None:
         """Fetch active model config for the current chat (chat scope)."""
@@ -132,7 +135,10 @@ def attach_model_info(ctx: PageContext) -> None:
             )
             return
 
-        dialog = ui.dialog()
+        # Enter an explicit slot: this may run in a background task (the
+        # first-run prompt), which has no ambient slot (see PageContext).
+        with ctx.dialog_container:
+            dialog = ui.dialog()
 
         async def _save_key(provider: str, endpoint: str, key_input, cred_dialog):
             secret = key_input.value.strip()
@@ -173,6 +179,21 @@ def attach_model_info(ctx: PageContext) -> None:
             await _refresh_scope(not ctx.chat_id)
             cred_dialog.close()
 
+        # Small factories so the buttons get no-arg coroutine handlers:
+        # NiceGUI awaits async on_click handlers in the client context, so
+        # the dialog can be built here (a background task has no slot).
+        def _on_save_key(provider: str, endpoint: str, key_input):
+            async def _handler() -> None:
+                await _save_key(provider, endpoint, key_input, dialog)
+
+            return _handler
+
+        def _on_clear_key(provider: str, endpoint: str):
+            async def _handler() -> None:
+                await _clear_key(provider, endpoint, dialog)
+
+            return _handler
+
         with dialog, ui.card().classes("w-full p-4"):
             ui.label("API keys").classes("text-lg font-bold")
             ui.label(
@@ -198,15 +219,11 @@ def attach_model_info(ctx: PageContext) -> None:
                         if stored_cred:
                             ui.button(
                                 "Clear",
-                                on_click=lambda p=provider, e=endpoint: (
-                                    background_tasks.create(_clear_key(p, e, dialog))
-                                ),
+                                on_click=_on_clear_key(provider, endpoint),
                             ).props("flat")
                         ui.button(
                             "Save",
-                            on_click=lambda p=provider, e=endpoint, k=key_input: (
-                                background_tasks.create(_save_key(p, e, k, dialog))
-                            ),
+                            on_click=_on_save_key(provider, endpoint, key_input),
                         ).props("unelevated color=primary")
             with ui.row().classes("w-full justify-end"):
                 ui.button("Close", on_click=dialog.close).props("flat")
@@ -239,7 +256,10 @@ def attach_model_info(ctx: PageContext) -> None:
             ui.notification("No model roles available to configure.", type="warning")
             return
 
-        dialog = ui.dialog()
+        # Enter an explicit slot: this may run in a background task (the
+        # first-run prompt), which has no ambient slot (see PageContext).
+        with ctx.dialog_container:
+            dialog = ui.dialog()
 
         async def _save_role(role: str, model_input, original_model: str):
             new_model = model_input.value.strip()
@@ -295,6 +315,21 @@ def attach_model_info(ctx: PageContext) -> None:
             logger.debug(f"model config dialog: reset {role = }")
             dialog.close()
             await _refresh_scope(session_scope)
+
+        def _on_save_role(role: str, model_input, original_model: str):
+            async def _handler() -> None:
+                await _save_role(role, model_input, original_model)
+
+            return _handler
+
+        def _on_clear_role(role: str):
+            async def _handler() -> None:
+                await _clear_role(role)
+
+            return _handler
+
+        async def _open_credentials() -> None:
+            await _credentials_dialog(info)
 
         with dialog, ui.card().classes("w-full p-4"):
             ui.label(
@@ -353,20 +388,18 @@ def attach_model_info(ctx: PageContext) -> None:
                             with ui.row().classes("w-full justify-end gap-2"):
                                 ui.button(
                                     "Reset",
-                                    on_click=lambda r=role: background_tasks.create(
-                                        _clear_role(r)
-                                    ),
+                                    on_click=_on_clear_role(role),
                                 ).props("flat")
                                 ui.button(
                                     "Save",
-                                    on_click=lambda r=role, m=model_input, o=original_model: (
-                                        background_tasks.create(_save_role(r, m, o))
+                                    on_click=_on_save_role(
+                                        role, model_input, original_model
                                     ),
                                 ).props("unelevated color=primary")
             with ui.row().classes("w-full justify-between items-center"):
                 ui.button(
                     "Manage API keys",
-                    on_click=lambda: background_tasks.create(_credentials_dialog(info)),
+                    on_click=_open_credentials,
                 ).props("flat")
                 ui.button("Close", on_click=dialog.close).props("flat")
 
