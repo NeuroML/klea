@@ -99,6 +99,16 @@ Last updated: 2026-09-28.
   default used instead).
 - Third-party trust roadmap (consent loop, sandbox-by-default, curated server
   registry), deferred per ADR-0037.
+- Model/provider picker: replace the free-text model field with a
+  models.dev-catalog-backed picker (via `klea_utils.models_catalog`), exposed
+  through a backend catalog endpoint so the browser does not call models.dev
+  directly, with an "Other (custom)" free-text fallback and local providers
+  marked by an offline probe.  Design captured with ADR-0042.
+- Credentials follow-ups (ADR-0042): per-request/session-only keys that are
+  never persisted server-side (web/TUI parity); OS keyring support (desktop
+  only, absent on headless servers); `{env:VAR}` references in place of stored
+  secrets; and encryption at rest with a key from the deployment's auth
+  provider (Keycloak) once deployments authenticate.
 
 ## Testing
 

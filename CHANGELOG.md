@@ -20,6 +20,10 @@
 - Rich stream contract (ADR-0040): `inspect` replaces the `info`/`debug` events (one event, summary shown and `details` collapsible); a `tool` event carries chat-renderable tool output (file-edit diffs, and MCP image/audio/resource blocks), rendered by MIME type with a text fallback; `NodeStreamData` gains `key` (shared status-pane sections) and `preformatted` (monospace `<pre>`); `token` streaming is now opt-in per node.
 - MCP tools accept an explicit `null` for a non-nullable optional argument (for example `max_chars: null`), treating it as "use the default" instead of failing validation.
 - Model strings for providers in the models.dev catalog (`<provider>:<model>`, e.g. `openrouter:...`) resolve their endpoint from the catalog, so no URL is needed; OpenAI-compatible providers use the OpenAI surface and `OPENAI_API_KEY`, Anthropic-style providers use the Anthropic surface. The wire surface is resolved per model, so gateways that serve different models on different APIs (e.g. OpenCode Go) select Chat Completions, Responses, or Messages correctly.
+- Three-layer model resolution: graph/env defaults, per-session default overrides (`/chat/{user_id}/models/...`), then per-chat overrides; saving a model in a chat updates the session default ("last used") so new chats inherit it.
+- Provider-scoped API credentials (per user, keyed by provider plus the endpoint for custom/explicit-URL models) with a `/credentials/{user_id}` API; keys are never returned raw (masked suffix and a `user`/`env`/`none` source only).
+- Stored credentials expire after a configurable TTL (`KLEA_CREDENTIAL_TTL_DAYS`, default 7 days; `0` disables) once unused, swept at startup and on access.
+- Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
 
 ### Changed
 
@@ -37,6 +41,8 @@
 - Tool dispatch groups a batch's calls by resource (a tool's `checkpaths` arguments, compared lexically) and runs calls that share a resource sequentially in call order, dispatching the rest concurrently, so a missed dependency edge costs parallelism rather than a lost update.
 - Bundled `list_files` returns the unfiltered listing (with a `note`) when a `pattern`/`include_*` filter matches nothing but the directory is not empty, so an empty filtered result is not mistaken for an empty directory.
 - Bundled `read_file`/`edit_file` report `nearby` entries (the nearest existing directory's contents) and a `note` when the target is missing, so the caller sees what actually exists instead of only an error.
+- Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
+- `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
 
 ### Fixed
 
@@ -44,6 +50,7 @@
 - Per-node token usage is now read from `response_metadata.token_usage` when `usage_metadata` is empty (gateways and OpenAI-compatible endpoints that report counts only in the raw payload), so token usage and reasoning-token counts are tracked and logged instead of being silently dropped.
 - Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
+- Web UI: a brand-new session can configure models before any chat exists, so the first query no longer fails with "No model configured".
 
 ### Dependencies
 
