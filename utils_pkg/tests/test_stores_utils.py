@@ -250,28 +250,6 @@ def test_cross_encoder_rerank_reorders_by_predicted_score(monkeypatch):
     assert ranked[1][1] == pytest.approx(0.2)
 
 
-def test_cross_encoder_rerank_top_k(monkeypatch):
-    """top_k caps the reranked result list."""
-    monkeypatch.setattr(
-        "klea_utils.stores.utils.load_cross_encoder",
-        lambda model_name: _FakeCrossEncoder(model_name),
-    )
-    docs = [
-        (_doc("low relevance"), 0.3),
-        (_doc("high relevance"), 0.2),
-        (_doc("mid relevance"), 0.1),
-    ]
-
-    ranked = cross_encoder_rerank("query", docs, model_name="fake-model", top_k=2)
-    logger.info(f"top_k=2 kept: {[d.page_content for d, _ in ranked]}")
-
-    assert len(ranked) == 2
-    assert [d.page_content for d, _ in ranked] == [
-        "high relevance",
-        "mid relevance",
-    ]
-
-
 def test_cross_encoder_rerank_preserves_source_scores(monkeypatch):
     """Per-source metadata from rrf_merge survives reranking."""
     monkeypatch.setattr(

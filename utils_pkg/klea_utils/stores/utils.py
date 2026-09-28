@@ -388,7 +388,6 @@ def cross_encoder_rerank(
     docs: list[tuple[Document, float]],
     *,
     model_name: str | None = None,
-    top_k: int | None = None,
 ) -> list[tuple[Document, float]]:
     """Re-rank fused retrieval results with a cross-encoder.
 
@@ -409,8 +408,6 @@ def cross_encoder_rerank(
     :param model_name: Hugging Face cross-encoder model id, or ``None`` to
         skip reranking.  See :data:`DEFAULT_CROSS_ENCODER_MODEL` for a
         sensible default when enabling reranking.
-    :param top_k: When set, keep only the top *top_k* documents after
-        reranking; ``None`` keeps the full reranked list
     :returns: Documents ordered by cross-encoder score (descending), or
         *docs* unchanged when reranking is disabled
     """
@@ -421,14 +418,11 @@ def cross_encoder_rerank(
     pairs = [(query, doc.page_content) for doc, _ in docs]
     raw_scores = model.predict(pairs)
 
-    ranked = sorted(
+    return sorted(
         ((doc, float(score)) for (doc, _), score in zip(docs, raw_scores, strict=True)),
         key=lambda item: item[1],
         reverse=True,
     )
-    if top_k is None:
-        return ranked
-    return ranked[:top_k]
 
 
 #: Weight given to the normalized relevance (RRF) component of the final
