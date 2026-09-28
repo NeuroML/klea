@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import final, override
@@ -25,6 +26,7 @@ from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import ToolsPicker
 from klea_utils.stores.config import FilterFieldInfo, RetrieverConfig
 from klea_utils.stores.retrieval.base import BaseKleaRetriever
+from klea_utils.stores.utils import load_cross_encoder
 from langgraph.graph import END, START, StateGraph
 
 from .config import AppConfig
@@ -122,6 +124,13 @@ class RAG(BaseLangGraph):
     @override
     async def _pre_graph(self):
         "Set up bits required before graph is compiled"
+        # Download and load the cross-encoder now so the first query does not
+        # pay the one-time Hugging Face download, and a missing dependency or
+        # unreachable model fails fast at startup rather than mid-query.
+        cross_encoder_model = self.app_config.general.cross_encoder_model
+        await asyncio.to_thread(load_cross_encoder, cross_encoder_model)
+        self.logger.info(f"Cross-encoder ready: {cross_encoder_model}")
+
         # for refusal node
         self.refusal_message = "Sorry. I cannot answer this query as it does not fall into my permitted domains. Available domains are:\n"
         self.refusal_message += "\n- ".join([""] + list(self.app_config.domains))
@@ -323,6 +332,7 @@ class RAG(BaseLangGraph):
             retrievers=retrievers,
             max_refs_size=self.max_refs_size,
             filter_fields_by_domain=filter_fields_by_domain,
+            cross_encoder_model=self.app_config.general.cross_encoder_model,
         )
         self.workflow.add_node(
             self._retrieve_info_node.label, self._retrieve_info_node.execute
