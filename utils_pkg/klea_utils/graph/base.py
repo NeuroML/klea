@@ -29,7 +29,7 @@ from platformdirs import PlatformDirs
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from klea_utils.graph.context import KleaRunContext
-from klea_utils.llm import LLMModel, resolve_user_agent
+from klea_utils.llm import LLMModel, missing_required_roles, resolve_user_agent
 from klea_utils.mcp.access import (
     AccessLevel,
     ToolAccessOverride,
@@ -586,11 +586,7 @@ class BaseLangGraph(ABC):
         all model env vars (derived as ``<env_prefix><ROLE>_MODEL``) with
         their current state so users can see exactly what to set.
         """
-        missing = [
-            role
-            for role, entry in self.llm_models.items()
-            if entry.required and not entry.model_name
-        ]
+        missing = missing_required_roles(self.llm_models)
         if not missing:
             return
 
