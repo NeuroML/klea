@@ -12,45 +12,105 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Container
+from collections.abc import Container, Mapping
 from datetime import datetime
-from typing import Any
+from typing import Any, NotRequired, TypedDict
 
 logger = logging.getLogger(__name__)
+
+
+class MessageData(TypedDict):
+    """A single rendered chat message.
+
+    ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an
+    optional small title (used by tool blocks).  Tool messages add the
+    mime/display/data/meta fields used by the chat-bubble renderer.
+    """
+
+    text: str
+    stamp: str
+    role: str
+    header: str
+    mime: NotRequired[str]
+    data: NotRequired[str]
+    meta: NotRequired[dict[str, Any]]
+
+
+class StateSection(TypedDict):
+    """A status-pane section streamed by a graph node."""
+
+    heading: str
+    display: str
+    summary: str
+    details: dict[str, Any]
+    preformatted: bool
+
+
+class InspectorEntry(TypedDict):
+    """An inspector entry buffered for the most recent query in a chat."""
+
+    type: str
+    node: str
+    heading: str
+    summary: str
+    details: dict[str, Any]
+    timing_seconds: NotRequired[float | None]
+
+
+class TokenUsage(TypedDict):
+    """Accumulated token totals for an in-memory chat session."""
+
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+class ChatData(TypedDict):
+    """In-memory state for one chat session (see :func:`ensure_chat`).
+
+    Keys are created by :func:`ensure_chat`; the ``NotRequired`` ones are
+    populated lazily by the stream/hydration/context-control paths.  The
+    dict is a frontend cache only, not an API contract.
+    """
+
+    #: Human-readable display name (auto-generated, renameable).
+    name: str
+    #: ``datetime.timestamp()`` of creation.
+    created: float
+    #: Whether the chat session is pinned to the top of the list.
+    pinned: bool
+    #: Rendered transcript messages.
+    messages: list[MessageData]
+    #: Inspector entries for the most recent query in this chat.
+    inspector_entries: list[InspectorEntry]
+    #: Indices into ``inspector_entries`` currently expanded in the UI.
+    inspector_expanded: set[int]
+    #: Status-pane sections, keyed by node label / section key.
+    state_sections: dict[str, StateSection]
+    #: Active model config per role (from ``fetch_active_models``).
+    model_info: dict[str, dict[str, Any]]
+    #: Accumulated token totals for this chat.
+    token_usage: TokenUsage
+    #: Hydrated graph session context (e.g. the agent operating mode).
+    context: NotRequired[dict[str, Any]]
+    #: Transient inspector buffer for the in-flight query.
+    inspector_buffer: NotRequired[list[InspectorEntry]]
+    #: App-defined context-control preferences (mode / access level).
+    mode_pref: NotRequired[str]
+    access_pref: NotRequired[str]
+
 
 # Per-chat data store.  External modules may read/write this dict
 # directly for performance; the helper functions below cover the
 # common create-or-get and sorted-lookup cases.
-#
-# Using plain dicts rather than Pydantic BaseModel because this is a
-# simple in-memory frontend cache (not an API contract) and NiceGUI
-# naturally works with dict access.  The saved schema is documented
-# inline in ensure_chat() below.
-chats: dict[str, dict] = {}
+chats: dict[str, ChatData] = {}
 
 
-def ensure_chat(user_id: str, chat_id: str) -> dict:
+def ensure_chat(user_id: str, chat_id: str) -> ChatData:
     """Return the chat session dict for *user_id* / *chat_id*, creating it if missing.
 
-    Each chat session dict has the following keys::
-
-        name                Human-readable display name (auto-generated)
-        created             ``datetime.timestamp()`` of creation (float).
-        pinned              Whether the chat session is pinned to the top of the list.
-        messages            List of message dicts ``{"text", "stamp",
-                            "role", "header"}`` where *role* is ``"user"``,
-                            ``"agent"`` or ``"tool"`` and *header* is an
-                            optional small title (used by tool blocks).
-        inspector_entries   List of dicts with info/debug events for the most
-                            recent query in this chat session.
-        inspector_expanded  Set of indices into *inspector_entries* that are
-                            currently expanded in the UI.
-        state_sections      Dict of ``{node_label: section_data}`` for the status
-                            pane, ordered by first insertion (per node label).
-        model_info          Dict of active model config per role
-                            (from ``fetch_active_models``).
-        token_usage         Numeric token totals accumulated for this in-memory
-                            chat session.
+    The dict schema is documented on :class:`ChatData`; this function
+    creates the always-present keys and returns the (possibly new) entry.
     """
     key = f"{user_id}:{chat_id}"
     if key not in chats:
@@ -105,7 +165,7 @@ def resolve_choice(
 
 
 def resolve_chat_choice(
-    current_chat: dict | None,
+    current_chat: Mapping[str, Any] | None,
     pending: Any,
     pref: Any,
     context_value: Any,
@@ -156,7 +216,7 @@ def missing_credentials(model_info: dict[str, Any]) -> list[str]:
     return missing
 
 
-def get_chats_sorted(user_id: str) -> list[tuple[str, dict]]:
+def get_chats_sorted(user_id: str) -> list[tuple[str, ChatData]]:
     """Return (chat_id, data) pairs for *user_id*, pinned first, then by creation desc.
 
     Filters by the user_id prefix so that in a multi-browser scenario
