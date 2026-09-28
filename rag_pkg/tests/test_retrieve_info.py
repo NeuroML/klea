@@ -11,12 +11,25 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Any
 
+import pytest
 from klea_rag.nodes.retrieve_info import RetrieveInfoNode
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
 from klea_utils.stores.config import FilterFieldInfo
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(autouse=True)
+def _identity_cross_encoder(monkeypatch):
+    """Pass fusion results through unchanged so tests load no real model.
+
+    Tests that exercise cross-encoder behaviour patch this themselves.
+    """
+    monkeypatch.setattr(
+        "klea_rag.nodes.retrieve_info.cross_encoder_rerank",
+        lambda query, docs, *, model_name: docs,
+    )
 
 
 class FakeRetriever:
@@ -53,6 +66,7 @@ def _make_node(retrievers) -> RetrieveInfoNode:
     node.retrievers = retrievers
     node.max_refs_size = 20000
     node.filter_fields_by_domain = {}
+    node.cross_encoder_model = "fake-model"
     node.write_custom_stream = lambda event: None
     logger.info(
         f"configured retrievers: "
