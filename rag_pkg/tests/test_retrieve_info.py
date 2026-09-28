@@ -115,6 +115,66 @@ async def test_execute_reranks_equal_relevance_by_recency():
     assert refs[0][1] > refs[1][1]
 
 
+async def test_execute_passes_injected_cross_encoder(monkeypatch):
+    """The node passes its injected model to ``cross_encoder_rerank``."""
+    sentinel = object()
+    seen: dict[str, object] = {}
+
+    def fake_rerank(query, docs, *, model):
+        seen["query"] = query
+        seen["model"] = model
+        return docs
+
+    monkeypatch.setattr(
+        "klea_rag.nodes.retrieve_info.cross_encoder_rerank", fake_rerank
+    )
+
+    node = _make_node([FakeRetriever([(_doc("first"), 0.9)], name="vector store")])
+    node.cross_encoder = sentinel
+
+    state = RAGState(
+        query="q",
+        query_domains=["NeuroML"],
+        retrieval_query=RetrievalQueryOutput(search_query="q"),
+    )
+    await node.execute(state)
+
+    assert seen["model"] is sentinel
+    assert seen["query"] == "q"
+
+
+async def test_execute_skips_cross_encoder_when_none(monkeypatch):
+    """With no injected cross-encoder the fused (RRF) order is kept."""
+    called = False
+
+    def fake_rerank(query, docs, *, model):
+        nonlocal called
+        called = True
+        return docs
+
+    monkeypatch.setattr(
+        "klea_rag.nodes.retrieve_info.cross_encoder_rerank", fake_rerank
+    )
+
+    d1 = _doc("first")
+    d2 = _doc("second")
+    node = _make_node([FakeRetriever([(d1, 0.9), (d2, 0.1)], name="vector store")])
+    node.cross_encoder = None
+
+    state = RAGState(
+        query="q",
+        query_domains=["NeuroML"],
+        retrieval_query=RetrievalQueryOutput(search_query="q"),
+    )
+    result = await node.execute(state)
+
+    refs = result["reference_material"]["NeuroML"]
+    logger.info(f"rerank skipped, RRF order: {[d.page_content for d, _ in refs]}")
+
+    assert called is False
+    assert [d.page_content for d, _ in refs][:2] == ["first", "second"]
+
+
 async def test_execute_merges_retrievers_with_rrf():
     """execute() fuses results from all retrievers with RRF."""
     d1 = _doc("NeuroML standard")

@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from klea_rag.config import AppConfig, write_config_template
 from klea_rag.ui.cli import rag_app
+from klea_utils.stores.utils import DEFAULT_CROSS_ENCODER_MODEL
 from typer.testing import CliRunner
 
 
@@ -40,6 +41,11 @@ class TestWriteConfigTemplate:
         target = write_config_template(tmp_path)
         data = json.loads(target.read_text())
         assert data["general"]["bundled_tools"]["enabled"] is False
+
+    def test_template_includes_cross_encoder_default(self, tmp_path):
+        target = write_config_template(tmp_path)
+        data = json.loads(target.read_text())
+        assert data["general"]["cross_encoder_model"] == DEFAULT_CROSS_ENCODER_MODEL
 
     def test_refuses_overwrite(self, tmp_path):
         write_config_template(tmp_path)
