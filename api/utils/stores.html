@@ -1757,6 +1757,14 @@ cosine similarity.</p>
 </dd></dl>
 
 <dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.stores.utils.DEFAULT_CROSS_ENCODER_MODEL">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.utils.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_CROSS_ENCODER_MODEL</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'cross-encoder/ms-marco-MiniLM-L-6-v2'</span></span><a class="headerlink" href="#klea_utils.stores.utils.DEFAULT_CROSS_ENCODER_MODEL" title="Link to this definition">¶</a></dt>
+<dd><p>Default cross-encoder model for <a class="reference internal" href="#klea_utils.stores.utils.cross_encoder_rerank" title="klea_utils.stores.utils.cross_encoder_rerank"><code class="xref py py-func docutils literal notranslate"><span class="pre">cross_encoder_rerank()</span></code></a> when callers
+enable reranking.  Small MS MARCO model; runs locally via
+<code class="docutils literal notranslate"><span class="pre">sentence-transformers</span></code>.</p>
+</dd></dl>
+
+<dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.stores.utils.RECENCY_MISSING_YEAR_SCORE">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.stores.utils.</span></span><span class="sig-name descname"><span class="pre">RECENCY_MISSING_YEAR_SCORE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.5</span></span><a class="headerlink" href="#klea_utils.stores.utils.RECENCY_MISSING_YEAR_SCORE" title="Link to this definition">¶</a></dt>
 <dd><p>Recency score assigned to documents without a usable <code class="docutils literal notranslate"><span class="pre">year</span></code> metadata
@@ -1808,6 +1816,39 @@ source’s result list contributes <code class="docutils literal notranslate"><s
 <span class="sig-prename descclassname"><span class="pre">klea_utils.stores.utils.</span></span><span class="sig-name descname"><span class="pre">TEMPLATE_FILE_NAME</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'metadata-map.template.json'</span></span><a class="headerlink" href="#klea_utils.stores.utils.TEMPLATE_FILE_NAME" title="Link to this definition">¶</a></dt>
 <dd><p>Name of the metadata-map template <code class="docutils literal notranslate"><span class="pre">chunk</span></code> writes into the cache
 directory, organised per source file.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.utils.cross_encoder_rerank">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.utils.</span></span><span class="sig-name descname"><span class="pre">cross_encoder_rerank</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">query</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">docs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Document</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">top_k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Document</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/utils.html#cross_encoder_rerank"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.utils.cross_encoder_rerank" title="Link to this definition">¶</a></dt>
+<dd><p>Re-rank fused retrieval results with a cross-encoder.</p>
+<p>Intended to run after <a class="reference internal" href="#klea_utils.stores.utils.rrf_merge" title="klea_utils.stores.utils.rrf_merge"><code class="xref py py-func docutils literal notranslate"><span class="pre">rrf_merge()</span></code></a> and before downstream steps such
+as <a class="reference internal" href="#klea_utils.stores.utils.rerank_by_recency" title="klea_utils.stores.utils.rerank_by_recency"><code class="xref py py-func docutils literal notranslate"><span class="pre">rerank_by_recency()</span></code></a> and <a class="reference internal" href="#klea_utils.stores.utils.truncate_reference_material" title="klea_utils.stores.utils.truncate_reference_material"><code class="xref py py-func docutils literal notranslate"><span class="pre">truncate_reference_material()</span></code></a>.
+When <em>model_name</em> is <code class="docutils literal notranslate"><span class="pre">None</span></code> (the default), <em>docs</em> are returned
+unchanged so existing deployments keep their current behaviour.</p>
+<p>Each document is scored by a query–passage cross-encoder (local/offline
+via <code class="docutils literal notranslate"><span class="pre">sentence-transformers</span></code>).  Original per-source scores in
+<a class="reference internal" href="#klea_utils.stores.utils.SOURCE_SCORES_KEY" title="klea_utils.stores.utils.SOURCE_SCORES_KEY"><code class="xref py py-data docutils literal notranslate"><span class="pre">SOURCE_SCORES_KEY</span></code></a> metadata are preserved; only the tuple’s
+relevance score is replaced by the cross-encoder score.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>query</strong> – Normalized retrieval query (same form as passed to
+retrievers)</p></li>
+<li><p><strong>docs</strong> – <code class="docutils literal notranslate"><span class="pre">(document,</span> <span class="pre">score)</span></code> tuples, typically from
+<a class="reference internal" href="#klea_utils.stores.utils.rrf_merge" title="klea_utils.stores.utils.rrf_merge"><code class="xref py py-func docutils literal notranslate"><span class="pre">rrf_merge()</span></code></a></p></li>
+<li><p><strong>model_name</strong> – Hugging Face cross-encoder model id, or <code class="docutils literal notranslate"><span class="pre">None</span></code> to
+skip reranking.  See <a class="reference internal" href="#klea_utils.stores.utils.DEFAULT_CROSS_ENCODER_MODEL" title="klea_utils.stores.utils.DEFAULT_CROSS_ENCODER_MODEL"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_CROSS_ENCODER_MODEL</span></code></a> for a
+sensible default when enabling reranking.</p></li>
+<li><p><strong>top_k</strong> – When set, keep only the top <em>top_k</em> documents after
+reranking; <code class="docutils literal notranslate"><span class="pre">None</span></code> keeps the full reranked list</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Documents ordered by cross-encoder score (descending), or
+<em>docs</em> unchanged when reranking is disabled</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -2323,6 +2364,7 @@ budget</p>
 <li><a class="reference internal" href="#module-klea_utils.stores.utils">Utilities</a><ul>
 <li><a class="reference internal" href="#klea_utils.stores.utils.CACHE_DIR_NAME"><code class="docutils literal notranslate"><span class="pre">CACHE_DIR_NAME</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.CHROMA_HNSW_SPACE"><code class="docutils literal notranslate"><span class="pre">CHROMA_HNSW_SPACE</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.utils.DEFAULT_CROSS_ENCODER_MODEL"><code class="docutils literal notranslate"><span class="pre">DEFAULT_CROSS_ENCODER_MODEL</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.RECENCY_MISSING_YEAR_SCORE"><code class="docutils literal notranslate"><span class="pre">RECENCY_MISSING_YEAR_SCORE</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.RECENCY_WEIGHT_RELEVANCE"><code class="docutils literal notranslate"><span class="pre">RECENCY_WEIGHT_RELEVANCE</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.RECENCY_WEIGHT_TIME"><code class="docutils literal notranslate"><span class="pre">RECENCY_WEIGHT_TIME</span></code></a></li>
@@ -2330,6 +2372,7 @@ budget</p>
 <li><a class="reference internal" href="#klea_utils.stores.utils.RRF_K"><code class="docutils literal notranslate"><span class="pre">RRF_K</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.SOURCE_SCORES_KEY"><code class="docutils literal notranslate"><span class="pre">SOURCE_SCORES_KEY</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.TEMPLATE_FILE_NAME"><code class="docutils literal notranslate"><span class="pre">TEMPLATE_FILE_NAME</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.stores.utils.cross_encoder_rerank"><code class="docutils literal notranslate"><span class="pre">cross_encoder_rerank()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.display_person_names"><code class="docutils literal notranslate"><span class="pre">display_person_names()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.drop_collection"><code class="docutils literal notranslate"><span class="pre">drop_collection()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.utils.expand_person_names"><code class="docutils literal notranslate"><span class="pre">expand_person_names()</span></code></a></li>

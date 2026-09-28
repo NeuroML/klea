@@ -664,6 +664,91 @@
 
 
 
+<span class="c1">#: Default cross-encoder model for :func:`cross_encoder_rerank` when callers</span>
+<span class="c1">#: enable reranking.  Small MS MARCO model; runs locally via</span>
+<span class="c1">#: ``sentence-transformers``.</span>
+<span class="n">DEFAULT_CROSS_ENCODER_MODEL</span> <span class="o">=</span> <span class="s2">"cross-encoder/ms-marco-MiniLM-L-6-v2"</span>
+
+<span class="n">_cross_encoder_cache</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_load_cross_encoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a cached :class:`~sentence_transformers.CrossEncoder` instance."""</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">_cross_encoder_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">cached</span>
+
+    <span class="c1"># Lazily create a per-function lock to avoid races when multiple callers</span>
+    <span class="c1"># try to initialize the same model concurrently.</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
+
+    <span class="n">lock</span> <span class="o">=</span> <span class="n">_load_cross_encoder</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"_lock"</span><span class="p">,</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">())</span>
+    <span class="k">with</span> <span class="n">lock</span><span class="p">:</span>
+        <span class="n">cached</span> <span class="o">=</span> <span class="n">_cross_encoder_cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cached</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrossEncoder</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+                <span class="s2">"Cross-encoder reranking requires sentence-transformers. "</span>
+                <span class="s2">"Install: pip install klea_utils[rerank]"</span>
+            <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="n">_cross_encoder_cache</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">CrossEncoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_cross_encoder_cache</span><span class="p">[</span><span class="n">model_name</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="cross_encoder_rerank">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.cross_encoder_rerank">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_encoder_rerank</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">top_k</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Re-rank fused retrieval results with a cross-encoder.</span>
+
+<span class="sd">    Intended to run after :func:`rrf_merge` and before downstream steps such</span>
+<span class="sd">    as :func:`rerank_by_recency` and :func:`truncate_reference_material`.</span>
+<span class="sd">    When *model_name* is ``None`` (the default), *docs* are returned</span>
+<span class="sd">    unchanged so existing deployments keep their current behaviour.</span>
+
+<span class="sd">    Each document is scored by a query--passage cross-encoder (local/offline</span>
+<span class="sd">    via ``sentence-transformers``).  Original per-source scores in</span>
+<span class="sd">    :data:`SOURCE_SCORES_KEY` metadata are preserved; only the tuple's</span>
+<span class="sd">    relevance score is replaced by the cross-encoder score.</span>
+
+<span class="sd">    :param query: Normalized retrieval query (same form as passed to</span>
+<span class="sd">        retrievers)</span>
+<span class="sd">    :param docs: ``(document, score)`` tuples, typically from</span>
+<span class="sd">        :func:`rrf_merge`</span>
+<span class="sd">    :param model_name: Hugging Face cross-encoder model id, or ``None`` to</span>
+<span class="sd">        skip reranking.  See :data:`DEFAULT_CROSS_ENCODER_MODEL` for a</span>
+<span class="sd">        sensible default when enabling reranking.</span>
+<span class="sd">    :param top_k: When set, keep only the top *top_k* documents after</span>
+<span class="sd">        reranking; ``None`` keeps the full reranked list</span>
+<span class="sd">    :returns: Documents ordered by cross-encoder score (descending), or</span>
+<span class="sd">        *docs* unchanged when reranking is disabled</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">model_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">docs</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">docs</span>
+
+    <span class="n">model</span> <span class="o">=</span> <span class="n">_load_cross_encoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">query</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">]</span>
+    <span class="n">raw_scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">)</span>
+
+    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">raw_scores</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">top_k</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ranked</span>
+    <span class="k">return</span> <span class="n">ranked</span><span class="p">[:</span><span class="n">top_k</span><span class="p">]</span></div>
+
+
+
 <span class="c1">#: Weight given to the normalized relevance (RRF) component of the final</span>
 <span class="c1">#: blended score in :func:`rerank_by_recency`.</span>
 <span class="n">RECENCY_WEIGHT_RELEVANCE</span> <span class="o">=</span> <span class="mf">0.9</span>
