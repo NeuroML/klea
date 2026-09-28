@@ -15,13 +15,14 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import json
 import logging
 from datetime import datetime
+from typing import Any
 
 from nicegui import ui
 
-from klea_utils.llm import parse_model_name
+from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
+from klea_utils.ui.web.nicegui.state import ChatData, chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -50,23 +51,39 @@ def attach_status_pane(ctx: PageContext) -> None:
             chat exists, so they can be set before the first message; they
             attach to the chat once it is created.
             """
-            current_chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
+            current_chat: ChatData | dict[Any, Any] = (
+                chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
+            )
+            chat_scope = bool(current_chat)
+            if current_chat:
+                model_info = current_chat.get("model_info", {})
+                scope_label = current_chat.get("name", "") or "Models"
+            else:
+                model_info = ctx.session_model_info
+                scope_label = "Default models"
+
+            missing_models = missing_required_roles(model_info)
+            missing_providers = sorted(
+                {
+                    (model_info[role].get("credential") or {}).get("provider", "")
+                    for role in missing_credentials(model_info)
+                }
+                - {""}
+            )
+            needs_attention = bool(missing_models or missing_providers)
+            logger.debug(
+                f"{ctx.chat_id = }\n{missing_models = }\n{missing_providers = }"
+            )
+
             with ui.column().classes("w-full gap-0 p-2"):
                 # App-defined context slots (e.g. operating-mode and
                 # tool-access selectors, ADR-0030/ADR-0037).  Rendered
                 # inside the refreshable pane, so they update on pane refresh.
                 for render in ctx.status_extras:
                     render()
-                if not current_chat:
-                    with ui.column().classes("w-full items-center mt-12"):
-                        ui.label(
-                            "State updates will appear here once you send a message"
-                        ).classes("text-xl text-grey-5 text-center")
-                    return
+
                 with ui.row().classes("items-center w-full gap-0 pt-2 pb-1"):
-                    with ui.label(current_chat.get("name", "")).classes(
-                        "text-sm font-bold mb-0"
-                    ):
+                    with ui.label(scope_label).classes("text-sm font-bold mb-0"):
                         created = current_chat.get("created", 0)
                         if created:
                             ui.tooltip(
@@ -76,17 +93,22 @@ def attach_status_pane(ctx: PageContext) -> None:
                                 .strftime("%a %d %b %Y at %X")
                             )
                     ui.space()
-                    with (
+                    gear = (
                         ui.button(
                             icon="settings",
                             on_click=ctx.model_config_dialog,
                         )
                         .props("flat dense round")
                         .classes("text-sm icon-btn")
-                    ):
-                        ui.tooltip("Choose models")
+                    )
+                    if needs_attention:
+                        gear.classes("model-btn--attention")
+                    with gear:
+                        ui.tooltip(
+                            "Choose models"
+                            + (" - configuration needed" if needs_attention else "")
+                        )
 
-                model_info = current_chat.get("model_info", {})
                 if model_info:
                     tooltip_parts: list[str] = []
                     display_parts: list[str] = []
@@ -100,21 +122,24 @@ def attach_status_pane(ctx: PageContext) -> None:
                             display_short = "Not set"
                             required_mark = " (required)" if required else ""
                             tooltip_short = f"Not set{required_mark}"
-                            if cfg.get("overridden"):
-                                tooltip_short += " [User]"
                         else:
-                            short = (
-                                parse_model_name(raw).model_name
-                                if parse_model_name(raw)
-                                else raw
-                            )
+                            display_short = parse_model_name(raw).model_name or raw
                             if provider:
-                                tooltip_short = f"{short} ({provider})"
+                                tooltip_short = f"{display_short} ({provider})"
                             else:
-                                tooltip_short = short
-                            if cfg.get("overridden"):
-                                tooltip_short += " [User]"
-                            display_short = short
+                                tooltip_short = display_short
+                            credential = cfg.get("credential") or {}
+                            if credential.get("requires_key"):
+                                if credential.get("source") == "none":
+                                    tooltip_short += " [no API key]"
+                                elif credential.get("source") == "user":
+                                    tooltip_short += (
+                                        f" [key {credential.get('masked', '')}]"
+                                    )
+                        if cfg.get("overridden"):
+                            tooltip_short += " [Chat]" if chat_scope else " [Default]"
+                        if chat_scope and cfg.get("session_overridden"):
+                            tooltip_short += " [Default]"
                         tooltip_parts.append(f"{role.capitalize()}: {tooltip_short}")
                         display_parts.append(display_short)
                     with ui.label(" | ".join(display_parts)).classes(
@@ -124,6 +149,27 @@ def attach_status_pane(ctx: PageContext) -> None:
                             ui.tooltip("\n".join(tooltip_parts)).classes(
                                 "model-tooltip"
                             )
+                else:
+                    ui.label("Model information is loading...").classes(
+                        "text-xs text-grey-5"
+                    )
+
+                if missing_models:
+                    ui.label(
+                        "Select a model to start: "
+                        + ", ".join(role.capitalize() for role in missing_models)
+                    ).classes("text-xs text-negative")
+                elif missing_providers:
+                    ui.label(
+                        "Add an API key for: " + ", ".join(missing_providers)
+                    ).classes("text-xs text-negative")
+
+                if not chat_scope:
+                    ui.label(
+                        "State updates will appear here once you send a message"
+                    ).classes("text-sm text-grey-5 mt-2")
+                    return
+
             token_usage = current_chat.get("token_usage", {})
             has_token_usage = any(token_usage.values())
             if has_token_usage:

@@ -8,7 +8,11 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.ui.web.nicegui.state import resolve_chat_choice, resolve_choice
+from klea_utils.ui.web.nicegui.state import (
+    missing_credentials,
+    resolve_chat_choice,
+    resolve_choice,
+)
 
 OPTIONS = ("general", "scientific")
 
@@ -71,3 +75,72 @@ def test_chat_choice_ignores_pending_for_existing_chat():
         resolve_chat_choice(chat, "scientific", None, None, OPTIONS, "general")
         == "general"
     )
+
+
+def test_missing_credentials_flags_required_unset():
+    """A required provider with source=none is reported (by role)."""
+    info = {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "none",
+            },
+        }
+    }
+    assert missing_credentials(info) == ["chat"]
+
+
+def test_missing_credentials_ignores_env_and_user():
+    """Stored or environment credentials are not 'missing'."""
+    info = {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "credential": {"provider": "openai", "requires_key": True, "source": "env"},
+        },
+        "plan": {
+            "model": "anthropic:claude",
+            "credential": {
+                "provider": "anthropic",
+                "requires_key": True,
+                "source": "user",
+            },
+        },
+    }
+    assert missing_credentials(info) == []
+
+
+def test_missing_credentials_ignores_keyless_provider():
+    """A local (key-less) provider is never 'missing'."""
+    info = {
+        "chat": {
+            "model": "ollama:qwen3",
+            "credential": {
+                "provider": "ollama",
+                "requires_key": False,
+                "source": "none",
+            },
+        }
+    }
+    assert missing_credentials(info) == []
+
+
+def test_missing_credentials_ignores_unset_model():
+    """A role with no resolved model is not flagged."""
+    info = {
+        "plan": {
+            "model": "",
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "none",
+            },
+        }
+    }
+    assert missing_credentials(info) == []
+
+
+def test_missing_credentials_without_credential_block():
+    """A config without a credential block is treated as not missing."""
+    assert missing_credentials({"chat": {"model": "openai:gpt-4o"}}) == []
