@@ -15,11 +15,12 @@ import coolname
 from nicegui import background_tasks, ui
 from nicegui.events import GenericEventArguments
 
+from klea_utils.llm import missing_required_roles
 from klea_utils.ui.web.nicegui.client import create_chat_on_server
 from klea_utils.ui.web.nicegui.components import stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
-from klea_utils.ui.web.nicegui.state import ensure_chat
+from klea_utils.ui.web.nicegui.state import chats, ensure_chat, missing_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,35 @@ def attach_input(ctx: PageContext) -> None:
         )
         ctx.text = text
 
+        def _effective_model_info() -> dict:
+            """Model info for the active scope (chat, else session defaults)."""
+            if ctx.chat_id:
+                chat_info = chats.get(f"{ctx.user_id}:{ctx.chat_id}", {}).get(
+                    "model_info", {}
+                )
+                if chat_info:
+                    return chat_info
+            return ctx.session_model_info
+
+        def _setup_incomplete() -> bool:
+            """Whether required models or API keys are still missing."""
+            info = _effective_model_info()
+            return bool(missing_required_roles(info) or missing_credentials(info))
+
         def send() -> None:
             """Append the current input text as a user message, then stream."""
             if not text.value.strip():
+                return
+            if _setup_incomplete():
+                logger.warning(
+                    "send blocked: required models or API keys not configured"
+                )
+                ui.notification(
+                    "Select the required models and API keys before sending. "
+                    "Use the settings (gear) icon.",
+                    type="warning",
+                    close_button=True,
+                )
                 return
             stamp = datetime.now().astimezone().strftime("%X")
             query = text.value
@@ -79,13 +106,27 @@ def attach_input(ctx: PageContext) -> None:
         # Send button inside the field, anchored to the bottom-right: the
         # textarea autogrows upward as the message gets longer while the
         # button stays on its last line (the Gemini pattern).
-        with (
-            text.add_slot("append"),
-            ui.button(icon="send", on_click=send).props(
+        with text.add_slot("append"):
+            send_button = ui.button(icon="send", on_click=send).props(
                 "flat dense round color=primary"
-            ),
-        ):
-            ui.tooltip("Enter to send, Shift+Enter for newline")
+            )
+            with send_button:
+                ui.tooltip("Enter to send, Shift+Enter for newline")
+
+        def refresh_send_state() -> None:
+            """Enable/disable send based on model and API-key readiness."""
+            incomplete = _setup_incomplete()
+            info = _effective_model_info()
+            try:
+                if incomplete:
+                    send_button.disable()
+                else:
+                    send_button.enable()
+            except Exception as e:  # noqa: BLE001
+                logger.debug("send button state update failed: %s", e)
+            logger.debug(f"send state updated: {incomplete = }\n{list(info) = }")
+
+        ctx.refresh_send_state = refresh_send_state
 
         # Plain Enter sends the message and prevents the default newline
         def handle_enter(e: GenericEventArguments):
@@ -99,8 +140,10 @@ def attach_input(ctx: PageContext) -> None:
         # Clicking the send icon inside the textarea also sends.
         text.on("click:append", send)
 
-    # Disable chat input until backend is ready; initial_load re-enables.
+    # Disable chat input (and send) until backend is ready.  initial_load's
+    # model fetch calls refresh_send_state() to re-enable when configured.
     try:
         text.disable()
+        send_button.disable()
     except Exception as e:  # noqa: BLE001
         logger.debug("disable input failed: %s", e)
