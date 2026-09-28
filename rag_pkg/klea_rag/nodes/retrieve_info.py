@@ -176,7 +176,11 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
             result_sets: list[tuple[str, list[tuple[Any, float]]]] = []
             for retriever in self.retrievers:
                 try:
-                    docs = retriever.retrieve(
+                    # Retrieval embeds the query and queries the store
+                    # synchronously, so run it in a worker thread to keep the
+                    # event loop free for other sessions.
+                    docs = await asyncio.to_thread(
+                        retriever.retrieve,
                         domain_name=domain_name,
                         query=cleaned_query,
                         metadata_filter=domain_filter,
