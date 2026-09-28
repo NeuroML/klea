@@ -135,6 +135,107 @@ class TestModels:
         assert data["plan"]["required"] is True
         assert data["plan"]["model"] == ""
 
+    async def test_user_defaults_active(self, models_client):
+        """Per-user defaults are returned with overridden=True for that scope."""
+        response = await models_client.post(
+            "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
+        )
+        assert response.status_code == 200
+        data = (await models_client.get("/chat/u1/models/active")).json()
+        assert data["plan"]["model"] == "ollama:qwen3"
+        assert data["plan"]["overridden"] is True
+        assert data["chat"]["overridden"] is False
+        assert "session_overridden" not in data["plan"]
+
+    async def test_chat_active_inherits_user_default(self, models_client):
+        """A chat inherits the user default and flags it as session_overridden."""
+        await models_client.post(
+            "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
+        )
+        data = (await models_client.get("/chat/u1/c1/models/active")).json()
+        assert data["plan"]["model"] == "ollama:qwen3"
+        assert data["plan"]["overridden"] is False
+        assert data["plan"]["session_overridden"] is True
+
+    async def test_chat_override_wins_and_promotes(self, models_client):
+        """A chat override beats the user default and updates it by default."""
+        await models_client.post(
+            "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
+        )
+        response = await models_client.post(
+            "/chat/u1/c1/models/overrides/plan", json={"model": "openai:gpt-4o"}
+        )
+        assert response.status_code == 200
+        assert response.json()["promoted"] is True
+
+        chat = (await models_client.get("/chat/u1/c1/models/active")).json()
+        assert chat["plan"]["model"] == "openai:gpt-4o"
+        assert chat["plan"]["overridden"] is True
+        assert chat["plan"]["session_overridden"] is True
+
+        user = (await models_client.get("/chat/u1/models/active")).json()
+        assert user["plan"]["model"] == "openai:gpt-4o"
+
+    async def test_chat_override_promote_disabled(self, models_client):
+        """promote_default=False keeps the user default unchanged."""
+        await models_client.post(
+            "/chat/u1/c1/models/overrides/chat",
+            json={"model": "openai:gpt-4o", "promote_default": False},
+        )
+        user = (await models_client.get("/chat/u1/models/active")).json()
+        assert user["chat"]["model"] == "ollama:qwen3:0.6b"
+
+    async def test_clear_chat_override_falls_back_to_default(self, models_client):
+        """Clearing a chat override reverts to the user default."""
+        await models_client.post(
+            "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
+        )
+        await models_client.post(
+            "/chat/u1/c1/models/overrides/plan",
+            json={"model": "openai:gpt-4o", "promote_default": False},
+        )
+        await models_client.delete("/chat/u1/c1/models/overrides/plan")
+        data = (await models_client.get("/chat/u1/c1/models/active")).json()
+        assert data["plan"]["model"] == "ollama:qwen3"
+        assert data["plan"]["overridden"] is False
+
+    async def test_active_includes_credential_status(
+        self, models_app, models_client, monkeypatch
+    ):
+        """The active config reports how each role's credential is supplied."""
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        models_app.state.chat_sessions.set_credential("u1", "openai", "", "sk-1234")
+        await models_client.post(
+            "/chat/u1/models/overrides/chat", json={"model": "openai:gpt-4o"}
+        )
+        data = (await models_client.get("/chat/u1/models/active")).json()
+        assert data["chat"]["credential"]["source"] == "user"
+        assert data["chat"]["credential"]["masked"] == "...1234"
+        # A fresh user with the default Ollama chat role needs no key.
+        default = (await models_client.get("/chat/u2/models/active")).json()
+        assert default["chat"]["credential"]["requires_key"] is False
+        assert default["chat"]["credential"]["source"] == "none"
+
+    async def test_locked_role_rejected(self, models_client):
+        """A non-modifiable role cannot be set at either scope."""
+        user = await models_client.post(
+            "/chat/u1/models/overrides/guard", json={"model": "x"}
+        )
+        assert user.status_code == 403
+        chat = await models_client.post(
+            "/chat/u1/c1/models/overrides/guard", json={"model": "x"}
+        )
+        assert chat.status_code == 403
+
+    async def test_post_ignores_legacy_api_key(self, models_app, models_client):
+        """A legacy api_key in the body is not persisted in the override."""
+        await models_client.post(
+            "/chat/u1/c1/models/overrides/chat",
+            json={"model": "openai:gpt-4o", "api_key": "sk-secret"},
+        )
+        overrides = models_app.state.chat_sessions.get_overrides("u1", "c1")
+        assert overrides["chat"] == {"model": "openai:gpt-4o"}
+
     async def test_overrides_get_masks_api_key(self, models_app, models_client):
         """GET /models/overrides masks any legacy plaintext api_key."""
         store: SessionStore = models_app.state.chat_sessions

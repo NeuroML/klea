@@ -70,6 +70,9 @@ def credential_status(
     else:
         source, masked = "none", ""
 
+    logger.debug(
+        f"{user_id = }\n{model_name = }\n{scope = }\n{requires = }\n{source = }"
+    )
     return {
         "provider": scope.provider,
         "endpoint": scope.endpoint,
