@@ -321,7 +321,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream_events</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_chat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">ensure_chat</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -330,7 +330,7 @@
 
 <div class="viewcode-block" id="apply_stream_event">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.stream.apply_stream_event">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">apply_stream_event</span><span class="p">(</span><span class="n">chat</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">event</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">apply_stream_event</span><span class="p">(</span><span class="n">chat</span><span class="p">:</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Apply one stream event's pure state mutations to the *chat* dict.</span>
 
 <span class="sd">    Mutates *chat* in place (token usage, status sections, inspector</span>

@@ -314,6 +314,30 @@
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 <dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.llm.CredentialScope">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">CredentialScope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">endpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#CredentialScope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.CredentialScope" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
+<p>Provider (and, for custom endpoints, endpoint) a credential belongs to.</p>
+<p>API keys are credentials for a provider – and for an explicit or
+<code class="docutils literal notranslate"><span class="pre">custom:</span></code> endpoint, that endpoint – not for a role or a model.
+Two models sharing a provider (<code class="docutils literal notranslate"><span class="pre">openai:gpt-4o</span></code> and
+<code class="docutils literal notranslate"><span class="pre">openai:gpt-4.1</span></code>) share a scope; <code class="docutils literal notranslate"><span class="pre">custom:m:&lt;url&gt;</span></code> and any
+<code class="docutils literal notranslate"><span class="pre">http(s)</span></code> endpoint suffix scope to that URL.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.CredentialScope.endpoint">
+<span class="sig-name descname"><span class="pre">endpoint</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#klea_utils.llm.CredentialScope.endpoint" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.CredentialScope.provider">
+<span class="sig-name descname"><span class="pre">provider</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#klea_utils.llm.CredentialScope.provider" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
 <dt class="sig sig-object py" id="klea_utils.llm.CustomEndpoint">
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">CustomEndpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">base_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_responses_api</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#CustomEndpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.CustomEndpoint" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
@@ -439,6 +463,14 @@ populated.</p>
 <dd><p>Klea User-Agent sent to OpenAI-compatible endpoints (<code class="docutils literal notranslate"><span class="pre">klea-agent/&lt;v&gt;</span></code>).</p>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.PROVIDERS_WITHOUT_API_KEY">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">PROVIDERS_WITHOUT_API_KEY</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'ollama'})</span></span><a class="headerlink" href="#klea_utils.llm.PROVIDERS_WITHOUT_API_KEY" title="Link to this definition">¶</a></dt>
+<dd><p>Providers that authenticate locally/anonymously and therefore need no
+API key.  Used so readiness checks do not flag e.g. a local Ollama
+deployment as missing a credential.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -589,6 +621,22 @@ so there is no stale configuration leakage between calls.</p>
 <p>The lookup function <code class="docutils literal notranslate"><span class="pre">check_model_works</span></code> is deliberately <strong>not</strong>
 called here  —  we prefer a “leap before you look” approach so that
 startup is fast and model availability is checked only at query time.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.credential_scope">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">credential_scope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.llm.CredentialScope" title="klea_utils.llm.CredentialScope"><span class="pre">CredentialScope</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#credential_scope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.credential_scope" title="Link to this definition">¶</a></dt>
+<dd><p>Return the credential scope for <em>model_name</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>model_name</strong> – Provider-prefixed model string, e.g.
+<code class="docutils literal notranslate"><span class="pre">openai:gpt-4o</span></code> or <code class="docutils literal notranslate"><span class="pre">custom:model:https://host/v1</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#klea_utils.llm.CredentialScope" title="klea_utils.llm.CredentialScope"><code class="xref py py-class docutils literal notranslate"><span class="pre">CredentialScope</span></code></a> – a lowercased provider and an
+optional endpoint for custom / explicit-URL models.</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -884,6 +932,31 @@ retry them on the structured path or fall back to plain.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.missing_required_roles">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">missing_required_roles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">models</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.14)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#missing_required_roles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.missing_required_roles" title="Link to this definition">¶</a></dt>
+<dd><p>Return the roles that are required but have no model configured.</p>
+<p>Single source of truth for the “is a required model missing?”
+predicate, shared by the graph’s startup warning
+(<code class="docutils literal notranslate"><span class="pre">BaseLangGraph._check_required_models</span></code>) and the frontends (which
+need it to decide whether a query may be sent and to point the user
+at the model selector).</p>
+<p>Values may be either the resolved API config dict returned by the
+model endpoints (e.g. <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/chat/{user_id}/models/active</span></code>, with
+<code class="docutils literal notranslate"><span class="pre">model</span></code> / <code class="docutils literal notranslate"><span class="pre">required</span></code> keys) or <a class="reference internal" href="#klea_utils.llm.LLMModel" title="klea_utils.llm.LLMModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">LLMModel</span></code></a> instances (with
+<code class="docutils literal notranslate"><span class="pre">model_name</span></code> / <code class="docutils literal notranslate"><span class="pre">required</span></code>).  A role is missing when <code class="docutils literal notranslate"><span class="pre">required</span></code>
+is true (the default) and its model is empty.  Roles are returned in
+the input’s iteration order.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>models</strong> – Mapping of role name to its config dict or object.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Required role names with no model set.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.llm.parse_model_name">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">parse_model_name</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">raw</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.llm.ParsedModelName" title="klea_utils.llm.ParsedModelName"><span class="pre">ParsedModelName</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#parse_model_name"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.parse_model_name" title="Link to this definition">¶</a></dt>
 <dd><p>Split a model name into provider, model identifier, and suffix.</p>
@@ -932,6 +1005,23 @@ already substituted).</p>
 <dd class="field-even"><p>A list of <code class="docutils literal notranslate"><span class="pre">{&quot;role&quot;:</span> <span class="pre">&quot;...&quot;,</span> <span class="pre">&quot;content&quot;:</span> <span class="pre">&quot;...&quot;}</span></code> dicts.</p>
 </dd>
 </dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.provider_api_key_env">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">provider_api_key_env</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#provider_api_key_env"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.provider_api_key_env" title="Link to this definition">¶</a></dt>
+<dd><p>Return the env var holding <em>provider</em>’s API key, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<p>Providers that need no key (see <a class="reference internal" href="#klea_utils.llm.provider_requires_api_key" title="klea_utils.llm.provider_requires_api_key"><code class="xref py py-func docutils literal notranslate"><span class="pre">provider_requires_api_key()</span></code></a>)
+return <code class="docutils literal notranslate"><span class="pre">None</span></code>.  Otherwise mirrors the SDK convention so the UI can
+report whether a credential comes from the environment.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.provider_requires_api_key">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">provider_requires_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#provider_requires_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.provider_requires_api_key" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether <em>provider</em> needs an API key.</p>
+<p>Local providers (e.g. Ollama) authenticate anonymously, so they must
+not be treated as missing a credential.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -1194,6 +1284,11 @@ still reject – the first attempt for a key always probes.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">LLM utilities</a><ul>
+<li><a class="reference internal" href="#klea_utils.llm.CredentialScope"><code class="docutils literal notranslate"><span class="pre">CredentialScope</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.llm.CredentialScope.endpoint"><code class="docutils literal notranslate"><span class="pre">CredentialScope.endpoint</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.CredentialScope.provider"><code class="docutils literal notranslate"><span class="pre">CredentialScope.provider</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#klea_utils.llm.CustomEndpoint"><code class="docutils literal notranslate"><span class="pre">CustomEndpoint</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.llm.CustomEndpoint.base_url"><code class="docutils literal notranslate"><span class="pre">CustomEndpoint.base_url</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.CustomEndpoint.model_provider"><code class="docutils literal notranslate"><span class="pre">CustomEndpoint.model_provider</span></code></a></li>
@@ -1208,6 +1303,7 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.LLMModel.user_agent"><code class="docutils literal notranslate"><span class="pre">LLMModel.user_agent</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#klea_utils.llm.PROVIDERS_WITHOUT_API_KEY"><code class="docutils literal notranslate"><span class="pre">PROVIDERS_WITHOUT_API_KEY</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName"><code class="docutils literal notranslate"><span class="pre">ParsedModelName</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.model_name"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.model_name</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.provider"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.provider</span></code></a></li>
@@ -1222,6 +1318,7 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.clear_structured_output_cache"><code class="docutils literal notranslate"><span class="pre">clear_structured_output_cache()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.content_to_str"><code class="docutils literal notranslate"><span class="pre">content_to_str()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.create_configurable_model"><code class="docutils literal notranslate"><span class="pre">create_configurable_model()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.credential_scope"><code class="docutils literal notranslate"><span class="pre">credential_scope()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.estimate_input_tokens"><code class="docutils literal notranslate"><span class="pre">estimate_input_tokens()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.extract_llm_output_content"><code class="docutils literal notranslate"><span class="pre">extract_llm_output_content()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.format_alert"><code class="docutils literal notranslate"><span class="pre">format_alert()</span></code></a></li>
@@ -1236,9 +1333,12 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.is_structured_output_failure"><code class="docutils literal notranslate"><span class="pre">is_structured_output_failure()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.load_prompt"><code class="docutils literal notranslate"><span class="pre">load_prompt()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.mark_structured_output_unsupported"><code class="docutils literal notranslate"><span class="pre">mark_structured_output_unsupported()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.missing_required_roles"><code class="docutils literal notranslate"><span class="pre">missing_required_roles()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.parse_model_name"><code class="docutils literal notranslate"><span class="pre">parse_model_name()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.parse_output_with_thought"><code class="docutils literal notranslate"><span class="pre">parse_output_with_thought()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.prompt_value_to_messages"><code class="docutils literal notranslate"><span class="pre">prompt_value_to_messages()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.provider_api_key_env"><code class="docutils literal notranslate"><span class="pre">provider_api_key_env()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.provider_requires_api_key"><code class="docutils literal notranslate"><span class="pre">provider_requires_api_key()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_catalog_provider_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_catalog_provider_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_custom_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_custom_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_langchain_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_langchain_endpoint()</span></code></a></li>

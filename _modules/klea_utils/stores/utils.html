@@ -732,7 +732,8 @@
 <span class="sd">        retrievers)</span>
 <span class="sd">    :param docs: ``(document, score)`` tuples, typically from</span>
 <span class="sd">        :func:`rrf_merge`</span>
-<span class="sd">    :param model: A loaded cross-encoder exposing ``predict(pairs) -&gt; scores``</span>
+<span class="sd">    :param model: A loaded cross-encoder exposing</span>
+<span class="sd">        ``predict(pairs, show_progress_bar=...) -&gt; scores``</span>
 <span class="sd">    :returns: Documents ordered by cross-encoder score (descending)</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">docs</span><span class="p">:</span>
@@ -740,7 +741,9 @@
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cross-encoder reranking </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span><span class="si">}</span><span class="s2"> documents"</span><span class="p">)</span>
     <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">query</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">]</span>
-    <span class="n">raw_scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">)</span>
+    <span class="c1"># Runs on every retrieval: a "Batches" progress bar would clutter the</span>
+    <span class="c1"># CLI/TUI output on each query.</span>
+    <span class="n">raw_scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="n">show_progress_bar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
         <span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">raw_scores</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>

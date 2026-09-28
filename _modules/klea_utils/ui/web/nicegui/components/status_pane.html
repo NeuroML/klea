@@ -314,13 +314,14 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_model_name</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span><span class="p">,</span> <span class="n">parse_model_name</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -351,23 +352,39 @@
 <span class="sd">            chat exists, so they can be set before the first message; they</span>
 <span class="sd">            attach to the chat once it is created.</span>
 <span class="sd">            """</span>
-            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="n">current_chat</span><span class="p">:</span> <span class="n">ChatData</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="p">)</span>
+            <span class="n">chat_scope</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">current_chat</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
+                <span class="n">model_info</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
+                <span class="n">scope_label</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"Models"</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">model_info</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span>
+                <span class="n">scope_label</span> <span class="o">=</span> <span class="s2">"Default models"</span>
+
+            <span class="n">missing_models</span> <span class="o">=</span> <span class="n">missing_required_roles</span><span class="p">(</span><span class="n">model_info</span><span class="p">)</span>
+            <span class="n">missing_providers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="p">(</span><span class="n">model_info</span><span class="p">[</span><span class="n">role</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">model_info</span><span class="p">)</span>
+                <span class="p">}</span>
+                <span class="o">-</span> <span class="p">{</span><span class="s2">""</span><span class="p">}</span>
+            <span class="p">)</span>
+            <span class="n">needs_attention</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">missing_models</span> <span class="ow">or</span> <span class="n">missing_providers</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">missing_models</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">missing_providers</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-0 p-2"</span><span class="p">):</span>
                 <span class="c1"># App-defined context slots (e.g. operating-mode and</span>
                 <span class="c1"># tool-access selectors, ADR-0030/ADR-0037).  Rendered</span>
                 <span class="c1"># inside the refreshable pane, so they update on pane refresh.</span>
                 <span class="k">for</span> <span class="n">render</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">status_extras</span><span class="p">:</span>
                     <span class="n">render</span><span class="p">()</span>
-                <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="p">:</span>
-                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center mt-12"</span><span class="p">):</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                            <span class="s2">"State updates will appear here once you send a message"</span>
-                        <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xl text-grey-5 text-center"</span><span class="p">)</span>
-                    <span class="k">return</span>
+
                 <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center w-full gap-0 pt-2 pb-1"</span><span class="p">):</span>
-                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                        <span class="s2">"text-sm font-bold mb-0"</span>
-                    <span class="p">):</span>
+                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">scope_label</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold mb-0"</span><span class="p">):</span>
                         <span class="n">created</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"created"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
                         <span class="k">if</span> <span class="n">created</span><span class="p">:</span>
                             <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
@@ -377,17 +394,22 @@
                                 <span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%a</span><span class="s2"> </span><span class="si">%d</span><span class="s2"> %b %Y at </span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
                             <span class="p">)</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">space</span><span class="p">()</span>
-                    <span class="k">with</span> <span class="p">(</span>
+                    <span class="n">gear</span> <span class="o">=</span> <span class="p">(</span>
                         <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                             <span class="n">icon</span><span class="o">=</span><span class="s2">"settings"</span><span class="p">,</span>
                             <span class="n">on_click</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span><span class="p">,</span>
                         <span class="p">)</span>
                         <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round"</span><span class="p">)</span>
                         <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm icon-btn"</span><span class="p">)</span>
-                    <span class="p">):</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Choose models"</span><span class="p">)</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">needs_attention</span><span class="p">:</span>
+                        <span class="n">gear</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"model-btn--attention"</span><span class="p">)</span>
+                    <span class="k">with</span> <span class="n">gear</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
+                            <span class="s2">"Choose models"</span>
+                            <span class="o">+</span> <span class="p">(</span><span class="s2">" - configuration needed"</span> <span class="k">if</span> <span class="n">needs_attention</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+                        <span class="p">)</span>
 
-                <span class="n">model_info</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
                 <span class="k">if</span> <span class="n">model_info</span><span class="p">:</span>
                     <span class="n">tooltip_parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
                     <span class="n">display_parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
@@ -401,21 +423,24 @@
                             <span class="n">display_short</span> <span class="o">=</span> <span class="s2">"Not set"</span>
                             <span class="n">required_mark</span> <span class="o">=</span> <span class="s2">" (required)"</span> <span class="k">if</span> <span class="n">required</span> <span class="k">else</span> <span class="s2">""</span>
                             <span class="n">tooltip_short</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Not set</span><span class="si">{</span><span class="n">required_mark</span><span class="si">}</span><span class="s2">"</span>
-                            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"overridden"</span><span class="p">):</span>
-                                <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="s2">" [User]"</span>
                         <span class="k">else</span><span class="p">:</span>
-                            <span class="n">short</span> <span class="o">=</span> <span class="p">(</span>
-                                <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">model_name</span>
-                                <span class="k">if</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-                                <span class="k">else</span> <span class="n">raw</span>
-                            <span class="p">)</span>
+                            <span class="n">display_short</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">model_name</span> <span class="ow">or</span> <span class="n">raw</span>
                             <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
-                                <span class="n">tooltip_short</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">short</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">)"</span>
+                                <span class="n">tooltip_short</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">display_short</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">)"</span>
                             <span class="k">else</span><span class="p">:</span>
-                                <span class="n">tooltip_short</span> <span class="o">=</span> <span class="n">short</span>
-                            <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"overridden"</span><span class="p">):</span>
-                                <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="s2">" [User]"</span>
-                            <span class="n">display_short</span> <span class="o">=</span> <span class="n">short</span>
+                                <span class="n">tooltip_short</span> <span class="o">=</span> <span class="n">display_short</span>
+                            <span class="n">credential</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+                            <span class="k">if</span> <span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requires_key"</span><span class="p">):</span>
+                                <span class="k">if</span> <span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"none"</span><span class="p">:</span>
+                                    <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="s2">" [no API key]"</span>
+                                <span class="k">elif</span> <span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">:</span>
+                                    <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="p">(</span>
+                                        <span class="sa">f</span><span class="s2">" [key </span><span class="si">{</span><span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'masked'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">]"</span>
+                                    <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"overridden"</span><span class="p">):</span>
+                            <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="s2">" [Chat]"</span> <span class="k">if</span> <span class="n">chat_scope</span> <span class="k">else</span> <span class="s2">" [Default]"</span>
+                        <span class="k">if</span> <span class="n">chat_scope</span> <span class="ow">and</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"session_overridden"</span><span class="p">):</span>
+                            <span class="n">tooltip_short</span> <span class="o">+=</span> <span class="s2">" [Default]"</span>
                         <span class="n">tooltip_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">tooltip_short</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
                         <span class="n">display_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">display_short</span><span class="p">)</span>
                     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">" | "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">display_parts</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
@@ -425,6 +450,27 @@
                             <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tooltip_parts</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
                                 <span class="s2">"model-tooltip"</span>
                             <span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Model information is loading..."</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                        <span class="s2">"text-xs text-grey-5"</span>
+                    <span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">missing_models</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                        <span class="s2">"Select a model to start: "</span>
+                        <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_models</span><span class="p">)</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-negative"</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">missing_providers</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                        <span class="s2">"Add an API key for: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_providers</span><span class="p">)</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-negative"</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">chat_scope</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                        <span class="s2">"State updates will appear here once you send a message"</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm text-grey-5 mt-2"</span><span class="p">)</span>
+                    <span class="k">return</span>
+
             <span class="n">token_usage</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"token_usage"</span><span class="p">,</span> <span class="p">{})</span>
             <span class="n">has_token_usage</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">token_usage</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
             <span class="k">if</span> <span class="n">has_token_usage</span><span class="p">:</span>

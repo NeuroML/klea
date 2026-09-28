@@ -657,7 +657,9 @@
 <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"MISTRAL_API_KEY"</span><span class="p">}</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_langchain_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<div class="viewcode-block" id="get_provider_api_key_env">
+<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.get_provider_api_key_env">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the API key env var name a LangChain SDK reads for *provider*.</span>
 
 <span class="sd">    The provider id here is a LangChain ``_BUILTIN_PROVIDERS`` key, and</span>
@@ -666,10 +668,16 @@
 <span class="sd">    model invoke would use.  Follows the ``{PROVIDER}_API_KEY`` convention</span>
 <span class="sd">    unless an explicit alias is registered in</span>
 <span class="sd">    :data:`_LANGCHAIN_PROVIDER_API_KEY_ENV`.</span>
+
+<span class="sd">    Also used by the UI to report whether a model's credential comes from</span>
+<span class="sd">    the environment; pass a lowercase Klea model prefix.</span>
 <span class="sd">    """</span>
     <span class="k">return</span> <span class="p">(</span>
-        <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_API_KEY"</span>
-    <span class="p">)</span>
+        <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+        <span class="ow">or</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_API_KEY"</span>
+    <span class="p">)</span></div>
+
 
 
 <div class="viewcode-block" id="probe_endpoint_model_limits">
@@ -743,11 +751,11 @@
 
 <span class="sd">    When no explicit *api_key* is given, falls back to the standard</span>
 <span class="sd">    ``{PROVIDER}_API_KEY`` environment variable derived from *provider*</span>
-<span class="sd">    via :func:`_langchain_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,</span>
+<span class="sd">    via :func:`get_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,</span>
 <span class="sd">    ``MISTRAL_API_KEY``), matching how the LangChain/OpenAI SDKs resolve</span>
 <span class="sd">    credentials for each provider.</span>
 <span class="sd">    """</span>
-    <span class="n">resolved_key</span> <span class="o">=</span> <span class="n">api_key</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_langchain_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">))</span>
+    <span class="n">resolved_key</span> <span class="o">=</span> <span class="n">api_key</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">))</span>
     <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">resolved_key</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span> <span class="k">if</span> <span class="n">resolved_key</span> <span class="k">else</span> <span class="p">{}</span>
     <span class="n">url</span> <span class="o">=</span> <span class="n">base_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"/models"</span>
     <span class="k">try</span><span class="p">:</span>

@@ -471,6 +471,20 @@ the catalog could not be fetched.  Callers should treat <code class="docutils li
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.models_catalog.get_provider_api_key_env">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">get_provider_api_key_env</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#get_provider_api_key_env"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.get_provider_api_key_env" title="Link to this definition">¶</a></dt>
+<dd><p>Return the API key env var name a LangChain SDK reads for <em>provider</em>.</p>
+<p>The provider id here is a LangChain <code class="docutils literal notranslate"><span class="pre">_BUILTIN_PROVIDERS</span></code> key, and
+the whole point is to mirror how the LangChain SDKs resolve
+credentials so the endpoint probe authenticates with the same key the
+model invoke would use.  Follows the <code class="docutils literal notranslate"><span class="pre">{PROVIDER}_API_KEY</span></code> convention
+unless an explicit alias is registered in
+<code class="xref py py-data docutils literal notranslate"><span class="pre">_LANGCHAIN_PROVIDER_API_KEY_ENV</span></code>.</p>
+<p>Also used by the UI to report whether a model’s credential comes from
+the environment; pass a lowercase Klea model prefix.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.models_catalog.get_provider_endpoint">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.models_catalog.</span></span><span class="sig-name descname"><span class="pre">get_provider_endpoint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.models_catalog.ProviderEndpoint" title="klea_utils.models_catalog.ProviderEndpoint"><span class="pre">ProviderEndpoint</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/models_catalog.html#get_provider_endpoint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.models_catalog.get_provider_endpoint" title="Link to this definition">¶</a></dt>
 <dd><p>Return the endpoint metadata for a models.dev provider, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
@@ -614,6 +628,7 @@ or <code class="docutils literal notranslate"><span class="pre">None</span></cod
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.get_catalog_model_limits"><code class="docutils literal notranslate"><span class="pre">get_catalog_model_limits()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.models_catalog.get_provider_api_key_env"><code class="docutils literal notranslate"><span class="pre">get_provider_api_key_env()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.get_provider_endpoint"><code class="docutils literal notranslate"><span class="pre">get_provider_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.models_catalog.probe_endpoint_model_limits"><code class="docutils literal notranslate"><span class="pre">probe_endpoint_model_limits()</span></code></a></li>
 </ul>

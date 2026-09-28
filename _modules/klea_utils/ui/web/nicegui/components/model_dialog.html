@@ -299,7 +299,15 @@
           <h1>Source code for klea_utils.ui.web.nicegui.components.model_dialog</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Model configuration component: per-chat model overrides dialog.</span>
+<span class="sd">Model configuration component: per-session / per-chat model overrides and</span>
+<span class="sd">the provider credentials editor.</span>
+
+<span class="sd">Models are selected per role (chat/plan/guard/...).  The dialog edits the</span>
+<span class="sd">per-session defaults when no chat is active and the current chat's</span>
+<span class="sd">overrides otherwise; saving in a chat also promotes the changed role into</span>
+<span class="sd">the session defaults ("last used").  API keys are not part of the model</span>
+<span class="sd">override  ---  they are provider-scoped and edited in a separate, masked</span>
+<span class="sd">(write-only) credentials dialog.</span>
 
 <span class="sd">File: klea_utils/ui/web/nicegui/components/model_dialog.py</span>
 
@@ -311,10 +319,18 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">fetch_active_models</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">fetch_active_models</span><span class="p">,</span>
+    <span class="n">fetch_credentials</span><span class="p">,</span>
+    <span class="n">fetch_session_models</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">clear_credential</span><span class="p">,</span>
     <span class="n">clear_model_override</span><span class="p">,</span>
+    <span class="n">clear_session_model_override</span><span class="p">,</span>
+    <span class="n">set_credential</span><span class="p">,</span>
     <span class="n">set_model_override</span><span class="p">,</span>
+    <span class="n">set_session_model_override</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_chat</span>
@@ -325,147 +341,311 @@
 <div class="viewcode-block" id="attach_model_info">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.model_dialog.attach_model_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">attach_model_info</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Register the model-info fetch and the model-config dialog.</span>
+<span class="w">    </span><span class="sd">"""Register the model-info fetches and the model-config dialog.</span>
 
-<span class="sd">    :param ctx: The shared page context; ``fetch_model_info`` and</span>
-<span class="sd">        ``model_config_dialog`` are set here.</span>
+<span class="sd">    :param ctx: The shared page context; ``fetch_model_info``,</span>
+<span class="sd">        ``fetch_session_model_info`` and ``model_config_dialog`` are set</span>
+<span class="sd">        here.</span>
 <span class="sd">    """</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_fetch_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Fetch active model config for the current chat and update the status pane."""</span>
+<span class="w">        </span><span class="sd">"""Fetch active model config for the current chat (chat scope)."""</span>
         <span class="n">chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"fetch chat model info: </span><span class="si">{</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">chat_id</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"fetch model info: no active chat (user=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"fetch model info: no active chat; skipping"</span><span class="p">)</span>
             <span class="k">return</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"fetch model info: fetching for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="n">active</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_active_models</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">active</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="s2">"fetch model info: server returned no roles for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span>
             <span class="p">)</span>
             <span class="k">return</span>
-        <span class="n">current</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-        <span class="n">current</span><span class="p">[</span><span class="s2">"model_info"</span><span class="p">]</span> <span class="o">=</span> <span class="n">active</span>
+        <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)[</span><span class="s2">"model_info"</span><span class="p">]</span> <span class="o">=</span> <span class="n">active</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="s2">"fetch model info: cached </span><span class="si">%d</span><span class="s2"> role(s) for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-            <span class="nb">len</span><span class="p">(</span><span class="n">active</span><span class="p">),</span>
-            <span class="n">chat_id</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"fetch model info: cached </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">active</span><span class="p">)</span><span class="si">}</span><span class="s2"> role(s)</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">active</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span><span class="p">()</span>
 
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_model_config_dialog</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Open a dialog to view and change per-role model overrides."""</span>
-        <span class="n">chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">chat_id</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"model config dialog: no active chat (user=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="n">current_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-        <span class="n">current_info</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">roles</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">current_info</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
-            <span class="c1"># No model info yet (e.g. a chat created by typing the first</span>
-            <span class="c1"># message). Fetch it on demand so the dialog has roles to render.</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">"model config dialog: no roles cached, fetching model info for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">chat_id</span><span class="p">,</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_fetch_session_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Fetch the per-session default model config (no-chat scope)."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"fetch session model info: requesting defaults"</span><span class="p">)</span>
+        <span class="n">active</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_session_models</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">active</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"fetch session model info: server returned no roles (user=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span>
             <span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span> <span class="o">=</span> <span class="n">active</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"fetch session model info: cached </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">active</span><span class="p">)</span><span class="si">}</span><span class="s2"> role(s)</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">active</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span><span class="p">()</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_refresh_scope</span><span class="p">(</span><span class="n">session_scope</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Re-fetch the model info for the scope the dialog edited."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"refresh scope: </span><span class="si">{</span><span class="n">session_scope</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">session_scope</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">_fetch_session_model_info</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
             <span class="k">await</span> <span class="n">_fetch_model_info</span><span class="p">()</span>
-            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-            <span class="n">current_info</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
-            <span class="n">roles</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">current_info</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="s2">"model config dialog: still no roles after fetch for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                    <span class="n">chat_id</span><span class="p">,</span>
-                <span class="p">)</span>
-                <span class="k">return</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"model config dialog: chat=</span><span class="si">%s</span><span class="s2"> roles=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">roles</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_required_credential_scopes</span><span class="p">(</span><span class="n">info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Distinct provider(+endpoint) scopes that the current roles need."""</span>
+        <span class="n">scopes</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">role_cfg</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+            <span class="n">cred</span> <span class="o">=</span> <span class="n">role_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requires_key"</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">provider</span> <span class="o">=</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">provider</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">scopes</span><span class="p">[(</span><span class="n">provider</span><span class="p">,</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"endpoint"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)]</span> <span class="o">=</span> <span class="n">cred</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"required credential scopes: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">scopes</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">scopes</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_credentials_dialog</span><span class="p">(</span><span class="n">info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Open the masked, write-only provider credentials editor."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"credentials dialog: opening"</span><span class="p">)</span>
+        <span class="n">stored</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_credentials</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"credentials dialog: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">stored</span><span class="p">)</span><span class="si">}</span><span class="s2"> stored</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[(</span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'provider'</span><span class="p">),</span><span class="w"> </span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'endpoint'</span><span class="p">))</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">stored</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="n">stored_by_scope</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span> <span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"endpoint"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)):</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">stored</span>
+        <span class="p">}</span>
+        <span class="n">scopes</span> <span class="o">=</span> <span class="n">_required_credential_scopes</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
+        <span class="c1"># Also expose stored keys whose provider is not currently in use.</span>
+        <span class="k">for</span> <span class="n">scope</span> <span class="ow">in</span> <span class="n">stored_by_scope</span><span class="p">:</span>
+            <span class="n">scopes</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span>
+                <span class="n">scope</span><span class="p">,</span>
+                <span class="p">{</span><span class="s2">"provider"</span><span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"endpoint"</span><span class="p">:</span> <span class="n">scope</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="s2">"requires_key"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">scopes</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"credentials dialog: nothing to edit"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span>
+                <span class="s2">"No API keys are required by the current models."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"info"</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
 
         <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
 
-        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_inp</span><span class="p">,</span> <span class="n">api_key_inp</span><span class="p">):</span>
-            <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">model_inp</span><span class="o">.</span><span class="n">value</span><span class="p">}</span>
-            <span class="k">if</span> <span class="n">api_key_inp</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-                <span class="n">payload</span><span class="p">[</span><span class="s2">"api_key"</span><span class="p">]</span> <span class="o">=</span> <span class="n">api_key_inp</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">"model config dialog: saving role=</span><span class="si">%s</span><span class="s2"> model=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">role</span><span class="p">,</span>
-                <span class="n">payload</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span>
-                <span class="n">chat_id</span><span class="p">,</span>
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key_input</span><span class="p">,</span> <span class="n">cred_dialog</span><span class="p">):</span>
+            <span class="n">secret</span> <span class="o">=</span> <span class="n">key_input</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">secret</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"credentials: empty key ignored for </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">endpoint</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                <span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"credentials: saving </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">endpoint</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">set_credential</span><span class="p">(</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">secret</span><span class="p">,</span> <span class="n">endpoint</span>
             <span class="p">)</span>
-            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">set_model_override</span><span class="p">(</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">payload</span>
-            <span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">"model config dialog: save role=</span><span class="si">%s</span><span class="s2"> ok=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">role</span><span class="p">,</span>
-                <span class="n">ok</span><span class="p">,</span>
-                <span class="n">chat_id</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
-                <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                <span class="k">await</span> <span class="n">_fetch_model_info</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"credentials: failed to store key for provider=</span><span class="si">%s</span><span class="s2"> endpoint=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">provider</span><span class="p">,</span>
+                    <span class="n">endpoint</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"Failed to store the API key."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"negative"</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"credentials: stored </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">endpoint</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">key_input</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s2">""</span>
+            <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>
+            <span class="n">cred_dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
-        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"model config dialog: clearing role=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">clear_model_override</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">"model config dialog: clear role=</span><span class="si">%s</span><span class="s2"> ok=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">role</span><span class="p">,</span>
-                <span class="n">ok</span><span class="p">,</span>
-                <span class="n">chat_id</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="k">if</span> <span class="n">ok</span><span class="p">:</span>
-                <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-                <span class="k">await</span> <span class="n">_fetch_model_info</span><span class="p">()</span>
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clear_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">cred_dialog</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"credentials: clearing </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">endpoint</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">clear_credential</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"credentials: failed to clear key for provider=</span><span class="si">%s</span><span class="s2"> endpoint=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">provider</span><span class="p">,</span>
+                    <span class="n">endpoint</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"Failed to clear the API key."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"negative"</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"credentials: cleared </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">endpoint</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>
+            <span class="n">cred_dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
         <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full p-4"</span><span class="p">):</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"API keys"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                <span class="s2">"Stored per provider on the server, truncated in API "</span>
+                <span class="s2">"responses, and removed after 7 days unused. Leave blank to "</span>
+                <span class="s2">"use the environment."</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">in</span> <span class="n">scopes</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="n">provider</span> <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" (</span><span class="si">{</span><span class="n">endpoint</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">endpoint</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-1 mt-2"</span><span class="p">):</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">label</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
+                    <span class="n">stored_cred</span> <span class="o">=</span> <span class="n">stored_by_scope</span><span class="o">.</span><span class="n">get</span><span class="p">((</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">))</span>
+                    <span class="k">if</span> <span class="n">stored_cred</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Stored: </span><span class="si">{</span><span class="n">stored_cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'masked'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                            <span class="s2">"text-xs text-grey-5"</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Not set"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
+                    <span class="n">key_input</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">(</span>
+                        <span class="s2">"New API key"</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">password_toggle_button</span><span class="o">=</span><span class="kc">True</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end gap-2"</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">stored_cred</span><span class="p">:</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                                <span class="s2">"Clear"</span><span class="p">,</span>
+                                <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">endpoint</span><span class="p">:</span> <span class="p">(</span>
+                                    <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_clear_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">dialog</span><span class="p">))</span>
+                                <span class="p">),</span>
+                            <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                            <span class="s2">"Save"</span><span class="p">,</span>
+                            <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">endpoint</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">key_input</span><span class="p">:</span> <span class="p">(</span>
+                                <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_save_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dialog</span><span class="p">))</span>
+                            <span class="p">),</span>
+                        <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Close"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
+        <span class="n">dialog</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_model_config_dialog</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Open the model dialog for the active scope (session or chat)."""</span>
+        <span class="n">chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+        <span class="n">session_scope</span> <span class="o">=</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">chat_id</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model config dialog: </span><span class="si">{</span><span class="n">session_scope</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">session_scope</span><span class="p">:</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_fetch_session_model_info</span><span class="p">()</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">info</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_fetch_model_info</span><span class="p">()</span>
+                <span class="n">info</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">roles</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">"model config dialog: session_scope=</span><span class="si">%s</span><span class="s2"> roles=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">session_scope</span><span class="p">,</span> <span class="n">roles</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"model config dialog: no roles to configure (session_scope=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+                <span class="n">session_scope</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"No model roles available to configure."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"warning"</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_input</span><span class="p">,</span> <span class="n">original_model</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">new_model</span> <span class="o">=</span> <span class="n">model_input</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">new_model</span> <span class="o">==</span> <span class="n">original_model</span><span class="p">:</span>
+                <span class="c1"># Nothing changed: avoid pinning an inherited value.</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model config dialog: </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2"> unchanged; not saving"</span><span class="p">)</span>
+                <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"model config dialog: saving </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">original_model</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">new_model</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">session_scope</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">session_scope</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">set_session_model_override</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">new_model</span><span class="p">}</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">set_model_override</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span>
+                    <span class="n">chat_id</span><span class="p">,</span>
+                    <span class="n">role</span><span class="p">,</span>
+                    <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">new_model</span><span class="p">,</span> <span class="s2">"promote_default"</span><span class="p">:</span> <span class="kc">True</span><span class="p">},</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"model config dialog: failed to save role=</span><span class="si">%s</span><span class="s2"> model=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">role</span><span class="p">,</span>
+                    <span class="n">new_model</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"Failed to save the model."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"negative"</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model config dialog: saved </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="n">session_scope</span><span class="p">)</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"model config dialog: resetting </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">session_scope</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">session_scope</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">clear_session_model_override</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">role</span>
+                <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ok</span> <span class="o">=</span> <span class="k">await</span> <span class="n">clear_model_override</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"model config dialog: failed to reset role=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"Failed to reset the model."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"negative"</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model config dialog: reset </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="n">session_scope</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full p-4"</span><span class="p">):</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                <span class="s2">"Default models"</span> <span class="k">if</span> <span class="n">session_scope</span> <span class="k">else</span> <span class="s2">"Models for this chat"</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                <span class="s2">"These defaults apply to new chats until overridden in a chat."</span>
+                <span class="k">if</span> <span class="n">session_scope</span>
+                <span class="k">else</span> <span class="s2">"Saving here also updates your default models, so new "</span>
+                <span class="s2">"chats start from them."</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">tabs</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span> <span class="k">as</span> <span class="n">tabs</span><span class="p">:</span>
                 <span class="n">tab_map</span> <span class="o">=</span> <span class="p">{}</span>
                 <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">:</span>
-                    <span class="n">cfg</span> <span class="o">=</span> <span class="n">current_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span>
+                    <span class="n">cfg</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span>
                     <span class="n">modifiable</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-                    <span class="n">tab_icon</span> <span class="o">=</span> <span class="kc">None</span>
-                    <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"overridden"</span><span class="p">):</span>
-                        <span class="n">tab_icon</span> <span class="o">=</span> <span class="s2">"person"</span>
-                    <span class="k">elif</span> <span class="ow">not</span> <span class="n">modifiable</span><span class="p">:</span>
-                        <span class="n">tab_icon</span> <span class="o">=</span> <span class="s2">"lock"</span>
                     <span class="n">tab_map</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">tab</span><span class="p">(</span>
                         <span class="n">name</span><span class="o">=</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span>
                         <span class="n">label</span><span class="o">=</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span>
-                        <span class="n">icon</span><span class="o">=</span><span class="n">tab_icon</span><span class="p">,</span>
+                        <span class="n">icon</span><span class="o">=</span><span class="s2">"lock"</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">modifiable</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                     <span class="p">)</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">tab_panels</span><span class="p">(</span><span class="n">tabs</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">roles</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">capitalize</span><span class="p">())</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">):</span>
                 <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">:</span>
-                    <span class="n">cfg</span> <span class="o">=</span> <span class="n">current_info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span>
+                    <span class="n">cfg</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span>
                     <span class="n">modifiable</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+                    <span class="n">original_model</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">tab_panel</span><span class="p">(</span><span class="n">tab_map</span><span class="p">[</span><span class="n">role</span><span class="p">]):</span>
-                        <span class="n">model_inp</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">(</span>
-                            <span class="s2">"Model"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                        <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+                        <span class="n">model_input</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">(</span><span class="s2">"Model"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="n">original_model</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                            <span class="s2">"w-full"</span>
+                        <span class="p">)</span>
                         <span class="k">if</span> <span class="ow">not</span> <span class="n">modifiable</span><span class="p">:</span>
-                            <span class="n">model_inp</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
-                        <span class="k">with</span> <span class="n">model_inp</span><span class="o">.</span><span class="n">add_slot</span><span class="p">(</span><span class="s2">"append"</span><span class="p">):</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="s2">"info"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                                <span class="s2">"text-sm cursor-pointer text-grey-5"</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">on</span><span class="p">(</span>
-                                <span class="s2">"click"</span><span class="p">,</span>
-                                <span class="k">lambda</span><span class="p">:</span> <span class="n">ui</span><span class="o">.</span><span class="n">run_javascript</span><span class="p">(</span>
-                                    <span class="s2">"window.open('https://klea.science/install.html#choosing-models', '_blank')"</span>
-                                <span class="p">),</span>
+                            <span class="n">model_input</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+                        <span class="n">cred</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+                        <span class="n">provider</span> <span class="o">=</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requires_key"</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"No API key required"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                                <span class="s2">"text-xs text-grey-6"</span>
                             <span class="p">)</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"See the docs for model selection options"</span><span class="p">)</span>
-                        <span class="n">api_key_inp</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">(</span>
-                            <span class="s2">"API key"</span><span class="p">,</span> <span class="n">password</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">password_toggle_button</span><span class="o">=</span><span class="kc">True</span>
-                        <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
-                        <span class="k">if</span> <span class="ow">not</span> <span class="n">modifiable</span><span class="p">:</span>
-                            <span class="n">api_key_inp</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
-                        <span class="k">with</span> <span class="n">api_key_inp</span><span class="p">:</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
-                                <span class="s2">"Stored per-chat on the server.</span><span class="se">\n</span><span class="s2">"</span>
-                                <span class="s2">"Truncated in API responses.</span><span class="se">\n</span><span class="s2">"</span>
-                                <span class="s2">"Reset the override or delete the chat to remove."</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"model-tooltip"</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"env"</span><span class="p">:</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">"Using API key from the environment (</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">)"</span>
+                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">:</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">"Stored API key </span><span class="si">{</span><span class="n">cred</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'masked'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">)"</span>
+                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No API key configured for </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                                <span class="s2">"text-xs text-negative"</span>
+                            <span class="p">)</span>
                         <span class="k">if</span> <span class="ow">not</span> <span class="n">modifiable</span><span class="p">:</span>
                             <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Locked by administrator"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
                                 <span class="s2">"text-xs text-grey-5 italic"</span>
@@ -480,14 +660,21 @@
                                 <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
                                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                                     <span class="s2">"Save"</span><span class="p">,</span>
-                                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="o">=</span><span class="n">role</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">model_inp</span><span class="p">,</span> <span class="n">a</span><span class="o">=</span><span class="n">api_key_inp</span><span class="p">:</span> <span class="p">(</span>
-                                        <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_save_role</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">a</span><span class="p">))</span>
+                                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="o">=</span><span class="n">role</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">model_input</span><span class="p">,</span> <span class="n">o</span><span class="o">=</span><span class="n">original_model</span><span class="p">:</span> <span class="p">(</span>
+                                        <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_save_role</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
                                     <span class="p">),</span>
                                 <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-between items-center"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                    <span class="s2">"Manage API keys"</span><span class="p">,</span>
+                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_credentials_dialog</span><span class="p">(</span><span class="n">info</span><span class="p">)),</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Close"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
 
         <span class="n">dialog</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span> <span class="o">=</span> <span class="n">_fetch_model_info</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_session_model_info</span> <span class="o">=</span> <span class="n">_fetch_session_model_info</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span> <span class="o">=</span> <span class="n">_model_config_dialog</span></div>
 
 </pre></div>

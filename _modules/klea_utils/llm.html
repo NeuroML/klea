@@ -316,7 +316,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
@@ -334,6 +334,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">MODELS_DEV_PROVIDERS_IGNORED</span><span class="p">,</span>
     <span class="n">get_catalog_model_limits</span><span class="p">,</span>
+    <span class="n">get_provider_api_key_env</span><span class="p">,</span>
     <span class="n">get_provider_endpoint</span><span class="p">,</span>
     <span class="n">probe_endpoint_model_limits</span><span class="p">,</span>
 <span class="p">)</span>
@@ -397,6 +398,77 @@
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">ParsedModelName</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">model_name</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">suffix</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span></div>
+
+
+
+<div class="viewcode-block" id="CredentialScope">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.CredentialScope">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CredentialScope</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Provider (and, for custom endpoints, endpoint) a credential belongs to.</span>
+
+<span class="sd">    API keys are credentials for a provider -- and for an explicit or</span>
+<span class="sd">    ``custom:`` endpoint, that endpoint -- not for a role or a model.</span>
+<span class="sd">    Two models sharing a provider (``openai:gpt-4o`` and</span>
+<span class="sd">    ``openai:gpt-4.1``) share a scope; ``custom:m:&lt;url&gt;`` and any</span>
+<span class="sd">    ``http(s)`` endpoint suffix scope to that URL.</span>
+<span class="sd">    """</span>
+
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="c1">#: Providers that authenticate locally/anonymously and therefore need no</span>
+<span class="c1">#: API key.  Used so readiness checks do not flag e.g. a local Ollama</span>
+<span class="c1">#: deployment as missing a credential.</span>
+<span class="n">PROVIDERS_WITHOUT_API_KEY</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"ollama"</span><span class="p">})</span>
+
+
+<div class="viewcode-block" id="credential_scope">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.credential_scope">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">credential_scope</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CredentialScope</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the credential scope for *model_name*.</span>
+
+<span class="sd">    :param model_name: Provider-prefixed model string, e.g.</span>
+<span class="sd">        ``openai:gpt-4o`` or ``custom:model:https://host/v1``.</span>
+<span class="sd">    :returns: :class:`CredentialScope` -- a lowercased provider and an</span>
+<span class="sd">        optional endpoint for custom / explicit-URL models.</span>
+<span class="sd">    """</span>
+    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">model_name</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">provider</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span>
+    <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">and</span> <span class="p">(</span>
+        <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"custom"</span> <span class="ow">or</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">))</span>
+    <span class="p">):</span>
+        <span class="n">endpoint</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span>
+    <span class="k">return</span> <span class="n">CredentialScope</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="n">endpoint</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="provider_requires_api_key">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.provider_requires_api_key">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">provider_requires_api_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *provider* needs an API key.</span>
+
+<span class="sd">    Local providers (e.g. Ollama) authenticate anonymously, so they must</span>
+<span class="sd">    not be treated as missing a credential.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">and</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_API_KEY</span></div>
+
+
+
+<div class="viewcode-block" id="provider_api_key_env">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.provider_api_key_env">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the env var holding *provider*'s API key, or ``None``.</span>
+
+<span class="sd">    Providers that need no key (see :func:`provider_requires_api_key`)</span>
+<span class="sd">    return ``None``.  Otherwise mirrors the SDK convention so the UI can</span>
+<span class="sd">    report whether a credential comes from the environment.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">provider_requires_api_key</span><span class="p">(</span><span class="n">provider</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span></div>
 
 
 
@@ -1991,6 +2063,48 @@
         <span class="c1"># Wrap in the "configurable" key expected by _ConfigurableModel.</span>
         <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">RunnableConfig</span><span class="p">,</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">})</span></div>
 </div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_role_is_missing</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether a single role's model config has no usable model.</span>
+
+<span class="sd">    Accepts either the resolved API config dict (``{"model": ...,</span>
+<span class="sd">    "required": ...}``) or an :class:`LLMModel` (``model_name`` /</span>
+<span class="sd">    ``required`` attributes), so the same predicate serves the graph's</span>
+<span class="sd">    startup check and the frontends.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">required</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">"model_name"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">required</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">model</span>
+
+
+<div class="viewcode-block" id="missing_required_roles">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.missing_required_roles">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">missing_required_roles</span><span class="p">(</span><span class="n">models</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the roles that are required but have no model configured.</span>
+
+<span class="sd">    Single source of truth for the "is a required model missing?"</span>
+<span class="sd">    predicate, shared by the graph's startup warning</span>
+<span class="sd">    (``BaseLangGraph._check_required_models``) and the frontends (which</span>
+<span class="sd">    need it to decide whether a query may be sent and to point the user</span>
+<span class="sd">    at the model selector).</span>
+
+<span class="sd">    Values may be either the resolved API config dict returned by the</span>
+<span class="sd">    model endpoints (e.g. ``GET /chat/{user_id}/models/active``, with</span>
+<span class="sd">    ``model`` / ``required`` keys) or :class:`LLMModel` instances (with</span>
+<span class="sd">    ``model_name`` / ``required``).  A role is missing when ``required``</span>
+<span class="sd">    is true (the default) and its model is empty.  Roles are returned in</span>
+<span class="sd">    the input's iteration order.</span>
+
+<span class="sd">    :param models: Mapping of role name to its config dict or object.</span>
+<span class="sd">    :returns: Required role names with no model set.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">role</span> <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">models</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">_role_is_missing</span><span class="p">(</span><span class="n">cfg</span><span class="p">)]</span></div>
 
 
 
