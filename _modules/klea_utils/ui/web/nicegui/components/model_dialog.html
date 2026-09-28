@@ -317,7 +317,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">fetch_active_models</span><span class="p">,</span>
@@ -348,6 +348,9 @@
 <span class="sd">        here.</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="c1"># A valid slot for building dialogs when invoked from a context without</span>
+    <span class="c1"># an ambient slot (the first-run prompt runs in a background task).</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">dialog_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"hidden"</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_fetch_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Fetch active model config for the current chat (chat scope)."""</span>
@@ -433,7 +436,10 @@
             <span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
+        <span class="c1"># Enter an explicit slot: this may run in a background task (the</span>
+        <span class="c1"># first-run prompt), which has no ambient slot (see PageContext).</span>
+        <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">dialog_container</span><span class="p">:</span>
+            <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
 
         <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key_input</span><span class="p">,</span> <span class="n">cred_dialog</span><span class="p">):</span>
             <span class="n">secret</span> <span class="o">=</span> <span class="n">key_input</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
@@ -474,6 +480,21 @@
             <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>
             <span class="n">cred_dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
+        <span class="c1"># Small factories so the buttons get no-arg coroutine handlers:</span>
+        <span class="c1"># NiceGUI awaits async on_click handlers in the client context, so</span>
+        <span class="c1"># the dialog can be built here (a background task has no slot).</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_on_save_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">key_input</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_save_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">key_input</span><span class="p">,</span> <span class="n">dialog</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_handler</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_on_clear_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_clear_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">dialog</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_handler</span>
+
         <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full p-4"</span><span class="p">):</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"API keys"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
@@ -499,15 +520,11 @@
                         <span class="k">if</span> <span class="n">stored_cred</span><span class="p">:</span>
                             <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                                 <span class="s2">"Clear"</span><span class="p">,</span>
-                                <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">endpoint</span><span class="p">:</span> <span class="p">(</span>
-                                    <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_clear_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">dialog</span><span class="p">))</span>
-                                <span class="p">),</span>
+                                <span class="n">on_click</span><span class="o">=</span><span class="n">_on_clear_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">),</span>
                             <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
                         <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                             <span class="s2">"Save"</span><span class="p">,</span>
-                            <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">p</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">endpoint</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">key_input</span><span class="p">:</span> <span class="p">(</span>
-                                <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_save_key</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">dialog</span><span class="p">))</span>
-                            <span class="p">),</span>
+                            <span class="n">on_click</span><span class="o">=</span><span class="n">_on_save_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">,</span> <span class="n">key_input</span><span class="p">),</span>
                         <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Close"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
@@ -540,7 +557,10 @@
             <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span><span class="s2">"No model roles available to configure."</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="s2">"warning"</span><span class="p">)</span>
             <span class="k">return</span>
 
-        <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
+        <span class="c1"># Enter an explicit slot: this may run in a background task (the</span>
+        <span class="c1"># first-run prompt), which has no ambient slot (see PageContext).</span>
+        <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">dialog_container</span><span class="p">:</span>
+            <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
 
         <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_input</span><span class="p">,</span> <span class="n">original_model</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
             <span class="n">new_model</span> <span class="o">=</span> <span class="n">model_input</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
@@ -596,6 +616,21 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model config dialog: reset </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
             <span class="k">await</span> <span class="n">_refresh_scope</span><span class="p">(</span><span class="n">session_scope</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_on_save_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_input</span><span class="p">,</span> <span class="n">original_model</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_save_role</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="n">model_input</span><span class="p">,</span> <span class="n">original_model</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_handler</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_on_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">await</span> <span class="n">_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_handler</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_open_credentials</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">_credentials_dialog</span><span class="p">(</span><span class="n">info</span><span class="p">)</span>
 
         <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full p-4"</span><span class="p">):</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
@@ -654,20 +689,18 @@
                             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end gap-2"</span><span class="p">):</span>
                                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                                     <span class="s2">"Reset"</span><span class="p">,</span>
-                                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="o">=</span><span class="n">role</span><span class="p">:</span> <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-                                        <span class="n">_clear_role</span><span class="p">(</span><span class="n">r</span><span class="p">)</span>
-                                    <span class="p">),</span>
+                                    <span class="n">on_click</span><span class="o">=</span><span class="n">_on_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">),</span>
                                 <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
                                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                                     <span class="s2">"Save"</span><span class="p">,</span>
-                                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span> <span class="n">r</span><span class="o">=</span><span class="n">role</span><span class="p">,</span> <span class="n">m</span><span class="o">=</span><span class="n">model_input</span><span class="p">,</span> <span class="n">o</span><span class="o">=</span><span class="n">original_model</span><span class="p">:</span> <span class="p">(</span>
-                                        <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_save_role</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">m</span><span class="p">,</span> <span class="n">o</span><span class="p">))</span>
+                                    <span class="n">on_click</span><span class="o">=</span><span class="n">_on_save_role</span><span class="p">(</span>
+                                        <span class="n">role</span><span class="p">,</span> <span class="n">model_input</span><span class="p">,</span> <span class="n">original_model</span>
                                     <span class="p">),</span>
                                 <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-between items-center"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                     <span class="s2">"Manage API keys"</span><span class="p">,</span>
-                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_credentials_dialog</span><span class="p">(</span><span class="n">info</span><span class="p">)),</span>
+                    <span class="n">on_click</span><span class="o">=</span><span class="n">_open_credentials</span><span class="p">,</span>
                 <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Close"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span>
 

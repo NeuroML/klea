@@ -481,6 +481,18 @@
         <span class="s2">".inspector-entry &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25B6'; font-size: 0.65rem; margin-right: 0.35rem; transition: transform 0.15s; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".inspector-entry[open] &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
+    <span class="c1"># Inspector query sections: same disclosure triangle as entries, plus a</span>
+    <span class="c1"># separating rule between sections so consecutive queries are distinct.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".inspector-section &gt; summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; padding-bottom: 0.5rem; }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".inspector-section &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25B6'; font-size: 0.8rem; margin-right: 0.35rem; transition: transform 0.15s; }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".inspector-section[open] &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".inspector-section + .inspector-section { border-top: 1px solid rgba(127, 127, 127, 0.3); padding-top: 0.4rem; }"</span>
+    <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-details summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; }"</span>
     <span class="p">)</span>

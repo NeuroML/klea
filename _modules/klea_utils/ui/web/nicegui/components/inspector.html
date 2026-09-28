@@ -299,7 +299,12 @@
           <h1>Source code for klea_utils.ui.web.nicegui.components.inspector</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Inspector panel component: streamed info/debug entries for the active chat.</span>
+<span class="sd">Inspector panel component: streamed inspect entries for the active chat.</span>
+
+<span class="sd">Entries arrive as the graph runs.  The pane appends them incrementally (no</span>
+<span class="sd">full rebuild per node) and groups them into a collapsible section per</span>
+<span class="sd">query, marked by the query text and time.  Sections are kept for the</span>
+<span class="sd">browser session so a chat accumulates its inspection history.</span>
 
 <span class="sd">File: klea_utils/ui/web/nicegui/components/inspector.py</span>
 
@@ -309,6 +314,8 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
@@ -316,6 +323,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Maximum query text length shown in a section header.</span>
+<span class="n">_MAX_MARKER_CHARS</span> <span class="o">=</span> <span class="mi">80</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_toggle_inspector_entry</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -330,82 +340,200 @@
         <span class="n">expanded</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_toggle_inspector_section</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Toggle the collapsed state of an inspector query section."""</span>
+    <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">collapsed</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"inspector_sections_collapsed"</span><span class="p">,</span> <span class="nb">set</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">collapsed</span><span class="p">:</span>
+        <span class="n">collapsed</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">collapsed</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_truncate_query</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Truncate a query for the section header (full text in a tooltip)."""</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">_MAX_MARKER_CHARS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text</span>
+    <span class="k">return</span> <span class="n">text</span><span class="p">[:</span><span class="n">_MAX_MARKER_CHARS</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+
+
 <div class="viewcode-block" id="attach_inspector_panel">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.inspector.attach_inspector_panel">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">attach_inspector_panel</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Build the inspector panel for the active chat in the inspect tab.</span>
 
 <span class="sd">    Must be called with the inspect tab panel as the ambient NiceGUI</span>
-<span class="sd">    context.  Registers ``refresh_inspector`` and ``reset_center_tab``</span>
-<span class="sd">    on the context and renders the (empty) initial state.</span>
+<span class="sd">    context.  Builds the scroll area and content column once (so entries</span>
+<span class="sd">    can be appended incrementally) and registers the refresh/append</span>
+<span class="sd">    callbacks on the context.</span>
 
 <span class="sd">    :param ctx: The shared page context.</span>
 <span class="sd">    """</span>
+    <span class="c1">#: Body element of the query section currently receiving live entries.</span>
+    <span class="n">active_body</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">active_chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
-    <span class="nd">@ui</span><span class="o">.</span><span class="n">refreshable</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_render_inspector_panel</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Render the inspector entries for the active chat in the inspect tab.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_render_entry</span><span class="p">(</span><span class="n">entry</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Render one inspect entry (collapsible details)."""</span>
+        <span class="n">heading</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="n">timing</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timing_seconds"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"inspector-entry mb-2 w-full"</span><span class="p">):</span>
+            <span class="k">with</span> <span class="p">(</span>  <span class="c1"># noqa: SIM117</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold cursor-pointer w-full"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">idx</span><span class="p">:</span> <span class="n">_toggle_inspector_entry</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
+            <span class="p">):</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full flex-nowrap items-center"</span><span class="p">):</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">timing</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">timing</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s)"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                <span class="s2">"text-xs text-grey-6 mb-1 w-full"</span>
+            <span class="p">)</span>
+            <span class="n">details</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{})</span>
+            <span class="k">if</span> <span class="n">details</span><span class="p">:</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                    <span class="s2">"inspector-details text-xs text-grey-5 cursor-pointer w-full"</span>
+                <span class="p">):</span>
+                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs w-full"</span><span class="p">):</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"View details"</span><span class="p">)</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">details</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">language</span><span class="o">=</span><span class="s2">"json"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                        <span class="s2">"text-xs"</span>
+                    <span class="p">)</span>
 
-<span class="sd">        The entries live in their own ``ui.scroll_area`` so the tab's scroll</span>
-<span class="sd">        stays inside the pane (like the chat tab); without it the whole page</span>
-<span class="sd">        scrolls and the ``chat``/``inspect`` tab headings scroll away.</span>
-<span class="sd">        """</span>
-        <span class="k">with</span> <span class="p">(</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">scroll_area</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full grow inspector-scroll-area"</span><span class="p">),</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full px-2 gap-0"</span><span class="p">),</span>
-        <span class="p">):</span>
-            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">current_chat</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_render_section</span><span class="p">(</span>
+        <span class="n">section_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">marker</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]],</span>
+        <span class="n">collapsed_sections</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Render one query section; returns its body element."""</span>
+        <span class="n">details</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"inspector-section mb-2 w-full"</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">details</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">section_idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">collapsed_sections</span><span class="p">:</span>
+                <span class="n">details</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="p">(</span>  <span class="c1"># noqa: SIM117</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"cursor-pointer w-full"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">on</span><span class="p">(</span>
+                    <span class="s2">"click"</span><span class="p">,</span>
+                    <span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">section_idx</span><span class="p">:</span> <span class="n">_toggle_inspector_section</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">i</span><span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">):</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full flex-nowrap items-baseline gap-2"</span><span class="p">):</span>
+                    <span class="n">stamp</span> <span class="o">=</span> <span class="n">marker</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"stamp"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                    <span class="n">text</span> <span class="o">=</span> <span class="n">marker</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">stamp</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">stamp</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm text-grey-5"</span><span class="p">)</span>
+                    <span class="n">label</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">_truncate_query</span><span class="p">(</span><span class="n">text</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">text</span><span class="p">:</span>
+                        <span class="n">label</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-0 pl-3"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">body</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">items</span><span class="p">:</span>
+                    <span class="n">_render_entry</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">body</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_group_sections</span><span class="p">(</span>
+        <span class="n">entries</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]]]:</span>
+<span class="w">        </span><span class="sd">"""Group a flat entry/marker list into per-query sections."""</span>
+        <span class="n">sections</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span>
+            <span class="nb">tuple</span><span class="p">[</span><span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]]</span>
+        <span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">entries</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"query"</span><span class="p">:</span>
+                <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">item</span><span class="p">,</span> <span class="p">[]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">sections</span><span class="p">:</span>
+                    <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(({</span><span class="s2">"text"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span> <span class="s2">"stamp"</span><span class="p">:</span> <span class="s2">""</span><span class="p">},</span> <span class="p">[]))</span>
+                <span class="n">sections</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">idx</span><span class="p">,</span> <span class="n">item</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">sections</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_render_all</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""(Re)build the whole inspector pane from the active chat's data."""</span>
+        <span class="k">nonlocal</span> <span class="n">active_body</span><span class="p">,</span> <span class="n">active_chat_id</span>
+        <span class="n">active_body</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">active_chat_id</span> <span class="o">=</span> <span class="s2">""</span>
+        <span class="n">container</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">inspector_container</span>
+        <span class="k">if</span> <span class="n">container</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">container</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">entries</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">,</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">with</span> <span class="n">container</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">entries</span><span class="p">:</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"No inspection data yet"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm text-grey-5 py-8"</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                    <span class="s2">"Inspector entries will appear here after a query completes."</span>
+                    <span class="s2">"Inspector entries will appear here as the graph runs."</span>
                 <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>
                 <span class="k">return</span>
-
-            <span class="n">entries</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">])</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="s2">"Rendering inspector panel for chat </span><span class="si">%s</span><span class="s2"> (entries=</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
+                <span class="s2">"Rendering inspector panel for chat </span><span class="si">%s</span><span class="s2"> (items=</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">,</span>
                 <span class="nb">len</span><span class="p">(</span><span class="n">entries</span><span class="p">),</span>
             <span class="p">)</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">entry</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">entries</span><span class="p">):</span>
-                <span class="n">heading</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                <span class="n">timing</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timing_seconds"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="k">with</span> <span class="p">(</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span>
-                    <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"open"</span><span class="p">)</span>
-                    <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"inspector-entry mb-2 w-full"</span><span class="p">)</span>
-                <span class="p">):</span>
-                    <span class="k">with</span> <span class="p">(</span>  <span class="c1"># noqa: SIM117</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span>
-                        <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold cursor-pointer w-full"</span><span class="p">)</span>
-                        <span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click"</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">idx</span><span class="p">:</span> <span class="n">_toggle_inspector_entry</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">i</span><span class="p">))</span>
-                    <span class="p">):</span>
-                        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full flex-nowrap items-center"</span><span class="p">):</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span>
-                            <span class="k">if</span> <span class="n">timing</span><span class="p">:</span>
-                                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">timing</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">s)"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                                    <span class="s2">"text-xs text-grey-5"</span>
-                                <span class="p">)</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                        <span class="s2">"text-xs text-grey-6 mb-1 w-full"</span>
-                    <span class="p">)</span>
-                    <span class="n">details</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{})</span>
-                    <span class="k">if</span> <span class="n">details</span><span class="p">:</span>
-                        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                            <span class="s2">"inspector-details text-xs text-grey-5 cursor-pointer w-full"</span>
-                        <span class="p">):</span>
-                            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs w-full"</span><span class="p">):</span>
-                                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"View details"</span><span class="p">)</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span>
-                                <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">details</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">language</span><span class="o">=</span><span class="s2">"json"</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs"</span><span class="p">)</span>
+            <span class="n">collapsed_sections</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="nb">set</span><span class="p">(</span><span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"inspector_sections_collapsed"</span><span class="p">,</span> <span class="nb">set</span><span class="p">()))</span>
+                <span class="k">if</span> <span class="n">current_chat</span>
+                <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">section_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">marker</span><span class="p">,</span> <span class="n">items</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">_group_sections</span><span class="p">(</span><span class="n">entries</span><span class="p">)):</span>
+                <span class="n">body</span> <span class="o">=</span> <span class="n">_render_section</span><span class="p">(</span><span class="n">section_idx</span><span class="p">,</span> <span class="n">marker</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">collapsed_sections</span><span class="p">)</span>
+                <span class="c1"># Keep the last section's body open for live appends when the</span>
+                <span class="c1"># stream belongs to the active chat.</span>
+                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="ow">and</span> <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">==</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+                    <span class="n">active_body</span> <span class="o">=</span> <span class="n">body</span>
+                    <span class="n">active_chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+        <span class="n">_scroll_bottom</span><span class="p">()</span>
 
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span> <span class="o">=</span> <span class="n">_render_inspector_panel</span><span class="o">.</span><span class="n">refresh</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_begin_inspector_section</span><span class="p">(</span><span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">marker</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Show a new query section for *marker* (data already appended)."""</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">inspector_container</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span> <span class="o">!=</span> <span class="n">chat_id</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"inspector: not active for chat=</span><span class="si">%s</span><span class="s2"> (active=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">_render_all</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_append_inspector</span><span class="p">(</span><span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">entry</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Append one inspect *entry* to the active query section."""</span>
+        <span class="k">if</span> <span class="n">active_body</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">active_chat_id</span> <span class="o">!=</span> <span class="n">chat_id</span> <span class="ow">or</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span> <span class="o">!=</span> <span class="n">chat_id</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"inspector: append skipped for chat=</span><span class="si">%s</span><span class="s2"> (active=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+                <span class="n">chat_id</span><span class="p">,</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">,</span> <span class="p">[]))</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="k">with</span> <span class="n">active_body</span><span class="p">:</span>
+            <span class="n">_render_entry</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+        <span class="n">_scroll_bottom</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_scroll_bottom</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Scroll the inspector pane to the newest entry."""</span>
+        <span class="n">scroll</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">inspector_scroll</span>
+        <span class="k">if</span> <span class="n">scroll</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">scroll</span><span class="o">.</span><span class="n">scroll_to</span><span class="p">(</span><span class="n">percent</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"inspector scroll failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">scroll_area</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full grow inspector-scroll-area"</span><span class="p">)</span> <span class="k">as</span> <span class="n">scroll</span><span class="p">:</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">inspector_scroll</span> <span class="o">=</span> <span class="n">scroll</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">inspector_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full px-2 gap-0"</span><span class="p">)</span>
+
+    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span> <span class="o">=</span> <span class="n">_render_all</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">begin_inspector_section</span> <span class="o">=</span> <span class="n">_begin_inspector_section</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">append_inspector</span> <span class="o">=</span> <span class="n">_append_inspector</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">reset_center_tab</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="p">(</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">center_panels</span><span class="o">.</span><span class="n">set_value</span><span class="p">(</span><span class="s2">"chat"</span><span class="p">)</span> <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">center_panels</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
     <span class="p">)</span>
-    <span class="n">_render_inspector_panel</span><span class="p">()</span></div>
+    <span class="n">_render_all</span><span class="p">()</span></div>
 
 </pre></div>
         </article>

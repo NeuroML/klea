@@ -314,11 +314,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui.events</span><span class="w"> </span><span class="kn">import</span> <span class="n">GenericEventArguments</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_chat_on_server</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_chat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">ensure_chat</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -343,9 +344,35 @@
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">text</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">_effective_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Model info for the active scope (chat, else session defaults)."""</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+                <span class="n">chat_info</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                    <span class="s2">"model_info"</span><span class="p">,</span> <span class="p">{}</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">chat_info</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">chat_info</span>
+            <span class="k">return</span> <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_setup_incomplete</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Whether required models or API keys are still missing."""</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">_effective_model_info</span><span class="p">()</span>
+            <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">missing_required_roles</span><span class="p">(</span><span class="n">info</span><span class="p">)</span> <span class="ow">or</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">info</span><span class="p">))</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Append the current input text as a user message, then stream."""</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="n">_setup_incomplete</span><span class="p">():</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"send blocked: required models or API keys not configured"</span>
+                <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">notification</span><span class="p">(</span>
+                    <span class="s2">"Select the required models and API keys before sending. "</span>
+                    <span class="s2">"Use the settings (gear) icon."</span><span class="p">,</span>
+                    <span class="nb">type</span><span class="o">=</span><span class="s2">"warning"</span><span class="p">,</span>
+                    <span class="n">close_button</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
                 <span class="k">return</span>
             <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">query</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span>
@@ -380,13 +407,27 @@
         <span class="c1"># Send button inside the field, anchored to the bottom-right: the</span>
         <span class="c1"># textarea autogrows upward as the message gets longer while the</span>
         <span class="c1"># button stays on its last line (the Gemini pattern).</span>
-        <span class="k">with</span> <span class="p">(</span>
-            <span class="n">text</span><span class="o">.</span><span class="n">add_slot</span><span class="p">(</span><span class="s2">"append"</span><span class="p">),</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"send"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">send</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
+        <span class="k">with</span> <span class="n">text</span><span class="o">.</span><span class="n">add_slot</span><span class="p">(</span><span class="s2">"append"</span><span class="p">):</span>
+            <span class="n">send_button</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"send"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">send</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
                 <span class="s2">"flat dense round color=primary"</span>
-            <span class="p">),</span>
-        <span class="p">):</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Enter to send, Shift+Enter for newline"</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">with</span> <span class="n">send_button</span><span class="p">:</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Enter to send, Shift+Enter for newline"</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">refresh_send_state</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Enable/disable send based on model and API-key readiness."""</span>
+            <span class="n">incomplete</span> <span class="o">=</span> <span class="n">_setup_incomplete</span><span class="p">()</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">_effective_model_info</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">incomplete</span><span class="p">:</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"send button state update failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"send state updated: </span><span class="si">{</span><span class="n">incomplete</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span> <span class="o">=</span> <span class="n">refresh_send_state</span>
 
         <span class="c1"># Plain Enter sends the message and prevents the default newline</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">handle_enter</span><span class="p">(</span><span class="n">e</span><span class="p">:</span> <span class="n">GenericEventArguments</span><span class="p">):</span>
@@ -400,9 +441,11 @@
         <span class="c1"># Clicking the send icon inside the textarea also sends.</span>
         <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click:append"</span><span class="p">,</span> <span class="n">send</span><span class="p">)</span>
 
-    <span class="c1"># Disable chat input until backend is ready; initial_load re-enables.</span>
+    <span class="c1"># Disable chat input (and send) until backend is ready.  initial_load's</span>
+    <span class="c1"># model fetch calls refresh_send_state() to re-enable when configured.</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">text</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+        <span class="n">send_button</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"disable input failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span></div>
 

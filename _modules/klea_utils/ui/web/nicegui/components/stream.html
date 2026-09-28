@@ -321,11 +321,9 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream_events</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">ensure_chat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">InspectorMarker</span><span class="p">,</span> <span class="n">ensure_chat</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-<span class="n">INSPECTOR_BUFFER_KEY</span> <span class="o">=</span> <span class="s2">"inspector_buffer"</span>
 
 
 <div class="viewcode-block" id="apply_stream_event">
@@ -334,7 +332,7 @@
 <span class="w">    </span><span class="sd">"""Apply one stream event's pure state mutations to the *chat* dict.</span>
 
 <span class="sd">    Mutates *chat* in place (token usage, status sections, inspector</span>
-<span class="sd">    buffer, and, on completion, the final message) and returns the</span>
+<span class="sd">    entries, and, on completion, the final message) and returns the</span>
 <span class="sd">    action the UI layer reacts to:</span>
 
 <span class="sd">    ==============  =====================================================</span>
@@ -342,16 +340,16 @@
 <span class="sd">    ==============  =====================================================</span>
 <span class="sd">    ``"usage"``     token usage totals were incremented</span>
 <span class="sd">    ``"state"``     a status-pane section was stored</span>
-<span class="sd">    ``"inspect"``   an inspection entry was buffered</span>
+<span class="sd">    ``"inspect"``   an inspection entry was appended</span>
 <span class="sd">    ``"context"``   session context (e.g. the operating mode) was stored</span>
 <span class="sd">    ``"complete"``  the final assistant message was appended</span>
 <span class="sd">    ``"error"``     the backend signalled an error</span>
 <span class="sd">    ``None``        no state change (progress / info / token events)</span>
 <span class="sd">    ==============  =====================================================</span>
 
-<span class="sd">    Inspector entries are buffered under :data:`INSPECTOR_BUFFER_KEY`;</span>
-<span class="sd">    the caller clears the buffer at stream start and commits it to</span>
-<span class="sd">    ``inspector_entries`` when the ``complete`` event arrives.</span>
+<span class="sd">    Inspector entries are appended to ``inspector_entries`` as they</span>
+<span class="sd">    arrive; the caller renders each one incrementally.  A per-query</span>
+<span class="sd">    marker is prepended by the caller at stream start.</span>
 
 <span class="sd">    :param chat: Chat session dict (see ``state.ensure_chat``).</span>
 <span class="sd">    :param event: Parsed SSE event dict from ``stream_events``.</span>
@@ -369,7 +367,7 @@
 
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"inspect"</span><span class="p">:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">INSPECTOR_BUFFER_KEY</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
             <span class="p">{</span>
                 <span class="s2">"type"</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
                 <span class="s2">"node"</span><span class="p">:</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
@@ -462,10 +460,22 @@
     <span class="n">current_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Streaming query for chat </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="n">chat_id</span>
     <span class="n">current_chat</span><span class="p">[</span><span class="s2">"state_sections"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="n">current_chat</span><span class="p">[</span><span class="n">INSPECTOR_BUFFER_KEY</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c1"># Start a new inspector section for this query.  Entries are appended</span>
+    <span class="c1"># live; sections (and their entries) are kept for the session.</span>
+    <span class="n">marker</span><span class="p">:</span> <span class="n">InspectorMarker</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"query"</span><span class="p">,</span>
+        <span class="s2">"text"</span><span class="p">:</span> <span class="n">query</span><span class="p">,</span>
+        <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">begin_inspector_section</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">marker</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
 
+    <span class="c1"># run_stream runs in a background task, which has no ambient slot; enter</span>
+    <span class="c1"># the stream container explicitly before creating elements (see the slot</span>
+    <span class="c1"># warning on PageContext).</span>
     <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span><span class="p">:</span>
         <span class="n">pg_row</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center gap-2 p-2"</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">pg_row</span><span class="p">:</span>
@@ -488,6 +498,9 @@
             <span class="n">action</span> <span class="o">=</span> <span class="n">apply_stream_event</span><span class="p">(</span><span class="n">current_chat</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">):</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"inspect"</span><span class="p">:</span>
+                <span class="n">entry</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">append_inspector</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
@@ -495,11 +508,8 @@
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream complete"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="s2">""</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
-                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-                    <span class="n">INSPECTOR_BUFFER_KEY</span><span class="p">,</span> <span class="p">[]</span>
-                <span class="p">)</span>
-                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_expanded"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
                 <span class="k">break</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
@@ -523,6 +533,7 @@
                         <span class="n">close_button</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="s2">""</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
                 <span class="k">break</span>
     <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">RequestError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -536,6 +547,7 @@
                 <span class="n">close_button</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
             <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span></div>
 
 </pre></div>

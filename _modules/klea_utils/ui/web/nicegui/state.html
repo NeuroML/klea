@@ -365,6 +365,21 @@
 
 
 
+<div class="viewcode-block" id="InspectorMarker">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.InspectorMarker">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectorMarker</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A per-query heading in the inspector pane.</span>
+
+<span class="sd">    Marks the start of a query's inspection section, so entries from</span>
+<span class="sd">    different queries can be told apart when the pane keeps them all.</span>
+<span class="sd">    """</span>
+
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span></div>
+
+
+
 <div class="viewcode-block" id="TokenUsage">
 <a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.TokenUsage">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">TokenUsage</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
@@ -394,10 +409,14 @@
     <span class="n">pinned</span><span class="p">:</span> <span class="nb">bool</span>
     <span class="c1">#: Rendered transcript messages.</span>
     <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">MessageData</span><span class="p">]</span>
-    <span class="c1">#: Inspector entries for the most recent query in this chat.</span>
-    <span class="n">inspector_entries</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">InspectorEntry</span><span class="p">]</span>
+    <span class="c1">#: Inspector items for this chat, in order: a per-query</span>
+    <span class="c1">#: :class:`InspectorMarker` followed by that query's entries.  Kept</span>
+    <span class="c1">#: for the browser session (not persisted).</span>
+    <span class="n">inspector_entries</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">InspectorEntry</span> <span class="o">|</span> <span class="n">InspectorMarker</span><span class="p">]</span>
     <span class="c1">#: Indices into ``inspector_entries`` currently expanded in the UI.</span>
     <span class="n">inspector_expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="c1">#: Indices of inspector query sections currently collapsed.</span>
+    <span class="n">inspector_sections_collapsed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
     <span class="c1">#: Status-pane sections, keyed by node label / section key.</span>
     <span class="n">state_sections</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">StateSection</span><span class="p">]</span>
     <span class="c1">#: Active model config per role (from ``fetch_active_models``).</span>
@@ -406,8 +425,6 @@
     <span class="n">token_usage</span><span class="p">:</span> <span class="n">TokenUsage</span>
     <span class="c1">#: Hydrated graph session context (e.g. the agent operating mode).</span>
     <span class="n">context</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
-    <span class="c1">#: Transient inspector buffer for the in-flight query.</span>
-    <span class="n">inspector_buffer</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">InspectorEntry</span><span class="p">]]</span>
     <span class="c1">#: App-defined context-control preferences (mode / access level).</span>
     <span class="n">mode_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">access_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></div>
@@ -439,6 +456,7 @@
             <span class="s2">"messages"</span><span class="p">:</span> <span class="p">[],</span>
             <span class="s2">"inspector_entries"</span><span class="p">:</span> <span class="p">[],</span>
             <span class="s2">"inspector_expanded"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
+            <span class="s2">"inspector_sections_collapsed"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"state_sections"</span><span class="p">:</span> <span class="p">{},</span>
             <span class="s2">"model_info"</span><span class="p">:</span> <span class="p">{},</span>
             <span class="s2">"token_usage"</span><span class="p">:</span> <span class="p">{</span>

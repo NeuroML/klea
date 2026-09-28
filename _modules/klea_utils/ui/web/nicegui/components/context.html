@@ -332,6 +332,10 @@
 <span class="w">    </span><span class="sd">"""No-op default for one-argument callbacks (e.g. chat switching)."""</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_noop_args</span><span class="p">(</span><span class="o">*</span><span class="n">_args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">**</span><span class="n">_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""No-op default for callbacks that take arguments."""</span>
+
+
 <div class="viewcode-block" id="PageContext">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.context.PageContext">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -343,6 +347,20 @@
 <span class="sd">    element references and cross-component callbacks they need.  The</span>
 <span class="sd">    page assembly creates one context, attaches all components, then</span>
 <span class="sd">    lets handlers resolve references at event time.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">       **Do not create NiceGUI elements from a</span>
+<span class="sd">       ``nicegui.background_tasks`` task.**  NiceGUI resolves a new</span>
+<span class="sd">       element's parent from a per-task slot stack; a background task has</span>
+<span class="sd">       an empty stack and raises "The current slot cannot be determined</span>
+<span class="sd">       because the slot stack for this task is empty".  Either wire the</span>
+<span class="sd">       work as an ``async`` event handler (NiceGUI awaits it in the</span>
+<span class="sd">       client/slot context, so ``ui.dialog()`` etc. work), or enter a</span>
+<span class="sd">       slot explicitly before creating elements, e.g. ``with</span>
+<span class="sd">       ctx.stream_container:`` (streaming rows) or ``with</span>
+<span class="sd">       ctx.dialog_container:`` (dialogs opened from a background task).</span>
+<span class="sd">       Updating existing elements and ``app.storage`` from a background</span>
+<span class="sd">       task is fine.</span>
 
 <span class="sd">    :param server_url: Base URL of the backend API server.</span>
 <span class="sd">    :param user_id: Opaque persistent user identifier.</span>
@@ -364,6 +382,9 @@
     <span class="c1"># Mutable runtime state</span>
     <span class="n">expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
     <span class="n">is_streaming</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1">#: Chat currently being streamed, so the inspector can tell if it is</span>
+    <span class="c1">#: appending to the active chat.</span>
+    <span class="n">streaming_chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">mini_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="c1"># Extra request fields merged into the ``/query/stream`` POST body</span>
@@ -381,6 +402,13 @@
     <span class="n">stream_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">text</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">loading_row</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Stable inspector pane content column / scroll area (incremental append).</span>
+    <span class="n">inspector_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">inspector_scroll</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Hidden container used as an explicit slot when building dialogs from</span>
+    <span class="c1">#: a context that has no ambient slot (e.g. the first-run prompt runs in</span>
+    <span class="c1">#: a background task).  See the slot warning in the class docstring.</span>
+    <span class="n">dialog_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># Cross-component callbacks (registered by components at attach time</span>
     <span class="c1"># and invoked by handlers after the page is fully assembled)</span>
@@ -389,6 +417,10 @@
     <span class="n">refresh_chat_list</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_status_pane</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Incremental inspector updates: open a new query section (chat_id,</span>
+    <span class="c1">#: marker) and append one entry (chat_id, entry) without a full rebuild.</span>
+    <span class="n">begin_inspector_section</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
+    <span class="n">append_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">reset_center_tab</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_send_state</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">fetch_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
