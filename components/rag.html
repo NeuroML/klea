@@ -456,8 +456,17 @@ The two are on different scales, so a BM25 value of e.g. <code class="docutils l
 not mean the chunk is “better” than one with a vector-store score of
 <code class="docutils literal notranslate"><span class="pre">0.68</span></code>.  Documents are ordered by the RRF rank fusion above, never by
 comparing these raw values.</p>
-<p>After fusion, the RRF ranking is given a small recency bias
-(<code class="docutils literal notranslate"><span class="pre">rerank_by_recency</span></code>): the pure RRF score is normalized to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>
+<p>The fused ranking is then re-scored by a local <strong>cross-encoder</strong>
+(<code class="docutils literal notranslate"><span class="pre">cross_encoder_rerank</span></code>): a query–passage model that reads the query and
+each chunk together and scores their relevance directly, which is more
+discriminating than the rank-only RRF signal.  The model defaults to
+<code class="docutils literal notranslate"><span class="pre">cross-encoder/ms-marco-MiniLM-L-6-v2</span></code> and is configurable via
+<code class="docutils literal notranslate"><span class="pre">general.cross_encoder_model</span></code>; it is loaded once at startup, and its
+weights are downloaded from Hugging Face on first use and cached on disk, so
+no query pays the download.  It ships via the <code class="docutils literal notranslate"><span class="pre">klea_utils[rerank]</span></code> extra,
+which <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> installs.</p>
+<p>After reranking, the ordering is given a small recency bias
+(<code class="docutils literal notranslate"><span class="pre">rerank_by_recency</span></code>): the relevance score is normalized to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>
 and blended <code class="docutils literal notranslate"><span class="pre">0.9</span> <span class="pre">*</span> <span class="pre">relevance</span> <span class="pre">+</span> <span class="pre">0.1</span> <span class="pre">*</span> <span class="pre">time</span></code>, where the time term is
 <code class="docutils literal notranslate"><span class="pre">(year</span> <span class="pre">-</span> <span class="pre">year_min)</span> <span class="pre">/</span> <span class="pre">(year_max</span> <span class="pre">-</span> <span class="pre">year_min)</span></code> across the retrieved set
 (relative to the newest and oldest document retrieved).  Documents

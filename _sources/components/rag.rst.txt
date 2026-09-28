@@ -171,8 +171,18 @@ not mean the chunk is "better" than one with a vector-store score of
 ``0.68``.  Documents are ordered by the RRF rank fusion above, never by
 comparing these raw values.
 
-After fusion, the RRF ranking is given a small recency bias
-(``rerank_by_recency``): the pure RRF score is normalized to ``[0, 1]``
+The fused ranking is then re-scored by a local **cross-encoder**
+(``cross_encoder_rerank``): a query--passage model that reads the query and
+each chunk together and scores their relevance directly, which is more
+discriminating than the rank-only RRF signal.  The model defaults to
+``cross-encoder/ms-marco-MiniLM-L-6-v2`` and is configurable via
+``general.cross_encoder_model``; it is loaded once at startup, and its
+weights are downloaded from Hugging Face on first use and cached on disk, so
+no query pays the download.  It ships via the ``klea_utils[rerank]`` extra,
+which ``klea_rag`` installs.
+
+After reranking, the ordering is given a small recency bias
+(``rerank_by_recency``): the relevance score is normalized to ``[0, 1]``
 and blended ``0.9 * relevance + 0.1 * time``, where the time term is
 ``(year - year_min) / (year_max - year_min)`` across the retrieved set
 (relative to the newest and oldest document retrieved).  Documents
