@@ -6,6 +6,7 @@
 
 ### Added
 
+- Cross-encoder reranking: fused retrieval results are re-scored by a local cross-encoder (default `cross-encoder/ms-marco-MiniLM-L-6-v2`, configurable via `general.cross_encoder_model`) before the recency blend; the model is loaded once at startup and its weights are downloaded and cached by Hugging Face on first use.
 - Custom model endpoints (`custom:<model>:<url>`) accept a full endpoint URL and select the wire API from its path (`/chat/completions`, `/responses`, or `/v1/messages`); a bare base URL still defaults to OpenAI Chat Completions.
 - New optional `anthropic` extra (`langchain-anthropic`) for the native Anthropic provider and custom `/messages` endpoints.
 - Tool access levels (`read_only` | `full`) derived from standard MCP annotations, enforced both when tools are disclosed to the model and before dispatch; deployments can override a tool's capability per tool via `general.tool_access` (ADR-0037).
@@ -22,6 +23,7 @@
 
 ### Changed
 
+- RAG retrieval runs each retriever call and the cross-encoder inference in worker threads, so a slow store or model no longer blocks the server event loop for other sessions.
 - A custom `/v1/messages` endpoint uses the `anthropic` provider and copies `OPENAI_API_KEY` to `anthropic_api_key`, with an explicit per-chat `api_key` override taking precedence.
 - `anthropic_api_key` and `huggingfacehub_api_token` are masked in log output.
 - Tool dispatch takes the per-tool `ToolInfo` (path metadata plus the read-only/destructive capability) instead of a raw metadata map.
@@ -42,6 +44,10 @@
 - Per-node token usage is now read from `response_metadata.token_usage` when `usage_metadata` is empty (gateways and OpenAI-compatible endpoints that report counts only in the raw payload), so token usage and reasoning-token counts are tracked and logged instead of being silently dropped.
 - Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
+
+### Dependencies
+
+- `klea_rag` depends on `klea_utils[rerank]` (`sentence-transformers`) for cross-encoder reranking.
 
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
 
