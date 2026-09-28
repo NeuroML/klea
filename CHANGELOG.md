@@ -43,6 +43,7 @@
 - Bundled `read_file`/`edit_file` report `nearby` entries (the nearest existing directory's contents) and a `note` when the target is missing, so the caller sees what actually exists instead of only an error.
 - Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
 - `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
+- Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
 
 ### Fixed
 
@@ -51,6 +52,7 @@
 - Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
 - Web UI: a brand-new session can configure models before any chat exists, so the first query no longer fails with "No model configured".
+- Web UI: opening the model/API-key dialog from a background task (for example the first-run prompt) no longer fails; dialogs are built in an explicit slot.
 
 ### Dependencies
 
