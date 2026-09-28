@@ -350,6 +350,88 @@ def rrf_merge(
     return merged[:num_refs_max]
 
 
+#: Default cross-encoder model for :func:`cross_encoder_rerank` when callers
+#: enable reranking.  Small MS MARCO model; runs locally via
+#: ``sentence-transformers``.
+DEFAULT_CROSS_ENCODER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+_cross_encoder_cache: dict[str, Any] = {}
+
+
+def _load_cross_encoder(model_name: str) -> Any:
+    """Return a cached :class:`~sentence_transformers.CrossEncoder` instance."""
+    cached = _cross_encoder_cache.get(model_name)
+    if cached is not None:
+        return cached
+
+    # Lazily create a per-function lock to avoid races when multiple callers
+    # try to initialize the same model concurrently.
+    import threading
+
+    lock = _load_cross_encoder.__dict__.setdefault("_lock", threading.Lock())
+    with lock:
+        cached = _cross_encoder_cache.get(model_name)
+        if cached is not None:
+            return cached
+        try:
+            from sentence_transformers import CrossEncoder
+        except ImportError:
+            raise ImportError(
+                "Cross-encoder reranking requires sentence-transformers. "
+                "Install: pip install klea_utils[rerank]"
+            ) from None
+        _cross_encoder_cache[model_name] = CrossEncoder(model_name)
+        return _cross_encoder_cache[model_name]
+
+
+def cross_encoder_rerank(
+    query: str,
+    docs: list[tuple[Document, float]],
+    *,
+    model_name: str | None = None,
+    top_k: int | None = None,
+) -> list[tuple[Document, float]]:
+    """Re-rank fused retrieval results with a cross-encoder.
+
+    Intended to run after :func:`rrf_merge` and before downstream steps such
+    as :func:`rerank_by_recency` and :func:`truncate_reference_material`.
+    When *model_name* is ``None`` (the default), *docs* are returned
+    unchanged so existing deployments keep their current behaviour.
+
+    Each document is scored by a query--passage cross-encoder (local/offline
+    via ``sentence-transformers``).  Original per-source scores in
+    :data:`SOURCE_SCORES_KEY` metadata are preserved; only the tuple's
+    relevance score is replaced by the cross-encoder score.
+
+    :param query: Normalized retrieval query (same form as passed to
+        retrievers)
+    :param docs: ``(document, score)`` tuples, typically from
+        :func:`rrf_merge`
+    :param model_name: Hugging Face cross-encoder model id, or ``None`` to
+        skip reranking.  See :data:`DEFAULT_CROSS_ENCODER_MODEL` for a
+        sensible default when enabling reranking.
+    :param top_k: When set, keep only the top *top_k* documents after
+        reranking; ``None`` keeps the full reranked list
+    :returns: Documents ordered by cross-encoder score (descending), or
+        *docs* unchanged when reranking is disabled
+    """
+    if model_name is None or not docs:
+        return docs
+
+    model = _load_cross_encoder(model_name)
+    pairs = [(query, doc.page_content) for doc, _ in docs]
+    raw_scores = model.predict(pairs)
+
+    ranked = sorted(
+        ((doc, float(score)) for (doc, _), score in zip(docs, raw_scores, strict=True)),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    if top_k is None:
+        return ranked
+    return ranked[:top_k]
+
+
 #: Weight given to the normalized relevance (RRF) component of the final
 #: blended score in :func:`rerank_by_recency`.
 RECENCY_WEIGHT_RELEVANCE = 0.9
