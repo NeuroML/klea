@@ -15,6 +15,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import json
 import logging
 from collections.abc import AsyncGenerator, Generator
+from typing import Any
 
 import httpx
 
@@ -78,9 +79,42 @@ async def stream_events(
                 continue
 
 
-# TODO: if more fetch-json-from-endpoint functions are added, consider
-# extracting the async/sync boilerplate into _fetch_json / _fetch_json_sync
-# helpers in utils.py to avoid repetition.
+async def _fetch_json(url: str, timeout: float = 5) -> Any:
+    """GET *url* and return the parsed JSON body, or ``None`` on failure."""
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            resp = await client.get(url)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to fetch %s: %s", url, e)
+            return None
+    if resp.status_code != 200:
+        logger.warning("HTTP %s from %s", resp.status_code, url)
+        return None
+    try:
+        return resp.json()
+    except ValueError as e:
+        logger.warning("Invalid JSON from %s: %s", url, e)
+        return None
+
+
+def _fetch_json_sync(url: str, timeout: float = 5) -> Any:
+    """Synchronous counterpart of :func:`_fetch_json`."""
+    with httpx.Client(timeout=timeout) as client:
+        try:
+            resp = client.get(url)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to fetch %s: %s", url, e)
+            return None
+    if resp.status_code != 200:
+        logger.warning("HTTP %s from %s", resp.status_code, url)
+        return None
+    try:
+        return resp.json()
+    except ValueError as e:
+        logger.warning("Invalid JSON from %s: %s", url, e)
+        return None
+
+
 async def fetch_active_models(
     server_url: str,
     user_id: str,
@@ -89,34 +123,17 @@ async def fetch_active_models(
     """Fetch the resolved model config per role for a chat.
 
     Calls ``GET /chat/{user_id}/{chat_id}/models/active`` and returns the
-    merged default + override config dict.
+    merged default + per-session + per-chat config dict.
 
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
     :param chat_id: Chat conversation identifier.
-    :returns: ``{"chat": {"model": "...", "provider": "..."}, "guard": ..., "embedding": ...}``
+    :returns: ``{"chat": {"model": "...", "credential": {...}}, ...}``
     """
     url = f"{server_url}/chat/{user_id}/{chat_id}/models/active"
-    async with httpx.AsyncClient(timeout=5) as client:
-        try:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                logger.warning(
-                    "Failed to fetch active models: HTTP %s from %s",
-                    resp.status_code,
-                    url,
-                )
-                return {}
-            data: dict[str, dict[str, str]] = resp.json()
-            logger.debug("Active models for %s:%s: %s", user_id, chat_id, data)
-            return data
-        except Exception as e:  # noqa: BLE001
-            logger.warning(
-                "Failed to fetch active models from %s: %s",
-                url,
-                e,
-            )
-            return {}
+    data = await _fetch_json(url)
+    logger.debug("Active models for %s:%s: %s", user_id, chat_id, data)
+    return data or {}
 
 
 def fetch_active_models_sync(
@@ -127,32 +144,63 @@ def fetch_active_models_sync(
     """Synchronous counterpart of :func:`fetch_active_models`.
 
     Intended for frontends that cannot use asyncio.
+    """
+    url = f"{server_url}/chat/{user_id}/{chat_id}/models/active"
+    data = _fetch_json_sync(url)
+    logger.debug("Active models for %s:%s: %s", user_id, chat_id, data)
+    return data or {}
+
+
+async def fetch_session_models(
+    server_url: str,
+    user_id: str,
+) -> dict[str, dict[str, str]]:
+    """Fetch defaults + per-session overrides for a user (no chat).
+
+    Calls ``GET /chat/{user_id}/models/active``.
 
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
-    :param chat_id: Chat conversation identifier.
+    :returns: ``{"chat": {"model": "...", "credential": {...}}, ...}``
     """
-    url = f"{server_url}/chat/{user_id}/{chat_id}/models/active"
-    with httpx.Client(timeout=5) as client:
-        try:
-            resp = client.get(url)
-            if resp.status_code != 200:
-                logger.warning(
-                    "Failed to fetch active models: HTTP %s from %s",
-                    resp.status_code,
-                    url,
-                )
-                return {}
-            data: dict[str, dict[str, str]] = resp.json()
-            logger.debug("Active models for %s:%s: %s", user_id, chat_id, data)
-            return data
-        except Exception as e:  # noqa: BLE001
-            logger.warning(
-                "Failed to fetch active models from %s: %s",
-                url,
-                e,
-            )
-            return {}
+    url = f"{server_url}/chat/{user_id}/models/active"
+    data = await _fetch_json(url)
+    logger.debug("Session models for %s: %s", user_id, data)
+    return data or {}
+
+
+def fetch_session_models_sync(
+    server_url: str,
+    user_id: str,
+) -> dict[str, dict[str, str]]:
+    """Synchronous counterpart of :func:`fetch_session_models`."""
+    url = f"{server_url}/chat/{user_id}/models/active"
+    data = _fetch_json_sync(url)
+    logger.debug("Session models for %s: %s", user_id, data)
+    return data or {}
+
+
+async def fetch_credentials(server_url: str, user_id: str) -> list[dict[str, Any]]:
+    """Fetch the user's stored provider credentials (masked).
+
+    Calls ``GET /credentials/{user_id}``.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :returns: List of ``{provider, endpoint, source, masked, ...}``.
+    """
+    url = f"{server_url}/credentials/{user_id}"
+    data = await _fetch_json(url)
+    logger.debug("Credentials for %s: %d", user_id, len(data or []))
+    return data or []
+
+
+def fetch_credentials_sync(server_url: str, user_id: str) -> list[dict[str, Any]]:
+    """Synchronous counterpart of :func:`fetch_credentials`."""
+    url = f"{server_url}/credentials/{user_id}"
+    data = _fetch_json_sync(url)
+    logger.debug("Credentials for %s: %d", user_id, len(data or []))
+    return data or []
 
 
 def format_model_info(info: dict[str, dict[str, str]]) -> str:

@@ -168,3 +168,74 @@ async def clear_model_override(
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to clear model override: %s", e)
         return False
+
+
+async def set_session_model_override(
+    server_url: str, user_id: str, role: str, payload: dict
+) -> bool:
+    """POST a per-session default model override for a role."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{server_url}/chat/{user_id}/models/overrides/{role}",
+                json=payload,
+            )
+            return resp.status_code == 200
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to set default model override: %s", e)
+        return False
+
+
+async def clear_session_model_override(
+    server_url: str, user_id: str, role: str
+) -> bool:
+    """DELETE the per-session default model override for a role."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.delete(
+                f"{server_url}/chat/{user_id}/models/overrides/{role}",
+            )
+            return resp.status_code == 200
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to clear default model override: %s", e)
+        return False
+
+
+async def set_credential(
+    server_url: str,
+    user_id: str,
+    provider: str,
+    secret: str,
+    endpoint: str = "",
+) -> bool:
+    """PUT a provider credential for the user. The secret is not logged."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.put(
+                f"{server_url}/credentials/{user_id}",
+                json={
+                    "provider": provider,
+                    "endpoint": endpoint,
+                    "secret": secret,
+                },
+            )
+            return resp.status_code == 200
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to set credential for provider=%s: %s", provider, e)
+        return False
+
+
+async def clear_credential(
+    server_url: str, user_id: str, provider: str, endpoint: str = ""
+) -> bool:
+    """DELETE the stored credential for a provider(+endpoint)."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.delete(
+                f"{server_url}/credentials/{user_id}/{provider}",
+                params={"endpoint": endpoint},
+            )
+            return resp.status_code == 200
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to clear credential for provider=%s: %s", provider, e)
+        return False

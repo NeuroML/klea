@@ -89,8 +89,16 @@ class PageContext:
     refresh_status_pane: Callable[..., Any] = field(default=_noop)
     refresh_inspector: Callable[..., Any] = field(default=_noop)
     reset_center_tab: Callable[[], None] = field(default=_noop)
+    refresh_send_state: Callable[[], None] = field(default=_noop)
     fetch_model_info: Callable[[], Any] | None = None
+    fetch_session_model_info: Callable[[], Any] | None = None
+    fetch_credentials: Callable[[], Any] | None = None
     model_config_dialog: Callable[[], Any] | None = None
+    # Cached per-session default model config (``fetch_session_models``) and
+    # the user's masked provider credentials (``fetch_credentials``), used
+    # when no chat is active and by the model dialog.
+    session_model_info: dict[str, Any] = field(default_factory=dict)
+    credentials: list[dict[str, Any]] = field(default_factory=list)
     # App-defined content rendered inside the (refreshable) status pane,
     # e.g. operating-mode or tool-access selectors (ADR-0030,
     # ADR-0037).  Each app UI appends its own render callable; the status
