@@ -413,7 +413,8 @@ def cross_encoder_rerank(
         retrievers)
     :param docs: ``(document, score)`` tuples, typically from
         :func:`rrf_merge`
-    :param model: A loaded cross-encoder exposing ``predict(pairs) -> scores``
+    :param model: A loaded cross-encoder exposing
+        ``predict(pairs, show_progress_bar=...) -> scores``
     :returns: Documents ordered by cross-encoder score (descending)
     """
     if not docs:
@@ -421,7 +422,9 @@ def cross_encoder_rerank(
 
     logger.debug(f"Cross-encoder reranking {len(docs)} documents")
     pairs = [(query, doc.page_content) for doc, _ in docs]
-    raw_scores = model.predict(pairs)
+    # Runs on every retrieval: a "Batches" progress bar would clutter the
+    # CLI/TUI output on each query.
+    raw_scores = model.predict(pairs, show_progress_bar=False)
 
     ranked = sorted(
         ((doc, float(score)) for (doc, _), score in zip(docs, raw_scores, strict=True)),

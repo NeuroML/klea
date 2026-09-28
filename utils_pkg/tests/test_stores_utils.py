@@ -211,8 +211,10 @@ class _FakeCrossEncoder:
 
     def __init__(self, model_name: str):
         self.model_name = model_name
+        self.predict_kwargs: dict = {}
 
-    def predict(self, pairs: list[tuple[str, str]]) -> list[float]:
+    def predict(self, pairs: list[tuple[str, str]], **kwargs) -> list[float]:
+        self.predict_kwargs = kwargs
         scores = {"low relevance": 0.2, "high relevance": 0.9, "mid relevance": 0.5}
         return [scores.get(passage, 0.0) for _, passage in pairs]
 
@@ -250,6 +252,15 @@ def test_cross_encoder_rerank_preserves_source_scores():
         "vector store": 0.8,
         "BM25": 4.1,
     }
+
+
+def test_cross_encoder_rerank_hides_progress_bar():
+    """The per-query "Batches" progress bar is disabled."""
+    model = _FakeCrossEncoder("fake-model")
+
+    cross_encoder_rerank("query", [(_doc("high relevance"), 0.02)], model=model)
+
+    assert model.predict_kwargs == {"show_progress_bar": False}
 
 
 def test_load_cross_encoder_import_error(monkeypatch):
