@@ -136,7 +136,7 @@ class TestModels:
         assert data["plan"]["model"] == ""
 
     async def test_user_defaults_active(self, models_client):
-        """Per-user defaults are returned with overridden=True for that scope."""
+        """Per-session defaults are returned with overridden=True for that scope."""
         response = await models_client.post(
             "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
         )
@@ -148,7 +148,7 @@ class TestModels:
         assert "session_overridden" not in data["plan"]
 
     async def test_chat_active_inherits_user_default(self, models_client):
-        """A chat inherits the user default and flags it as session_overridden."""
+        """A chat inherits the session default and flags it as session_overridden."""
         await models_client.post(
             "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
         )
@@ -158,7 +158,7 @@ class TestModels:
         assert data["plan"]["session_overridden"] is True
 
     async def test_chat_override_wins_and_promotes(self, models_client):
-        """A chat override beats the user default and updates it by default."""
+        """A chat override beats the session default and updates it by default."""
         await models_client.post(
             "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
         )
@@ -177,7 +177,7 @@ class TestModels:
         assert user["plan"]["model"] == "openai:gpt-4o"
 
     async def test_chat_override_promote_disabled(self, models_client):
-        """promote_default=False keeps the user default unchanged."""
+        """promote_default=False keeps the session default unchanged."""
         await models_client.post(
             "/chat/u1/c1/models/overrides/chat",
             json={"model": "openai:gpt-4o", "promote_default": False},
@@ -186,7 +186,7 @@ class TestModels:
         assert user["chat"]["model"] == "ollama:qwen3:0.6b"
 
     async def test_clear_chat_override_falls_back_to_default(self, models_client):
-        """Clearing a chat override reverts to the user default."""
+        """Clearing a chat override reverts to the session default."""
         await models_client.post(
             "/chat/u1/models/overrides/plan", json={"model": "ollama:qwen3"}
         )

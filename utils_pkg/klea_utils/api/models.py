@@ -2,6 +2,17 @@
 """
 Per-session model configuration endpoints for runtime model switching.
 
+Model selection has three layers, lowest priority first:
+
+1. graph/env defaults (``graph.llm_models``)
+2. per-session default overrides (the user's "last used" models)
+3. per-chat overrides (the distinguishing per-conversation feature)
+
+Overrides store only the model string; API credentials live in the
+provider-scoped credential store (``/credentials``) and are resolved
+separately.  Any legacy plaintext ``api_key`` still present in stored
+overrides is masked before it is returned.
+
 File: klea_utils/api/models.py
 
 Copyright 2026 Ankur Sinha
@@ -9,41 +20,208 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from klea_utils.api.credentials import credential_status, mask_secret
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.llm import parse_model_name
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
 
 
-class ChatModelConfigPayload(BaseModel):
+class ModelPayload(BaseModel):
+    """Request body for setting a role's model.
+
+    Only the model string is persisted; credentials are managed through
+    ``/credentials``.  ``promote_default`` (per-chat writes) also updates
+    the per-session default so a new chat inherits the last-used model.
+    Unknown fields (e.g. a legacy ``api_key``) are ignored.
+    """
+
     model: str
-    api_key: str | None = None
-    base_url: str | None = None
-    provider: str | None = None
-    user_id: str = ""
+    promote_default: bool = True
+
+
+def _role_is_modifiable(graph: object, role: str) -> bool:
+    """Return whether a model role can be modified by the user."""
+    entry = getattr(graph, "llm_models", {}).get(role)
+    if entry is None:
+        return True
+    return getattr(entry, "modifiable", True)
+
+
+def _role_config(
+    role: str,
+    entry: Any,
+    session_override: dict[str, Any],
+    chat_override: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve one role's effective config (graph default < user < chat)."""
+    model = getattr(entry, "model_name", "") if entry else ""
+    if session_override.get("model"):
+        model = session_override["model"]
+    if chat_override.get("model"):
+        model = chat_override["model"]
+
+    cfg: dict[str, Any] = {
+        "model": model,
+        "modifiable": getattr(entry, "modifiable", True) if entry else True,
+        "required": getattr(entry, "required", True) if entry else True,
+    }
+    parsed = parse_model_name(model) if model else None
+    if parsed and parsed.provider:
+        cfg["provider"] = parsed.provider
+    # Carry any legacy base_url/api_key (masked) present in the overrides.
+    for override in (session_override, chat_override):
+        if override.get("base_url"):
+            cfg["base_url"] = override["base_url"]
+        if override.get("api_key"):
+            cfg["api_key"] = mask_secret(override["api_key"])
+    logger.debug(f"{role = }\n{cfg = }")
+    return cfg
+
+
+def _resolve_active(
+    graph: Any,
+    store: SessionStore,
+    user_id: str,
+    chat_id: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Resolve the effective per-role config for a user (and optional chat).
+
+    :param graph: The graph, whose ``llm_models`` are the env/config defaults.
+    :param store: Session store with the override layers.
+    :param user_id: Persistent user identifier.
+    :param chat_id: Chat to include per-chat overrides for, or ``None`` for
+        the per-session defaults view.
+    :returns: ``{role: config}`` with ``overridden`` (this scope) and,
+        for a chat, ``session_overridden``, plus a ``credential`` block.
+    """
+    session_ov = store.get_session_overrides(user_id)
+    chat_ov = store.get_overrides(user_id, chat_id) if chat_id else {}
+
+    roles: list[str] = list(getattr(graph, "llm_models", {}))
+    for role in (*session_ov, *chat_ov):
+        if role not in roles:
+            roles.append(role)
+    logger.debug(
+        f"{user_id = }\n{chat_id = }\n"
+        f"{list(session_ov) = }\n{list(chat_ov) = }\n{roles = }"
+    )
+
+    result: dict[str, dict[str, Any]] = {}
+    for role in roles:
+        entry = getattr(graph, "llm_models", {}).get(role)
+        sov = session_ov.get(role) or {}
+        cov = chat_ov.get(role) or {}
+        cfg = _role_config(role, entry, sov, cov)
+        cfg["overridden"] = bool(cov) if chat_id else bool(sov)
+        if chat_id:
+            cfg["session_overridden"] = bool(sov)
+        cfg["credential"] = credential_status(store, user_id, cfg["model"])
+        result[role] = cfg
+    return result
 
 
 def create_models_router() -> APIRouter:
-    """Create an APIRouter for per-chat model configuration.
+    """Create an APIRouter for per-session and per-chat model configuration.
 
-    ``GET /chat/{user_id}/{chat_id}/models/overrides``
-        Returns stored model overrides for a chat.
+    Per-session defaults::
 
-    ``GET /chat/{user_id}/{chat_id}/models/active``
-        Returns resolved model config (defaults merged with overrides).
+        GET    /chat/{user_id}/models/overrides
+        GET    /chat/{user_id}/models/active
+        POST   /chat/{user_id}/models/overrides/{role}
+        DELETE /chat/{user_id}/models/overrides/{role}
 
-    ``POST /chat/{user_id}/{chat_id}/models/overrides/{role}``
-        Stores per-chat model overrides.
+    Per-chat overrides::
+
+        GET    /chat/{user_id}/{chat_id}/models/overrides
+        GET    /chat/{user_id}/{chat_id}/models/active
+        POST   /chat/{user_id}/{chat_id}/models/overrides/{role}
+        DELETE /chat/{user_id}/{chat_id}/models/overrides/{role}
+
+    A per-chat POST also promotes the model into the session default
+    unless ``promote_default`` is false (the "last used" behaviour).
     """
     router = APIRouter(prefix="/chat", tags=["models"])
 
+    def _graph_and_store(request: Request) -> tuple[Any, SessionStore]:
+        # Lazy: BaseLangGraph is the base class for all graphs.
+        graph: Any = request.app.state.graph
+        store: SessionStore = request.app.state.chat_sessions
+        return graph, store
+
+    # ------------------------------------------------------------------
+    # Per-session defaults
+    # ------------------------------------------------------------------
+
+    @router.get("/{user_id}/models/overrides")
+    async def get_session_model_overrides(user_id: str, request: Request):
+        """Return the session default model overrides (legacy keys masked)."""
+        _, store = _graph_and_store(request)
+        return mask_sensitive(store.get_session_overrides(user_id))
+
+    @router.get("/{user_id}/models/active")
+    async def get_session_active_models(user_id: str, request: Request):
+        """Return defaults + per-session overrides, plus credential status."""
+        graph, store = _graph_and_store(request)
+        data = _resolve_active(graph, store, user_id, chat_id=None)
+        logger.debug("get_session_active_models(%s): %d role(s)", user_id, len(data))
+        return data
+
+    @router.post("/{user_id}/models/overrides/{role}")
+    async def set_session_model_override(
+        user_id: str, role: str, payload: ModelPayload, request: Request
+    ):
+        """Set the session default model for a role."""
+        logger.debug(f"{user_id = }\n{role = }\n{payload.model = }")
+        graph, store = _graph_and_store(request)
+        if not _role_is_modifiable(graph, role):
+            logger.warning(
+                "Rejected model update for locked role=%s user=%s", role, user_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"The '{role}' model is locked and cannot be modified.",
+            )
+        store.set_session_override(user_id, role, {"model": payload.model})
+        logger.debug(
+            "set_session_model_override(%s, role=%s, model=%s)",
+            user_id,
+            role,
+            payload.model,
+        )
+        return {"status": "ok", "role": role, "model": payload.model}
+
+    @router.delete("/{user_id}/models/overrides/{role}")
+    async def clear_session_model_override(user_id: str, role: str, request: Request):
+        """Clear the session default model override for a role."""
+        logger.debug(f"{user_id = }\n{role = }")
+        graph, store = _graph_and_store(request)
+        if not _role_is_modifiable(graph, role):
+            logger.warning(
+                "Rejected model reset for locked role=%s user=%s", role, user_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=f"The '{role}' model is locked and cannot be reset.",
+            )
+        store.clear_session_override(user_id, role)
+        logger.debug("clear_session_model_override(%s, role=%s)", user_id, role)
+        return {"status": "ok", "role": role}
+
+    # ------------------------------------------------------------------
+    # Per-chat overrides
+    # ------------------------------------------------------------------
+
     @router.get("/{user_id}/{chat_id}/models/overrides")
     async def get_chat_model_overrides(user_id: str, chat_id: str, request: Request):
-        store: SessionStore = request.app.state.chat_sessions
+        """Return a chat's model overrides (legacy keys masked)."""
+        _, store = _graph_and_store(request)
         overrides = store.get_overrides(user_id, chat_id)
         logger.debug(
             "get_chat_model_overrides(%s, %s): %d role(s)",
@@ -51,129 +229,84 @@ def create_models_router() -> APIRouter:
             chat_id,
             len(overrides),
         )
-        # Never return a stored secret: mask any (legacy) plaintext
-        # ``api_key`` before serialising.
         return mask_sensitive(overrides)
 
     @router.get("/{user_id}/{chat_id}/models/active")
     async def get_chat_active_models(user_id: str, chat_id: str, request: Request):
-        """Return the resolved model config per role (defaults + chat overrides).
-
-        Reads the graph's ``llm_models`` dict for defaults and merges any
-        per-chat overrides on top.
-        """
-        # Lazy: BaseLangGraph is the base class for all graphs
-        from klea_utils.graph.base import BaseLangGraph
-
-        graph: BaseLangGraph = request.app.state.graph
-        store: SessionStore = request.app.state.chat_sessions
-        from typing import Any
-
-        defaults: dict[str, dict[str, Any]] = {}
-        for role, entry in graph.llm_models.items():
-            cfg: dict[str, Any] = {"model": entry.model_name or ""}
-            from klea_utils.llm import parse_model_name
-
-            parsed = parse_model_name(entry.model_name)
-            if parsed.provider:
-                cfg["provider"] = parsed.provider
-            cfg["modifiable"] = getattr(entry, "modifiable", True)
-            cfg["required"] = getattr(entry, "required", True)
-            defaults[role] = cfg
-
-        overrides = store.get_overrides(user_id, chat_id)
-        for role, override in overrides.items():
-            if role in defaults:
-                defaults[role]["model"] = override.get("model", defaults[role]["model"])
-                if override.get("provider"):
-                    defaults[role]["provider"] = override["provider"]
-                else:
-                    from klea_utils.llm import parse_model_name
-
-                    parsed = parse_model_name(defaults[role]["model"])
-                    if parsed and parsed.provider:
-                        defaults[role]["provider"] = parsed.provider
-                if override.get("api_key"):
-                    defaults[role]["api_key"] = f"...{override['api_key'][-4:]}"
-                if override.get("base_url"):
-                    defaults[role]["base_url"] = override["base_url"]
-            else:
-                defaults[role] = override
-
-        for role, value in defaults.items():
-            value["overridden"] = role in overrides
-
+        """Return defaults + user + chat overrides, plus credential status."""
+        graph, store = _graph_and_store(request)
+        data = _resolve_active(graph, store, user_id, chat_id=chat_id)
         logger.debug(
             "get_chat_active_models(%s, %s): %d role(s)",
             user_id,
             chat_id,
-            len(defaults),
+            len(data),
         )
-        return defaults
-
-    def _is_modifiable(graph: object, role: str) -> bool:
-        """Return whether a model role can be modified by the user."""
-        entry = getattr(graph, "llm_models", {}).get(role)
-        if entry is None:
-            return True
-        return getattr(entry, "modifiable", True)
+        return data
 
     @router.post("/{user_id}/{chat_id}/models/overrides/{role}")
     async def set_chat_model_override(
         user_id: str,
         chat_id: str,
         role: str,
-        payload: ChatModelConfigPayload,
+        payload: ModelPayload,
         request: Request,
     ):
-        # Lazy: BaseLangGraph is the base class for all graphs
-        from klea_utils.graph.base import BaseLangGraph
-
-        graph: BaseLangGraph = request.app.state.graph
-        if not _is_modifiable(graph, role):
+        """Set a chat's model override, promoting it to the session default."""
+        logger.debug(
+            f"{user_id = }\n{chat_id = }\n{role = }\n"
+            f"{payload.model = }\n{payload.promote_default = }"
+        )
+        graph, store = _graph_and_store(request)
+        if not _role_is_modifiable(graph, role):
+            logger.warning(
+                "Rejected model update for locked role=%s user=%s chat=%s",
+                role,
+                user_id,
+                chat_id,
+            )
             raise HTTPException(
                 status_code=403,
                 detail=f"The '{role}' model is locked and cannot be modified.",
             )
-        store: SessionStore = request.app.state.chat_sessions
         store.create_chat(user_id, chat_id)
-        store.set_override(
-            user_id,
-            chat_id,
-            role,
-            payload.model_dump(exclude={"user_id"}, exclude_none=True),
-        )
+        store.set_override(user_id, chat_id, role, {"model": payload.model})
+        if payload.promote_default:
+            store.set_session_override(user_id, role, {"model": payload.model})
         logger.debug(
-            "set_chat_model_override(%s, %s, role=%s, model=%s)",
+            "set_chat_model_override(%s, %s, role=%s, model=%s, promote=%s)",
             user_id,
             chat_id,
             role,
             payload.model,
+            payload.promote_default,
         )
         return {
             "status": "ok",
             "chat_id": chat_id,
             "role": role,
             "model": payload.model,
+            "promoted": payload.promote_default,
         }
 
     @router.delete("/{user_id}/{chat_id}/models/overrides/{role}")
     async def clear_chat_model_override(
-        user_id: str,
-        chat_id: str,
-        role: str,
-        request: Request,
+        user_id: str, chat_id: str, role: str, request: Request
     ):
-        """Remove the model override for a single role in a chat."""
-        from klea_utils.graph.base import BaseLangGraph
-
-        graph: BaseLangGraph = request.app.state.graph
-        if not _is_modifiable(graph, role):
+        """Clear a chat's model override (falls back to the session default)."""
+        logger.debug(f"{user_id = }\n{chat_id = }\n{role = }")
+        graph, store = _graph_and_store(request)
+        if not _role_is_modifiable(graph, role):
+            logger.warning(
+                "Rejected model reset for locked role=%s user=%s chat=%s",
+                role,
+                user_id,
+                chat_id,
+            )
             raise HTTPException(
                 status_code=403,
                 detail=f"The '{role}' model is locked and cannot be reset.",
             )
-        store: SessionStore = request.app.state.chat_sessions
         store.clear_override(user_id, chat_id, role)
         logger.debug(
             "clear_chat_model_override(%s, %s, role=%s)", user_id, chat_id, role
