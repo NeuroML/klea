@@ -22,7 +22,6 @@ from klea_utils.stores.config import FilterFieldInfo
 from klea_utils.stores.filters import restrict_metadata_filter
 from klea_utils.stores.retrieval.base import BaseKleaRetriever
 from klea_utils.stores.utils import (
-    DEFAULT_CROSS_ENCODER_MODEL,
     cross_encoder_rerank,
     normalize_text,
     rerank_by_recency,
@@ -65,7 +64,7 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
         retrievers: list[BaseKleaRetriever] | None = None,
         max_refs_size: int = 20000,
         filter_fields_by_domain: dict[str, list[FilterFieldInfo]] | None = None,
-        cross_encoder_model: str = DEFAULT_CROSS_ENCODER_MODEL,
+        cross_encoder: Any | None = None,
     ):
         """Initialise the retrieval node.
 
@@ -82,9 +81,10 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
             applies one domain's filter fields to another domain's
             retrievers.  When empty (not configured) the combined filter
             is passed through unchanged.
-        :param cross_encoder_model: Cross-encoder model used to re-rank the
-            fused results before the recency blend (see
-            ``klea_utils.stores.utils.cross_encoder_rerank``)
+        :param cross_encoder: Loaded cross-encoder instance used to re-rank
+            the fused results before the recency blend (see
+            ``klea_utils.stores.utils.cross_encoder_rerank``).  Loaded once
+            by the graph and injected here; ``None`` disables reranking.
         """
         super().__init__(logger, label)
         self.retrievers = retrievers or []
@@ -92,7 +92,7 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
         self.filter_fields_by_domain: dict[str, list[FilterFieldInfo]] = (
             filter_fields_by_domain or {}
         )
-        self.cross_encoder_model = cross_encoder_model
+        self.cross_encoder = cross_encoder
 
     def _filter_for_domain(
         self, metadata_filter: dict[str, Any] | None, domain_name: str
@@ -198,16 +198,18 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
                 reference_material[domain_name] = []
                 continue
             merged = rrf_merge(result_sets)
-            # Re-score the fused results with the cross-encoder, then blend
-            # in recency.  Cross-encoder inference is blocking, so run it in
-            # a worker thread to keep the event loop free.
-            reranked = await asyncio.to_thread(
-                cross_encoder_rerank,
-                cleaned_query,
-                merged,
-                model_name=self.cross_encoder_model,
-            )
-            reference_material[domain_name] = rerank_by_recency(reranked)
+            # Re-score the fused results with the injected cross-encoder, then
+            # blend in recency.  Cross-encoder inference is blocking, so run
+            # it in a worker thread to keep the event loop free.  The model is
+            # loaded once at startup and shared read-only.
+            if self.cross_encoder is not None:
+                merged = await asyncio.to_thread(
+                    cross_encoder_rerank,
+                    cleaned_query,
+                    merged,
+                    model=self.cross_encoder,
+                )
+            reference_material[domain_name] = rerank_by_recency(merged)
 
         reference_material = truncate_reference_material(
             reference_material, max_chars=self.max_refs_size

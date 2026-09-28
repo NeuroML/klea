@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import asyncio
 import logging
 from pathlib import Path
-from typing import final, override
+from typing import Any, final, override
 
 from fastmcp.mcp_config import MCPConfig
 from klea_utils.graph.base import BaseLangGraph
@@ -63,6 +63,9 @@ class RAG(BaseLangGraph):
     ):
         """Initialise"""
         super().__init__(logging_level=logging_level, checkpoint=checkpoint)
+        #: Cross-encoder instance loaded once in ``_pre_graph`` and injected
+        #: into the retrieval node; ``None`` until setup runs.
+        self.cross_encoder: Any | None = None
 
     def get_allowed_msgpack_modules(self) -> list[type | tuple[str, ...]]:
         """Extend base allowlist with RAG-specific checkpointed schemas."""
@@ -124,11 +127,15 @@ class RAG(BaseLangGraph):
     @override
     async def _pre_graph(self):
         "Set up bits required before graph is compiled"
-        # Download and load the cross-encoder now so the first query does not
-        # pay the one-time Hugging Face download, and a missing dependency or
-        # unreachable model fails fast at startup rather than mid-query.
+        # Load the cross-encoder once here (one process-wide instance) so the
+        # first query does not pay the one-time Hugging Face download, a
+        # missing dependency or unreachable model fails fast at startup, and
+        # the model is built once rather than per query.  The node receives
+        # this instance and shares it read-only.
         cross_encoder_model = self.app_config.general.cross_encoder_model
-        await asyncio.to_thread(load_cross_encoder, cross_encoder_model)
+        self.cross_encoder = await asyncio.to_thread(
+            load_cross_encoder, cross_encoder_model
+        )
         self.logger.info(f"Cross-encoder ready: {cross_encoder_model}")
 
         # for refusal node
@@ -332,7 +339,7 @@ class RAG(BaseLangGraph):
             retrievers=retrievers,
             max_refs_size=self.max_refs_size,
             filter_fields_by_domain=filter_fields_by_domain,
-            cross_encoder_model=self.app_config.general.cross_encoder_model,
+            cross_encoder=self.cross_encoder,
         )
         self.workflow.add_node(
             self._retrieve_info_node.label, self._retrieve_info_node.execute

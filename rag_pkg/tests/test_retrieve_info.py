@@ -28,7 +28,7 @@ def _identity_cross_encoder(monkeypatch):
     """
     monkeypatch.setattr(
         "klea_rag.nodes.retrieve_info.cross_encoder_rerank",
-        lambda query, docs, *, model_name: docs,
+        lambda query, docs, *, model: docs,
     )
 
 
@@ -66,7 +66,7 @@ def _make_node(retrievers) -> RetrieveInfoNode:
     node.retrievers = retrievers
     node.max_refs_size = 20000
     node.filter_fields_by_domain = {}
-    node.cross_encoder_model = "fake-model"
+    node.cross_encoder = object()
     node.write_custom_stream = lambda event: None
     logger.info(
         f"configured retrievers: "
