@@ -122,6 +122,7 @@ def _add_css_overrides() -> None:
         "    --klea-surface: #e0e0e0;\n"
         "    --klea-bubble-user: #e8f0fe;\n"
         "    --klea-bubble-tool: #f0f0f0;\n"
+        "    --klea-attention: #e65100;\n"
         "  }\n"
         "  body.body--dark {\n"
         # Quasar brand token: lighten ``primary`` so primary-tinted widgets (the
@@ -140,6 +141,7 @@ def _add_css_overrides() -> None:
         "    --klea-surface: #161616;\n"
         "    --klea-bubble-user: #1e2a3a;\n"
         "    --klea-bubble-tool: #262626;\n"
+        "    --klea-attention: #ffb74d;\n"
         "  }\n"
         # Neutral interactive icons and the inactive segmented option; the
         # outline border follows the text colour (Quasar draws
@@ -147,6 +149,11 @@ def _add_css_overrides() -> None:
         "  .icon-btn,\n"
         "  .choice-btn:not(.choice-btn--active) {\n"
         "    color: var(--klea-control) !important;\n"
+        "  }\n"
+        # Attention state for the model settings button when required
+        # models or API keys are missing, so it stands out from other icons.
+        "  .model-btn--attention {\n"
+        "    color: var(--klea-attention) !important;\n"
         "  }\n"
         "  .choice-label {\n"
         "    color: var(--klea-muted) !important;\n"
