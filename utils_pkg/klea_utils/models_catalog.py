@@ -75,25 +75,23 @@ _MODELS_DEV_PROVIDER_KEYS: dict[str, str | None] = {
     "ollama": None,
 }
 
-#: models.dev catalog provider key -> Klea provider id, for the few keys
-#: where Klea (LangChain) expects a different name in the model string.
-#: These providers have no ``api`` in the catalog, so the name is passed
-#: to LangChain as is and must match its ``init_chat_model`` provider.
-#: Used when listing providers for the model selection UIs; any key not
-#: listed here is already a valid Klea provider id.
-_KLEA_PROVIDER_IDS: dict[str, str] = {
-    "google": "google_genai",
-    "google-vertex": "google_vertexai",
-    "amazon-bedrock": "bedrock_converse",
-    "azure": "azure_openai",
-    "mistral": "mistralai",
-    "togetherai": "together",
-}
-
 #: Providers offered by the model selection UIs that have no catalog entry:
 #: local ollama models and ``custom:`` endpoints.  Their models are typed in
 #: as free text.
 NON_CATALOG_PROVIDERS: tuple[str, ...] = ("ollama", "custom")
+
+#: models.dev catalog provider key -> Klea provider id, for the keys where
+#: Klea (LangChain) expects a different name in the model string (e.g.
+#: ``google`` -> ``google_genai``).  Built from the reverse of
+#: :data:`_MODELS_DEV_PROVIDER_KEYS`, skipping identical names and the
+#: non-catalog providers (``custom`` also points at ``openai``).  Used when
+#: listing providers for the model selection UIs; any key not listed here is
+#: already a valid Klea provider id.
+_KLEA_PROVIDER_IDS: dict[str, str] = {
+    catalog_key: klea_id
+    for klea_id, catalog_key in _MODELS_DEV_PROVIDER_KEYS.items()
+    if catalog_key and catalog_key != klea_id and klea_id not in NON_CATALOG_PROVIDERS
+}
 
 
 #: Provider ids whose endpoint must NOT be taken from the catalog, because
