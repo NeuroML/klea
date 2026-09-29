@@ -179,17 +179,23 @@ Both the RAG and Agent packages load configuration from:
    * ``KLEA_AGENT_ENV_FILE`` or ``klea_agent.env`` for the Agent system
 
    The env file is **optional** -- when it is absent, shell environment
-   variables and class defaults are used, so a clean machine can run with
-   only a JSON config.
+   variables and class defaults are used.  The Agent needs no JSON config,
+   so a clean machine can run it with the environment alone; the RAG needs
+   the JSON config for its store wiring.
 
 2. A JSON configuration file selected by a *profile* name.
 
    Each JSON config is identified by a profile: ``--profile <name>`` loads
    ``<name>.json``.  The file is looked up in the current directory first,
    then in the per-app config directory (``~/.config/klea-agent/`` for the
-   Agent, ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).  The
-   default profile is ``klea_agent`` / ``klea_rag``, so ``klea_agent.json``
-   and ``klea_rag.json`` are loaded when no ``--profile`` is given.
+   Agent, ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).
+
+   The RAG has a default profile (``klea_rag``), so ``klea_rag.json`` is
+   loaded when no ``--profile`` is given and is required (the RAG needs its
+   store wiring).  The Agent has **no default config file**: without
+   ``--profile`` (or ``KLEA_AGENT_APP_CONFIG_FILE``) it runs from the
+   built-in ``AppConfig`` defaults plus the environment, and models can be
+   set in the web UI.
 
    Use ``--profile template`` on any CLI to scaffold a ready-to-fill config
    into the current directory (it refuses to overwrite an existing file).

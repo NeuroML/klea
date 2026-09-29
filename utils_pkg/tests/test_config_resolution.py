@@ -113,15 +113,29 @@ class ToyGraph(BaseLangGraph):
         pass
 
 
+class NoConfigToyGraph(ToyGraph):
+    """Toy graph with no default config file (agent-like)."""
+
+    config_file_default = ""
+
+
 class TestLoadEnv:
     """Integration tests for ``BaseLangGraph._load_env``."""
 
-    def _make_graph(self, tmp_path, monkeypatch, env_file_text, cwd, conf_dir):
+    def _make_graph(
+        self,
+        tmp_path,
+        monkeypatch,
+        env_file_text,
+        cwd,
+        conf_dir,
+        graph_cls=ToyGraph,
+    ):
         env_file = tmp_path / "toy.env"
         env_file.write_text(env_file_text)
         # Ensure no leaked process env affects the test.
         monkeypatch.delenv("TOY_APP_CONFIG_FILE", raising=False)
-        graph = ToyGraph(logging_level=logging.INFO, checkpoint="none", log_file=False)
+        graph = graph_cls(logging_level=logging.INFO, checkpoint="none", log_file=False)
         graph.env_file = str(env_file)
         # ``_setup_models`` declares the model roles that ``_load_env`` uses
         # to generate the env schema (as ``setup()`` does in sequence).
@@ -221,6 +235,56 @@ class TestLoadEnv:
             cwd,
             conf_dir,
         )
+        with pytest.raises(FileNotFoundError, match="--profile"):
+            graph._load_env()
+
+    def test_no_default_config_uses_class_defaults(self, tmp_path, monkeypatch):
+        """A graph with no default config starts from ``config_class`` defaults."""
+        cwd = tmp_path / "cwd"
+        conf_dir = tmp_path / "conf"
+        cwd.mkdir()
+        conf_dir.mkdir()
+
+        graph = self._make_graph(
+            tmp_path,
+            monkeypatch,
+            "",
+            cwd,
+            conf_dir,
+            graph_cls=NoConfigToyGraph,
+        )
+        graph._load_env()
+
+        assert getattr(graph.app_config, "foo") == "bar"  # noqa: B009
+
+    def test_no_default_config_still_requires_explicit_file(
+        self, tmp_path, monkeypatch
+    ):
+        """An explicitly named config still fails fast when it is missing."""
+        cwd = tmp_path / "cwd"
+        conf_dir = tmp_path / "conf"
+        cwd.mkdir()
+        conf_dir.mkdir()
+
+        graph = self._make_graph(
+            tmp_path,
+            monkeypatch,
+            "TOY_APP_CONFIG_FILE=missing.json\n",
+            cwd,
+            conf_dir,
+            graph_cls=NoConfigToyGraph,
+        )
+        with pytest.raises(FileNotFoundError, match="--profile"):
+            graph._load_env()
+
+    def test_declared_default_config_is_required(self, tmp_path, monkeypatch):
+        """A non-empty default config is still required (RAG-like)."""
+        cwd = tmp_path / "cwd"
+        conf_dir = tmp_path / "conf"
+        cwd.mkdir()
+        conf_dir.mkdir()
+
+        graph = self._make_graph(tmp_path, monkeypatch, "", cwd, conf_dir)
         with pytest.raises(FileNotFoundError, match="--profile"):
             graph._load_env()
 

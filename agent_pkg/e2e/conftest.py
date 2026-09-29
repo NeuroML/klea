@@ -78,8 +78,9 @@ def task(request: pytest.FixtureRequest) -> E2ETask:
 def workspace(task: E2ETask) -> Path:
     """Create a fresh scratch workspace and seed it for the task.
 
-    Writes an empty ``klea_agent.json`` (the config file is required; ``{}``
-    means all defaults).  The env file is deliberately absent: model settings
+    Writes an empty ``klea_agent.json`` for the tasks that inspect it.  The
+    agent config file is optional, so it is selected explicitly below; ``{}``
+    means all defaults.  The env file is deliberately absent: model settings
     come from the process environment (set by ``run.sh``).
     """
     path = _base_workdir() / task.id

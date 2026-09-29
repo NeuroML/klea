@@ -70,7 +70,11 @@ class KleaAgent(BaseLangGraph):
     env_var = "KLEA_AGENT_ENV_FILE"
     env_file_default = "klea_agent.env"
     config_class = AppConfig
-    config_file_default = "klea_agent.json"
+    #: No default config file: without ``--profile`` (or an explicit
+    #: ``KLEA_AGENT_APP_CONFIG_FILE``) the agent runs from ``AppConfig``
+    #: defaults plus env vars, and models can be set in the web UI.  Unlike
+    #: RAG, no JSON config is required.
+    config_file_default = ""
     graph_name = "klea-agent"
 
     #: Cap on accumulated tool results kept per step (bounds checkpoint and

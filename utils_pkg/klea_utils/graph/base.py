@@ -256,8 +256,14 @@ class BaseLangGraph(ABC):
         used), then resolves the application config file (from
         ``self.app_env.app_config_file``) via
         :func:`klea_utils.paths.resolve_app_config_path` -- the working
-        directory first, then the per-app config directory.  Raises
-        ``FileNotFoundError`` if the config file does not exist.
+        directory first, then the per-app config directory.
+
+        The JSON config file is optional when no default is declared (see
+        ``config_file_default``): graphs that can run without one (e.g. the
+        agent, whose models/access settings come from env vars and the web
+        UI) start from ``config_class`` defaults.  A graph with a non-empty
+        default (e.g. RAG, which needs its store wiring) raises
+        ``FileNotFoundError`` when the file does not exist.
         """
         self.env_class = self._build_env_class()
 
@@ -288,6 +294,18 @@ class BaseLangGraph(ABC):
             self.logger.debug(
                 f"empty app_config_file -- using default {app_config_file}"
             )
+
+        if not app_config_file:
+            # No config file selected and no default declared: start from
+            # the config class defaults (env vars and the web UI still
+            # configure the app).
+            self.logger.info(
+                "No app config file selected; using %s defaults.",
+                self.config_class.__name__,
+            )
+            self.app_config = self.config_class()
+            self.logger.debug(f"{self.app_config = }")
+            return
 
         config_file = resolve_app_config_path(
             app_config_file, get_config_dir(self.paths)

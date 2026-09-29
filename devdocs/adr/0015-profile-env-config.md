@@ -152,3 +152,15 @@ Chosen option: "B. Env file optional + ``--profile`` CWD-first with
   ``dc0cc27`` (thread options through CLI), ``3164398`` (make env files
   optional), ``b3ae10f`` (template creation).
 * Codified ``2026-08-28``; profile path resolver landed ``2026-08-17``.
+
+## Addendum (2026-09-29)
+
+The Agent no longer declares a default config file
+(``KleaAgent.config_file_default = ""``): with no ``--profile`` (and no
+``KLEA_AGENT_APP_CONFIG_FILE``) it runs from ``AppConfig`` defaults plus the
+environment, so a JSON config is optional.  This supersedes the
+"default profile is ``klea_agent``" statement for the Agent only.  The RAG
+keeps ``config_file_default = "klea_rag.json"`` and still requires its JSON
+config (its store wiring has no sensible default).
+``BaseLangGraph._load_env`` skips JSON loading when no file is selected and
+the default is empty.
