@@ -187,7 +187,12 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 | ToolsPicker | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` |
 
 Plans contain **tool-executable steps** and **reasoning steps**, selected by
-``StepSchema.kind``.  A self-contained request that needs no tools is answered
+``StepSchema.kind``.  A ``reasoning`` step derives an intermediate conclusion a
+later step consumes; it is neither evaluation (the Evaluator judges each step's
+``success_criteria``) nor the final answer (``AnswerFromResults`` writes the
+reply, including the final synthesis, and persists the result), so the Planner
+must not plan either as a step
+(``Planner_system.md``).  A self-contained request that needs no tools is answered
 inline by ``RouteDecision`` (``chat``).  Tool identity is the Planner's: each
 tool step names its tool(s) in ``suggested_tools`` (normally one; more only for
 overlapping alternatives).  The picker **binds arguments only** and never
