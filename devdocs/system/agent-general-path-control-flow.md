@@ -302,7 +302,11 @@ only curated results cross into later tasks:
   the Planner when it authors a new plan.
 * **Session-scoped** (`artefacts`, plus ``messages`` for lossy continuity,
   ``mode`` and ``discovery_persistent``) survives across tasks in the same
-  session.  ``AnswerFromResults`` auto-persists the completed task's
+  session.  ``InitGraphState`` refreshes ``discovery_persistent`` with the
+  project instruction file (``AGENTS.md``, falling back to ``CLAUDE.md``),
+  re-read only when the file changes; it is rendered into the Planner and
+  ``AnswerFromResults`` prompts so project conventions reach both planning and
+  the final reply.  ``AnswerFromResults`` auto-persists the completed task's
   deliverable as a concise ``ArtefactSchema`` (goal + result, keyed by a slug of
   the goal so a re-run supersedes); failure and ``needs_input`` persist nothing.
   The Planner sees the rendered artefacts (`artefacts_text()`), so a later task

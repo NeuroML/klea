@@ -77,6 +77,7 @@
 - Reasoning steps: a plan step can be a `reasoning` step that produces a conclusion (analysis, decision, hypothesis, design) instead of a tool call, handled by a dedicated `ReasoningNode` and recorded alongside tool results.
 - `needs_input` plan outcome: when a missing fact only the user can supply blocks planning, the agent asks for it instead of failing, carrying the question in `pending_question`.
 - Session-scoped artefacts: a completed task's deliverable is persisted as a concise artefact and is available to later tasks in the same session.
+- The agent loads the project instruction file (`AGENTS.md`, falling back to `CLAUDE.md`) into session-scoped discovery (re-read only when it changes) and renders it into the Planner and final-answer prompts, so project conventions inform both planning and the reply.
 - Unified replan reason: automated replans (tool failure or `need_replan`) carry a concrete reason back to the Planner.
 
 ### Changed
