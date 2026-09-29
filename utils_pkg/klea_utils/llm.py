@@ -1156,6 +1156,28 @@ def _flatten_exception_messages(exc: BaseException) -> list[str]:
     return messages
 
 
+def _exception_chain_has_timeout(exc: BaseException) -> bool:
+    """Return True when *exc* or a cause is a timeout by type or class name.
+
+    Message heuristics miss timeouts whose text carries no "timeout" token
+    (for example ``langchain_openai``'s ``StreamChunkTimeoutError``), so the
+    exception type and class name are checked along the cause chain too.
+
+    :param exc: The exception to inspect.
+    :returns: True when a timeout exception is present in the chain.
+    """
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError) or (
+            "timeout" in type(current).__name__.lower()
+        ):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def _matches_any(patterns: list[re.Pattern[str]], text: str) -> bool:
     """Return True if any pattern matches anywhere in *text*."""
     return any(p.search(text) for p in patterns)
@@ -1185,7 +1207,7 @@ def classify_llm_invocation_error(exc: BaseException) -> LLMInvocationErrorCateg
         return LLMInvocationErrorCategory.AUTH_FAILED
     if _matches_any(_MODEL_NOT_FOUND_PATTERNS, text):
         return LLMInvocationErrorCategory.MODEL_NOT_FOUND
-    if _matches_any(_TIMEOUT_PATTERNS, text):
+    if _matches_any(_TIMEOUT_PATTERNS, text) or _exception_chain_has_timeout(exc):
         return LLMInvocationErrorCategory.TIMEOUT
     if _matches_any(_STRUCTURED_OUTPUT_REJECTED_PATTERNS, text):
         return LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED

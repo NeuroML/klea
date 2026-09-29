@@ -156,6 +156,31 @@ class TestClassifyInvocationError(unittest.TestCase):
         for msg in messages:
             self._assert_category(LLMInvocationErrorCategory.TIMEOUT, msg)
 
+    def test_timeout_by_exception_type_without_token(self):
+        """A timeout class whose message has no "timeout" token is caught."""
+        exc = TimeoutError("")
+        self.assertEqual(
+            classify_llm_invocation_error(exc), LLMInvocationErrorCategory.TIMEOUT
+        )
+
+        class StreamChunkTimeoutError(Exception):
+            """Mirrors langchain-openai's class (message has no token)."""
+
+        exc2 = StreamChunkTimeoutError("No streaming chunk received for 120.0s")
+        self.assertEqual(
+            classify_llm_invocation_error(exc2), LLMInvocationErrorCategory.TIMEOUT
+        )
+
+    def test_timeout_in_cause_chain_by_type(self):
+        """A typed timeout nested under a wrapper is still classified."""
+        StreamChunkTimeoutError = type("StreamChunkTimeoutError", (Exception,), {})
+        wrapped = RuntimeError("invoke failed")
+        wrapped.__cause__ = StreamChunkTimeoutError("no chunk")
+        self.assertEqual(
+            classify_llm_invocation_error(wrapped),
+            LLMInvocationErrorCategory.TIMEOUT,
+        )
+
     # --- structured output rejected ---
 
     def test_structured_output_rejected_messages(self):
