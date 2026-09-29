@@ -13,6 +13,7 @@ import logging
 from nicegui import ui
 
 from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.inspector_code import CODE_HL_CLASS
 from klea_utils.ui.web.nicegui.components.storage import user_storage_or_none
 
 logger = logging.getLogger(__name__)
@@ -206,6 +207,23 @@ def _add_css_overrides() -> None:
     )
     ui.add_css(
         ".inspector-details code { white-space: pre-wrap !important; word-break: break-all !important; }"
+    )
+    # Inspector details code block: the relaxed-JSON highlighter renders its
+    # own HTML (not through ``ui.markdown``, which is what serves NiceGUI's
+    # ``.codehilite`` token CSS), so serve the token colours here (light and
+    # dark) and wrap long lines.
+    from pygments.formatters.html import HtmlFormatter
+
+    ui.add_css(HtmlFormatter(nobackground=True).get_style_defs(f".{CODE_HL_CLASS}"))
+    ui.add_css(
+        HtmlFormatter(nobackground=True, style="github-dark").get_style_defs(
+            f".body--dark .{CODE_HL_CLASS}"
+        )
+    )
+    ui.add_css(
+        f".{CODE_HL_CLASS} pre {{ white-space: pre-wrap !important; "
+        "word-break: break-all !important; overflow-wrap: anywhere !important; "
+        "margin: 0; }"
     )
     ui.add_css(
         ".q-tooltip { max-width: 350px !important; overflow: visible !important; white-space: nowrap !important; padding: 4px 8px !important; }"

@@ -13,14 +13,15 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-import json
 import logging
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from nicegui import ui
 
+from klea_utils.ui.inspect_format import format_details
 from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.inspector_code import render_inspector_code
 from klea_utils.ui.web.nicegui.state import chats
 
 logger = logging.getLogger(__name__)
@@ -98,9 +99,13 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                 ):
                     with ui.element("summary").classes("text-xs w-full"):
                         ui.label("View details")
-                    ui.code(json.dumps(details, indent=2), language="json").classes(
-                        "text-xs"
-                    )
+                    # Keep the code box (JSON highlighting + copy button); the
+                    # formatter does the readability work (expands multi-line
+                    # values such as prompts and inlines JSON-encoded ones,
+                    # which json.dumps would escape).  A custom renderer is
+                    # used because ``ui.code`` breaks on code fences in the
+                    # content and its JSON lexer rejects the expanded newlines.
+                    render_inspector_code(format_details(details))
 
     def _render_section(
         section_idx: int,
