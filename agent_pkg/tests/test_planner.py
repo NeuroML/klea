@@ -397,6 +397,38 @@ class TestPlannerValidation(unittest.TestCase):
             llm_models={"plan": object()},
         )
 
+    @staticmethod
+    def _steps(count: int) -> list[StepSchema]:
+        return [
+            StepSchema(
+                step_number=i,
+                description=f"step {i}",
+                suggested_tools=["read_file"],
+            )
+            for i in range(1, count + 1)
+        ]
+
+    def test_rejects_plan_over_step_limit(self):
+        output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31)))
+        error = self._planner()._validate_result(output, KleaAgentState())
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("at most 30", error)
+
+    def test_accepts_plan_at_step_limit(self):
+        output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(30)))
+        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+
+    def test_oversize_plan_fails_closed(self):
+        """A plan over the limit that survives retries fails as unplannable."""
+        update = self._planner()._update_state(
+            PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31))),
+            KleaAgentState(query="q"),
+        )
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].step_list, [])
+        self.assertIn("maximum of 30 steps", update["failure_reason"])
+
     def test_rejects_unplannable_with_steps(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(

@@ -52,6 +52,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         llm_models: dict[str, Any],
         memory: bool = False,
         max_automated_plan_revisions: int = 4,
+        max_plan_steps: int = 30,
     ):
         """Initialise the planner node.
 
@@ -65,6 +66,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             run (since the initial plan or the last human review) before the
             Planner gives up (deterministic budget).  Human review re-entries
             reset the counter.
+        :param max_plan_steps: Runaway guard on the plan length.  A plan with
+            more steps is rejected and retried; if the model still exceeds it,
+            the run fails closed as ``unplannable`` (deliberately large, so it
+            only catches a runaway plan, not a complex task).
         """
         super().__init__(
             logger=logger,
@@ -74,6 +79,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             memory=memory,
         )
         self.max_automated_plan_revisions = max_automated_plan_revisions
+        self.max_plan_steps = max_plan_steps
         self._tools_info: dict[str, dict[str, ToolInfo]] = {}
 
     def _get_tool_descriptions(self, state: KleaAgentState) -> str:
@@ -156,6 +162,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         as ``validation_feedback``.  Checks:
 
         * ``status == "unplannable"`` must not carry steps;
+        * the plan does not exceed :attr:`max_plan_steps`;
         * structural plan consistency (:meth:`PlanSchema.validate_plan`);
         * ``kind``/tool consistency: a ``tool`` step names at least one tool,
           a ``reasoning`` step names none.
@@ -171,6 +178,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             errors.append(
                 "status is 'unplannable' but steps were returned; "
                 "return no steps or set a runnable status"
+            )
+        if len(plan.step_list) > self.max_plan_steps:
+            errors.append(
+                f"plan has {len(plan.step_list)} steps; at most "
+                f"{self.max_plan_steps} are allowed - reduce the plan"
             )
         if plan.step_list:
             errors.extend(plan.validate_plan())
@@ -267,6 +279,30 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         # non-unplannable status with no steps is a deterministic coercion.
         # Handled before the goal lock so a failed plan does not lock a goal.
         steps = result.plan.step_list
+        if len(steps) > self.max_plan_steps:
+            # Fail closed: the model did not comply after the validation
+            # retries, so the runaway plan must not execute.
+            self.logger.warning(
+                "Plan has %d steps, over the %d-step limit; failing closed",
+                len(steps),
+                self.max_plan_steps,
+            )
+            update["plan"] = PlanSchema(
+                status="unplannable",
+                plan_version=version,
+                human_feedback_rounds=review_rounds,
+                automated_plan_revisions=revisions,
+            )
+            update["failure_reason"] = (
+                f"plan exceeds the maximum of {self.max_plan_steps} steps"
+            )
+            update["messages"] = [
+                *state.messages,
+                AIMessage(content=f"Planning failed: {update['failure_reason']}"),
+            ]
+            self.logger.debug(f"{update = }")
+            return update
+
         if result.plan.status == "unplannable" or (
             not steps and result.plan.status != "needs_input"
         ):
