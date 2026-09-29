@@ -281,10 +281,11 @@ class TestChat:
             "message": "stream broken",
             "error_type": "RuntimeError",
             "node": "",
+            "resumable": True,
         }
 
-    async def test_query_stream_error_not_stored(self, app, client):
-        """Graph error during streaming yields an error event but nothing is persisted."""
+    async def test_query_stream_error_stores_only_user_turn(self, app, client):
+        """A failed run still records the user turn (retryable), not an answer."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
         async def _broken_stream(query, thread_id, *, extra_state=None, context=None):
@@ -309,8 +310,46 @@ class TestChat:
 
         store: SessionStore = app.state.chat_sessions
         messages = store.get_messages("err-user", "err-chat")
-        self.logger.info(f"Messages stored after error: {len(messages)}")
-        assert len(messages) == 0
+        self.logger.info(f"Messages stored after error: {messages}")
+        assert [m["role"] for m in messages] == ["user"]
+        assert messages[0]["content"] == "hello"
+
+    async def test_query_stream_resume_invokes_none_input(self, app, client):
+        """POST /query/stream with resume=true invokes the graph with None."""
+        seen: dict = {}
+
+        async def _capture(query, thread_id, *, extra_state=None, context=None):
+            seen["query"] = query
+            yield {"type": "complete", "message_for_user": "resumed answer"}
+
+        app.state.graph.run_graph_astream_events = _capture
+
+        async with client.stream(
+            "POST",
+            "/query/stream",
+            json={"chat_id": "r1", "user_id": "u", "resume": True},
+        ) as response:
+            async for _ in response.aiter_lines():
+                pass
+
+        assert seen["query"] is None
+        # Resume does not write a user row; the assistant row is written.
+        store: SessionStore = app.state.chat_sessions
+        assert [m["role"] for m in store.get_messages("u", "r1")] == ["assistant"]
+
+    async def test_query_stream_requires_query_unless_resume(self, client):
+        """A stream request with no query and no resume flag is rejected."""
+        response = await client.post(
+            "/query/stream", json={"chat_id": "c", "user_id": "u"}
+        )
+        assert response.status_code == 422
+
+    async def test_query_rejects_resume(self, client):
+        """resume is only supported on the streaming endpoint."""
+        response = await client.post(
+            "/query", json={"chat_id": "c", "user_id": "u", "resume": True}
+        )
+        assert response.status_code == 400
 
     async def test_query_error_not_stored(self, app, client):
         """Graph error on /query raises 500 and nothing is persisted."""

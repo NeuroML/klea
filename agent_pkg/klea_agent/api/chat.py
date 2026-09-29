@@ -17,16 +17,26 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from klea_utils.api import chat_core
 from klea_utils.mcp.access import AccessLevel
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ChatPayload(BaseModel):
-    query: str = Field(..., min_length=1)
+    query: str = Field(
+        default="",
+        description="User query text; omit (leave empty) when resuming",
+    )
     chat_id: str = Field(..., pattern=r"^[^:]+$")
     user_id: str = Field(default="", pattern=r"^[^:]*$")
+    # Resume the chat's last failed run from its checkpoint instead of
+    # starting a new turn: the graph is invoked with ``None`` (no query) and
+    # the failed node re-runs.  Only meaningful on ``/query/stream``.
+    resume: bool = Field(
+        default=False,
+        description="Resume the last failed run for this chat (no query)",
+    )
     # Operating-mode request passed into the graph's initial state
     # (ADR-0030); the resolved mode comes back as a ``context``
     # event on the stream.
@@ -40,6 +50,13 @@ class ChatPayload(BaseModel):
         default=None,
         description="Tool access level override: 'read_only' or 'full' (ADR-0037)",
     )
+
+    @model_validator(mode="after")
+    def _require_query_unless_resume(self) -> "ChatPayload":
+        """A query is required except when resuming."""
+        if not self.resume and not self.query.strip():
+            raise ValueError("query is required unless resume is true")
+        return self
 
 
 def _extra_state(payload: ChatPayload) -> dict[str, Any]:
@@ -67,6 +84,10 @@ def create_chat_router() -> APIRouter:
 
     @router.post("/query")
     async def query(request: Request, payload: ChatPayload):
+        if payload.resume:
+            raise HTTPException(
+                status_code=400, detail="resume is only supported on /query/stream"
+            )
         message = await chat_core.run_query(
             request,
             query=payload.query,
@@ -83,6 +104,7 @@ def create_chat_router() -> APIRouter:
             query=payload.query,
             user_id=payload.user_id,
             chat_id=payload.chat_id,
+            resume=payload.resume,
             extra_state=_extra_state(payload),
         )
 

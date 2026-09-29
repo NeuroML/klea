@@ -631,17 +631,21 @@ class _CaptureCompiled:
 
     def __init__(self):
         self.calls: list[tuple[str, dict]] = []
+        self.inputs: list = []
 
     async def ainvoke(self, *args, **kwargs):
         self.calls.append(("ainvoke", kwargs))
+        self.inputs.append(args[0] if args else kwargs.get("input"))
         return {"message_for_user": "ok"}
 
     async def astream(self, *args, **kwargs):
         self.calls.append(("astream", kwargs))
+        self.inputs.append(args[0] if args else kwargs.get("input"))
         yield {"node": {"message_for_user": "ok"}}
 
     async def astream_events(self, *args, **kwargs):
         self.calls.append(("astream_events", kwargs))
+        self.inputs.append(args[0] if args else kwargs.get("input"))
         return self._empty()
 
     async def _empty(self):
@@ -739,6 +743,18 @@ class TestRunContextForwarding:
         assert method == "astream_events"
         assert kwargs["context"] is ctx
         assert kwargs["version"] == "v3"
+
+    async def test_run_graph_astream_events_resume_passes_none(self):
+        """query=None resumes: the graph input is None (not a state dict)."""
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+
+        events = [e async for e in graph.run_graph_astream_events(None, "t")]
+
+        assert [e for e in events if e.get("type") == "complete"]
+        method, _ = compiled.calls[-1]
+        assert method == "astream_events"
+        assert compiled.inputs[-1] is None
 
 
 def test_token_streaming_is_opt_in():

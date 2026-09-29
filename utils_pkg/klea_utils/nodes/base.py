@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 import logging
@@ -63,6 +64,16 @@ MAX_CONTEXT_OVERFLOW_RETRIES = 3
 #: providers (notably HuggingFace) intermittently return a successful but
 #: blank message; the retry is a plain re-invoke with no window change.
 MAX_EMPTY_OUTPUT_RETRIES = 2
+
+#: Max times to retry a transiently failed invoke (a timeout, e.g. a stalled
+#: stream that never produced a chunk).  Rate limits, auth and model-not-found
+#: failures are deliberately *not* retried here: the provider SDK already
+#: retries ``429``/``5xx`` and honours ``Retry-After``, so retrying again
+#: would multiply the attempts and can amplify a rate limit.
+MAX_TRANSIENT_RETRIES = 2
+
+#: Base backoff (seconds) between transient retries; doubles each attempt.
+TRANSIENT_RETRY_BACKOFF_S = 1.0
 
 
 def _current_session_id() -> str | None:
@@ -636,7 +647,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
     ) -> AIMessage | dict[str, Any]:
         """Invoke an LLM with adaptive retries on length-related failures.
 
-        Three retry behaviours, all bounded:
+        Four retry behaviours, all bounded:
 
         * ``context_overflow`` errors (request rejected because input plus
           the reserved output exceeds the window) retry up to
@@ -653,6 +664,10 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         * Empty responses (some providers, notably HuggingFace,
           intermittently return a blank successful message) retry up to
           :data:`MAX_EMPTY_OUTPUT_RETRIES` times with a plain re-invoke.
+        * Transient timeouts (e.g. a stream that stalls after the response
+          starts) retry up to :data:`MAX_TRANSIENT_RETRIES` times with an
+          exponential backoff.  The provider SDK's own retries do not cover
+          a post-response stall, so this is the only layer that can.
 
         All other failures (rate limits, auth, model-not-found, ...) are
         re-raised immediately.  Retrying stops early if resizing the
@@ -666,6 +681,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         overflow_retries = 0
         truncation_retries = 0
         empty_retries = 0
+        transient_retries = 0
 
         while True:
             try:
@@ -713,6 +729,22 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         empty_retries,
                         MAX_EMPTY_OUTPUT_RETRIES,
                     )
+                    continue
+
+                if (
+                    category is LLMInvocationErrorCategory.TIMEOUT
+                    and transient_retries < MAX_TRANSIENT_RETRIES
+                ):
+                    transient_retries += 1
+                    delay = TRANSIENT_RETRY_BACKOFF_S * (2 ** (transient_retries - 1))
+                    self.logger.warning(
+                        "Transient LLM timeout, retrying in %.1fs (%d/%d): %s",
+                        delay,
+                        transient_retries,
+                        MAX_TRANSIENT_RETRIES,
+                        exc,
+                    )
+                    await asyncio.sleep(delay)
                     continue
                 raise
 

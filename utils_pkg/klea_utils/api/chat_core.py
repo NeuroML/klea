@@ -267,12 +267,35 @@ async def run_query(
     return message
 
 
+def _error_frame(message: str, error_type: str, *, resumable: bool) -> str:
+    """Return one SSE ``error`` frame, with a ``resumable`` hint.
+
+    ``resumable`` tells the client it can retry the same run from the
+    checkpoint (see the graph fault-tolerance note); it is false when there
+    is nothing to resume.
+    """
+    return (
+        "data: "
+        + json.dumps(
+            {
+                "type": "error",
+                "message": message,
+                "error_type": error_type,
+                "node": "",
+                "resumable": resumable,
+            }
+        )
+        + "\n\n"
+    )
+
+
 def stream_response(
     request: Request,
     *,
-    query: str,
+    query: str | None = None,
     user_id: str,
     chat_id: str,
+    resume: bool = False,
     enrich: Callable[[AsyncIterator[dict]], AsyncIterator[dict]] | None = None,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
@@ -280,14 +303,18 @@ def stream_response(
     """Return a ``/query/stream`` SSE response for the graph's events.
 
     Applies the stored per-chat model overrides for the duration of the
-    stream, persists the user query + final assistant answer on the
-    ``complete`` event, and converts graph failures into ``error`` SSE
-    events instead of dropping the stream.
+    stream and writes the user turn when the run starts and the assistant
+    reply on the ``complete`` event, so a turn that fails mid-run is still
+    recorded and can be retried.  Graph failures become ``error`` SSE events
+    (with a ``resumable`` hint) instead of dropping the stream.
 
     :param request: Request carrying ``app.state.graph`` / ``chat_sessions``
-    :param query: User query text
+    :param query: User query text; required unless *resume* is true
     :param user_id: Persistent user identifier
     :param chat_id: Chat conversation identifier
+    :param resume: Resume the thread's last failed run from its checkpoint.
+        The graph is invoked with ``None`` (no query) and the failed node is
+        re-run; no user turn is written.
     :param enrich: Optional async-generator wrapper applied to the raw
         ``run_graph_astream_events`` event stream before framing.  Apps
         use it to inject app-specific events (e.g. a ``context`` event
@@ -295,7 +322,7 @@ def stream_response(
         ``None``, every graph event is emitted unchanged.
     :param extra_state: Optional app-specific initial state fields passed
         to the graph invocation (e.g. the agent's operating ``mode``
-        request).
+        request).  Ignored on resume.
     :param context_fields: Optional app-defined per-run context fields that
         the plumbing forwards together with the framework-provided
         ``model_overrides`` slice (ADR-0033).  The assembled dict is
@@ -306,7 +333,10 @@ def stream_response(
         ``chat_core``.
     :returns: A :class:`fastapi.responses.StreamingResponse` SSE stream
     """
-    # Lazy: BaseLangGraph is the base class for all graphs.
+    # Lazy: BaseLangGraph is the base class for all graphs; EmptyInputError is
+    # only needed when a resume finds nothing to continue.
+    from langgraph.errors import EmptyInputError
+
     from klea_utils.graph.base import BaseLangGraph
 
     graph: BaseLangGraph
@@ -314,14 +344,27 @@ def stream_response(
     graph, store = _graph_and_store(request)
     thread_id = thread_id_for(user_id, chat_id)
     logger.debug(
-        "stream_response(user_id=%s chat_id=%s) thread=%s context_fields=%s",
+        "stream_response(user_id=%s chat_id=%s) thread=%s resume=%s context_fields=%s",
         user_id,
         chat_id,
         thread_id,
+        resume,
         list((context_fields or {}).keys()),
     )
 
+    user_message = (query or "").strip()
+    if not resume and not user_message:
+        raise HTTPException(
+            status_code=400, detail="query is required unless resume is true"
+        )
+
     store.create_chat(user_id, chat_id)
+    if not resume:
+        # Record the user turn when the run starts (not on completion), so a
+        # turn that fails mid-run is still visible and retryable; the
+        # assistant row is written on ``complete``.
+        store.add_message(user_id, chat_id, "user", user_message)
+
     # Per-run runtime context (ADR-0033): same assembly as run_query -- the
     # framework's ``model_overrides`` slice plus any app ``context_fields``,
     # forwarded as a plain dict for boundary coercion/validation.
@@ -338,13 +381,15 @@ def stream_response(
         logger.debug("stream_response: starting event stream for thread=%s", thread_id)
         try:
             raw_events = graph.run_graph_astream_events(
-                query, thread_id, extra_state=extra_state, context=context
+                None if resume else user_message,
+                thread_id,
+                extra_state=extra_state,
+                context=context,
             )
             events = raw_events if enrich is None else enrich(raw_events)
             async for event in events:
                 t = event.get("type")
                 if t == "complete":
-                    store.add_message(user_id, chat_id, "user", query)
                     store.add_message(
                         user_id,
                         chat_id,
@@ -357,17 +402,21 @@ def stream_response(
                         chat_id,
                     )
                 yield f"data: {json.dumps(event)}\n\n"
+        except EmptyInputError as e:
+            logger.warning(
+                "stream_response: resume requested but nothing to resume for "
+                "thread=%s: %s",
+                thread_id,
+                e,
+            )
+            yield _error_frame(
+                "Nothing to resume for this chat.",
+                type(e).__name__,
+                resumable=False,
+            )
         except Exception as e:  # noqa: BLE001
             logger.error(f"{e}\n{traceback.format_exc()}")
-            error_event = json.dumps(
-                {
-                    "type": "error",
-                    "message": str(e),
-                    "error_type": type(e).__name__,
-                    "node": "",
-                }
-            )
-            yield f"data: {error_event}\n\n"
+            yield _error_frame(str(e), type(e).__name__, resumable=True)
 
     return StreamingResponse(
         event_stream(),

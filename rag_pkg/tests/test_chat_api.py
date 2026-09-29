@@ -194,10 +194,11 @@ class TestChat:
             "message": "stream broken",
             "error_type": "RuntimeError",
             "node": "",
+            "resumable": True,
         }
 
-    async def test_query_stream_error_not_stored(self, app, client):
-        """Graph error during streaming yields an error event but nothing is persisted."""
+    async def test_query_stream_error_stores_only_user_turn(self, app, client):
+        """A failed run still records the user turn (retryable), not an answer."""
         self.logger.info("Injecting error into run_graph_astream_events")
 
         async def _broken_stream(query, thread_id, *, extra_state=None, context=None):
@@ -222,8 +223,9 @@ class TestChat:
 
         store: SessionStore = app.state.chat_sessions
         messages = store.get_messages("err-user", "err-chat")
-        self.logger.info(f"Messages stored after error: {len(messages)}")
-        assert len(messages) == 0
+        self.logger.info(f"Messages stored after error: {messages}")
+        assert [m["role"] for m in messages] == ["user"]
+        assert messages[0]["content"] == "hello"
 
     async def test_query_error_not_stored(self, app, client):
         """Graph error on /query raises 500 and nothing is persisted."""

@@ -27,6 +27,7 @@ from klea_utils.nodes.base import (
     MAX_CONTEXT_OVERFLOW_RETRIES,
     MAX_EMPTY_OUTPUT_RETRIES,
     MAX_OUTPUT_TOKENS_CEILING,
+    MAX_TRANSIENT_RETRIES,
     MAX_TRUNCATION_RETRIES,
     TRUNCATION_LINEAR_STEP,
     BaseLLMNode,
@@ -226,6 +227,49 @@ class TestInvokeWithRetries:
             raise AssertionError("expected RuntimeError")
 
         assert inst.ainvoke.await_count == 1
+
+    async def test_timeout_retries_then_succeeds(self):
+        """A transient timeout is re-invoked and can recover."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                TimeoutError("timed out"),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        with mock.patch("klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S", 0.0):
+            out = await self._invoke(inst)
+
+        assert inst.ainvoke.await_count == 2
+        assert out.content == "ok"
+
+    async def test_timeout_exhausts_retries(self):
+        """A persistent timeout raises after the transient budget is spent."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(side_effect=TimeoutError("timed out"))
+        with (
+            mock.patch("klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S", 0.0),
+            pytest.raises(TimeoutError),
+        ):
+            await self._invoke(inst)
+
+        assert inst.ainvoke.await_count == 1 + MAX_TRANSIENT_RETRIES
+
+    async def test_timeout_by_class_name_without_token_retries(self):
+        """A timeout class with no "timeout" in its message is still retried."""
+        stream_chunk_timeout_error = type("StreamChunkTimeoutError", (Exception,), {})
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                stream_chunk_timeout_error("No streaming chunk received for 120.0s"),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        with mock.patch("klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S", 0.0):
+            out = await self._invoke(inst)
+
+        assert inst.ainvoke.await_count == 2
+        assert out.content == "ok"
 
     async def test_empty_output_retries_then_succeeds(self):
         """A blank response is re-invoked until the model returns content."""

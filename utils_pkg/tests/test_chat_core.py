@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import Request
+from fastapi import HTTPException, Request
 from klea_utils.api import chat_core
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import LLMModel
@@ -138,6 +138,71 @@ class TestRunQueryContext:
         chunks = [c async for c in response.body_iterator]
         assert any("complete" in str(c) for c in chunks)
         assert seen["context"] == {"model_overrides": {}, "project_root": "/y"}
+
+
+class TestStreamResponseResume:
+    """Resume and turn-persistence behaviour of ``stream_response``."""
+
+    async def _collect(self, response):
+        return [c async for c in response.body_iterator]
+
+    async def test_requires_query_unless_resume(self, store, graph):
+        """An empty query without ``resume`` is a 400."""
+        with pytest.raises(HTTPException):
+            chat_core.stream_response(
+                _make_request(store, graph), query="  ", user_id="u", chat_id="c"
+            )
+
+    async def test_persists_user_row_on_start(self, store, graph):
+        """The user turn is recorded when the run starts, even if it fails."""
+
+        async def _boom(query, thread_id, *, extra_state=None, context=None):
+            raise RuntimeError("boom")
+            yield  # pragma: no cover
+
+        graph.run_graph_astream_events = _boom
+        response = chat_core.stream_response(
+            _make_request(store, graph), query="hello", user_id="u", chat_id="c"
+        )
+        chunks = await self._collect(response)
+
+        assert any("error" in str(c) for c in chunks)
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user"]
+        assert messages[0]["content"] == "hello"
+
+    async def test_resume_invokes_with_none(self, store, graph):
+        """A resume run passes ``None`` and writes no user row."""
+        seen: dict = {}
+
+        async def _capture(query, thread_id, *, extra_state=None, context=None):
+            seen["query"] = query
+            yield {"type": "complete", "message_for_user": "answer"}
+
+        graph.run_graph_astream_events = _capture
+        response = chat_core.stream_response(
+            _make_request(store, graph), user_id="u", chat_id="c", resume=True
+        )
+        await self._collect(response)
+
+        assert seen["query"] is None
+        assert [m["role"] for m in store.get_messages("u", "c")] == ["assistant"]
+
+    async def test_resume_with_nothing_is_not_resumable(self, store, graph):
+        """An EmptyInputError on resume yields a non-resumable error frame."""
+        from langgraph.errors import EmptyInputError
+
+        async def _empty(query, thread_id, *, extra_state=None, context=None):
+            raise EmptyInputError("no input")
+            yield  # pragma: no cover
+
+        graph.run_graph_astream_events = _empty
+        response = chat_core.stream_response(
+            _make_request(store, graph), user_id="u", chat_id="c", resume=True
+        )
+        chunks = await self._collect(response)
+
+        assert any('"resumable": false' in str(c) for c in chunks)
 
 
 class TestModelOverrideResolution:
