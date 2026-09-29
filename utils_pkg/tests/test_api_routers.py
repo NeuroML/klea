@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 from typing import ClassVar
+from unittest import mock
 
 import httpx
 import pytest
@@ -250,6 +251,39 @@ class TestModels:
         assert response.status_code == 200
         assert "sk-secret-1234" not in response.text
         assert response.json()["chat"]["api_key"] == "...1234"
+
+    async def test_catalogue_providers(self, models_client):
+        """GET /models/catalogue without a provider lists the providers."""
+        with mock.patch(
+            "klea_utils.api.models.list_catalog_providers",
+            return_value=["custom", "ollama", "openai"],
+        ):
+            response = await models_client.get("/chat/u1/models/catalogue")
+        self.logger.info(f"Status: {response.status_code}, body: {response.json()}")
+        assert response.status_code == 200
+        assert response.json() == {"providers": ["custom", "ollama", "openai"]}
+
+    async def test_catalogue_models_for_provider(self, models_client):
+        """GET /models/catalogue?provider= lists that provider's models."""
+        with mock.patch(
+            "klea_utils.api.models.list_catalog_models",
+            return_value=["gpt-4o", "gpt-4o-mini"],
+        ) as list_models:
+            response = await models_client.get(
+                "/chat/u1/models/catalogue", params={"provider": "openai"}
+            )
+        assert response.status_code == 200
+        assert response.json() == {
+            "provider": "openai",
+            "models": ["gpt-4o", "gpt-4o-mini"],
+        }
+        list_models.assert_called_once_with("openai")
+
+    async def test_catalogue_does_not_shadow_session_routes(self, models_client):
+        """The catalogue route sits next to the session routes without clashing."""
+        response = await models_client.get("/chat/u1/models/active")
+        assert response.status_code == 200
+        assert "chat" in response.json()
 
 
 def test_mask_secret():

@@ -46,7 +46,26 @@ _SAMPLE_CATALOG = {
         "api": "https://openrouter.ai/api/v1",
         "npm": "@openrouter/ai-sdk-provider",
         "env": ["OPENROUTER_API_KEY"],
-        "models": {},
+        "models": {
+            "vendor/model:free": {"id": "vendor/model:free"},
+        },
+    },
+    "google": {
+        "name": "Google",
+        "npm": "@ai-sdk/google",
+        "models": {
+            "gemini-2.5-flash": {
+                "id": "gemini-2.5-flash",
+                "limit": {"context": 1048576, "output": 65536},
+            },
+        },
+    },
+    "mistral": {
+        "name": "Mistral",
+        "npm": "@ai-sdk/mistral",
+        "models": {
+            "mistral-large-latest": {"id": "mistral-large-latest"},
+        },
     },
     "minimax": {
         "name": "MiniMax",
@@ -454,6 +473,102 @@ class TestProviderEndpoint(unittest.TestCase):
             models_catalog, "_fetch_catalog", side_effect=RuntimeError("no net")
         ):
             self.assertIsNone(models_catalog.get_provider_endpoint("openrouter"))
+
+
+class TestCatalogueLists(unittest.TestCase):
+    """Tests for the provider/model lists used by the model selection UIs."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self._cache_path = Path(self._tmpdir.name) / "models-dev.json"
+        self._path_patcher = mock.patch.object(
+            models_catalog, "_disk_cache_path", return_value=self._cache_path
+        )
+        self._path_patcher.start()
+        self.addCleanup(self._path_patcher.stop)
+        self.addCleanup(models_catalog._catalog.cache_clear)
+        models_catalog._catalog.cache_clear()
+        with open(self._cache_path, "w") as f:
+            json.dump(_SAMPLE_CATALOG, f)
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _go_offline(self):
+        """Drop the disk cache and make the fetch fail."""
+        models_catalog._catalog.cache_clear()
+        self._cache_path.unlink()
+        patcher = mock.patch.object(
+            models_catalog, "_fetch_catalog", side_effect=RuntimeError("no net")
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_providers_include_catalog_ollama_and_custom(self):
+        providers = models_catalog.list_catalog_providers()
+        self.assertEqual(providers, sorted(providers))
+        for provider in ("openai", "openrouter", "huggingface", "ollama", "custom"):
+            self.assertIn(provider, providers)
+
+    def test_google_listed_as_google_genai(self):
+        """The catalog's google key is listed under the Klea provider id."""
+        providers = models_catalog.list_catalog_providers()
+        self.assertIn("google_genai", providers)
+        self.assertNotIn("google", providers)
+
+    def test_mistral_listed_as_mistralai(self):
+        providers = models_catalog.list_catalog_providers()
+        self.assertIn("mistralai", providers)
+        self.assertNotIn("mistral", providers)
+
+    def test_renamed_providers_map_back_to_catalog(self):
+        """Every renamed provider resolves back to its catalog key.
+
+        Otherwise picking it in the UI would load no model suggestions.
+        """
+        for catalog_key, klea_id in models_catalog._KLEA_PROVIDER_IDS.items():
+            with self.subTest(klea_id=klea_id):
+                self.assertEqual(
+                    models_catalog._catalog_provider_key(klea_id), catalog_key
+                )
+
+    def test_providers_offline_keeps_ollama_and_custom(self):
+        """Offline, the non-catalog providers can still be picked."""
+        self._go_offline()
+        self.assertEqual(models_catalog.list_catalog_providers(), ["custom", "ollama"])
+
+    def test_models_for_provider(self):
+        self.assertEqual(
+            models_catalog.list_catalog_models("openai"),
+            ["gpt-4o", "no-output-limit"],
+        )
+
+    def test_models_for_google_genai(self):
+        """The Klea provider id maps back to the catalog key."""
+        self.assertEqual(
+            models_catalog.list_catalog_models("google_genai"), ["gemini-2.5-flash"]
+        )
+
+    def test_models_for_mistralai(self):
+        self.assertEqual(
+            models_catalog.list_catalog_models("mistralai"), ["mistral-large-latest"]
+        )
+
+    def test_model_ids_with_colon_skipped(self):
+        """Ids with ':' would be split by parse_model_name, so are left out."""
+        self.assertEqual(models_catalog.list_catalog_models("openrouter"), [])
+
+    def test_non_catalog_providers_have_no_models(self):
+        """ollama and custom models are free text (custom is not openai's list)."""
+        self.assertEqual(models_catalog.list_catalog_models("ollama"), [])
+        self.assertEqual(models_catalog.list_catalog_models("custom"), [])
+
+    def test_unknown_provider_has_no_models(self):
+        self.assertEqual(models_catalog.list_catalog_models("nope-xyz"), [])
+
+    def test_models_offline_returns_empty(self):
+        self._go_offline()
+        self.assertEqual(models_catalog.list_catalog_models("openai"), [])
 
 
 if __name__ == "__main__":

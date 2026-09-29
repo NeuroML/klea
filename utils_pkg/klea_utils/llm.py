@@ -96,6 +96,80 @@ def parse_model_name(raw: str) -> ParsedModelName:
     return ParsedModelName(provider=provider, model_name=parts[1], suffix=parts[2])
 
 
+class ModelParts(NamedTuple):
+    """A model string split into the fields the model selection UIs edit."""
+
+    provider: str
+    model: str
+    url: str = ""
+    variant: str = ""
+
+
+#: Providers whose third model string segment is not an endpoint URL: for
+#: ``ollama`` it is the model tag (``ollama:qwen3:0.6b``) and for
+#: ``huggingface`` the inference provider (``huggingface:org/model:novita``).
+#: The model selection UIs offer no custom URL for these.
+PROVIDERS_WITHOUT_CUSTOM_URL: frozenset[str] = frozenset({"ollama", "huggingface"})
+
+
+def split_model_string(raw: str) -> ModelParts:
+    """Split a model string into provider, model, custom URL and variant.
+
+    Used by the model selection UIs to prefill their fields; the inverse
+    of :func:`join_model_string`.  A third segment starting with
+    ``http(s)://`` is the custom endpoint URL, any other third segment
+    (e.g. a HuggingFace inference provider) is kept as the ``variant``.
+
+    A string that does not parse (e.g. a half typed ``openai:``) comes
+    back whole as the model, so nothing the user typed is lost.
+
+    :param raw: Model string, e.g. ``openai:gpt-4o:https://host/v1``.
+    :returns: :class:`ModelParts` with empty strings for missing fields.
+    """
+    raw = (raw or "").strip()
+    try:
+        parsed = parse_model_name(raw)
+    except ValueError:
+        return ModelParts(provider="", model=raw)
+    provider = parsed.provider or ""
+    suffix = parsed.suffix or ""
+    if suffix.startswith(("http://", "https://")):
+        return ModelParts(provider, parsed.model_name, url=suffix)
+    return ModelParts(provider, parsed.model_name, variant=suffix)
+
+
+def join_model_string(
+    provider: str, model: str, url: str = "", variant: str = ""
+) -> str:
+    """Join the model selection fields back into a model string.
+
+    Gives ``provider:model``, or ``provider:model:url`` when a custom
+    endpoint URL is set; that URL then overrides the models.dev endpoint
+    (see :meth:`LLMModel.build_config`).  The URL is ignored for
+    :data:`PROVIDERS_WITHOUT_CUSTOM_URL`, whose third segment means
+    something else; the ``variant`` is used there instead.
+
+    Without a provider the model is returned as it is, so a full model
+    string typed straight into the model field still works.
+
+    :param provider: Klea provider id, e.g. ``"openai"``.
+    :param model: Model id within the provider, e.g. ``"gpt-4o"``.
+    :param url: Optional custom endpoint URL.
+    :param variant: Optional non URL third segment to keep.
+    :returns: The model string, or ``""`` when no model is set.
+    """
+    provider = provider.strip().lower()
+    model = model.strip()
+    if not model:
+        return ""
+    if not provider:
+        return model
+    suffix = variant.strip()
+    if url.strip() and provider not in PROVIDERS_WITHOUT_CUSTOM_URL:
+        suffix = url.strip()
+    return f"{provider}:{model}:{suffix}" if suffix else f"{provider}:{model}"
+
+
 class CredentialScope(NamedTuple):
     """Provider (and, for custom endpoints, endpoint) a credential belongs to.
 
