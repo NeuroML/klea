@@ -465,6 +465,18 @@ discriminating than the rank-only RRF signal.  The model defaults to
 weights are downloaded from Hugging Face on first use and cached on disk, so
 no query pays the download.  It ships via the <code class="docutils literal notranslate"><span class="pre">klea_utils[rerank]</span></code> extra,
 which <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code> installs.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Even when the weights are already cached, the Hugging Face client still
+checks the Hub for updates each time the model is loaded at startup.  If
+you do not need this (for offline use), set <code class="docutils literal notranslate"><span class="pre">HF_HUB_OFFLINE=1</span></code> once the
+model has been downloaded.  While it is set, no models can be downloaded
+from the Hub, so unset it when you change <code class="docutils literal notranslate"><span class="pre">general.cross_encoder_model</span></code>
+or clear the cache.  It also blocks the Hugging Face Inference API, so do
+not set it when any <code class="docutils literal notranslate"><span class="pre">huggingface:</span></code> models are configured (chat, guard,
+or embedding).  See the <a class="reference external" href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables">Hugging Face environment variables</a>
+for this and other options.</p>
+</div>
 <p>After reranking, the ordering is given a small recency bias
 (<code class="docutils literal notranslate"><span class="pre">rerank_by_recency</span></code>): the relevance score is normalized to <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code>
 and blended <code class="docutils literal notranslate"><span class="pre">0.9</span> <span class="pre">*</span> <span class="pre">relevance</span> <span class="pre">+</span> <span class="pre">0.1</span> <span class="pre">*</span> <span class="pre">time</span></code>, where the time term is

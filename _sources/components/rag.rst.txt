@@ -181,6 +181,19 @@ weights are downloaded from Hugging Face on first use and cached on disk, so
 no query pays the download.  It ships via the ``klea_utils[rerank]`` extra,
 which ``klea_rag`` installs.
 
+.. note::
+
+   Even when the weights are already cached, the Hugging Face client still
+   checks the Hub for updates each time the model is loaded at startup.  If
+   you do not need this (for offline use), set ``HF_HUB_OFFLINE=1`` once the
+   model has been downloaded.  While it is set, no models can be downloaded
+   from the Hub, so unset it when you change ``general.cross_encoder_model``
+   or clear the cache.  It also blocks the Hugging Face Inference API, so do
+   not set it when any ``huggingface:`` models are configured (chat, guard,
+   or embedding).  See the `Hugging Face environment variables
+   <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables>`_
+   for this and other options.
+
 After reranking, the ordering is given a small recency bias
 (``rerank_by_recency``): the relevance score is normalized to ``[0, 1]``
 and blended ``0.9 * relevance + 0.1 * time``, where the time term is

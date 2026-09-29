@@ -389,6 +389,13 @@ per-chat embedding choice in the UI cannot enable it.</p>
 <p>Set <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_GUARD_MODEL</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_GUARD_MODEL</span></code> to an empty
 value to skip safety screening entirely.  The guard runs before
 classification, so unsafe queries are declined immediately.</p>
+<p><strong>Hugging Face requests at startup even though the model is cached</strong></p>
+<p>The cross-encoder is loaded with the Hugging Face client, which checks the
+Hub for updates on each start.  Set <code class="docutils literal notranslate"><span class="pre">HF_HUB_OFFLINE=1</span></code> to skip these checks
+once the model is downloaded; unset it again if a model needs downloading.
+It also blocks the Hugging Face Inference API, so do not set it when using
+<code class="docutils literal notranslate"><span class="pre">huggingface:</span></code> models.  See <a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a> and the <a class="reference external" href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables">Hugging Face
+environment variables</a>.</p>
 <p><strong>JSON / env / profile errors</strong></p>
 <p><code class="docutils literal notranslate"><span class="pre">KLEA_RAG_ENV_FILE</span></code> must point at a valid <code class="docutils literal notranslate"><span class="pre">k=v</span></code> env file; <code class="docutils literal notranslate"><span class="pre">--profile</span>
 <span class="pre">&lt;name&gt;</span></code> must resolve to <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code> in the current directory or
