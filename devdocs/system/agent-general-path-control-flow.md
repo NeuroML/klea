@@ -273,8 +273,6 @@ deferred ADR-0041 open item.
   and the step they belong to; bounded retry before escalating).
 * ``pending_question: str`` (the question to ask when ``plan.status`` is
   ``needs_input``).
-* ``tool_rounds: int`` (ToolsPicker -> ToolsCaller dispatch rounds in the run;
-  global backstop).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``evaluation: EvaluationSchema`` (latest per-step verdict map plus the
   ``overall`` outcome and a reason; ADR-0041).
@@ -335,10 +333,11 @@ level 2 verifier with provenance.
 | transient (network, timeout, 5xx) | retry at dispatch | bounded (ADR-0017 handles LLM; dispatch handles tools) |
 | call-level (bad args, permission denied) | picker | re-pick the **same** tool with corrected arguments; the picker may not switch tools |
 | picker cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the picker does not substitute |
-| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` N re-picks, then escalate |
+| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
-| plan cannot be revised usefully | failure answer | ``automated_plan_revisions``/``tool_rounds`` cap -> ``abort`` |
+| plan cannot be revised usefully | failure answer | ``automated_plan_revisions`` cap -> ``unplannable`` |
+| plan over ``Planner.max_plan_steps`` (30) | failure answer | Planner fails closed as ``unplannable`` (runaway guard) |
 
 Failure is attributed per call, not per round: successful calls in a round are
 kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
@@ -404,8 +403,7 @@ makes; it is deliberately **not** implemented as a plan-similarity check.  There
 is no deterministic way to tell whether two plans are "the same" (wording, step
 count and tool choice vary between calls), so no such heuristic is used.  The
 Evaluator's ``abort`` reason is carried into ``failure_reason`` so the failure
-answer explains the real cause; only a budget-triggered abort is labelled as
-such in ``OperationalEvaluator._update_state``.
+answer explains the real cause.
 
 ## Termination and budgets
 
@@ -413,8 +411,9 @@ The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
 counters live in state (incremented by the acting nodes) and the caps are
 enforced deterministically in the Evaluator/Planner ``_update_state`` (not by
 the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
-``automated_plan_revisions`` escalate to a replan/``unplannable``;
-``tool_rounds`` sets ``abort`` and the failure answer, so the act/eval loop
+``automated_plan_revisions`` escalate to a replan/``unplannable``, and
+``Planner.max_plan_steps`` (30) fails an oversized plan closed as
+``unplannable``, so the act/eval loop
 always terminates.  The
 Evaluator prompt uses ``step_incomplete`` only when a specific further call is
 expected, ``need_replan`` when the observations show no progress toward the

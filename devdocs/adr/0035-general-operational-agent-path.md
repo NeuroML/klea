@@ -348,13 +348,17 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   transition.  The first stage ships an auto-approve stub; real LangGraph
   `interrupt`/resume is recorded as ADR-0037.
 * Deterministic budgets bound the loop (counters in state, enforced in the
-  acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan),
-  repeated non-advancing evaluations (`step_attempt_counts` -> replan),
-  Planner entries (`automated_plan_revisions` -> `unplannable`) and total picker+caller
-  rounds (`tool_rounds` -> `abort`).  Consecutive empty picker selections are
-  bounded in the picker node itself (`picker_attempts`, reset on a successful
-  pick or a step change); after the budget the empty round proceeds to the
-  Evaluator.
+  acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan;
+  3 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->
+  replan), Planner entries (`automated_plan_revisions` -> `unplannable`), and
+  the plan length (`Planner.max_plan_steps`, default 30 -> `unplannable`).
+  *(Amended 2026-09-29: the earlier global `tool_rounds` -> `abort` cap on
+  total picker+caller rounds was removed - it false-aborted legitimate
+  long/deep or multi-replan plans - and replaced by the fail-closed plan-size
+  guard, which bounds the only genuinely unbounded input.)*  Consecutive empty
+  picker selections are bounded in the picker node itself (`picker_attempts`,
+  reset on a successful pick or a step change); after the budget the empty
+  round proceeds to the Evaluator.
 * Feedback is split by source: `evaluation` (LLM judge, structured) and
   `human_feedback` (review text); both reach the Planner, and run progress
   (query, plans, verdicts, answers) is recorded in `messages`.
@@ -376,8 +380,9 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   a first-class Evaluator verdict for a goal the observations already prove
   unreachable (for example a read-only task whose required input does not
   exist), routing straight to the failure answer instead of burning the replan
-  budget on a dead end.  The model's reason is carried into `failure_reason`;
-  only a budget-triggered abort is labelled as such.  Reachability is a
+  budget on a dead end.  The model's reason is carried into `failure_reason`.
+  *(Amended 2026-09-29: `abort` is now always a model judgement - the
+  budget-triggered abort was removed with `tool_rounds`.)*  Reachability is a
   judgement against evidence, deliberately not a plan-similarity check (two
   plans cannot be compared deterministically).
 * `AnswerFromResults` synthesises the final reply on success and explains the
