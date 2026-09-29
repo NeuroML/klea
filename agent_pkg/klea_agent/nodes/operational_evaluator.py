@@ -48,7 +48,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         llm_models: dict[str, Any],
         memory: bool = False,
         max_step_attempts: int = 3,
-        max_tool_rounds: int = 8,
     ):
         """Initialise the operational evaluator.
 
@@ -58,9 +57,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         :param memory: Whether to include recent conversation history
         :param max_step_attempts: Non-advancing (``step_incomplete``)
             evaluations allowed for one step before escalating to a replan
-        :param max_tool_rounds: ToolsPicker -> ToolsCaller dispatch rounds
-            allowed in one run before the evaluator aborts (global backstop; a
-            round may contain several parallel tool calls)
         """
         super().__init__(
             logger=logger,
@@ -70,7 +66,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             memory=memory,
         )
         self.max_step_attempts = max_step_attempts
-        self.max_tool_rounds = max_tool_rounds
 
     def _observations_text(self, state: KleaAgentState) -> str:
         """Return the rendered per-step tool outputs (tool + displayed flag).
@@ -184,34 +179,15 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             f"{replan_reasons = }"
         )
 
-        # --- Global run budget (deterministic backstop) ------------------
-        budget_abort = False
-        if result.overall != "plan_done" and state.tool_rounds >= self.max_tool_rounds:
-            self.logger.warning(
-                "Tool-round budget (%d) exhausted; aborting",
-                self.max_tool_rounds,
-            )
-            result.overall = "abort"
-            budget_abort = True
-
         # --- Determine the plan's routing state --------------------------
         if result.overall == "abort":
             current = plan.current_step()
             if current is not None:
                 current.status = "failed"
             plan.status = "aborted"
-            if budget_abort:
-                update["failure_reason"] = (
-                    f"tool-round budget exhausted: {result.reason}"
-                    if result.reason
-                    else "tool-round budget exhausted"
-                )
-            else:
-                # The model judged the goal unreachable; keep its reason so the
-                # failure answer explains the real cause, not a budget.
-                update["failure_reason"] = (
-                    result.reason or "the goal cannot be achieved"
-                )
+            # The model judged the goal unreachable; keep its reason so the
+            # failure answer explains the real cause.
+            update["failure_reason"] = result.reason or "the goal cannot be achieved"
             update["replan_reason"] = ""
         elif result.overall == "plan_done":
             # The run is complete: mark every remaining step done so the

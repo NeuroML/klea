@@ -584,9 +584,6 @@ class KleaAgentState(BaseGraphSchema):
     # the plan step index ``picker_attempts`` belongs to, so a new step
     # resets the empty-selection counter
     picker_step: int = -1
-    # number of ToolsPicker -> ToolsCaller dispatch rounds in this run
-    # (global backstop; a round may contain several parallel tool calls)
-    tool_rounds: int = 0
     # why the run failed or could not be planned (for the failure answer)
     failure_reason: str = ""
 

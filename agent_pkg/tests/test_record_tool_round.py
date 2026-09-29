@@ -71,13 +71,6 @@ def test_error_round_increments_tool_retry_counts():
     assert update["step_outputs"][2]
 
 
-def test_increments_tool_rounds():
-    agent = _agent()
-    state = KleaAgentState(tool_rounds=2)
-    update = agent._record_tool_round(state, [_result()], [False])
-    assert update["tool_rounds"] == 3
-
-
 def test_failed_round_sets_replan_reason():
     """A failed batch exposes its error text as the unified replan reason."""
     agent = _agent()

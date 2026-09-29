@@ -330,11 +330,11 @@ class KleaAgent(BaseLangGraph):
         conditional-edge router cannot update state, so the counter is
         maintained here and :class:`TriageRouter` reads it to decide retry vs
         replan; incremented on any ``is_error`` result and cleared when the
-        round made progress, ADR-0035), appends the round's results to
+        round (ADR-0035), appends the round's results to
         ``step_outputs`` as :class:`StepOutput` entries (tool name + whether the
         interface displayed it) so the Evaluator and Planner see every
         observation for the step (bounded to the most recent
-        ``MAX_STEP_RESULTS``), and counts the round in ``tool_rounds``.  Each
+        ``MAX_STEP_RESULTS``).  Each
         result is recorded under its call's originating step (``call.step``),
         so a batch spanning several steps stays attributed correctly
         (ADR-0041).
@@ -378,7 +378,6 @@ class KleaAgent(BaseLangGraph):
                 # Progress on this step: drop its earlier errored entries.
                 prior = [e for e in prior if not self._entry_is_error(e)]
             outputs[step] = [*prior, entry][-self.MAX_STEP_RESULTS :]
-        rounds = state.tool_rounds + 1
         has_error = any(getattr(r, "is_error", False) for r in results)
         # A failed batch feeds the Planner's unified replan reason; a clean
         # batch clears it (progress), so a stale tool error cannot mislead a
@@ -387,13 +386,11 @@ class KleaAgent(BaseLangGraph):
             (last_tool_error_text(results) or "a tool call failed") if has_error else ""
         )
         self.logger.debug(
-            f"{counts = }\n{outputs.keys() = }\n{rounds = }\n"
-            f"{has_error = }\n{replan_reason = }"
+            f"{counts = }\n{outputs.keys() = }\n{has_error = }\n{replan_reason = }"
         )
         return {
             "tool_retry_counts": counts,
             "step_outputs": outputs,
-            "tool_rounds": rounds,
             "replan_reason": replan_reason,
         }
 

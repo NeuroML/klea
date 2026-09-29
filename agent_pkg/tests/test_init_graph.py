@@ -42,7 +42,6 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
         ),
         tool_retry_counts={0: 2},
         step_attempt_counts={0: 1},
-        tool_rounds=4,
         failure_reason="boom",
         evaluation=EvaluationSchema(overall="abort"),
         replan_reason="tool failed",
@@ -57,7 +56,6 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["goal"].goal == ""
     assert update["tool_retry_counts"] == {}
     assert update["step_attempt_counts"] == {}
-    assert update["tool_rounds"] == 0
     assert update["failure_reason"] == ""
     assert update["replan_reason"] == ""
     assert update["pending_question"] == ""

@@ -74,7 +74,6 @@ class TestStateDefaults:
         assert state.plan.plan_version == 0
         assert state.plan.human_feedback_rounds == 0
         assert state.plan.automated_plan_revisions == 0
-        assert state.tool_rounds == 0
         assert state.failure_reason == ""
         assert state.human_feedback == ""
         assert state.route == RouteSchema()
@@ -391,7 +390,6 @@ class TestCheckpointMsgpack:
                 input_tokens=1, output_tokens=2, total_tokens=3
             ),
             "step_attempt_counts": {0: 2},
-            "tool_rounds": 3,
             "failure_reason": "x",
         }
         type_name, data = serde.dumps_typed(payload)

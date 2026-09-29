@@ -157,18 +157,6 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertEqual(update["step_attempt_counts"], {})
 
-    def test_tool_round_budget_aborts(self):
-        """The global tool-round budget aborts a non-terminating run."""
-        evaluator = self._evaluator()  # max_tool_rounds=8
-        state = self._state()
-        state.tool_rounds = 8
-        update = evaluator._update_state(
-            _verdict(1, "step_incomplete", "looping"), state
-        )
-        self.assertEqual(update["evaluation"].overall, "abort")
-        self.assertEqual(update["plan"].status, "aborted")
-        self.assertIn("tool-round budget exhausted", update["failure_reason"])
-
     def test_model_abort_uses_its_own_reason(self):
         """A model ``abort`` verdict reports the real cause, not a budget."""
         evaluator = self._evaluator()
