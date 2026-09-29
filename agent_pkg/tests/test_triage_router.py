@@ -91,9 +91,7 @@ class TestTriageDecide:
     """Pure routing policy."""
 
     def setup_method(self):
-        self.router = TriageRouter(
-            logging.getLogger("test.triage"), "Triage", max_retries=2
-        )
+        self.router = TriageRouter(logging.getLogger("test.triage"), "Triage")
 
     def test_no_error_evaluates(self):
         assert self.router.decide(_state(error=False)) == "evaluate"
@@ -101,9 +99,10 @@ class TestTriageDecide:
     def test_error_within_budget_retries(self):
         assert self.router.decide(_state(error=True, counts={1: 1})) == "retry"
         assert self.router.decide(_state(error=True, counts={1: 2})) == "retry"
+        assert self.router.decide(_state(error=True, counts={1: 3})) == "retry"
 
     def test_error_over_budget_replans(self):
-        assert self.router.decide(_state(error=True, counts={1: 3})) == "replan"
+        assert self.router.decide(_state(error=True, counts={1: 4})) == "replan"
 
     def test_error_without_counter_retries(self):
         # Counter not yet maintained: treat as first failure.

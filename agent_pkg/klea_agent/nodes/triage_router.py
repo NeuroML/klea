@@ -112,7 +112,7 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
         self,
         logger: logging.Logger,
         label: str,
-        max_retries: int = 2,
+        max_retries: int = 3,
     ):
         """Initialise the triage router.
 
