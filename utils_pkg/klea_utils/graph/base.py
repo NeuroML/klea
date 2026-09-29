@@ -1011,7 +1011,7 @@ class BaseLangGraph(ABC):
 
     async def run_graph_astream_events(
         self,
-        query: str,
+        query: str | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -1045,11 +1045,14 @@ class BaseLangGraph(ABC):
 
         Reference: https://docs.langchain.com/oss/python/langgraph/event-streaming
 
-        :param query: User query string
+        :param query: User query string, or ``None`` to **resume** the thread
+            from its last checkpoint (see the fault-tolerance note).  On resume
+            the graph re-enters the failed node rather than the entry node, so
+            per-turn state is preserved; ``extra_state`` is ignored.
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
-            request).
+            request).  Ignored when *query* is ``None`` (resume).
         :param context: Per-run runtime context (ADR-0033), forwarded
             verbatim to the graph run (see :meth:`run_graph_invoke`).
         :yields: Structured event dicts
@@ -1059,12 +1062,19 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        input_state = {"query": query}
-        if extra_state:
-            input_state.update(extra_state)
-        self._apply_access_level_default(input_state, extra_state)
+        graph_input: dict[str, Any] | None
+        if query is None:
+            # Resume: pass ``None`` so LangGraph continues from the checkpoint
+            # at the failed node (it does not re-enter the entry node).
+            self.logger.info("Resuming thread %s from checkpoint", thread_id)
+            graph_input = None
+        else:
+            graph_input = {"query": query}
+            if extra_state:
+                graph_input.update(extra_state)
+            self._apply_access_level_default(graph_input, extra_state)
         stream = await self.graph.astream_events(
-            input_state,
+            graph_input,
             config=config,
             version="v3",
             transformers=[_CustomChannelEnabler],
