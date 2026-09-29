@@ -391,11 +391,6 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             "unprocessed_output": extract_llm_output_content(self._last_output),
             "processed_output": str(self._last_result),
         }
-        if tool_calls:
-            details["tool_calls"] = [
-                {"name": tc.tool, "arguments": tc.args, "reason": tc.reason}
-                for tc in tool_calls
-            ]
         return NodeStreamData(
             heading="Tool Selection", summary=summary, details=details
         )
