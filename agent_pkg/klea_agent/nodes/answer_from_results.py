@@ -129,6 +129,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             "plan_history_block": self._optional_section(
                 "Plan history", state.plan.revision_summary()
             ),
+            "discovery": state.discovery_persistent.render(),
             "observations": self._observations_text(state),
         }
         self.logger.debug(f"{variables = }")

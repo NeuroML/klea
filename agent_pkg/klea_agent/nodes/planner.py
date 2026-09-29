@@ -146,7 +146,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "plan": state.plan.render(),
             "feedback_block": feedback_block,
             "artefacts": state.artefacts_text(),
-            "discovery": state.discovery_persistent,
+            "discovery": state.discovery_persistent.render(),
             "observations": state.observations_text(),
             "tools_description": self._get_tool_descriptions(state),
         }

@@ -24,8 +24,12 @@ from langchain_core.messages import HumanMessage
 
 
 @pytest.mark.asyncio
-async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
+async def test_init_resets_ephemeral_and_preserves_session_fields(
+    monkeypatch, tmp_path
+):
     """Per-turn fields reset; session-scoped fields are left untouched."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "AGENTS.md").write_text("project rules")
     node = InitGraphState(logging.getLogger("test"), "Initializing")
     monkeypatch.setattr(node, "write_custom_stream", lambda ev: None)
 
@@ -62,6 +66,9 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(monkeypatch):
     assert update["route"] == RouteSchema()
     assert update["evaluation"].overall == ""
     assert update["evaluation"].evaluations == {}
+    # The project instruction file is loaded into session-scoped discovery.
+    assert update["discovery_persistent"].items[0].source == "AGENTS.md"
+    assert update["discovery_persistent"].items[0].content == "project rules"
     # Session-scoped fields are not in the reset dict, so the graph keeps them.
     assert "mode" not in update
     assert "context_summary" not in update

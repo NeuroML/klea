@@ -260,6 +260,14 @@ class TestPlannerState(unittest.TestCase):
         variables = self._planner()._get_prompt_variables(KleaAgentState())
         self.assertEqual(variables["feedback_block"], "")
 
+    def test_discovery_is_rendered(self):
+        """Project context (AGENTS.md) is rendered into the prompt variable."""
+        state = KleaAgentState()
+        state.discovery_persistent.upsert("AGENTS.md", "use uv")
+        variables = self._planner()._get_prompt_variables(state)
+        self.assertIn("### AGENTS.md", variables["discovery"])
+        self.assertIn("use uv", variables["discovery"])
+
     def test_update_state_clears_replan_reason(self):
         update = self._planner()._update_state(
             PlannerOutput(

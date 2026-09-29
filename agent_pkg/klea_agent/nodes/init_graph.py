@@ -14,6 +14,7 @@ from typing import Any, override
 from klea_utils.nodes.abstract import AbstractLangGraphNode
 from langchain_core.messages import HumanMessage
 
+from klea_agent.discovery import refresh_project_files
 from klea_agent.schemas import (
     CodeSchema,
     Discovery,
@@ -54,6 +55,11 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         ``artefacts`` is deliberately *not* reset: it is the session-scoped
         store that carries a task's durable result into later tasks in the same
         session (ADR-0035 update 2026-09-19).
+
+        ``discovery_persistent`` is refreshed in place: the project instruction
+        file (``AGENTS.md``/``CLAUDE.md``) is upserted, re-read only when it
+        changes, so the Planner and answer-composer see current project
+        conventions.
         """
         self.write_custom_stream({"type": "progress", "node": self.label})
         return {
@@ -74,6 +80,7 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},
+            "discovery_persistent": refresh_project_files(state.discovery_persistent),
             "discovery_per_step": Discovery(),
             "code": CodeSchema(),
             "messages": [*state.messages, HumanMessage(content=state.query)],

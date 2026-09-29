@@ -377,13 +377,47 @@ class ArtefactSchema(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+class DiscoveryItem(BaseModel):
+    """One piece of project context gathered for the session.
+
+    :attr:`source` names where it came from (for example ``AGENTS.md``) and is
+    used as the block heading when rendered; :attr:`content` is the text.
+    """
+
+    source: str = ""
+    content: str = ""
+
+
 class Discovery(BaseModel):
-    # when it was created
+    """Project-wide context gathered for the session (ADR-0035).
+
+    Session-scoped: preserved by ``InitGraphState`` across turns and refreshed
+    only when a source file changes (``timestamp`` records the last source's
+    mtime).  Rendered into the Planner and answer-composer prompts via
+    :meth:`render`; a later task can build on it (files, scripts, semantic
+    info) without re-discovering the project.
+    """
+
+    #: mtime of the last-refreshed source file (0 = never refreshed).
     timestamp: int = 0
-    # TODO
-    # general: files, scripts
-    # NeuroML specific: files, semantic info (ions/parameters)
-    pass
+    items: list[DiscoveryItem] = Field(default_factory=list)
+
+    def upsert(self, source: str, content: str) -> None:
+        """Add or replace the item for *source*."""
+        for item in self.items:
+            if item.source == source:
+                item.content = content
+                return
+        self.items.append(DiscoveryItem(source=source, content=content))
+
+    def render(self) -> str:
+        """Render every item as prompt-ready text, or a placeholder when empty."""
+        if not self.items:
+            return "(no project context available)"
+        return "\n\n".join(
+            f"### {item.source or 'Project context'}\n\n{item.content}".rstrip()
+            for item in self.items
+        )
 
 
 class Mode(BaseModel):

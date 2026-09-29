@@ -60,6 +60,13 @@ class TestAnswerFromResults(unittest.TestCase):
         # On success the outcome-detail block is omitted entirely.
         self.assertEqual(variables["outcome_details"], "")
 
+    def test_prompt_includes_rendered_discovery(self):
+        state = self._state()
+        state.discovery_persistent.upsert("AGENTS.md", "use uv")
+        variables = self._node()._get_prompt_variables(state)
+        self.assertIn("### AGENTS.md", variables["discovery"])
+        self.assertIn("use uv", variables["discovery"])
+
     def test_prompt_omits_plan_history_for_single_plan(self):
         variables = self._node()._get_prompt_variables(self._state())
         self.assertEqual(variables["plan_history_block"], "")

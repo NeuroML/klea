@@ -17,6 +17,12 @@
 
 ---
 
+## Project context
+
+{discovery}
+
+---
+
 ## Observations
 
 {observations}

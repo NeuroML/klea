@@ -17,6 +17,8 @@
   iterations and/or human review (counts only; absent when the plan was authored
   once with no review). The raw review feedback and earlier plan versions are
   deliberately not provided.
+* `discovery`: project context and conventions (for example `AGENTS.md`); follow
+  them when presenting the reply (language, formatting, terminology)
 * `observations`: the tool outputs collected while executing the plan
 
 When `plan_history` is present, the plan was revised and/or reviewed before it
