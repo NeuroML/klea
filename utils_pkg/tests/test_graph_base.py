@@ -749,5 +749,54 @@ def test_token_streaming_is_opt_in():
     assert AnswerGeneral.stream_tokens is True
 
 
+class TestExportGraphPng:
+    """The graph diagram export is a debug-only development aid."""
+
+    def _graph(self, calls: list) -> ToyGraph:
+        graph = ToyGraph()
+        inner = SimpleNamespace(
+            draw_mermaid_png=lambda *, output_file_path: calls.append(
+                ("png", output_file_path)
+            ),
+            draw_mermaid=lambda: "flowchart LR\n  a --> b",
+        )
+        graph.graph = cast(Any, SimpleNamespace(get_graph=lambda: inner))
+        return graph
+
+    def test_skipped_without_debug(self, monkeypatch, tmp_path):
+        """No PNG/MMD is written at the default (INFO) log level."""
+        monkeypatch.delenv("KLEA_LOG_LEVEL", raising=False)
+        monkeypatch.delenv("RUNNING_IN_DOCKER", raising=False)
+        calls: list = []
+
+        self._graph(calls)._export_graph_png(str(tmp_path / "g.png"))
+
+        assert calls == []
+        assert not (tmp_path / "g.png").exists()
+        assert not (tmp_path / "g.mmd").exists()
+
+    def test_exported_with_debug(self, monkeypatch, tmp_path):
+        """Debug logging writes the PNG and the Mermaid source."""
+        monkeypatch.setenv("KLEA_LOG_LEVEL", "debug")
+        monkeypatch.delenv("RUNNING_IN_DOCKER", raising=False)
+        calls: list = []
+        target = tmp_path / "g.png"
+
+        self._graph(calls)._export_graph_png(str(target))
+
+        assert calls == [("png", str(target))]
+        assert (tmp_path / "g.mmd").read_text() == "flowchart LR\n  a --> b"
+
+    def test_skipped_in_docker(self, monkeypatch, tmp_path):
+        """The export is skipped inside Docker even under debug."""
+        monkeypatch.setenv("KLEA_LOG_LEVEL", "debug")
+        monkeypatch.setenv("RUNNING_IN_DOCKER", "1")
+        calls: list = []
+
+        self._graph(calls)._export_graph_png(str(tmp_path / "g.png"))
+
+        assert calls == []
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

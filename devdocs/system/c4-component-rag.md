@@ -25,8 +25,9 @@ Level 3 for RAG is rendered as a Mermaid ``flowchart`` with
 ``layout: elk`` (orthogonal routing) for the same reason as Level 2.
 The node/edge topology is sourced from the code (``rag_pkg/klea_rag/rag.py:
 191`` ``BaseLangGraph._export_graph_png`` also writes the ``.mmd`` via
-``graph.get_graph().draw_mermaid()``) and then augmented with the
-component-to-container/external edges.
+``graph.get_graph().draw_mermaid()``; the export is debug-gated, so run with
+``--debug`` / ``KLEA_LOG_LEVEL=debug`` to regenerate it, and it is skipped in
+Docker) and then augmented with the component-to-container/external edges.
 
 ## Component diagram -- RAG container (flowchart, elk + auto-generated core)
 

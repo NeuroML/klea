@@ -505,12 +505,28 @@ class BaseLangGraph(ABC):
     def _export_graph_png(self, filename: str) -> None:
         """Export the LangGraph as a Mermaid PNG diagram and its Mermaid source.
 
-        Skipped when running inside Docker (``RUNNING_IN_DOCKER`` env var set).
+        A development aid (it keeps the C4 topology diagrams in sync, see
+        ADR-0016/0019), so it runs only under debug logging (``--debug`` /
+        ``KLEA_LOG_LEVEL=debug``).  Skipped inside Docker
+        (``RUNNING_IN_DOCKER`` env var set).  Normal runs avoid the Mermaid
+        render (a network call) and the stray PNG/MMD files in the working
+        directory.
 
         :param filename: Output file path for the PNG
         """
         if os.environ.get("RUNNING_IN_DOCKER"):
             return
+
+        # Lazy: plogging is otherwise imported inside ``__init__``.
+        from klea_utils.plogging import resolve_log_level
+
+        if resolve_log_level() != logging.DEBUG:
+            self.logger.debug(
+                "Skipping graph export; pass --debug (or set "
+                "KLEA_LOG_LEVEL=debug) to write the graph diagram."
+            )
+            return
+
         try:
             assert self.graph
             self.graph.get_graph().draw_mermaid_png(output_file_path=filename)
