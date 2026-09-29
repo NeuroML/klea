@@ -44,6 +44,8 @@
 - Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
 - `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
 - Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
+- Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
+- Graph diagrams (`*-lang-graph.png` and their `.mmd` source) are written only when debug logging is enabled (`--debug` / `KLEA_LOG_LEVEL=debug`), instead of on every graph build.
 
 ### Fixed
 
@@ -86,6 +88,7 @@
 - Per-step observations, retry counters and status use the plan step's 1-based number, and per-step state is cleared when the planner writes a plan, so replans no longer merge stale outputs.
 - Plan execution follows the dependency DAG (ADR-0041): per-step `depends_on` defines a frontier, work is bound in same-kind frontier batches (cap 8 steps/16 calls), the picker tags each call with its originating step, the Evaluator returns a per-step verdict map, and same-resource calls are serialised at dispatch. Reasoning steps remain serial.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, lifecycle parity).
+- The agent runs without a JSON config file: with no `--profile` (and no `KLEA_AGENT_APP_CONFIG_FILE`) it starts from built-in defaults plus the environment, instead of requiring `klea_agent.json`.
 
 ### Fixed
 
