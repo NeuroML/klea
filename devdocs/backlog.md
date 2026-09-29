@@ -112,6 +112,12 @@ Last updated: 2026-09-28.
 
 ## Testing
 
+- Add a NiceGUI element-rendering test harness (e.g. `nicegui.testing.User`
+  / `Screen` fixtures) so UI wiring can be asserted without a browser:
+  dialogs rebuilding on credential/model change, the chat-area welcome CTA
+  appearing/disappearing, status-pane refresh, and send-button gating.
+  Today only pure helpers (`utils_pkg/tests/test_ui_state.py`) and
+  registration smoke tests (`agent_pkg/tests/test_access_ui.py`) exist.
 - `rag_pkg/klea_rag/nodes/generate_retrieval_query.py`:
   `_get_default_error_result` returns an all-default `RetrievalQueryOutput()`
   (empty `search_query`); decide whether that should degrade to a clear

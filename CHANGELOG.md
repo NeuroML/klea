@@ -53,6 +53,8 @@
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
 - Web UI: a brand-new session can configure models before any chat exists, so the first query no longer fails with "No model configured".
 - Web UI: opening the model/API-key dialog from a background task (for example the first-run prompt) no longer fails; dialogs are built in an explicit slot.
+- Web UI: the chat setup prompt and status pane update as soon as models or API keys are configured (and after deleting the user session), instead of showing stale configuration.
+- Web UI: the model dialog updates a role's API-key status live while a model is typed, lets "Manage API keys" configure a provider that is not saved yet, saves all changed roles at once, and keeps the dialog open when resetting a role.
 
 ### Dependencies
 
