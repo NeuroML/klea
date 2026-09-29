@@ -557,8 +557,14 @@
 <span class="sd">        used), then resolves the application config file (from</span>
 <span class="sd">        ``self.app_env.app_config_file``) via</span>
 <span class="sd">        :func:`klea_utils.paths.resolve_app_config_path` -- the working</span>
-<span class="sd">        directory first, then the per-app config directory.  Raises</span>
-<span class="sd">        ``FileNotFoundError`` if the config file does not exist.</span>
+<span class="sd">        directory first, then the per-app config directory.</span>
+
+<span class="sd">        The JSON config file is optional when no default is declared (see</span>
+<span class="sd">        ``config_file_default``): graphs that can run without one (e.g. the</span>
+<span class="sd">        agent, whose models/access settings come from env vars and the web</span>
+<span class="sd">        UI) start from ``config_class`` defaults.  A graph with a non-empty</span>
+<span class="sd">        default (e.g. RAG, which needs its store wiring) raises</span>
+<span class="sd">        ``FileNotFoundError`` when the file does not exist.</span>
 <span class="sd">        """</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">env_class</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_env_class</span><span class="p">()</span>
 
@@ -589,6 +595,18 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"empty app_config_file -- using default </span><span class="si">{</span><span class="n">app_config_file</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">app_config_file</span><span class="p">:</span>
+            <span class="c1"># No config file selected and no default declared: start from</span>
+            <span class="c1"># the config class defaults (env vars and the web UI still</span>
+            <span class="c1"># configure the app).</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="s2">"No app config file selected; using </span><span class="si">%s</span><span class="s2"> defaults."</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">config_class</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">app_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config_class</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">app_config</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span>
 
         <span class="n">config_file</span> <span class="o">=</span> <span class="n">resolve_app_config_path</span><span class="p">(</span>
             <span class="n">app_config_file</span><span class="p">,</span> <span class="n">get_config_dir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">paths</span><span class="p">)</span>
@@ -788,12 +806,28 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_export_graph_png</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Export the LangGraph as a Mermaid PNG diagram and its Mermaid source.</span>
 
-<span class="sd">        Skipped when running inside Docker (``RUNNING_IN_DOCKER`` env var set).</span>
+<span class="sd">        A development aid (it keeps the C4 topology diagrams in sync, see</span>
+<span class="sd">        ADR-0016/0019), so it runs only under debug logging (``--debug`` /</span>
+<span class="sd">        ``KLEA_LOG_LEVEL=debug``).  Skipped inside Docker</span>
+<span class="sd">        (``RUNNING_IN_DOCKER`` env var set).  Normal runs avoid the Mermaid</span>
+<span class="sd">        render (a network call) and the stray PNG/MMD files in the working</span>
+<span class="sd">        directory.</span>
 
 <span class="sd">        :param filename: Output file path for the PNG</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"RUNNING_IN_DOCKER"</span><span class="p">):</span>
             <span class="k">return</span>
+
+        <span class="c1"># Lazy: plogging is otherwise imported inside ``__init__``.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_log_level</span>
+
+        <span class="k">if</span> <span class="n">resolve_log_level</span><span class="p">()</span> <span class="o">!=</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"Skipping graph export; pass --debug (or set "</span>
+                <span class="s2">"KLEA_LOG_LEVEL=debug) to write the graph diagram."</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+
         <span class="k">try</span><span class="p">:</span>
             <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">get_graph</span><span class="p">()</span><span class="o">.</span><span class="n">draw_mermaid_png</span><span class="p">(</span><span class="n">output_file_path</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>

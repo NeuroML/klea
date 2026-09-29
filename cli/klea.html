@@ -402,8 +402,9 @@ ready for general use.</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_ENV_FILE</span></code></dt><dd><p>Path to environment file (default: <code class="docutils literal notranslate"><span class="pre">klea_agent.env</span></code>).</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code></dt><dd><p>Config file used when <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is not given (from the env file,
-the environment, or the default <code class="docutils literal notranslate"><span class="pre">klea_agent.json</span></code>).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code></dt><dd><p>Config file used when <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is not given (from the env file or
+the environment).  There is no default config file: without this and
+without <code class="docutils literal notranslate"><span class="pre">--profile</span></code> the agent runs from built-in defaults.</p>
 </dd>
 </dl>
 <p>Pass <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">&lt;name&gt;</span></code> to load <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code> from the current

@@ -512,16 +512,21 @@ file in <code class="docutils literal notranslate"><span class="pre">k=v</span><
 <li><p><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_ENV_FILE</span></code> or <code class="docutils literal notranslate"><span class="pre">klea_agent.env</span></code> for the Agent system</p></li>
 </ul>
 <p>The env file is <strong>optional</strong> – when it is absent, shell environment
-variables and class defaults are used, so a clean machine can run with
-only a JSON config.</p>
+variables and class defaults are used.  The Agent needs no JSON config,
+so a clean machine can run it with the environment alone; the RAG needs
+the JSON config for its store wiring.</p>
 </li>
 <li><p>A JSON configuration file selected by a <em>profile</em> name.</p>
 <p>Each JSON config is identified by a profile: <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">&lt;name&gt;</span></code> loads
 <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code>.  The file is looked up in the current directory first,
 then in the per-app config directory (<code class="docutils literal notranslate"><span class="pre">~/.config/klea-agent/</span></code> for the
-Agent, <code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  The
-default profile is <code class="docutils literal notranslate"><span class="pre">klea_agent</span></code> / <code class="docutils literal notranslate"><span class="pre">klea_rag</span></code>, so <code class="docutils literal notranslate"><span class="pre">klea_agent.json</span></code>
-and <code class="docutils literal notranslate"><span class="pre">klea_rag.json</span></code> are loaded when no <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is given.</p>
+Agent, <code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> for the RAG, honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).</p>
+<p>The RAG has a default profile (<code class="docutils literal notranslate"><span class="pre">klea_rag</span></code>), so <code class="docutils literal notranslate"><span class="pre">klea_rag.json</span></code> is
+loaded when no <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is given and is required (the RAG needs its
+store wiring).  The Agent has <strong>no default config file</strong>: without
+<code class="docutils literal notranslate"><span class="pre">--profile</span></code> (or <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code>) it runs from the
+built-in <code class="docutils literal notranslate"><span class="pre">AppConfig</span></code> defaults plus the environment, and models can be
+set in the web UI.</p>
 <p>Use <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">template</span></code> on any CLI to scaffold a ready-to-fill config
 into the current directory (it refuses to overwrite an existing file).</p>
 <p><code class="docutils literal notranslate"><span class="pre">--profile</span></code> takes precedence over the <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code> /

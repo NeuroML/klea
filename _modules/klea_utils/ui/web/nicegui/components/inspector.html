@@ -312,14 +312,15 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.inspect_format</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_details</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.inspector_code</span><span class="w"> </span><span class="kn">import</span> <span class="n">render_inspector_code</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -399,9 +400,13 @@
                 <span class="p">):</span>
                     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs w-full"</span><span class="p">):</span>
                         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"View details"</span><span class="p">)</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">details</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span> <span class="n">language</span><span class="o">=</span><span class="s2">"json"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                        <span class="s2">"text-xs"</span>
-                    <span class="p">)</span>
+                    <span class="c1"># Keep the code box (JSON highlighting + copy button); the</span>
+                    <span class="c1"># formatter does the readability work (expands multi-line</span>
+                    <span class="c1"># values such as prompts and inlines JSON-encoded ones,</span>
+                    <span class="c1"># which json.dumps would escape).  A custom renderer is</span>
+                    <span class="c1"># used because ``ui.code`` breaks on code fences in the</span>
+                    <span class="c1"># content and its JSON lexer rejects the expanded newlines.</span>
+                    <span class="n">render_inspector_code</span><span class="p">(</span><span class="n">format_details</span><span class="p">(</span><span class="n">details</span><span class="p">))</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_render_section</span><span class="p">(</span>
         <span class="n">section_idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>

@@ -312,6 +312,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.inspector_code</span><span class="w"> </span><span class="kn">import</span> <span class="n">CODE_HL_CLASS</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">user_storage_or_none</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -505,6 +506,23 @@
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-details code { white-space: pre-wrap !important; word-break: break-all !important; }"</span>
+    <span class="p">)</span>
+    <span class="c1"># Inspector details code block: the relaxed-JSON highlighter renders its</span>
+    <span class="c1"># own HTML (not through ``ui.markdown``, which is what serves NiceGUI's</span>
+    <span class="c1"># ``.codehilite`` token CSS), so serve the token colours here (light and</span>
+    <span class="c1"># dark) and wrap long lines.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">pygments.formatters.html</span><span class="w"> </span><span class="kn">import</span> <span class="n">HtmlFormatter</span>
+
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="n">HtmlFormatter</span><span class="p">(</span><span class="n">nobackground</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_style_defs</span><span class="p">(</span><span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="n">HtmlFormatter</span><span class="p">(</span><span class="n">nobackground</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">"github-dark"</span><span class="p">)</span><span class="o">.</span><span class="n">get_style_defs</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">".body--dark .</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2"> pre </span><span class="se">{{</span><span class="s2"> white-space: pre-wrap !important; "</span>
+        <span class="s2">"word-break: break-all !important; overflow-wrap: anywhere !important; "</span>
+        <span class="s2">"margin: 0; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".q-tooltip { max-width: 350px !important; overflow: visible !important; white-space: nowrap !important; padding: 4px 8px !important; }"</span>
