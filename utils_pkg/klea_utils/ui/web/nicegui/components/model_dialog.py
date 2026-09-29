@@ -17,6 +17,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from nicegui import ui
 
@@ -25,6 +27,7 @@ from klea_utils.api.sse import (
     fetch_credentials,
     fetch_session_models,
 )
+from klea_utils.llm import credential_scope, provider_requires_api_key
 from klea_utils.ui.web.nicegui.client import (
     clear_credential,
     clear_model_override,
@@ -95,6 +98,11 @@ def attach_model_info(ctx: PageContext) -> None:
             await _fetch_session_model_info()
         elif ctx.chat_id:
             await _fetch_model_info()
+        # The welcome/empty-state card in the chat area reports missing
+        # models and API keys, so it must be rebuilt once the scope
+        # changes; the status pane and send button are refreshed by the
+        # fetch helpers above.
+        ctx.render_chat_area()
 
     def _required_credential_scopes(info: dict) -> dict[tuple[str, str], dict]:
         """Distinct provider(+endpoint) scopes that the current roles need."""
@@ -110,8 +118,17 @@ def attach_model_info(ctx: PageContext) -> None:
         logger.debug(f"required credential scopes: {list(scopes) = }")
         return scopes
 
-    async def _credentials_dialog(info: dict) -> None:
-        """Open the masked, write-only provider credentials editor."""
+    async def _credentials_dialog(
+        info: dict, on_credentials_changed: Callable[[], Awaitable[None]] | None = None
+    ) -> None:
+        """Open the masked, write-only provider credentials editor.
+
+        :param info: The current model config, used to find the provider
+            scopes that need a key.
+        :param on_credentials_changed: Optional async callback invoked after
+            a key is saved or cleared, so the caller can refresh its view
+            (the model dialog rebuilds its credential labels from here).
+        """
         logger.debug("credentials dialog: opening")
         stored = await fetch_credentials(ctx.server_url, ctx.user_id)
         logger.debug(
@@ -162,6 +179,8 @@ def attach_model_info(ctx: PageContext) -> None:
             logger.debug(f"credentials: stored {provider = }\n{endpoint = }")
             key_input.value = ""
             await _refresh_scope(not ctx.chat_id)
+            if on_credentials_changed is not None:
+                await on_credentials_changed()
             cred_dialog.close()
 
         async def _clear_key(provider: str, endpoint: str, cred_dialog):
@@ -177,6 +196,8 @@ def attach_model_info(ctx: PageContext) -> None:
                 return
             logger.debug(f"credentials: cleared {provider = }\n{endpoint = }")
             await _refresh_scope(not ctx.chat_id)
+            if on_credentials_changed is not None:
+                await on_credentials_changed()
             cred_dialog.close()
 
         # Small factories so the buttons get no-arg coroutine handlers:
@@ -256,45 +277,168 @@ def attach_model_info(ctx: PageContext) -> None:
             ui.notification("No model roles available to configure.", type="warning")
             return
 
+        stored = await fetch_credentials(ctx.server_url, ctx.user_id)
+        stored_by_scope: dict[tuple[str, str], dict] = {
+            (c.get("provider", ""), c.get("endpoint", "")): c for c in stored
+        }
+        logger.debug(
+            f"model config dialog: {len(stored_by_scope)} stored credential scope(s)"
+        )
+
+        def _current_info() -> dict:
+            """Return the latest model config for the dialog's scope.
+
+            Read fresh on every body refresh so credentials saved from the
+            nested credentials dialog are reflected instead of the snapshot
+            taken when the dialog opened.
+            """
+            if session_scope:
+                return ctx.session_model_info
+            return ensure_chat(ctx.user_id, chat_id).get("model_info", {})
+
+        def _live_credential(model_name: str, saved: dict) -> dict:
+            """Credential block for a (possibly unsaved) model string.
+
+            Provider and key requirement are derived client-side so typed
+            but unsaved models are recognised; the source/masked come from
+            the stored credentials or, when the scope matches, the saved
+            block.
+            """
+            scope = credential_scope(model_name)
+            provider = scope.provider or ""
+            endpoint = scope.endpoint or ""
+            block: dict[str, Any] = {
+                "provider": provider,
+                "endpoint": endpoint,
+                "requires_key": provider_requires_api_key(provider),
+            }
+            saved = saved or {}
+            same_scope = (
+                saved.get("provider", "") == provider
+                and (saved.get("endpoint") or "") == endpoint
+            )
+            stored_cred = stored_by_scope.get((provider, endpoint))
+            if stored_cred:
+                block["source"] = "user"
+                block["masked"] = stored_cred.get("masked", "")
+            elif same_scope and saved.get("source") in ("env", "user"):
+                block["source"] = saved.get("source")
+                block["masked"] = saved.get("masked", "")
+            else:
+                block["source"] = "none"
+                block["masked"] = ""
+            return block
+
+        def _live_info() -> dict:
+            """Model config built from the dialog's current input values."""
+            live: dict[str, Any] = {}
+            for role, cfg in _current_info().items():
+                cfg = dict(cfg)
+                model = role_values.get(role, cfg.get("model", ""))
+                cfg["model"] = model
+                cfg["credential"] = _live_credential(model, cfg.get("credential") or {})
+                live[role] = cfg
+            return live
+
+        def _credential_display(model_name: str, saved: dict) -> tuple[str, str]:
+            """Return ``(label, colour class)`` for a model's credential status."""
+            cred = _live_credential(model_name, saved)
+            provider = cred["provider"]
+            if not model_name:
+                return "No model selected", "text-grey-6"
+            if not provider:
+                return "No API key configured", "text-negative"
+            if not cred["requires_key"]:
+                return "No API key required", "text-grey-6"
+            if cred["source"] == "env":
+                return (
+                    f"Using API key from the environment ({provider})",
+                    "text-grey-6",
+                )
+            if cred["source"] == "user":
+                return (
+                    f"Stored API key {cred.get('masked', '')} ({provider})",
+                    "text-grey-6",
+                )
+            return f"No API key configured for {provider}", "text-negative"
+
+        def _on_model_change(role: str, value: str) -> None:
+            """Track a typed model and refresh just its credential label."""
+            role_values[role] = (value or "").strip()
+            saved = (_current_info().get(role, {}) or {}).get("credential") or {}
+            text, colour = _credential_display(role_values[role], saved)
+            label = role_labels.get(role)
+            if label is not None:
+                label.text = text
+                label.classes(remove="text-grey-6 text-negative")
+                label.classes(add=colour)
+            logger.debug(f"model dialog: live label {role = }\n{text = }")
+
+        # Keep the selected tab across body refreshes: a credential change
+        # rebuilds the tabs, and without this the user is bounced back to
+        # the first role.
+        selected_tab = {"value": roles[0].capitalize()}
+        # Current input values and per-role credential labels, so unsaved
+        # model edits survive a body refresh and their labels update live.
+        role_values: dict[str, str] = {
+            role: info.get(role, {}).get("model", "") for role in roles
+        }
+        role_labels: dict[str, Any] = {}
+        role_inputs: dict[str, Any] = {}
+
         # Enter an explicit slot: this may run in a background task (the
         # first-run prompt), which has no ambient slot (see PageContext).
         with ctx.dialog_container:
             dialog = ui.dialog()
 
-        async def _save_role(role: str, model_input, original_model: str):
-            new_model = model_input.value.strip()
-            if new_model == original_model:
-                # Nothing changed: avoid pinning an inherited value.
-                logger.debug(f"model config dialog: {role = } unchanged; not saving")
-                dialog.close()
-                return
-            logger.debug(
-                f"model config dialog: saving {role = }\n{original_model = }\n"
-                f"{new_model = }\n{session_scope = }"
-            )
-            if session_scope:
-                ok = await set_session_model_override(
-                    ctx.server_url, ctx.user_id, role, {"model": new_model}
+        async def _save_all() -> None:
+            """Persist every role changed in the dialog, not just the tab shown.
+
+            Each tab edits one role's model; Save must apply them all in one
+            go (otherwise the dialog has to be reopened per role).
+            """
+            info = _current_info()
+            saved: list[tuple[str, str]] = []
+            for role, model_input in role_inputs.items():
+                cfg = info.get(role, {})
+                if not cfg.get("modifiable", True):
+                    continue
+                new_model = model_input.value.strip()
+                original_model = cfg.get("model", "")
+                if new_model == original_model:
+                    # Nothing changed: avoid pinning an inherited value.
+                    continue
+                logger.debug(
+                    f"model config dialog: saving {role = }\n{original_model = }\n"
+                    f"{new_model = }\n{session_scope = }"
                 )
-            else:
-                ok = await set_model_override(
-                    ctx.server_url,
-                    ctx.user_id,
-                    chat_id,
-                    role,
-                    {"model": new_model, "promote_default": True},
-                )
-            if not ok:
-                logger.warning(
-                    "model config dialog: failed to save role=%s model=%s",
-                    role,
-                    new_model,
-                )
-                ui.notification("Failed to save the model.", type="negative")
-                return
-            logger.debug(f"model config dialog: saved {role = }")
+                if session_scope:
+                    ok = await set_session_model_override(
+                        ctx.server_url, ctx.user_id, role, {"model": new_model}
+                    )
+                else:
+                    ok = await set_model_override(
+                        ctx.server_url,
+                        ctx.user_id,
+                        chat_id,
+                        role,
+                        {"model": new_model, "promote_default": True},
+                    )
+                if not ok:
+                    logger.warning(
+                        "model config dialog: failed to save role=%s model=%s",
+                        role,
+                        new_model,
+                    )
+                    ui.notification(
+                        f"Failed to save the model for {role}.", type="negative"
+                    )
+                    return
+                saved.append((role, new_model))
+            logger.debug(f"model config dialog: saved roles: {saved}")
             dialog.close()
-            await _refresh_scope(session_scope)
+            if saved:
+                await _refresh_scope(session_scope)
 
         async def _clear_role(role: str):
             logger.debug(
@@ -313,14 +457,11 @@ def attach_model_info(ctx: PageContext) -> None:
                 ui.notification("Failed to reset the model.", type="negative")
                 return
             logger.debug(f"model config dialog: reset {role = }")
-            dialog.close()
+            # Keep the dialog open so several roles can be reset, then
+            # saved together; the input reverts to the inherited model.
             await _refresh_scope(session_scope)
-
-        def _on_save_role(role: str, model_input, original_model: str):
-            async def _handler() -> None:
-                await _save_role(role, model_input, original_model)
-
-            return _handler
+            role_values.pop(role, None)
+            _render_body.refresh()
 
         def _on_clear_role(role: str):
             async def _handler() -> None:
@@ -328,80 +469,111 @@ def attach_model_info(ctx: PageContext) -> None:
 
             return _handler
 
-        async def _open_credentials() -> None:
-            await _credentials_dialog(info)
+        async def _refresh_after_credentials() -> None:
+            """Re-read stored credentials and rebuild the model dialog."""
+            stored = await fetch_credentials(ctx.server_url, ctx.user_id)
+            stored_by_scope.clear()
+            stored_by_scope.update(
+                {(c.get("provider", ""), c.get("endpoint", "")): c for c in stored}
+            )
+            logger.debug(
+                f"model dialog: refreshed {len(stored_by_scope)} stored scope(s)"
+            )
+            _render_body.refresh()
 
-        with dialog, ui.card().classes("w-full p-4"):
-            ui.label(
-                "Default models" if session_scope else "Models for this chat"
-            ).classes("text-lg font-bold")
-            ui.label(
-                "These defaults apply to new chats until overridden in a chat."
-                if session_scope
-                else "Saving here also updates your default models, so new "
-                "chats start from them."
-            ).classes("text-xs text-grey-5")
-            with ui.tabs().classes("w-full") as tabs:
-                tab_map = {}
-                for role in roles:
-                    cfg = info.get(role, {})
-                    modifiable = cfg.get("modifiable", True)
-                    tab_map[role] = ui.tab(
-                        name=role.capitalize(),
-                        label=role.capitalize(),
-                        icon="lock" if not modifiable else None,
-                    )
-            with ui.tab_panels(tabs, value=roles[0].capitalize()).classes("w-full"):
-                for role in roles:
-                    cfg = info.get(role, {})
-                    modifiable = cfg.get("modifiable", True)
-                    original_model = cfg.get("model", "")
-                    with ui.tab_panel(tab_map[role]):
-                        model_input = ui.input("Model", value=original_model).classes(
-                            "w-full"
+        async def _open_credentials() -> None:
+            # Pass the live (typed, possibly unsaved) config so a provider
+            # that only appears in an unsaved model still gets a key scope.
+            await _credentials_dialog(_live_info(), _refresh_after_credentials)
+
+        @ui.refreshable
+        def _render_body() -> None:
+            """Render the tabs for the current model config.
+
+            Refreshable so a credential change (saved in the nested
+            credentials dialog) updates the per-role key status without
+            closing and reopening this dialog.
+            """
+            info = _current_info()
+            roles = list(info.keys())
+            if not roles:
+                logger.warning("model config dialog: refresh found no roles")
+                return
+            role_tabs = [role.capitalize() for role in roles]
+            value = (
+                selected_tab["value"]
+                if selected_tab["value"] in role_tabs
+                else role_tabs[0]
+            )
+            with ui.card().classes("w-full p-4"):
+                ui.label(
+                    "Default models" if session_scope else "Models for this chat"
+                ).classes("text-lg font-bold")
+                ui.label(
+                    "These defaults apply to new chats until overridden in a chat."
+                    if session_scope
+                    else "Saving here also updates your default models, so new "
+                    "chats start from them."
+                ).classes("text-xs text-grey-5")
+                tabs = ui.tabs().classes("w-full")
+                tabs.on_value_change(lambda e: selected_tab.update(value=e.value))
+                with tabs:
+                    tab_map = {}
+                    for role in roles:
+                        cfg = info.get(role, {})
+                        modifiable = cfg.get("modifiable", True)
+                        tab_map[role] = ui.tab(
+                            name=role.capitalize(),
+                            label=role.capitalize(),
+                            icon="lock" if not modifiable else None,
                         )
-                        if not modifiable:
-                            model_input.disable()
-                        cred = cfg.get("credential") or {}
-                        provider = cred.get("provider", "")
-                        if not cred.get("requires_key", True):
-                            ui.label("No API key required").classes(
-                                "text-xs text-grey-6"
+                tabs.value = value
+                with ui.tab_panels(tabs, value=value).classes("w-full"):
+                    for role in roles:
+                        cfg = info.get(role, {})
+                        modifiable = cfg.get("modifiable", True)
+                        original_model = cfg.get("model", "")
+                        with ui.tab_panel(tab_map[role]):
+                            model_value = role_values.get(role, original_model)
+                            model_input = ui.input("Model", value=model_value).classes(
+                                "w-full"
                             )
-                        elif cred.get("source") == "env":
-                            ui.label(
-                                f"Using API key from the environment ({provider})"
-                            ).classes("text-xs text-grey-6")
-                        elif cred.get("source") == "user":
-                            ui.label(
-                                f"Stored API key {cred.get('masked', '')} ({provider})"
-                            ).classes("text-xs text-grey-6")
-                        else:
-                            ui.label(f"No API key configured for {provider}").classes(
-                                "text-xs text-negative"
+                            role_inputs[role] = model_input
+                            if not modifiable:
+                                model_input.disable()
+                            else:
+                                model_input.on_value_change(
+                                    lambda e, r=role: _on_model_change(r, e.value)
+                                )
+                            cred_text, cred_colour = _credential_display(
+                                model_value, cfg.get("credential") or {}
                             )
-                        if not modifiable:
-                            ui.label("Locked by administrator").classes(
-                                "text-xs text-grey-5 italic"
+                            role_labels[role] = ui.label(cred_text).classes(
+                                f"text-xs {cred_colour}"
                             )
-                        else:
-                            with ui.row().classes("w-full justify-end gap-2"):
-                                ui.button(
-                                    "Reset",
-                                    on_click=_on_clear_role(role),
-                                ).props("flat")
-                                ui.button(
-                                    "Save",
-                                    on_click=_on_save_role(
-                                        role, model_input, original_model
-                                    ),
-                                ).props("unelevated color=primary")
-            with ui.row().classes("w-full justify-between items-center"):
-                ui.button(
-                    "Manage API keys",
-                    on_click=_open_credentials,
-                ).props("flat")
-                ui.button("Close", on_click=dialog.close).props("flat")
+                            if not modifiable:
+                                ui.label("Locked by administrator").classes(
+                                    "text-xs text-grey-5 italic"
+                                )
+                            else:
+                                with ui.row().classes("w-full justify-end"):
+                                    ui.button(
+                                        "Reset",
+                                        on_click=_on_clear_role(role),
+                                    ).props("flat")
+                with ui.row().classes("w-full justify-between items-center"):
+                    ui.button(
+                        "Manage API keys",
+                        on_click=_open_credentials,
+                    ).props("flat")
+                    with ui.row().classes("gap-2"):
+                        ui.button("Close", on_click=dialog.close).props("flat")
+                        ui.button("Save", on_click=_save_all).props(
+                            "unelevated color=primary"
+                        )
+
+        with dialog:
+            _render_body()
 
         dialog.open()
 

@@ -81,6 +81,7 @@ def attach_chat_list(ctx: PageContext) -> None:
                 ctx.render_chat_area()
                 ctx.refresh_chat_list()
                 ctx.refresh_status_pane()
+                ctx.refresh_send_state()
                 ctx.reset_center_tab()
                 ctx.refresh_inspector()
         else:
@@ -256,9 +257,19 @@ def attach_chat_list(ctx: PageContext) -> None:
             ctx.user_id,
             old_id,
         )
+        # The new identity has no model overrides or credentials --- they
+        # were purged with the old user's data --- so drop the cached
+        # config and re-resolve it.  Without this the status pane and the
+        # chat-area "choose a model" prompt keep showing the old user's
+        # setup.
+        ctx.session_model_info = {}
+        ctx.credentials = []
+        if ctx.fetch_session_model_info is not None:
+            await ctx.fetch_session_model_info()
         ctx.render_chat_area()
         ctx.refresh_chat_list()
         ctx.refresh_status_pane()
+        ctx.refresh_send_state()
         dialog.close()
 
     def _toggle_left_drawer():
