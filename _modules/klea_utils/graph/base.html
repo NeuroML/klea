@@ -1335,7 +1335,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_astream_events">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_astream_events</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1369,11 +1369,14 @@
 
 <span class="sd">        Reference: https://docs.langchain.com/oss/python/langgraph/event-streaming</span>
 
-<span class="sd">        :param query: User query string</span>
+<span class="sd">        :param query: User query string, or ``None`` to **resume** the thread</span>
+<span class="sd">            from its last checkpoint (see the fault-tolerance note).  On resume</span>
+<span class="sd">            the graph re-enters the failed node rather than the entry node, so</span>
+<span class="sd">            per-turn state is preserved; ``extra_state`` is ignored.</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
-<span class="sd">            request).</span>
+<span class="sd">            request).  Ignored when *query* is ``None`` (resume).</span>
 <span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
 <span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :yields: Structured event dicts</span>
@@ -1383,12 +1386,19 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
-        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
-            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Resume: pass ``None`` so LangGraph continues from the checkpoint</span>
+            <span class="c1"># at the failed node (it does not re-enter the entry node).</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+                <span class="n">graph_input</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">graph_input</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="n">stream</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream_events</span><span class="p">(</span>
-            <span class="n">input_state</span><span class="p">,</span>
+            <span class="n">graph_input</span><span class="p">,</span>
             <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
             <span class="n">version</span><span class="o">=</span><span class="s2">"v3"</span><span class="p">,</span>
             <span class="n">transformers</span><span class="o">=</span><span class="p">[</span><span class="n">_CustomChannelEnabler</span><span class="p">],</span>

@@ -309,6 +309,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
@@ -362,6 +363,16 @@
 <span class="c1">#: providers (notably HuggingFace) intermittently return a successful but</span>
 <span class="c1">#: blank message; the retry is a plain re-invoke with no window change.</span>
 <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1">#: Max times to retry a transiently failed invoke (a timeout, e.g. a stalled</span>
+<span class="c1">#: stream that never produced a chunk).  Rate limits, auth and model-not-found</span>
+<span class="c1">#: failures are deliberately *not* retried here: the provider SDK already</span>
+<span class="c1">#: retries ``429``/``5xx`` and honours ``Retry-After``, so retrying again</span>
+<span class="c1">#: would multiply the attempts and can amplify a rate limit.</span>
+<span class="n">MAX_TRANSIENT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1">#: Base backoff (seconds) between transient retries; doubles each attempt.</span>
+<span class="n">TRANSIENT_RETRY_BACKOFF_S</span> <span class="o">=</span> <span class="mf">1.0</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_current_session_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
@@ -937,7 +948,7 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Invoke an LLM with adaptive retries on length-related failures.</span>
 
-<span class="sd">        Three retry behaviours, all bounded:</span>
+<span class="sd">        Four retry behaviours, all bounded:</span>
 
 <span class="sd">        * ``context_overflow`` errors (request rejected because input plus</span>
 <span class="sd">          the reserved output exceeds the window) retry up to</span>
@@ -954,6 +965,10 @@
 <span class="sd">        * Empty responses (some providers, notably HuggingFace,</span>
 <span class="sd">          intermittently return a blank successful message) retry up to</span>
 <span class="sd">          :data:`MAX_EMPTY_OUTPUT_RETRIES` times with a plain re-invoke.</span>
+<span class="sd">        * Transient timeouts (e.g. a stream that stalls after the response</span>
+<span class="sd">          starts) retry up to :data:`MAX_TRANSIENT_RETRIES` times with an</span>
+<span class="sd">          exponential backoff.  The provider SDK's own retries do not cover</span>
+<span class="sd">          a post-response stall, so this is the only layer that can.</span>
 
 <span class="sd">        All other failures (rate limits, auth, model-not-found, ...) are</span>
 <span class="sd">        re-raised immediately.  Retrying stops early if resizing the</span>
@@ -967,6 +982,7 @@
         <span class="n">overflow_retries</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">truncation_retries</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">empty_retries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">transient_retries</span> <span class="o">=</span> <span class="mi">0</span>
 
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
@@ -1014,6 +1030,22 @@
                         <span class="n">empty_retries</span><span class="p">,</span>
                         <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="k">continue</span>
+
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">category</span> <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">TIMEOUT</span>
+                    <span class="ow">and</span> <span class="n">transient_retries</span> <span class="o">&lt;</span> <span class="n">MAX_TRANSIENT_RETRIES</span>
+                <span class="p">):</span>
+                    <span class="n">transient_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">delay</span> <span class="o">=</span> <span class="n">TRANSIENT_RETRY_BACKOFF_S</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">transient_retries</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Transient LLM timeout, retrying in </span><span class="si">%.1f</span><span class="s2">s (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="n">delay</span><span class="p">,</span>
+                        <span class="n">transient_retries</span><span class="p">,</span>
+                        <span class="n">MAX_TRANSIENT_RETRIES</span><span class="p">,</span>
+                        <span class="n">exc</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
                     <span class="k">continue</span>
                 <span class="k">raise</span>
 

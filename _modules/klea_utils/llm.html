@@ -1536,6 +1536,28 @@
     <span class="k">return</span> <span class="n">messages</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_exception_chain_has_timeout</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return True when *exc* or a cause is a timeout by type or class name.</span>
+
+<span class="sd">    Message heuristics miss timeouts whose text carries no "timeout" token</span>
+<span class="sd">    (for example ``langchain_openai``'s ``StreamChunkTimeoutError``), so the</span>
+<span class="sd">    exception type and class name are checked along the cause chain too.</span>
+
+<span class="sd">    :param exc: The exception to inspect.</span>
+<span class="sd">    :returns: True when a timeout exception is present in the chain.</span>
+<span class="sd">    """</span>
+    <span class="n">current</span><span class="p">:</span> <span class="ne">BaseException</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">exc</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">while</span> <span class="n">current</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">id</span><span class="p">(</span><span class="n">current</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">current</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
+            <span class="s2">"timeout"</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">current</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="o">.</span><span class="n">__cause__</span> <span class="ow">or</span> <span class="n">current</span><span class="o">.</span><span class="n">__context__</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_matches_any</span><span class="p">(</span><span class="n">patterns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">re</span><span class="o">.</span><span class="n">Pattern</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return True if any pattern matches anywhere in *text*."""</span>
     <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">patterns</span><span class="p">)</span>
@@ -1567,7 +1589,7 @@
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">AUTH_FAILED</span>
     <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_MODEL_NOT_FOUND_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">MODEL_NOT_FOUND</span>
-    <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_TIMEOUT_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_TIMEOUT_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_exception_chain_has_timeout</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">TIMEOUT</span>
     <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_STRUCTURED_OUTPUT_REJECTED_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>

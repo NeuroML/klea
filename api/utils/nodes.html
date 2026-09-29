@@ -552,6 +552,16 @@ catalog output limit / total budget by <code class="docutils literal notranslate
 </dd></dl>
 
 <dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.nodes.base.MAX_TRANSIENT_RETRIES">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">MAX_TRANSIENT_RETRIES</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#klea_utils.nodes.base.MAX_TRANSIENT_RETRIES" title="Link to this definition">¶</a></dt>
+<dd><p>Max times to retry a transiently failed invoke (a timeout, e.g. a stalled
+stream that never produced a chunk).  Rate limits, auth and model-not-found
+failures are deliberately <em>not</em> retried here: the provider SDK already
+retries <code class="docutils literal notranslate"><span class="pre">429</span></code>/<code class="docutils literal notranslate"><span class="pre">5xx</span></code> and honours <code class="docutils literal notranslate"><span class="pre">Retry-After</span></code>, so retrying again
+would multiply the attempts and can amplify a rate limit.</p>
+</dd></dl>
+
+<dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.nodes.base.MAX_TRUNCATION_RETRIES">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">MAX_TRUNCATION_RETRIES</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></span><a class="headerlink" href="#klea_utils.nodes.base.MAX_TRUNCATION_RETRIES" title="Link to this definition">¶</a></dt>
 <dd><p>Max times to retry an invoke whose output was truncated (<code class="docutils literal notranslate"><span class="pre">finish_reason</span>
@@ -565,6 +575,12 @@ cut short, while still bounding pathological repeated truncations.</p>
 <dt class="sig sig-object py" id="klea_utils.nodes.base.MIN_OUTPUT_TOKENS">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">MIN_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">64</span></span><a class="headerlink" href="#klea_utils.nodes.base.MIN_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
 <dd><p>Floor for the reserved output window when shrinking it on overflow.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">TRANSIENT_RETRY_BACKOFF_S</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S" title="Link to this definition">¶</a></dt>
+<dd><p>Base backoff (seconds) between transient retries; doubles each attempt.</p>
 </dd></dl>
 
 <dl class="py data">
@@ -970,8 +986,10 @@ this node uses.  Must match a key set up by the orchestrator in
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_CONTEXT_OVERFLOW_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_CONTEXT_OVERFLOW_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_EMPTY_OUTPUT_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_EMPTY_OUTPUT_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_OUTPUT_TOKENS_CEILING"><code class="docutils literal notranslate"><span class="pre">MAX_OUTPUT_TOKENS_CEILING</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.nodes.base.MAX_TRANSIENT_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_TRANSIENT_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_TRUNCATION_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_TRUNCATION_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MIN_OUTPUT_TOKENS"><code class="docutils literal notranslate"><span class="pre">MIN_OUTPUT_TOKENS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S"><code class="docutils literal notranslate"><span class="pre">TRANSIENT_RETRY_BACKOFF_S</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.TRUNCATION_LINEAR_CAP"><code class="docutils literal notranslate"><span class="pre">TRUNCATION_LINEAR_CAP</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.TRUNCATION_LINEAR_STEP"><code class="docutils literal notranslate"><span class="pre">TRUNCATION_LINEAR_STEP</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.TRUNCATION_PHASE2_STEP"><code class="docutils literal notranslate"><span class="pre">TRUNCATION_PHASE2_STEP</span></code></a></li>
