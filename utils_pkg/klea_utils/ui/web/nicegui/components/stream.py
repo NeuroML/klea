@@ -18,7 +18,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from klea_utils.api.sse import stream_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
@@ -142,31 +142,46 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     return None
 
 
-async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
+def _retry_stream(ctx: PageContext, query: str, chat_id: str, error_row: Any) -> None:
+    """Remove the error row and resume the chat's last failed run."""
+    error_row.delete()
+    background_tasks.create(run_stream(ctx, query, chat_id, resume=True))
+
+
+async def run_stream(
+    ctx: PageContext, query: str, chat_id: str, resume: bool = False
+) -> None:
     """Stream a query's events into the UI for *chat_id*.
 
     Shows a progress row while streaming, commits the final answer and
-    inspector data on completion, and surfaces errors as nicegui
-    notifications.
+    inspector data on completion, and surfaces errors inline (with a Retry
+    action when the run can be resumed from its checkpoint).
 
     :param ctx: The shared page context.
-    :param query: The user's query text.
+    :param query: The user's query text (unused when resuming).
     :param chat_id: Chat conversation identifier.
+    :param resume: Resume the chat's last failed run instead of starting a
+        new turn (the query is not resent).
     """
     current_chat = ensure_chat(ctx.user_id, chat_id)
-    logger.debug("Streaming query for chat %s", chat_id)
+    logger.debug("Streaming query for chat %s (resume=%s)", chat_id, resume)
     ctx.is_streaming = True
     ctx.streaming_chat_id = chat_id
     current_chat["state_sections"] = {}
-    # Start a new inspector section for this query.  Entries are appended
-    # live; sections (and their entries) are kept for the session.
-    marker: InspectorMarker = {
-        "type": "query",
-        "text": query,
-        "stamp": datetime.now().astimezone().strftime("%X"),
-    }
-    current_chat["inspector_entries"].append(marker)
-    ctx.begin_inspector_section(chat_id, marker)
+    if resume:
+        # Continuing the same turn: keep the existing inspector section and
+        # re-activate it so appended entries land in the right place.
+        ctx.refresh_inspector()
+    else:
+        # Start a new inspector section for this query.  Entries are appended
+        # live; sections (and their entries) are kept for the session.
+        marker: InspectorMarker = {
+            "type": "query",
+            "text": query,
+            "stamp": datetime.now().astimezone().strftime("%X"),
+        }
+        current_chat["inspector_entries"].append(marker)
+        ctx.begin_inspector_section(chat_id, marker)
     ctx.refresh_status_pane()
 
     # run_stream runs in a background task, which has no ambient slot; enter
@@ -185,6 +200,7 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
             ctx.server_url,
             user_id=ctx.user_id,
             extra=ctx.query_extra or None,
+            resume=resume,
         ):
             t = event.get("type", "?")
             logger.debug("chat=%s stream event type=%s", chat_id, t)
@@ -211,23 +227,34 @@ async def run_stream(ctx: PageContext, query: str, chat_id: str) -> None:
             elif action == "error":
                 pg_row.delete()
                 error_msg = event.get("message", "Unknown error")
-                logger.debug("chat=%s stream error: %s", chat_id, error_msg)
+                resumable = bool(event.get("resumable"))
+                logger.debug(
+                    "chat=%s stream error: %s (resumable=%s)",
+                    chat_id,
+                    error_msg,
+                    resumable,
+                )
                 with ctx.stream_container:
-                    message = f"Error: {error_msg}"
-                    # Missing-model errors are actionable: point the user at
-                    # the Choose models dialog so they can set a model and
-                    # retry without leaving the page.
-                    if "No model configured" in error_msg:
-                        message += (
-                            " Use the settings (gear) icon to choose a model "
-                            "for this chat, then retry."
-                        )
-                    ui.notification(
-                        message,
-                        type="negative",
-                        timeout=10000,
-                        close_button=True,
-                    )
+                    error_row = ui.row().classes("w-full items-center gap-2 p-2")
+                    with error_row:
+                        ui.icon("error").classes("text-negative")
+                        message = f"Error: {error_msg}"
+                        # Missing-model errors are actionable: point the user
+                        # at the Choose models dialog so they can set a model
+                        # and retry without leaving the page.
+                        if "No model configured" in error_msg:
+                            message += (
+                                " Use the settings (gear) icon to choose a "
+                                "model for this chat, then retry."
+                            )
+                        ui.label(message).classes("text-xs text-negative flex-grow")
+                        if resumable:
+                            ui.button(
+                                "Retry",
+                                on_click=lambda row=error_row: _retry_stream(
+                                    ctx, query, chat_id, row
+                                ),
+                            ).props("flat dense color=primary")
                 ctx.is_streaming = False
                 ctx.streaming_chat_id = ""
                 ctx.refresh_status_pane()
