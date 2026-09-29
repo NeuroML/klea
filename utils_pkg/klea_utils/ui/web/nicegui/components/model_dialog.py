@@ -36,10 +36,11 @@ from klea_utils.api.sse import (
 )
 from klea_utils.llm import (
     PROVIDERS_WITHOUT_CUSTOM_URL,
+    ParsedModelName,
     credential_scope,
     join_model_string,
+    parse_model_name,
     provider_requires_api_key,
-    split_model_string,
 )
 from klea_utils.ui.web.nicegui.client import (
     clear_credential,
@@ -133,21 +134,34 @@ class _ModelPicker:
         :param load_models: Loads (and caches) the models for a provider.
         :param on_change: Called with the joined model string on any edit.
         """
-        self._original = split_model_string(model)
+        model = (model or "").strip()
+        try:
+            parsed = parse_model_name(model)
+        except ValueError:
+            # Half typed (e.g. ``openai:``): keep it whole in the model field
+            # so nothing the user typed is lost.
+            parsed = ParsedModelName(provider=None, model_name=model, suffix=None)
+        suffix = parsed.suffix or ""
+        is_url = suffix.startswith(("http://", "https://"))
+        self._original_provider = parsed.provider or ""
+        self._original_model = parsed.model_name
+        # Any other suffix (e.g. a HuggingFace inference provider) has no
+        # field of its own; it is put back on save while the model is unchanged.
+        self._original_suffix = "" if is_url else suffix
         self._load_models = load_models
         self._on_change = on_change
         self.provider = _autocomplete_select(
-            "Provider", self._original.provider, providers, self._provider_changed
+            "Provider", self._original_provider, providers, self._provider_changed
         )
         self.model = _autocomplete_select(
             "Model",
-            self._original.model,
-            models_for(self._original.provider),
+            self._original_model,
+            models_for(self._original_provider),
             lambda _: self._changed(),
         )
         self.url = ui.input(
             "Custom URL (optional)",
-            value=self._original.url,
+            value=suffix if is_url else "",
             on_change=lambda _: self._changed(),
         ).classes("w-full")
         with self.url:
@@ -162,18 +176,14 @@ class _ModelPicker:
         """The model string built from the current field values."""
         provider = (self.provider.value or "").strip()
         model = (self.model.value or "").strip()
-        # The variant (e.g. a HuggingFace inference provider) has no field
-        # yet, so keep it only while the model it belongs to is unchanged.
-        unchanged = (provider, model) == (
-            self._original.provider,
-            self._original.model,
-        )
-        return join_model_string(
-            provider,
-            model,
-            self.url.value or "",
-            self._original.variant if unchanged else "",
-        )
+        url = (self.url.value or "").strip()
+        if url and provider.lower() not in PROVIDERS_WITHOUT_CUSTOM_URL:
+            suffix = url
+        elif (provider, model) == (self._original_provider, self._original_model):
+            suffix = self._original_suffix
+        else:
+            suffix = None
+        return join_model_string(provider, model, suffix)
 
     def disable(self) -> None:
         """Disable all fields (locked roles)."""
@@ -557,7 +567,10 @@ def attach_model_info(ctx: PageContext) -> None:
         # Preload the providers already in use so the model fields open
         # with their suggestions.
         for model_name in role_values.values():
-            role_provider = split_model_string(model_name).provider
+            try:
+                role_provider = parse_model_name((model_name or "").strip()).provider
+            except ValueError:
+                continue
             if role_provider:
                 await _load_models(role_provider)
         logger.debug(
