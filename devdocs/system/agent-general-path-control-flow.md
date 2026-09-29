@@ -423,6 +423,28 @@ Evaluator prompt uses ``step_incomplete`` only when a specific further call is
 expected, ``need_replan`` when the observations show no progress toward the
 criterion, and ``abort`` when they show the goal is unreachable (above).
 
+## Fault tolerance and resume
+
+A node exception stops the run at the failed node; the checkpoint keeps the
+last successful super-step, so the run stays resumable.  Two mechanisms
+(ADR-0043):
+
+* Transient LLM timeouts (e.g. a stream that stalls after its response
+  starts) are retried inside ``BaseLLMNode._invoke_with_retries`` with a
+  bounded backoff; rate limits stay with the provider SDK (which retries
+  ``429``/``5xx`` and honours ``Retry-After``).
+* A failed run is resumed by invoking the thread with ``None`` (no query),
+  which re-runs only the failed node and downstream - completed tool side
+  effects are not repeated.  ``/query/stream`` exposes this as a
+  ``resume=true`` flag (no query) and the web UI offers a Retry action on a
+  ``resumable`` error.  A graph-rendered failure answer is deliberately not
+  produced: it would run to ``END`` and foreclose resume.
+
+The user turn is persisted when the run starts and the assistant reply on
+completion, so a failed turn is recorded and a resume completes the same turn
+without duplication (one user row, one assistant row).  Confirmed LangGraph
+semantics are in ``devdocs/system/graph-resume.md``.
+
 ## Answer synthesis
 
 ``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success),

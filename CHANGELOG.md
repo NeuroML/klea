@@ -24,10 +24,12 @@
 - Provider-scoped API credentials (per user, keyed by provider plus the endpoint for custom/explicit-URL models) with a `/credentials/{user_id}` API; keys are never returned raw (masked suffix and a `user`/`env`/`none` source only).
 - Stored credentials expire after a configurable TTL (`KLEA_CREDENTIAL_TTL_DAYS`, default 7 days; `0` disables) once unused, swept at startup and on access.
 - Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
+- Resumable runs: `/query/stream` accepts `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 
 ### Changed
 
 - RAG retrieval runs each retriever call and the cross-encoder inference in worker threads, so a slow store or model no longer blocks the server event loop for other sessions.
+- A streaming run records the user turn when it starts (not only on completion), so a turn that fails mid-run is visible and retryable; the assistant reply is recorded on completion.
 - A custom `/v1/messages` endpoint uses the `anthropic` provider and copies `OPENAI_API_KEY` to `anthropic_api_key`, with an explicit per-chat `api_key` override taking precedence.
 - `anthropic_api_key` and `huggingfacehub_api_token` are masked in log output.
 - Tool dispatch takes the per-tool `ToolInfo` (path metadata plus the read-only/destructive capability) instead of a raw metadata map.
@@ -50,6 +52,7 @@
 ### Fixed
 
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
+- A transient LLM timeout (including a stream that stalls after its response starts) is retried with bounded backoff instead of aborting the run; timeouts are also matched by exception type, not only message text.
 - Per-node token usage is now read from `response_metadata.token_usage` when `usage_metadata` is empty (gateways and OpenAI-compatible endpoints that report counts only in the raw payload), so token usage and reasoning-token counts are tracked and logged instead of being silently dropped.
 - Structured output that cannot be parsed (a blank or unrecoverable model response) now degrades to the node's typed fail-closed default instead of raising a parser error that aborted the run.
 - Web UI: theme-aware design tokens in the shared NiceGUI theme, so icon buttons, segmented mode/access controls, muted text, secondary greys, the panel/page background and the footer surface follow dark mode instead of Quasar's fixed palette.
@@ -79,6 +82,7 @@
 - Session-scoped artefacts: a completed task's deliverable is persisted as a concise artefact and is available to later tasks in the same session.
 - The agent loads the project instruction file (`AGENTS.md`, falling back to `CLAUDE.md`) into session-scoped discovery (re-read only when it changes) and renders it into the Planner and final-answer prompts, so project conventions inform both planning and the reply.
 - Unified replan reason: automated replans (tool failure or `need_replan`) carry a concrete reason back to the Planner.
+- Agent chat payload accepts `resume` to resume a failed run from its checkpoint on `/query/stream` (no query sent); `/query` rejects it.
 
 ### Changed
 

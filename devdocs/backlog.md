@@ -11,6 +11,10 @@ Last updated: 2026-09-28.
 - Replace the `AwaitReview` stub (`STUB_REVIEW`, canned "Looks good,
   proceed") with real LangGraph `interrupt()` / `Command(resume=...)`; add
   the API and web UI resume path.  `agent_pkg/klea_agent/nodes/await_review.py`.
+  The failure-resume path already exists (`resume=true` on `/query/stream`,
+  checkpoint continuation, ADR-0043) and should be reused: an interrupt resume
+  is the same `Command(resume=...)` over the same thread, so only the
+  interrupt source and the payload differ.
 - Decide the semantics: resume the **same** execution with state intact vs
   start a new turn.
 - Generalise `AwaitReview` into a reusable await-user node and wire
@@ -112,6 +116,13 @@ Last updated: 2026-09-28.
 
 ## Testing
 
+- Fault-injection hook to exercise the resume path end to end: LangGraph has
+  no external interrupt/pause API (only `interrupt()` inside a node, or
+  LangSmith), so a mid-run node failure is hard to trigger by hand.  Add a
+  deterministic test hook (e.g. a debug/fault-injection env var that makes a
+  chosen node raise once) so `resume=true` can be tested: the web Retry action,
+  checkpoint continuation from the failed node (not the entry node), and
+  single-turn persistence (one user row, one assistant row).
 - Add a NiceGUI element-rendering test harness (e.g. `nicegui.testing.User`
   / `Screen` fixtures) so UI wiring can be asserted without a browser:
   dialogs rebuilding on credential/model change, the chat-area welcome CTA
