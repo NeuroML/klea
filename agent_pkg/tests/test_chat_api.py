@@ -344,15 +344,38 @@ class TestChat:
         )
         assert response.status_code == 422
 
-    async def test_query_rejects_resume(self, client):
-        """resume is only supported on the streaming endpoint."""
+    async def test_query_resume_invokes_none(self, client, app):
+        """POST /query with resume=true invokes the graph with None."""
         response = await client.post(
-            "/query", json={"chat_id": "c", "user_id": "u", "resume": True}
+            "/query", json={"chat_id": "r1", "user_id": "u", "resume": True}
         )
-        assert response.status_code == 400
+        assert response.status_code == 200
+        assert response.json() == {"result": "mock answer"}
+        app.state.graph.run_graph_invoke.assert_awaited_once_with(
+            None,
+            "user_u:chat_r1",
+            extra_state={"mode": {"requested": "general"}},
+            context={"model_overrides": {}},
+        )
 
-    async def test_query_error_not_stored(self, app, client):
-        """Graph error on /query raises 500 and nothing is persisted."""
+    async def test_query_rejects_query_with_resume(self, client):
+        """A resume request carrying a query is rejected by the payload schema."""
+        response = await client.post(
+            "/query",
+            json={"query": "hello", "chat_id": "c", "user_id": "u", "resume": True},
+        )
+        assert response.status_code == 422
+
+    async def test_query_stream_rejects_query_with_resume(self, client):
+        """The streaming resume also rejects a query."""
+        response = await client.post(
+            "/query/stream",
+            json={"query": "hello", "chat_id": "c", "user_id": "u", "resume": True},
+        )
+        assert response.status_code == 422
+
+    async def test_query_error_stores_only_user_turn(self, app, client):
+        """A failed /query still records the user turn (retryable), not an answer."""
         self.logger.info("Injecting error into run_graph_invoke")
         app.state.graph.run_graph_invoke.side_effect = Exception("boom")
 
@@ -365,5 +388,6 @@ class TestChat:
 
         store: SessionStore = app.state.chat_sessions
         messages = store.get_messages("err-user", "err-chat")
-        self.logger.info(f"Messages stored after error: {len(messages)}")
-        assert len(messages) == 0
+        self.logger.info(f"Messages stored after error: {messages}")
+        assert [m["role"] for m in messages] == ["user"]
+        assert messages[0]["content"] == "hello"

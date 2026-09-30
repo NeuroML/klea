@@ -890,7 +890,7 @@ class BaseLangGraph(ABC):
 
     async def run_graph_invoke(
         self,
-        query: str,
+        query: str | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -898,7 +898,9 @@ class BaseLangGraph(ABC):
     ) -> str:
         """Run the graph with a simple string query.
 
-        :param query: User query string
+        :param query: User query string, or ``None`` to **resume** the thread
+            from its last checkpoint (the failed node is re-run; the entry
+            node is not).  On resume ``extra_state`` is ignored.
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation (e.g. an app-specific ``mode`` request).  These are
@@ -925,12 +927,19 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        input_state = {"query": query}
-        if extra_state:
-            input_state.update(extra_state)
-        self._apply_access_level_default(input_state, extra_state)
+        graph_input: dict[str, Any] | None
+        if query is None:
+            # Resume: pass ``None`` so LangGraph continues from the checkpoint
+            # at the failed node (it does not re-enter the entry node).
+            self.logger.info("Resuming thread %s from checkpoint", thread_id)
+            graph_input = None
+        else:
+            graph_input = {"query": query}
+            if extra_state:
+                graph_input.update(extra_state)
+            self._apply_access_level_default(graph_input, extra_state)
         final_state = await self.graph.ainvoke(
-            input_state, config=config, context=context
+            graph_input, config=config, context=context
         )
 
         self.logger.debug(f"{final_state =}")
@@ -941,7 +950,7 @@ class BaseLangGraph(ABC):
 
     async def run_graph_stream(
         self,
-        query: str,
+        query: str | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -949,11 +958,12 @@ class BaseLangGraph(ABC):
     ):
         """Run the graph and yield intermediate ``message_for_user`` values.
 
-        :param query: User query string
+        :param query: User query string, or ``None`` to resume the thread
+            from its last checkpoint (see :meth:`run_graph_invoke`).
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
-            request).
+            request).  Ignored on resume.
         :param context: Per-run runtime context (ADR-0033), forwarded
             verbatim to the graph run (see :meth:`run_graph_invoke`).
         :yields: ``message_for_user`` strings from each node
@@ -963,12 +973,17 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        input_state = {"query": query}
-        if extra_state:
-            input_state.update(extra_state)
-        self._apply_access_level_default(input_state, extra_state)
+        graph_input: dict[str, Any] | None
+        if query is None:
+            self.logger.info("Resuming thread %s from checkpoint", thread_id)
+            graph_input = None
+        else:
+            graph_input = {"query": query}
+            if extra_state:
+                graph_input.update(extra_state)
+            self._apply_access_level_default(graph_input, extra_state)
         async for chunk in self.graph.astream(
-            input_state, config=config, context=context
+            graph_input, config=config, context=context
         ):
             for node, state in chunk.items():
                 self.logger.debug(f"{node}: {state!r}")
@@ -980,7 +995,7 @@ class BaseLangGraph(ABC):
 
     async def graph_stream(
         self,
-        query: str,
+        query: str | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -988,11 +1003,12 @@ class BaseLangGraph(ABC):
     ) -> Any:
         """Run the graph and return the raw astream result.
 
-        :param query: User query string
+        :param query: User query string, or ``None`` to resume the thread
+            from its last checkpoint (see :meth:`run_graph_invoke`).
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
-            request).
+            request).  Ignored on resume.
         :param context: Per-run runtime context (ADR-0033), forwarded
             verbatim to the graph run (see :meth:`run_graph_invoke`).
         :returns: Raw async generator from ``graph.astream()``
@@ -1002,11 +1018,16 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        input_state = {"query": query}
-        if extra_state:
-            input_state.update(extra_state)
-        self._apply_access_level_default(input_state, extra_state)
-        res = self.graph.astream(input_state, config=config, context=context)
+        graph_input: dict[str, Any] | None
+        if query is None:
+            self.logger.info("Resuming thread %s from checkpoint", thread_id)
+            graph_input = None
+        else:
+            graph_input = {"query": query}
+            if extra_state:
+                graph_input.update(extra_state)
+            self._apply_access_level_default(graph_input, extra_state)
+        res = self.graph.astream(graph_input, config=config, context=context)
         return res
 
     async def run_graph_astream_events(

@@ -756,6 +756,43 @@ class TestRunContextForwarding:
         assert method == "astream_events"
         assert compiled.inputs[-1] is None
 
+    async def test_run_graph_invoke_resume_passes_none(self):
+        """query=None resumes the invoke path with a None input."""
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+
+        result = await graph.run_graph_invoke(None, "t")
+
+        assert result == "ok"
+        method, _ = compiled.calls[-1]
+        assert method == "ainvoke"
+        assert compiled.inputs[-1] is None
+
+    async def test_run_graph_stream_resume_passes_none(self):
+        """query=None resumes the streaming path with a None input."""
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+
+        msgs = [m async for m in graph.run_graph_stream(None, "t")]
+
+        assert msgs == ["ok"]
+        method, _ = compiled.calls[-1]
+        assert method == "astream"
+        assert compiled.inputs[-1] is None
+
+    async def test_graph_stream_resume_passes_none(self):
+        """query=None resumes the raw astream path with a None input."""
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+
+        gen = await graph.graph_stream(None, "t")
+        chunks = [c async for c in gen]
+
+        assert chunks == [{"node": {"message_for_user": "ok"}}]
+        method, _ = compiled.calls[-1]
+        assert method == "astream"
+        assert compiled.inputs[-1] is None
+
 
 def test_token_streaming_is_opt_in():
     """Nodes default to no token streaming; free-text AnswerGeneral opts in."""

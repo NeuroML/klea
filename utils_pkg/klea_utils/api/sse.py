@@ -25,12 +25,35 @@ from ..llm import parse_model_name
 logger = logging.getLogger(__name__)
 
 
+def _stream_payload(
+    query: str,
+    chat_id: str,
+    user_id: str,
+    resume: bool,
+    extra: dict | None,
+) -> dict:
+    """Build the ``/query/stream`` POST body.
+
+    On *resume* the ``query`` is omitted (the server resumes the thread's
+    last failed run from its checkpoint); otherwise it is required.
+    """
+    payload: dict = {"chat_id": chat_id, "user_id": user_id}
+    if resume:
+        payload["resume"] = True
+    else:
+        payload["query"] = query
+    if extra:
+        payload.update(extra)
+    return payload
+
+
 async def stream_events(
     query: str,
     chat_id: str,
     server_url: str,
     user_id: str = "",
     extra: dict | None = None,
+    resume: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """POST to ``/query/stream`` and yield parsed SSE event dicts.
 
@@ -43,7 +66,8 @@ async def stream_events(
         usage       {"type": "usage", "node": "<label>", "data": {...}}
         context     {"type": "context", "data": {...}}  (graph-level session context)
         complete    {"type": "complete", "message_for_user": "<text>"}
-        error       {"type": "error", "message": "<text>", "error_type": "<class>", "node": "<label>"}
+        error       {"type": "error", "message": "<text>", "error_type": "<class>",
+                     "node": "<label>", "resumable": <bool>}
 
     This async generator is intended for NiceGUI and TUI frontends.
 
@@ -53,11 +77,11 @@ async def stream_events(
     :param user_id: Opaque persistent user identifier.
     :param extra: Optional extra request fields merged into the POST body
         (e.g. an app-specific ``mode`` request, ADR-0030).
+    :param resume: Resume the chat's last failed run from its checkpoint
+        instead of starting a new turn (the query is not sent).
     """
     url = f"{server_url}/query/stream"
-    payload: dict = {"query": query, "chat_id": chat_id, "user_id": user_id}
-    if extra:
-        payload.update(extra)
+    payload = _stream_payload(query, chat_id, user_id, resume, extra)
     async with (
         httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(
@@ -314,6 +338,7 @@ def stream_events_sync(
     server_url: str,
     user_id: str = "",
     extra: dict | None = None,
+    resume: bool = False,
 ) -> Generator[dict, None, None]:
     """Synchronous counterpart of :func:`stream_events`.
 
@@ -326,11 +351,11 @@ def stream_events_sync(
     :param user_id: Opaque persistent user identifier.
     :param extra: Optional extra request fields merged into the POST body
         (e.g. an app-specific ``mode`` request, ADR-0030).
+    :param resume: Resume the chat's last failed run from its checkpoint
+        instead of starting a new turn (the query is not sent).
     """
     url = f"{server_url}/query/stream"
-    payload: dict = {"query": query, "chat_id": chat_id, "user_id": user_id}
-    if extra:
-        payload.update(extra)
+    payload = _stream_payload(query, chat_id, user_id, resume, extra)
     with (
         httpx.Client(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(

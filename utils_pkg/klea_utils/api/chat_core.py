@@ -174,9 +174,10 @@ def migrate_legacy_overrides(store: SessionStore) -> int:
 async def run_query(
     request: Request,
     *,
-    query: str,
+    query: str | None = None,
     user_id: str,
     chat_id: str,
+    resume: bool = False,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
 ) -> str:
@@ -184,16 +185,20 @@ async def run_query(
 
     Applies the stored per-chat model overrides for the duration of the
     call (via the LangGraph Runtime context, ADR-0033), maps graph errors
-    onto HTTP status codes, and writes the user query + assistant answer
-    to the session store.
+    onto HTTP status codes, and writes the user turn when the run starts and
+    the assistant reply on success (so a failed turn is recorded and a
+    resume completes it without duplication).
 
     :param request: Request carrying ``app.state.graph`` / ``chat_sessions``
-    :param query: User query text
+    :param query: User query text; required unless *resume* is true, and
+        must be empty when *resume* is true
     :param user_id: Persistent user identifier
     :param chat_id: Chat conversation identifier
+    :param resume: Resume the thread's last failed run from its checkpoint
+        (invoked with ``None``; no user turn is written)
     :param extra_state: Optional app-specific initial state fields passed
         to the graph invocation (e.g. the agent's operating ``mode``
-        request).
+        request).  Ignored on resume.
     :param context_fields: Optional app-defined per-run context fields that
         the plumbing forwards together with the framework-provided
         ``model_overrides`` slice (ADR-0033).  The assembled dict is
@@ -209,10 +214,13 @@ async def run_query(
         not produced on the bare ``ainvoke`` path (``run_graph_invoke``)
         -- fetch it via ``/query/stream`` ``context`` events or the
         hydration endpoint ``GET /chat/{user_id}/{chat_id}/context``.
-    :raises HTTPException: 400 on ``ValueError``, 503 on ``RuntimeError``,
-        500 on any other failure
+    :raises HTTPException: 400 on a missing/extra query, an empty resume,
+        or ``ValueError``; 503 on ``RuntimeError``; 500 on any other failure
     """
-    # Lazy: BaseLangGraph is the base class for all graphs.
+    # Lazy: BaseLangGraph is the base class for all graphs; EmptyInputError is
+    # only needed when a resume finds nothing to continue.
+    from langgraph.errors import EmptyInputError
+
     from klea_utils.graph.base import BaseLangGraph
 
     graph: BaseLangGraph
@@ -220,14 +228,30 @@ async def run_query(
     graph, store = _graph_and_store(request)
     thread_id = thread_id_for(user_id, chat_id)
     logger.debug(
-        "run_query(user_id=%s chat_id=%s) thread=%s context_fields=%s",
+        "run_query(user_id=%s chat_id=%s) thread=%s resume=%s context_fields=%s",
         user_id,
         chat_id,
         thread_id,
+        resume,
         list((context_fields or {}).keys()),
     )
 
+    user_message = (query or "").strip()
+    if resume and user_message:
+        raise HTTPException(
+            status_code=400, detail="query must be empty when resume is true"
+        )
+    if not resume and not user_message:
+        raise HTTPException(
+            status_code=400, detail="query is required unless resume is true"
+        )
+
     store.create_chat(user_id, chat_id)
+    if not resume:
+        # Record the user turn when the run starts (not only on success), so
+        # a turn that fails mid-run is still visible and retryable.
+        store.add_message(user_id, chat_id, "user", user_message)
+
     # Per-run runtime context (ADR-0033): the framework provides the stored
     # per-chat ``model_overrides`` slice; apps may add their own fields via
     # ``context_fields``.  The plain dict is coerced/validated against the
@@ -243,10 +267,12 @@ async def run_query(
     logger.debug("run_query: assembled runtime context=%s", mask_sensitive(context))
     try:
         result = await graph.run_graph_invoke(
-            query, thread_id, extra_state=extra_state, context=context
+            None if resume else user_message,
+            thread_id,
+            extra_state=extra_state,
+            context=context,
         )
         message = result if isinstance(result, str) else str(result)
-        store.add_message(user_id, chat_id, "user", query)
         store.add_message(user_id, chat_id, "assistant", message)
         logger.info(
             "run_query(user_id=%s chat_id=%s): answer %d chars",
@@ -254,6 +280,13 @@ async def run_query(
             chat_id,
             len(message),
         )
+    except EmptyInputError as e:
+        logger.warning(
+            "run_query: resume requested but nothing to resume for thread=%s: %s",
+            thread_id,
+            e,
+        )
+        raise HTTPException(status_code=400, detail="Nothing to resume for this chat.")
     except ValueError as e:
         logger.warning(f"Bad request: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -309,7 +342,8 @@ def stream_response(
     (with a ``resumable`` hint) instead of dropping the stream.
 
     :param request: Request carrying ``app.state.graph`` / ``chat_sessions``
-    :param query: User query text; required unless *resume* is true
+    :param query: User query text; required unless *resume* is true, and
+        must be empty when *resume* is true
     :param user_id: Persistent user identifier
     :param chat_id: Chat conversation identifier
     :param resume: Resume the thread's last failed run from its checkpoint.
@@ -353,6 +387,10 @@ def stream_response(
     )
 
     user_message = (query or "").strip()
+    if resume and user_message:
+        raise HTTPException(
+            status_code=400, detail="query must be empty when resume is true"
+        )
     if not resume and not user_message:
         raise HTTPException(
             status_code=400, detail="query is required unless resume is true"

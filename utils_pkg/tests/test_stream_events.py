@@ -328,6 +328,18 @@ class TestStreamEventsClient:
         assert body["mode"] == "scientific"
         assert events == [{"type": "complete", "message_for_user": "ok"}]
 
+    async def test_resume_omits_query_and_sets_flag(self, sse_transport):
+        """On resume the body carries ``resume`` and drops the query."""
+        await stream_events("q", "c", "http://backend", resume=True).__anext__()
+        body = json.loads(sse_transport[0].content)
+        assert body == {"chat_id": "c", "user_id": "", "resume": True}
+
+    def test_resume_omits_query_and_sets_flag_sync(self, sse_transport):
+        """The synchronous variant omits the query on resume too."""
+        next(stream_events_sync("q", "c", "http://backend", resume=True))
+        body = json.loads(sse_transport[0].content)
+        assert body == {"chat_id": "c", "user_id": "", "resume": True}
+
 
 @pytest.fixture
 def catalogue_transport(monkeypatch):
