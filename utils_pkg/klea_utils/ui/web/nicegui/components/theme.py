@@ -226,7 +226,7 @@ def _add_css_overrides() -> None:
         "margin: 0; }"
     )
     ui.add_css(
-        ".q-tooltip { max-width: 350px !important; overflow: visible !important; white-space: nowrap !important; padding: 4px 8px !important; }"
+        ".q-tooltip { max-width: 350px !important; white-space: normal !important; padding: 4px 8px !important; }"
     )
     ui.add_css(
         ".model-tooltip { white-space: pre-wrap !important; max-width: none !important; }"

@@ -65,6 +65,7 @@ def _autocomplete_select(
     value: str,
     options: list[str],
     on_change: Callable[[str], Any],
+    description: str = "",
 ) -> ui.select:
     """A select that filters as you type and also accepts free text.
 
@@ -77,6 +78,8 @@ def _autocomplete_select(
     :param value: Initial value; kept as an option even if not in *options*.
     :param options: Suggestions to filter.
     :param on_change: Called with the new value; may be async.
+    :param description: Optional helper text, shown persistently under the
+        field and as a hover tooltip.
     :returns: The select element.
     """
     typed = {"text": value}
@@ -97,6 +100,10 @@ def _autocomplete_select(
         new_value_mode="add-unique",
         on_change=_changed,
     ).classes("w-full")
+    if description:
+        select.props(f'hint="{description}"')
+        with select:
+            ui.tooltip(description)
 
     def _on_input(e) -> None:
         typed["text"] = e.args if isinstance(e.args, str) else ""
@@ -171,13 +178,20 @@ class _ModelPicker:
         self._load_models = load_models
         self._on_change = on_change
         self.provider = _autocomplete_select(
-            "Provider", self._original_provider, providers, self._provider_changed
+            "Provider",
+            self._original_provider,
+            providers,
+            self._provider_changed,
+            description=(
+                "Pick one or use 'custom' for custom OpenAI compatible end points"
+            ),
         )
         self.model = _autocomplete_select(
             "Model",
             self._original_model,
             models_for(self._original_provider),
             lambda _: self._changed(),
+            description="Pick one or type in any model",
         )
         self.backend = ui.select(
             {
@@ -201,6 +215,10 @@ class _ModelPicker:
                 *sorted(HUGGINGFACE_ROUTING_POLICIES),
             ],
             lambda _: self._changed(),
+            description=(
+                "Pick one or type in an inference provider "
+                "(https://huggingface.co/inference/models)"
+            ),
         )
         self.url = ui.input(
             "Custom URL (optional)",
