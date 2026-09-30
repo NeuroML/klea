@@ -4,8 +4,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Concepts" href="concepts/index.html"><link rel="prev" title="Welcome to Klea" href="index.html">
+        <link rel="prefetch" href="_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Installation - Klea</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
@@ -183,8 +184,10 @@
     <div class="sidebar-container">
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="_static/klea-logo.png" alt="Logo"/>
+  </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -602,11 +605,14 @@ tables above.</p>
 <p>Model names are prefixed according to their provider:</p>
 <ul>
 <li><p><code class="docutils literal notranslate"><span class="pre">ollama:&lt;model_name&gt;:&lt;tag&gt;</span></code> for Ollama models</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;</span></code> for HuggingFace inference providers.
-The suffix <code class="docutils literal notranslate"><span class="pre">:local</span></code> selects the pipeline backend (runs the model
-locally), while any other suffix (e.g. <code class="docutils literal notranslate"><span class="pre">:endpoint</span></code>) selects the
-HuggingFace Endpoints API.  HuggingFace models additionally require
-the <code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code> environment variable to be set (see
+<li><p><code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;</span></code> for HuggingFace Inference Providers (the
+hosted API; HuggingFace chooses the provider by default).  The optional
+third segment selects the inference provider (e.g.
+<code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;:deepinfra</span></code>) or a routing policy
+(<code class="docutils literal notranslate"><span class="pre">:cheapest</span></code>, <code class="docutils literal notranslate"><span class="pre">:fastest</span></code>, <code class="docutils literal notranslate"><span class="pre">:preferred</span></code>).  Use
+<code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model_id&gt;:local</span></code> to run the model locally instead: the
+weights are downloaded and no API key is needed.  Hosted HuggingFace
+models require the <code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code> environment variable to be set (see
 <a class="reference external" href="https://huggingface.co/docs/hub/security-tokens">HuggingFace tokens</a>).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">custom:&lt;model_name&gt;:&lt;url&gt;</span></code> for endpoints not covered by a native
 provider.  A bare base URL defaults to the OpenAI Chat Completions API

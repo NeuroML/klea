@@ -276,11 +276,14 @@ tables above.
 Model names are prefixed according to their provider:
 
 * ``ollama:<model_name>:<tag>`` for Ollama models
-* ``huggingface:<model_id>`` for HuggingFace inference providers.
-  The suffix ``:local`` selects the pipeline backend (runs the model
-  locally), while any other suffix (e.g. ``:endpoint``) selects the
-  HuggingFace Endpoints API.  HuggingFace models additionally require
-  the ``HF_TOKEN`` environment variable to be set (see
+* ``huggingface:<model_id>`` for HuggingFace Inference Providers (the
+  hosted API; HuggingFace chooses the provider by default).  The optional
+  third segment selects the inference provider (e.g.
+  ``huggingface:<model_id>:deepinfra``) or a routing policy
+  (``:cheapest``, ``:fastest``, ``:preferred``).  Use
+  ``huggingface:<model_id>:local`` to run the model locally instead: the
+  weights are downloaded and no API key is needed.  Hosted HuggingFace
+  models require the ``HF_TOKEN`` environment variable to be set (see
   `HuggingFace tokens <https://huggingface.co/docs/hub/security-tokens>`_).
 * ``custom:<model_name>:<url>`` for endpoints not covered by a native
   provider.  A bare base URL defaults to the OpenAI Chat Completions API

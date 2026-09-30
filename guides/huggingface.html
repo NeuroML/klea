@@ -4,8 +4,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="CLI Reference" href="../cli/index.html"><link rel="prev" title="Create and use a RAG system" href="create-and-use-rag.html">
+        <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Deploying Klea RAG on HuggingFace Spaces - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -183,8 +184,10 @@
     <div class="sidebar-container">
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../_static/klea-logo.png" alt="Logo"/>
+  </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -416,12 +419,19 @@ the configuration schema.</p>
 <section id="step-5-edit-rag-env">
 <h2>Step 5: Edit <code class="docutils literal notranslate"><span class="pre">rag.env</span></code><a class="headerlink" href="#step-5-edit-rag-env" title="Link to this heading">¶</a></h2>
 <p>Set the chat, embedding, and guard models you want to use.  The
-default deployment uses the HuggingFace Inference API:</p>
+default deployment uses the HuggingFace Inference Providers (hosted) API:</p>
 <div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="na">KLEA_RAG_CHAT_MODEL</span><span class="o">=</span><span class="s">huggingface:&lt;model-id&gt;:&lt;provider&gt;</span>
 <span class="na">KLEA_RAG_EMBEDDING_MODEL</span><span class="o">=</span><span class="s">huggingface:&lt;model-id&gt;</span>
 <span class="na">KLEA_RAG_GUARD_MODEL</span><span class="o">=</span><span class="s">huggingface:&lt;model-id&gt;:&lt;provider&gt;</span>
 </pre></div>
 </div>
+<p>The <code class="docutils literal notranslate"><span class="pre">&lt;provider&gt;</span></code> segment selects the inference provider (e.g.
+<code class="docutils literal notranslate"><span class="pre">deepinfra</span></code>, <code class="docutils literal notranslate"><span class="pre">together</span></code>) or a routing policy (<code class="docutils literal notranslate"><span class="pre">cheapest</span></code>,
+<code class="docutils literal notranslate"><span class="pre">fastest</span></code>, <code class="docutils literal notranslate"><span class="pre">preferred</span></code>).  Omit it to let HuggingFace choose
+(<code class="docutils literal notranslate"><span class="pre">auto</span></code>).  Use the <code class="docutils literal notranslate"><span class="pre">:local</span></code> suffix (e.g.
+<code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model-id&gt;:local</span></code>) to run a model locally instead of on
+the hosted API - the weights are downloaded on first use, so pick a
+small model.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <p><a class="reference internal" href="../install.html"><span class="doc">Installation</span></a> describes all supported providers (HuggingFace,
