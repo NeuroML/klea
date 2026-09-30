@@ -35,6 +35,6 @@ class FixedAnswer(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
     @override
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Return fixed message."""
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         self.logger.debug({self.state_attr: self.message})
         return {self.state_attr: self.message}

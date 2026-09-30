@@ -47,6 +47,19 @@ class TestApplyStreamEvent:
         assert chat["messages"] == []
         assert chat["token_usage"]["total_tokens"] == 0
 
+    def test_progress_with_heading_ignored(self, chat):
+        """A retry progress (heading payload) still mutates nothing."""
+        result = apply_stream_event(
+            chat,
+            {
+                "type": "progress",
+                "node": "Planner",
+                "data": {"heading": "Planner (retry 1/2: timed out)"},
+            },
+        )
+        assert result is None
+        assert chat["inspector_entries"] == []
+
     def test_token_ignored(self, chat):
         """A token event mutates nothing."""
         assert apply_stream_event(chat, {"type": "token", "content": "hi"}) is None

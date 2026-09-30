@@ -39,7 +39,7 @@ class GuardRouterNode(AbstractRouterNode):
         :param state: Current graph state
         :returns: Routing label ("safe" or "unsafe")
         """
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         self.logger.debug(f"{state = }")
 
         guard_decision = getattr(state, "guard_decision", "safe")

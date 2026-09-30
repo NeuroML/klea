@@ -64,7 +64,9 @@ async def run_repl(
         with yaspin(text="Working ...", timer=True) as spinner:
             async for event in stream_events(query, chat_id, url):
                 if event["type"] == "progress":
-                    spinner.text = event["node"]
+                    spinner.text = (event.get("data") or {}).get("heading") or event[
+                        "node"
+                    ]
                 elif event["type"] == "complete":
                     full_response = event.get("message_for_user", "")
                     spinner.ok("[OK]")

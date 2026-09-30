@@ -153,7 +153,7 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
     @override
     async def execute(self, state: KleaAgentState) -> str:
         """Emit progress/info and return the routing label."""
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         route = self.decide(state)
 
         results = getattr(state, "tool_results", None) or []

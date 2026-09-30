@@ -52,7 +52,7 @@ class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         :param state: Current graph state
         :returns: State update carrying ``human_feedback``
         """
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         self.logger.debug(f"{state = }")
 
         feedback = self.STUB_REVIEW

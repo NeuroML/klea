@@ -205,7 +205,10 @@ async def run_stream(
             t = event.get("type", "?")
             logger.debug("chat=%s stream event type=%s", chat_id, t)
             if t == "progress":
-                pg_label.set_text(f"{event.get('node', '')}")
+                heading = (event.get("data") or {}).get("heading") or event.get(
+                    "node", ""
+                )
+                pg_label.set_text(heading)
                 continue
             action = apply_stream_event(current_chat, event)
             if action in ("usage", "state", "context"):

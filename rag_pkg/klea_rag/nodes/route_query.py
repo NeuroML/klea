@@ -35,7 +35,7 @@ class RouteQuery(AbstractRouterNode):
 
     def execute(self, state: RAGState):
         """Route based on query domains, set by query classifier node."""
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         self.logger.debug(f"{state =}")
         query_domains = state.query_domains
 

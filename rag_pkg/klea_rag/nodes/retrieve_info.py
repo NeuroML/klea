@@ -130,7 +130,7 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
                 self.logger.debug("No retrievers configured, skipping retrieval")
             return {"retrieval_attempts": retrieval_attempts}
 
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
 
         reference_material = dict(state.reference_material)
         # Apply the same normalization used at indexing time so query and

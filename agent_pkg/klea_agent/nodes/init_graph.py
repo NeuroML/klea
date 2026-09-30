@@ -61,7 +61,7 @@ class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         changes, so the Planner and answer-composer see current project
         conventions.
         """
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
         return {
             "guard_decision": "safe",
             "message_for_user": "",
