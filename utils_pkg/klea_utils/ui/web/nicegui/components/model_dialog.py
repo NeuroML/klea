@@ -40,7 +40,7 @@ from klea_utils.llm import (
     credential_scope,
     join_model_string,
     parse_model_name,
-    provider_requires_api_key,
+    requires_api_key,
 )
 from klea_utils.ui.web.nicegui.client import (
     clear_credential,
@@ -475,7 +475,7 @@ def attach_model_info(ctx: PageContext) -> None:
             block: dict[str, Any] = {
                 "provider": provider,
                 "endpoint": endpoint,
-                "requires_key": provider_requires_api_key(provider),
+                "requires_key": requires_api_key(model_name),
             }
             saved = saved or {}
             same_scope = (
