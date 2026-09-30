@@ -204,6 +204,84 @@ class TestStreamResponseResume:
 
         assert any('"resumable": false' in str(c) for c in chunks)
 
+    async def test_rejects_query_with_resume(self, store, graph):
+        """A resume must not carry a query."""
+        with pytest.raises(HTTPException):
+            chat_core.stream_response(
+                _make_request(store, graph),
+                query="x",
+                user_id="u",
+                chat_id="c",
+                resume=True,
+            )
+
+
+class TestRunQueryResume:
+    """Resume and turn-persistence behaviour of ``run_query`` (non-streaming)."""
+
+    async def test_resume_invokes_with_none(self, store, graph):
+        """A resume run passes ``None`` and writes no user row."""
+        result = await chat_core.run_query(
+            _make_request(store, graph), user_id="u", chat_id="c", resume=True
+        )
+
+        assert result == "answer"
+        graph.run_graph_invoke.assert_awaited_once()
+        assert graph.run_graph_invoke.await_args.args[0] is None
+        assert [m["role"] for m in store.get_messages("u", "c")] == ["assistant"]
+
+    async def test_persists_user_then_assistant(self, store, graph):
+        """A successful run records the user turn and the answer."""
+        await chat_core.run_query(
+            _make_request(store, graph), query="hello", user_id="u", chat_id="c"
+        )
+        assert [m["role"] for m in store.get_messages("u", "c")] == [
+            "user",
+            "assistant",
+        ]
+
+    async def test_user_row_persisted_on_failure(self, store, graph):
+        """A failed run still records the user turn."""
+        graph.run_graph_invoke.side_effect = RuntimeError("boom")
+
+        with pytest.raises(HTTPException):
+            await chat_core.run_query(
+                _make_request(store, graph), query="hello", user_id="u", chat_id="c"
+            )
+
+        assert [m["role"] for m in store.get_messages("u", "c")] == ["user"]
+
+    async def test_requires_query_unless_resume(self, store, graph):
+        """An empty query without ``resume`` is a 400."""
+        with pytest.raises(HTTPException):
+            await chat_core.run_query(
+                _make_request(store, graph), query="", user_id="u", chat_id="c"
+            )
+
+    async def test_rejects_query_with_resume(self, store, graph):
+        """A resume must not carry a query."""
+        with pytest.raises(HTTPException):
+            await chat_core.run_query(
+                _make_request(store, graph),
+                query="x",
+                user_id="u",
+                chat_id="c",
+                resume=True,
+            )
+
+    async def test_resume_with_nothing_is_400(self, store, graph):
+        """An EmptyInputError on resume is reported as a 400."""
+        from langgraph.errors import EmptyInputError
+
+        graph.run_graph_invoke.side_effect = EmptyInputError("no input")
+
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph), user_id="u", chat_id="c", resume=True
+            )
+
+        assert excinfo.value.status_code == 400
+
 
 class TestModelOverrideResolution:
     """chat_core.resolve_model_overrides merges layers + injects credentials."""
