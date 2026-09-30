@@ -441,6 +441,86 @@
 
 
 
+<span class="c1">#: HuggingFace provider id.  Its backend is selected by the third</span>
+<span class="c1">#: model-string segment: ``huggingface:&lt;model&gt;`` (or an inference provider /</span>
+<span class="c1">#: routing policy) uses the hosted Inference Providers API, while</span>
+<span class="c1">#: ``huggingface:&lt;model&gt;:local`` runs the model locally with the pipeline</span>
+<span class="c1">#: backend.</span>
+<span class="n">HUGGINGFACE_PROVIDER</span> <span class="o">=</span> <span class="s2">"huggingface"</span>
+<span class="c1">#: Suffix selecting the local (pipeline) HuggingFace backend.</span>
+<span class="n">HUGGINGFACE_LOCAL_SUFFIX</span> <span class="o">=</span> <span class="s2">"local"</span>
+<span class="c1">#: Inference provider used for the hosted backend when none is given (the</span>
+<span class="c1">#: HuggingFace router's default selection).</span>
+<span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span> <span class="o">=</span> <span class="s2">"auto"</span>
+<span class="c1">#: HuggingFace routing policies.  Unlike a concrete provider name these must</span>
+<span class="c1">#: be appended to the model id: the client's ``provider`` argument accepts</span>
+<span class="c1">#: only ``auto`` or a concrete provider name, not a policy.</span>
+<span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"cheapest"</span><span class="p">,</span> <span class="s2">"fastest"</span><span class="p">,</span> <span class="s2">"preferred"</span><span class="p">}</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="HuggingFaceBackend">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.HuggingFaceBackend">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HuggingFaceBackend</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Resolved HuggingFace backend for a model string suffix.</span>
+
+<span class="sd">    ``backend`` is the ``ChatHuggingFace`` backend (``"pipeline"`` or</span>
+<span class="sd">    ``"endpoint"``), ``model_id`` is the repo id to pass (with a routing</span>
+<span class="sd">    policy appended for the hosted backend), and ``kwargs`` are the</span>
+<span class="sd">    ``from_model_id`` kwargs to inject (``backend`` and, for the hosted</span>
+<span class="sd">    backend, ``provider``).</span>
+<span class="sd">    """</span>
+
+    <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">model_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_huggingface_backend">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_huggingface_backend">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_huggingface_backend</span><span class="p">(</span>
+    <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HuggingFaceBackend</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve the HuggingFace backend from a model name and its suffix.</span>
+
+<span class="sd">    ``:local`` selects the local pipeline backend; any other suffix is an</span>
+<span class="sd">    inference provider (``auto`` when absent) for the hosted Inference</span>
+<span class="sd">    Providers API.  The routing policies (:data:`HUGGINGFACE_ROUTING_POLICIES`)</span>
+<span class="sd">    are appended to the model id instead of being passed as ``provider``,</span>
+<span class="sd">    because the HuggingFace client's ``provider`` argument accepts only</span>
+<span class="sd">    ``auto`` or a concrete provider name.</span>
+
+<span class="sd">    :param model_name: HuggingFace repo id, e.g. ``"openai/gpt-oss-20b"``.</span>
+<span class="sd">    :param suffix: Third model-string segment, or ``None``.</span>
+<span class="sd">    :returns: The resolved :class:`HuggingFaceBackend`.</span>
+<span class="sd">    """</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
+            <span class="n">backend</span><span class="o">=</span><span class="s2">"pipeline"</span><span class="p">,</span> <span class="n">model_id</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"pipeline"</span><span class="p">}</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
+            <span class="n">backend</span><span class="o">=</span><span class="s2">"endpoint"</span><span class="p">,</span>
+            <span class="n">model_id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"endpoint"</span><span class="p">,</span>
+                <span class="s2">"provider"</span><span class="p">:</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
+        <span class="n">backend</span><span class="o">=</span><span class="s2">"endpoint"</span><span class="p">,</span>
+        <span class="n">model_id</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span>
+        <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"endpoint"</span><span class="p">,</span>
+            <span class="s2">"provider"</span><span class="p">:</span> <span class="n">suffix</span> <span class="ow">or</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="CredentialScope">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.CredentialScope">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">CredentialScope</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
@@ -485,16 +565,13 @@
 
 
 
-<div class="viewcode-block" id="provider_requires_api_key">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.provider_requires_api_key">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">provider_requires_api_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return whether *provider* needs an API key.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_provider_needs_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *provider* asks for an API key.</span>
 
 <span class="sd">    Local providers (e.g. Ollama) authenticate anonymously, so they must</span>
 <span class="sd">    not be treated as missing a credential.</span>
 <span class="sd">    """</span>
-    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">and</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_API_KEY</span></div>
-
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">and</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_API_KEY</span>
 
 
 <div class="viewcode-block" id="provider_api_key_env">
@@ -502,13 +579,43 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the env var holding *provider*'s API key, or ``None``.</span>
 
-<span class="sd">    Providers that need no key (see :func:`provider_requires_api_key`)</span>
-<span class="sd">    return ``None``.  Otherwise mirrors the SDK convention so the UI can</span>
-<span class="sd">    report whether a credential comes from the environment.</span>
+<span class="sd">    Providers that need no key (see :func:`requires_api_key`) return</span>
+<span class="sd">    ``None``.  Otherwise mirrors the SDK convention so the UI can report</span>
+<span class="sd">    whether a credential comes from the environment.</span>
 <span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">provider_requires_api_key</span><span class="p">(</span><span class="n">provider</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">provider</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">return</span> <span class="n">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="requires_api_key">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.requires_api_key">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">requires_api_key</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *model_name* needs an API key.</span>
+
+<span class="sd">    Accepts either a bare provider id (``openai``, ``ollama``) or a full</span>
+<span class="sd">    model string (``openai:gpt-4o``, ``huggingface:org/model:local``).</span>
+<span class="sd">    Local providers (Ollama) and locally-run HuggingFace models</span>
+<span class="sd">    (``huggingface:&lt;model&gt;:local``) authenticate locally and need no</span>
+<span class="sd">    credential; every other provider does.  A string that cannot be parsed</span>
+<span class="sd">    is judged by its provider part; a string with no ``:`` is treated as a</span>
+<span class="sd">    provider id.</span>
+<span class="sd">    """</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="p">(</span><span class="n">model_name</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="c1"># Half-typed ``provider:`` - judge by the provider part.</span>
+        <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">":"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span>
+        <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">)</span></div>
 
 
 
@@ -1427,10 +1534,12 @@
             <span class="n">provider</span><span class="o">=</span><span class="s2">"openai"</span><span class="p">,</span>
             <span class="n">base_url</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">,</span>
         <span class="p">)</span>
-    <span class="k">elif</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span><span class="p">:</span>
         <span class="c1"># "local" suffix -&gt; HuggingFaceEmbeddings (local sentence-transformers).</span>
-        <span class="c1"># Any other suffix -&gt; HuggingFaceEndpointEmbeddings (HF Inference API).</span>
-        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
+        <span class="c1"># Any other suffix (or none) -&gt; HuggingFaceEndpointEmbeddings (hosted</span>
+        <span class="c1"># Inference Providers API).</span>
+        <span class="n">hf_backend</span> <span class="o">=</span> <span class="n">resolve_huggingface_backend</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">backend</span> <span class="o">==</span> <span class="s2">"pipeline"</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="s2">"Using huggingface local embedding model: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
                 <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
@@ -1439,16 +1548,17 @@
 
             <span class="n">model_var</span> <span class="o">=</span> <span class="n">HuggingFaceEmbeddings</span><span class="p">(</span><span class="n">model_name</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
+            <span class="n">provider</span> <span class="o">=</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">"provider"</span><span class="p">]</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="s2">"Using huggingface endpoint embedding model: </span><span class="si">%s</span><span class="s2"> (provider: </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
-                <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
-                <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">"auto"</span><span class="p">,</span>
+                <span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span><span class="p">,</span>
+                <span class="n">provider</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">HuggingFaceEndpointEmbeddings</span>
 
             <span class="n">model_var</span> <span class="o">=</span> <span class="n">HuggingFaceEndpointEmbeddings</span><span class="p">(</span>
-                <span class="n">model</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
-                <span class="n">provider</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">"auto"</span><span class="p">,</span>
+                <span class="n">model</span><span class="o">=</span><span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span><span class="p">,</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
                 <span class="n">task</span><span class="o">=</span><span class="s2">"feature-extraction"</span><span class="p">,</span>
             <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -2088,14 +2198,15 @@
         <span class="c1"># string suffix.  These are not fields on ChatHuggingFace itself</span>
         <span class="c1"># (they flow through to HuggingFaceEndpoint) so they'd be filtered</span>
         <span class="c1"># out later  ---  we set them here so they survive provider filtering.</span>
-        <span class="k">if</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"huggingface"</span> <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
-                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"pipeline"</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"endpoint"</span><span class="p">)</span>
-                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
+        <span class="c1"># A bare ``huggingface:&lt;model&gt;`` defaults to the hosted Inference</span>
+        <span class="c1"># Providers API (``auto``); ``:local`` opts into the local pipeline.</span>
+        <span class="k">if</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
+            <span class="n">hf_backend</span> <span class="o">=</span> <span class="n">resolve_huggingface_backend</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">=</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"HuggingFace kwargs injected:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"HuggingFace backend resolved:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
             <span class="p">)</span>
 
         <span class="c1"># Layer 4: per-provider defaults from graph config.  Only fills in</span>

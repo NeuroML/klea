@@ -747,9 +747,13 @@
 <span class="c1">#: LangChain provider id -&gt; API key env var name, for providers whose id</span>
 <span class="c1">#: does not map to ``{PROVIDER}_API_KEY``.  ``mistralai`` reads</span>
 <span class="c1">#: ``MISTRAL_API_KEY`` in the langchain-mistralai SDK (not</span>
-<span class="c1">#: ``MISTRALAI_API_KEY``).  The alias exists so the probe authenticates</span>
+<span class="c1">#: ``MISTRALAI_API_KEY``) and both HuggingFace SDKs read ``HF_TOKEN`` (not</span>
+<span class="c1">#: ``HUGGINGFACE_API_KEY``).  The alias exists so the probe authenticates</span>
 <span class="c1">#: with the same credential the model invoke would use.</span>
-<span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"MISTRAL_API_KEY"</span><span class="p">}</span>
+<span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"MISTRAL_API_KEY"</span><span class="p">,</span>
+    <span class="s2">"huggingface"</span><span class="p">:</span> <span class="s2">"HF_TOKEN"</span><span class="p">,</span>
+<span class="p">}</span>
 
 
 <div class="viewcode-block" id="get_provider_api_key_env">

@@ -369,6 +369,20 @@ step results and delivered.</p></li>
 <p>Conversation history is summarised per session, so long-running chats stay
 within the model’s context window.</p>
 </section>
+<section id="project-context">
+<h2>Project context<a class="headerlink" href="#project-context" title="Link to this heading">¶</a></h2>
+<p>The agent reads a project instruction file from its working directory and
+loads it into session-scoped <em>discovery</em>: <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> is preferred, with
+<code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> as the fallback (the first one present wins).  The file is
+read once per session and re-read only when its modification time changes,
+so editing it updates the agent without restarting the server.</p>
+<p>The discovered text is rendered into the <strong>Planner</strong> and the final
+<strong>answer-composer</strong> prompts, so project conventions (build and test
+commands, code layout, house style) inform both how a task is planned and
+how the reply is written.  It is not injected into the per-round nodes,
+which see project specifics through the plan instead.  A project with no
+instruction file simply has no extra context.</p>
+</section>
 <section id="tool-access">
 <h2>Tool access<a class="headerlink" href="#tool-access" title="Link to this heading">¶</a></h2>
 <p>The agent defaults to the <code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level, and the level can be
@@ -459,6 +473,7 @@ until this lands;</p></li>
 <li><a class="reference internal" href="#operating-modes">Operating modes</a></li>
 <li><a class="reference internal" href="#how-a-task-runs">How a task runs</a></li>
 <li><a class="reference internal" href="#memory">Memory</a></li>
+<li><a class="reference internal" href="#project-context">Project context</a></li>
 <li><a class="reference internal" href="#tool-access">Tool access</a></li>
 <li><a class="reference internal" href="#status">Status</a></li>
 </ul>

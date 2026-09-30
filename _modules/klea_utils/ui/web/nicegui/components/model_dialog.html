@@ -334,12 +334,16 @@
     <span class="n">fetch_session_models</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
+    <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span><span class="p">,</span>
+    <span class="n">HUGGINGFACE_PROVIDER</span><span class="p">,</span>
+    <span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">,</span>
     <span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span><span class="p">,</span>
     <span class="n">ParsedModelName</span><span class="p">,</span>
     <span class="n">credential_scope</span><span class="p">,</span>
     <span class="n">join_model_string</span><span class="p">,</span>
     <span class="n">parse_model_name</span><span class="p">,</span>
-    <span class="n">provider_requires_api_key</span><span class="p">,</span>
+    <span class="n">requires_api_key</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">clear_credential</span><span class="p">,</span>
@@ -360,6 +364,7 @@
     <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">options</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
     <span class="n">on_change</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ui</span><span class="o">.</span><span class="n">select</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""A select that filters as you type and also accepts free text.</span>
 
@@ -372,6 +377,8 @@
 <span class="sd">    :param value: Initial value; kept as an option even if not in *options*.</span>
 <span class="sd">    :param options: Suggestions to filter.</span>
 <span class="sd">    :param on_change: Called with the new value; may be async.</span>
+<span class="sd">    :param description: Optional helper text, shown persistently under the</span>
+<span class="sd">        field and as a hover tooltip.</span>
 <span class="sd">    :returns: The select element.</span>
 <span class="sd">    """</span>
     <span class="n">typed</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
@@ -392,6 +399,10 @@
         <span class="n">new_value_mode</span><span class="o">=</span><span class="s2">"add-unique"</span><span class="p">,</span>
         <span class="n">on_change</span><span class="o">=</span><span class="n">_changed</span><span class="p">,</span>
     <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">description</span><span class="p">:</span>
+        <span class="n">select</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="sa">f</span><span class="s1">'hint="</span><span class="si">{</span><span class="n">description</span><span class="si">}</span><span class="s1">"'</span><span class="p">)</span>
+        <span class="k">with</span> <span class="n">select</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="n">description</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_on_input</span><span class="p">(</span><span class="n">e</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">typed</span><span class="p">[</span><span class="s2">"text"</span><span class="p">]</span> <span class="o">=</span> <span class="n">e</span><span class="o">.</span><span class="n">args</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">e</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="s2">""</span>
@@ -410,11 +421,13 @@
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">_ModelPicker</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Provider, model and custom URL fields for one role.</span>
+<span class="w">    </span><span class="sd">"""Provider, model, backend and custom URL fields for one role.</span>
 
-<span class="sd">    Picking a provider loads its models from the catalogue.  ``value``</span>
-<span class="sd">    joins the fields back into a model string, so the dialog's save logic</span>
-<span class="sd">    keeps working on plain model strings.</span>
+<span class="sd">    Picking a provider loads its models from the catalogue.  For</span>
+<span class="sd">    ``huggingface`` two extra fields select the backend (hosted Inference</span>
+<span class="sd">    Providers API, or the local pipeline) and the inference provider /</span>
+<span class="sd">    routing policy.  ``value`` joins the fields back into a model string,</span>
+<span class="sd">    so the dialog's save logic keeps working on plain model strings.</span>
 <span class="sd">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -444,19 +457,67 @@
         <span class="n">is_url</span> <span class="o">=</span> <span class="n">suffix</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_original_provider</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_original_model</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span>
-        <span class="c1"># Any other suffix (e.g. a HuggingFace inference provider) has no</span>
-        <span class="c1"># field of its own; it is put back on save while the model is unchanged.</span>
+        <span class="c1"># Any other suffix (e.g. a custom endpoint or a HuggingFace</span>
+        <span class="c1"># inference provider) has no field of its own for non-HF providers;</span>
+        <span class="c1"># it is put back on save while the model is unchanged.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_original_suffix</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">is_url</span> <span class="k">else</span> <span class="n">suffix</span>
+        <span class="c1"># HuggingFace parses its suffix into a backend + inference provider.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_backend</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">"local"</span> <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span> <span class="k">else</span> <span class="s2">"endpoint"</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_inference</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">""</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_backend</span> <span class="o">==</span> <span class="s2">"local"</span>
+                <span class="k">else</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">or</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_backend</span> <span class="o">=</span> <span class="s2">"endpoint"</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_inference</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_load_models</span> <span class="o">=</span> <span class="n">load_models</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_on_change</span> <span class="o">=</span> <span class="n">on_change</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">provider</span> <span class="o">=</span> <span class="n">_autocomplete_select</span><span class="p">(</span>
-            <span class="s2">"Provider"</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_original_provider</span><span class="p">,</span> <span class="n">providers</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_provider_changed</span>
+            <span class="s2">"Provider"</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_provider</span><span class="p">,</span>
+            <span class="n">providers</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_provider_changed</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Pick one or use 'custom' for custom OpenAI compatible end points"</span>
+            <span class="p">),</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">_autocomplete_select</span><span class="p">(</span>
             <span class="s2">"Model"</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_original_model</span><span class="p">,</span>
             <span class="n">models_for</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_original_provider</span><span class="p">),</span>
             <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_changed</span><span class="p">(),</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">"Pick one or type in any model"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">select</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"endpoint"</span><span class="p">:</span> <span class="s2">"Hosted (inference providers)"</span><span class="p">,</span>
+                <span class="s2">"local"</span><span class="p">:</span> <span class="s2">"Local (downloads the model)"</span><span class="p">,</span>
+            <span class="p">},</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">"Run"</span><span class="p">,</span>
+            <span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_original_backend</span><span class="p">,</span>
+            <span class="n">on_change</span><span class="o">=</span><span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_backend_changed</span><span class="p">(),</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
+                <span class="s2">"Hosted runs on HuggingFace's inference providers; Local "</span>
+                <span class="s2">"downloads the weights and needs suitable hardware."</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inference_provider</span> <span class="o">=</span> <span class="n">_autocomplete_select</span><span class="p">(</span>
+            <span class="s2">"Inference provider"</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_original_inference</span> <span class="ow">or</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
+            <span class="p">[</span>
+                <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
+                <span class="o">*</span><span class="nb">sorted</span><span class="p">(</span><span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">),</span>
+            <span class="p">],</span>
+            <span class="k">lambda</span> <span class="n">_</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_changed</span><span class="p">(),</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Pick one or type in an inference provider "</span>
+                <span class="s2">"(https://huggingface.co/inference/models)"</span>
+            <span class="p">),</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">url</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">(</span>
             <span class="s2">"Custom URL (optional)"</span><span class="p">,</span>
@@ -468,13 +529,21 @@
                 <span class="s2">"Overrides the provider's default endpoint, e.g. a self hosted "</span>
                 <span class="s2">"OpenAI compatible server."</span>
             <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_update_url_visibility</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_field_visibility</span><span class="p">()</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""The model string built from the current field values."""</span>
         <span class="n">provider</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="n">model</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">"endpoint"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
+                <span class="n">suffix</span> <span class="o">=</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">suffix</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">inference_provider</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span>
+            <span class="k">return</span> <span class="n">join_model_string</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">suffix</span><span class="p">)</span>
         <span class="n">url</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">url</span> <span class="ow">and</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span><span class="p">:</span>
             <span class="n">suffix</span> <span class="o">=</span> <span class="n">url</span>
@@ -488,18 +557,32 @@
 <span class="w">        </span><span class="sd">"""Disable all fields (locked roles)."""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inference_provider</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_update_url_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_field_visibility</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">provider</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">provider</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="n">provider</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span><span class="p">)</span>
+        <span class="n">is_hf</span> <span class="o">=</span> <span class="n">provider</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">url</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span>
+            <span class="ow">not</span> <span class="n">is_hf</span> <span class="ow">and</span> <span class="n">provider</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="n">is_hf</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inference_provider</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span>
+            <span class="n">is_hf</span> <span class="ow">and</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">backend</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">"endpoint"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"local"</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_backend_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Update field visibility when the HuggingFace backend changes."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_field_visibility</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_changed</span><span class="p">()</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_provider_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load the new provider's models and clear the old model."""</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model picker: </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">models</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_models</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="k">if</span> <span class="n">provider</span> <span class="k">else</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">set_options</span><span class="p">(</span><span class="n">models</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_update_url_visibility</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_field_visibility</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_changed</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -776,7 +859,7 @@
             <span class="n">block</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
                 <span class="s2">"provider"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span>
                 <span class="s2">"endpoint"</span><span class="p">:</span> <span class="n">endpoint</span><span class="p">,</span>
-                <span class="s2">"requires_key"</span><span class="p">:</span> <span class="n">provider_requires_api_key</span><span class="p">(</span><span class="n">provider</span><span class="p">),</span>
+                <span class="s2">"requires_key"</span><span class="p">:</span> <span class="n">requires_api_key</span><span class="p">(</span><span class="n">model_name</span><span class="p">),</span>
             <span class="p">}</span>
             <span class="n">saved</span> <span class="o">=</span> <span class="n">saved</span> <span class="ow">or</span> <span class="p">{}</span>
             <span class="n">same_scope</span> <span class="o">=</span> <span class="p">(</span>

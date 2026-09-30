@@ -378,6 +378,67 @@ headroom), so a large default is safe for small models too.</p>
 </dd></dl>
 
 <dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'auto'</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER" title="Link to this definition">¶</a></dt>
+<dd><p>Inference provider used for the hosted backend when none is given (the
+HuggingFace router’s default selection).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_LOCAL_SUFFIX</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'local'</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX" title="Link to this definition">¶</a></dt>
+<dd><p>Suffix selecting the local (pipeline) HuggingFace backend.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_PROVIDER">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_PROVIDER</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'huggingface'</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_PROVIDER" title="Link to this definition">¶</a></dt>
+<dd><p>HuggingFace provider id.  Its backend is selected by the third
+model-string segment: <code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model&gt;</span></code> (or an inference provider /
+routing policy) uses the hosted Inference Providers API, while
+<code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model&gt;:local</span></code> runs the model locally with the pipeline
+backend.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_ROUTING_POLICIES</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'cheapest',</span> <span class="pre">'fastest',</span> <span class="pre">'preferred'})</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES" title="Link to this definition">¶</a></dt>
+<dd><p>HuggingFace routing policies.  Unlike a concrete provider name these must
+be appended to the model id: the client’s <code class="docutils literal notranslate"><span class="pre">provider</span></code> argument accepts
+only <code class="docutils literal notranslate"><span class="pre">auto</span></code> or a concrete provider name, not a policy.</p>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.llm.HuggingFaceBackend">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HuggingFaceBackend</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">backend</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#HuggingFaceBackend"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.HuggingFaceBackend" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
+<p>Resolved HuggingFace backend for a model string suffix.</p>
+<p><code class="docutils literal notranslate"><span class="pre">backend</span></code> is the <code class="docutils literal notranslate"><span class="pre">ChatHuggingFace</span></code> backend (<code class="docutils literal notranslate"><span class="pre">&quot;pipeline&quot;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;endpoint&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">model_id</span></code> is the repo id to pass (with a routing
+policy appended for the hosted backend), and <code class="docutils literal notranslate"><span class="pre">kwargs</span></code> are the
+<code class="docutils literal notranslate"><span class="pre">from_model_id</span></code> kwargs to inject (<code class="docutils literal notranslate"><span class="pre">backend</span></code> and, for the hosted
+backend, <code class="docutils literal notranslate"><span class="pre">provider</span></code>).</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.HuggingFaceBackend.backend">
+<span class="sig-name descname"><span class="pre">backend</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#klea_utils.llm.HuggingFaceBackend.backend" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.HuggingFaceBackend.kwargs">
+<span class="sig-name descname"><span class="pre">kwargs</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#klea_utils.llm.HuggingFaceBackend.kwargs" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.HuggingFaceBackend.model_id">
+<span class="sig-name descname"><span class="pre">model_id</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><a class="headerlink" href="#klea_utils.llm.HuggingFaceBackend.model_id" title="Link to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.llm.INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.05</span></span><a class="headerlink" href="#klea_utils.llm.INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR" title="Link to this definition">¶</a></dt>
 <dd><p>Safety factor applied on top of the char-based token estimate so the
@@ -1055,17 +1116,22 @@ already substituted).</p>
 <dt class="sig sig-object py" id="klea_utils.llm.provider_api_key_env">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">provider_api_key_env</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#provider_api_key_env"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.provider_api_key_env" title="Link to this definition">¶</a></dt>
 <dd><p>Return the env var holding <em>provider</em>’s API key, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
-<p>Providers that need no key (see <a class="reference internal" href="#klea_utils.llm.provider_requires_api_key" title="klea_utils.llm.provider_requires_api_key"><code class="xref py py-func docutils literal notranslate"><span class="pre">provider_requires_api_key()</span></code></a>)
-return <code class="docutils literal notranslate"><span class="pre">None</span></code>.  Otherwise mirrors the SDK convention so the UI can
-report whether a credential comes from the environment.</p>
+<p>Providers that need no key (see <a class="reference internal" href="#klea_utils.llm.requires_api_key" title="klea_utils.llm.requires_api_key"><code class="xref py py-func docutils literal notranslate"><span class="pre">requires_api_key()</span></code></a>) return
+<code class="docutils literal notranslate"><span class="pre">None</span></code>.  Otherwise mirrors the SDK convention so the UI can report
+whether a credential comes from the environment.</p>
 </dd></dl>
 
 <dl class="py function">
-<dt class="sig sig-object py" id="klea_utils.llm.provider_requires_api_key">
-<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">provider_requires_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#provider_requires_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.provider_requires_api_key" title="Link to this definition">¶</a></dt>
-<dd><p>Return whether <em>provider</em> needs an API key.</p>
-<p>Local providers (e.g. Ollama) authenticate anonymously, so they must
-not be treated as missing a credential.</p>
+<dt class="sig sig-object py" id="klea_utils.llm.requires_api_key">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">requires_api_key</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#requires_api_key"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.requires_api_key" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether <em>model_name</em> needs an API key.</p>
+<p>Accepts either a bare provider id (<code class="docutils literal notranslate"><span class="pre">openai</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>) or a full
+model string (<code class="docutils literal notranslate"><span class="pre">openai:gpt-4o</span></code>, <code class="docutils literal notranslate"><span class="pre">huggingface:org/model:local</span></code>).
+Local providers (Ollama) and locally-run HuggingFace models
+(<code class="docutils literal notranslate"><span class="pre">huggingface:&lt;model&gt;:local</span></code>) authenticate locally and need no
+credential; every other provider does.  A string that cannot be parsed
+is judged by its provider part; a string with no <code class="docutils literal notranslate"><span class="pre">:</span></code> is treated as a
+provider id.</p>
 </dd></dl>
 
 <dl class="py function">
@@ -1137,6 +1203,29 @@ endpoint URL).</p>
 </dd>
 <dt class="field-odd">Raises<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/builtins/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If <em>url</em> is empty.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.resolve_huggingface_backend">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">resolve_huggingface_backend</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend" title="klea_utils.llm.HuggingFaceBackend"><span class="pre">HuggingFaceBackend</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#resolve_huggingface_backend"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.resolve_huggingface_backend" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve the HuggingFace backend from a model name and its suffix.</p>
+<p><code class="docutils literal notranslate"><span class="pre">:local</span></code> selects the local pipeline backend; any other suffix is an
+inference provider (<code class="docutils literal notranslate"><span class="pre">auto</span></code> when absent) for the hosted Inference
+Providers API.  The routing policies (<a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES" title="klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES"><code class="xref py py-data docutils literal notranslate"><span class="pre">HUGGINGFACE_ROUTING_POLICIES</span></code></a>)
+are appended to the model id instead of being passed as <code class="docutils literal notranslate"><span class="pre">provider</span></code>,
+because the HuggingFace client’s <code class="docutils literal notranslate"><span class="pre">provider</span></code> argument accepts only
+<code class="docutils literal notranslate"><span class="pre">auto</span></code> or a concrete provider name.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_name</strong> – HuggingFace repo id, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-oss-20b&quot;</span></code>.</p></li>
+<li><p><strong>suffix</strong> – Third model-string segment, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The resolved <a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend" title="klea_utils.llm.HuggingFaceBackend"><code class="xref py py-class docutils literal notranslate"><span class="pre">HuggingFaceBackend</span></code></a>.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1340,6 +1429,16 @@ still reject – the first attempt for a key always probes.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_LOCAL_SUFFIX</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_PROVIDER"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_PROVIDER</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_ROUTING_POLICIES</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend"><code class="docutils literal notranslate"><span class="pre">HuggingFaceBackend</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend.backend"><code class="docutils literal notranslate"><span class="pre">HuggingFaceBackend.backend</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend.kwargs"><code class="docutils literal notranslate"><span class="pre">HuggingFaceBackend.kwargs</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend.model_id"><code class="docutils literal notranslate"><span class="pre">HuggingFaceBackend.model_id</span></code></a></li>
+</ul>
+</li>
 <li><a class="reference internal" href="#klea_utils.llm.INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR"><code class="docutils literal notranslate"><span class="pre">INPUT_TOKEN_ESTIMATE_SAFETY_FACTOR</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.LLMModel"><code class="docutils literal notranslate"><span class="pre">LLMModel</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.llm.LLMModel.build_config"><code class="docutils literal notranslate"><span class="pre">LLMModel.build_config()</span></code></a></li>
@@ -1385,9 +1484,10 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.parse_output_with_thought"><code class="docutils literal notranslate"><span class="pre">parse_output_with_thought()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.prompt_value_to_messages"><code class="docutils literal notranslate"><span class="pre">prompt_value_to_messages()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.provider_api_key_env"><code class="docutils literal notranslate"><span class="pre">provider_api_key_env()</span></code></a></li>
-<li><a class="reference internal" href="#klea_utils.llm.provider_requires_api_key"><code class="docutils literal notranslate"><span class="pre">provider_requires_api_key()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.requires_api_key"><code class="docutils literal notranslate"><span class="pre">requires_api_key()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_catalog_provider_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_catalog_provider_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_custom_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_custom_endpoint()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.resolve_huggingface_backend"><code class="docutils literal notranslate"><span class="pre">resolve_huggingface_backend()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_langchain_endpoint"><code class="docutils literal notranslate"><span class="pre">resolve_langchain_endpoint()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit"><code class="docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.resolve_user_agent"><code class="docutils literal notranslate"><span class="pre">resolve_user_agent()</span></code></a></li>
