@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.context - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -335,6 +335,10 @@
 <span class="w">    </span><span class="sd">"""No-op default for one-argument callbacks (e.g. chat switching)."""</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_noop_args</span><span class="p">(</span><span class="o">*</span><span class="n">_args</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="o">**</span><span class="n">_kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""No-op default for callbacks that take arguments."""</span>
+
+
 <div class="viewcode-block" id="PageContext">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.context.PageContext">[docs]</a>
 <span class="nd">@dataclass</span>
@@ -347,11 +351,25 @@
 <span class="sd">    page assembly creates one context, attaches all components, then</span>
 <span class="sd">    lets handlers resolve references at event time.</span>
 
+<span class="sd">    .. warning::</span>
+<span class="sd">       **Do not create NiceGUI elements from a</span>
+<span class="sd">       ``nicegui.background_tasks`` task.**  NiceGUI resolves a new</span>
+<span class="sd">       element's parent from a per-task slot stack; a background task has</span>
+<span class="sd">       an empty stack and raises "The current slot cannot be determined</span>
+<span class="sd">       because the slot stack for this task is empty".  Either wire the</span>
+<span class="sd">       work as an ``async`` event handler (NiceGUI awaits it in the</span>
+<span class="sd">       client/slot context, so ``ui.dialog()`` etc. work), or enter a</span>
+<span class="sd">       slot explicitly before creating elements, e.g. ``with</span>
+<span class="sd">       ctx.stream_container:`` (streaming rows) or ``with</span>
+<span class="sd">       ctx.dialog_container:`` (dialogs opened from a background task).</span>
+<span class="sd">       Updating existing elements and ``app.storage`` from a background</span>
+<span class="sd">       task is fine.</span>
+
 <span class="sd">    :param server_url: Base URL of the backend API server.</span>
 <span class="sd">    :param user_id: Opaque persistent user identifier.</span>
 <span class="sd">    :param title: Bold application title in the header bar.</span>
 <span class="sd">    :param subtitle: Optional smaller text shown next to *title*.</span>
-<span class="sd">    :param disclaimer: Optional text shown below the chat input.</span>
+<span class="sd">    :param disclaimer: Optional text shown in the footer.</span>
 <span class="sd">    :param footer_text: HTML content for the footer bar.</span>
 <span class="sd">    :param chat_id: Active chat conversation identifier.</span>
 <span class="sd">    """</span>
@@ -367,6 +385,9 @@
     <span class="c1"># Mutable runtime state</span>
     <span class="n">expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
     <span class="n">is_streaming</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1">#: Chat currently being streamed, so the inspector can tell if it is</span>
+    <span class="c1">#: appending to the active chat.</span>
+    <span class="n">streaming_chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">mini_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="c1"># Extra request fields merged into the ``/query/stream`` POST body</span>
@@ -384,6 +405,13 @@
     <span class="n">stream_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">text</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">loading_row</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Stable inspector pane content column / scroll area (incremental append).</span>
+    <span class="n">inspector_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">inspector_scroll</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Hidden container used as an explicit slot when building dialogs from</span>
+    <span class="c1">#: a context that has no ambient slot (e.g. the first-run prompt runs in</span>
+    <span class="c1">#: a background task).  See the slot warning in the class docstring.</span>
+    <span class="n">dialog_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># Cross-component callbacks (registered by components at attach time</span>
     <span class="c1"># and invoked by handlers after the page is fully assembled)</span>
@@ -392,12 +420,26 @@
     <span class="n">refresh_chat_list</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_status_pane</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Incremental inspector updates: open a new query section (chat_id,</span>
+    <span class="c1">#: marker) and append one entry (chat_id, entry) without a full rebuild.</span>
+    <span class="n">begin_inspector_section</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
+    <span class="n">append_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">reset_center_tab</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="n">refresh_send_state</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">fetch_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">fetch_session_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">fetch_credentials</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">model_config_dialog</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># Cached per-session default model config (``fetch_session_models``) and</span>
+    <span class="c1"># the user's masked provider credentials (``fetch_credentials``), used</span>
+    <span class="c1"># when no chat is active and by the model dialog.</span>
+    <span class="n">session_model_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">credentials</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="c1"># App-defined content rendered inside the (refreshable) status pane,</span>
-    <span class="c1"># e.g. an operating-mode selector/badge (ADR-0030).</span>
-    <span class="n">status_extra</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># e.g. operating-mode or tool-access selectors (ADR-0030,</span>
+    <span class="c1"># ADR-0037).  Each app UI appends its own render callable; the status</span>
+    <span class="c1"># pane calls them in registration order.</span>
+    <span class="n">status_extras</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span></div>
 
 </pre></div>

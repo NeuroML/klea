@@ -15,6 +15,7 @@ Shared utilities used by all Klea packages.
    utils/api
    utils/ui
    utils/nodes
+   utils/imports
    utils/paths
    utils/plogging
    utils/errors

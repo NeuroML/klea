@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.cli - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -330,6 +330,34 @@
         <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">BadParameter</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_favicon</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve a ``--favicon`` value to something NiceGUI can use.</span>
+
+<span class="sd">    An empty value returns ``None`` so the caller falls back to the</span>
+<span class="sd">    bundled Klea icon.  ``http(s)``/``data:`` URLs, raw SVG and a single</span>
+<span class="sd">    character are passed through unchanged; anything else is treated as a</span>
+<span class="sd">    local file path, expanded and required to exist, so a typo fails fast</span>
+<span class="sd">    instead of silently falling back to the default icon.  Relative paths</span>
+<span class="sd">    are resolved against the current directory (the web app runs from its</span>
+<span class="sd">    own package directory, so a relative path would otherwise miss).</span>
+
+<span class="sd">    :param value: Raw ``--favicon`` value, or ``None``.</span>
+<span class="sd">    :returns: The favicon to hand to NiceGUI, or ``None``.</span>
+<span class="sd">    :raises ValueError: When *value* looks like a path but does not exist.</span>
+<span class="sd">    """</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">,</span> <span class="s2">"data:"</span><span class="p">,</span> <span class="s2">"&lt;svg"</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Favicon file not found: </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_maybe_spawn_server</span><span class="p">(</span>
     <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -391,6 +419,7 @@
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">single_query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -420,7 +449,7 @@
                     <span class="n">url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
                     <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
                     <span class="n">single_query</span><span class="o">=</span><span class="n">single_query</span><span class="p">,</span>
-                    <span class="n">app_prefix</span><span class="o">=</span><span class="s2">"klea"</span><span class="p">,</span>
+                    <span class="n">app_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
                     <span class="n">app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="p">)</span>
@@ -441,6 +470,7 @@
     <span class="n">web_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -461,6 +491,11 @@
 
         <span class="n">require_extra</span><span class="p">(</span><span class="s2">"nicegui"</span><span class="p">,</span> <span class="s2">"nicegui"</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">typer</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">),</span> <span class="n">err</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">favicon</span> <span class="o">=</span> <span class="n">_resolve_favicon</span><span class="p">(</span><span class="n">favicon</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
         <span class="n">typer</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">),</span> <span class="n">err</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
     <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
@@ -500,6 +535,7 @@
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --nicegui-url '</span><span class="si">{</span><span class="n">nicegui_url</span><span class="si">}</span><span class="s2">'"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --storage-secret '</span><span class="si">{</span><span class="n">storage_secret</span><span class="si">}</span><span class="s2">'"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --app-name '</span><span class="si">{</span><span class="n">web_app_name</span><span class="si">}</span><span class="s2">'"</span>
+                    <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" --favicon '</span><span class="si">{</span><span class="n">favicon</span><span class="si">}</span><span class="s2">'"</span> <span class="k">if</span> <span class="n">favicon</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="o">+</span> <span class="p">(</span><span class="s2">" --reload"</span> <span class="k">if</span> <span class="n">reload</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                 <span class="p">),</span>
                 <span class="n">check</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
@@ -515,6 +551,7 @@
     <span class="n">server_url_default</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -545,6 +582,8 @@
 <span class="sd">        talks to (e.g. ``"klea_rag.api.main:app"``)</span>
 <span class="sd">    :param tui_app_name: Log identity for the terminal client (e.g.</span>
 <span class="sd">        ``"klea-rag-tui"``)</span>
+<span class="sd">    :param tui_prefix: Prompt label prefix for the terminal client (e.g.</span>
+<span class="sd">        ``"klea-rag"``)</span>
 <span class="sd">    :param web_app_name: Log identity for the web client (e.g.</span>
 <span class="sd">        ``"klea-rag-web"``)</span>
 <span class="sd">    :param web_entry: Module string of the app's NiceGUI entry point</span>
@@ -610,6 +649,7 @@
             <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
             <span class="n">single_query</span><span class="o">=</span><span class="n">single_query</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span>
             <span class="n">tui_app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
+            <span class="n">tui_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
             <span class="n">app_module</span><span class="o">=</span><span class="n">app_module</span><span class="p">,</span>
             <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">,</span>
             <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
@@ -634,7 +674,7 @@
             <span class="s2">"Answers use LLM technology and may be incorrect. Please re-confirm."</span><span class="p">,</span>
             <span class="s2">"--disclaimer"</span><span class="p">,</span>
             <span class="s2">"-c"</span><span class="p">,</span>
-            <span class="n">help</span><span class="o">=</span><span class="s2">"Disclaimer text shown below the chat area"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Disclaimer text shown in the footer"</span><span class="p">,</span>
         <span class="p">),</span>
         <span class="n">footer_text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
             <span class="s1">'Powered by &lt;a href="https://github.com/neuroml/klea"&gt;Klea&lt;/a&gt;'</span><span class="p">,</span>
@@ -650,6 +690,14 @@
             <span class="s2">"klea-nicegui-secret-change-me"</span><span class="p">,</span>
             <span class="s2">"--storage-secret"</span><span class="p">,</span>
             <span class="n">help</span><span class="o">=</span><span class="s2">"NiceGUI storage secret for session persistence"</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"--favicon"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Browser-tab icon: a file path, http(s)/data URL, raw SVG or "</span>
+                <span class="s2">"a single character. Defaults to the bundled Klea icon."</span>
+            <span class="p">),</span>
         <span class="p">),</span>
         <span class="n">reload</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
             <span class="kc">False</span><span class="p">,</span> <span class="s2">"--reload"</span><span class="p">,</span> <span class="s2">"-r"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Enable auto-reload on file changes"</span>
@@ -670,6 +718,7 @@
             <span class="n">web_app_name</span><span class="o">=</span><span class="n">web_app_name</span><span class="p">,</span>
             <span class="n">app_module</span><span class="o">=</span><span class="n">app_module</span><span class="p">,</span>
             <span class="n">web_entry</span><span class="o">=</span><span class="n">web_entry</span><span class="p">,</span>
+            <span class="n">favicon</span><span class="o">=</span><span class="n">favicon</span><span class="p">,</span>
             <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
             <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
             <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>

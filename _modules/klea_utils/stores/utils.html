@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.stores.utils - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -325,6 +325,8 @@
     <span class="n">PERSON_NAME_FILTER_FIELDS</span><span class="p">,</span>
     <span class="n">SHARED_DOC_METADATA_KEYS</span><span class="p">,</span>
 <span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1">#: Name of the chunk-cache directory created inside a source directory by</span>
 <span class="c1">#: the ingestion pipeline (holds the per-file pickled chunks, the</span>
@@ -667,6 +669,95 @@
 
 
 
+<span class="c1">#: Default cross-encoder model for reranking.  Small MS MARCO model; runs</span>
+<span class="c1">#: locally via ``sentence-transformers``.</span>
+<span class="n">DEFAULT_CROSS_ENCODER_MODEL</span> <span class="o">=</span> <span class="s2">"cross-encoder/ms-marco-MiniLM-L-6-v2"</span>
+
+
+<div class="viewcode-block" id="load_cross_encoder">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.load_cross_encoder">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_cross_encoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Load a :class:`~sentence_transformers.CrossEncoder` instance.</span>
+
+<span class="sd">    A plain factory: it imports ``sentence-transformers``, downloads the</span>
+<span class="sd">    weights on first use (into the Hugging Face cache), and returns a new</span>
+<span class="sd">    instance.  It performs no caching and holds no shared state, so callers</span>
+<span class="sd">    that need one shared model must load it once and reuse the instance</span>
+<span class="sd">    themselves.  It is likewise not safe for concurrent loads (each call</span>
+<span class="sd">    constructs a new model), so load once at startup rather than from several</span>
+<span class="sd">    worker threads.</span>
+
+<span class="sd">    :param model_name: Hugging Face cross-encoder model id.  Must be a</span>
+<span class="sd">        non-empty string.</span>
+<span class="sd">    :returns: A newly constructed cross-encoder for *model_name*</span>
+<span class="sd">    :raises ValueError: If *model_name* is empty or ``None``</span>
+<span class="sd">    :raises ImportError: If ``sentence-transformers`` is not installed</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_name</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"A cross-encoder model name is required"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrossEncoder</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="s2">"Cross-encoder reranking requires sentence-transformers. "</span>
+            <span class="s2">"Install: pip install klea_utils[rerank]"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Loading cross-encoder </span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2"> (the first use downloads the weights)"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">CrossEncoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="cross_encoder_rerank">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.cross_encoder_rerank">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_encoder_rerank</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Re-rank fused retrieval results with a cross-encoder instance.</span>
+
+<span class="sd">    Intended to run after :func:`rrf_merge` and before downstream steps such</span>
+<span class="sd">    as :func:`rerank_by_recency` and :func:`truncate_reference_material`.</span>
+
+<span class="sd">    The caller owns the model: load it once (see :func:`load_cross_encoder`)</span>
+<span class="sd">    and pass the same instance here.  This function neither caches nor skips,</span>
+<span class="sd">    so "reranking disabled" is the caller's decision.</span>
+
+<span class="sd">    Each document is scored by a query--passage cross-encoder (local/offline</span>
+<span class="sd">    via ``sentence-transformers``).  Original per-source scores in</span>
+<span class="sd">    :data:`SOURCE_SCORES_KEY` metadata are preserved; only the tuple's</span>
+<span class="sd">    relevance score is replaced by the cross-encoder score.</span>
+
+<span class="sd">    :param query: Normalized retrieval query (same form as passed to</span>
+<span class="sd">        retrievers)</span>
+<span class="sd">    :param docs: ``(document, score)`` tuples, typically from</span>
+<span class="sd">        :func:`rrf_merge`</span>
+<span class="sd">    :param model: A loaded cross-encoder exposing</span>
+<span class="sd">        ``predict(pairs, show_progress_bar=...) -&gt; scores``</span>
+<span class="sd">    :returns: Documents ordered by cross-encoder score (descending)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">docs</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">docs</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cross-encoder reranking </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span><span class="si">}</span><span class="s2"> documents"</span><span class="p">)</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">query</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">]</span>
+    <span class="c1"># Runs on every retrieval: a "Batches" progress bar would clutter the</span>
+    <span class="c1"># CLI/TUI output on each query.</span>
+    <span class="n">raw_scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="n">show_progress_bar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">raw_scores</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ranked</span></div>
+
+
+
 <span class="c1">#: Weight given to the normalized relevance (RRF) component of the final</span>
 <span class="c1">#: blended score in :func:`rerank_by_recency`.</span>
 <span class="n">RECENCY_WEIGHT_RELEVANCE</span> <span class="o">=</span> <span class="mf">0.9</span>
@@ -690,29 +781,30 @@
     <span class="n">relevance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RECENCY_WEIGHT_RELEVANCE</span><span class="p">,</span>
     <span class="n">time_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RECENCY_WEIGHT_TIME</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">"""Re-rank RRF results blending in document recency.</span>
+<span class="w">    </span><span class="sd">"""Re-rank results blending in document recency.</span>
 
 <span class="sd">    Keeps :func:`rrf_merge` pure (relevance only) and applies recency as a</span>
-<span class="sd">    separate post-fusion re-rank.  Each document's pure RRF score is</span>
+<span class="sd">    separate post-fusion re-rank.  Each document's relevance score is</span>
 <span class="sd">    min-max normalized to ``[0, 1]`` across the result set, a time score is</span>
 <span class="sd">    computed from its ``year`` metadata, and the final score is a weighted</span>
 <span class="sd">    combination:</span>
 
-<span class="sd">    ``final = relevance_weight * norm_rrf + time_weight * time_score``</span>
+<span class="sd">    ``final = relevance_weight * norm_relevance + time_weight * time_score``</span>
 
 <span class="sd">    The time score is ``(year - year_min) / (year_max - year_min)`` where</span>
 <span class="sd">    ``year_min``/``year_max`` are the min and max ``year`` across the</span>
 <span class="sd">    retrieved set (relative normalization).  Documents without a usable</span>
 <span class="sd">    ``year`` (missing or non-int) get :data:`RECENCY_MISSING_YEAR_SCORE`.</span>
 
-<span class="sd">    Division-by-zero cases are guarded: a single distinct RRF value maps to</span>
-<span class="sd">    ``1.0`` and a single distinct year maps to ``1.0``.</span>
+<span class="sd">    Division-by-zero cases are guarded: a single distinct relevance value</span>
+<span class="sd">    maps to ``1.0`` and a single distinct year maps to ``1.0``.</span>
 
-<span class="sd">    :param merged: ``(doc, rrf_score)`` tuples from :func:`rrf_merge`</span>
+<span class="sd">    :param merged: ``(document, score)`` tuples, typically from</span>
+<span class="sd">        :func:`rrf_merge` (or the cross-encoder rerank when enabled)</span>
 <span class="sd">    :param relevance_weight: Weight for the normalized relevance component</span>
 <span class="sd">    :param time_weight: Weight for the recency component</span>
 <span class="sd">    :returns: The same documents, re-sorted descending by the blended score,</span>
-<span class="sd">        with the blended score replacing the pure RRF score in each tuple</span>
+<span class="sd">        with the blended score replacing the input score in each tuple</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">merged</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">[]</span>
@@ -727,6 +819,11 @@
     <span class="p">]</span>
     <span class="n">year_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">years</span><span class="p">)</span> <span class="k">if</span> <span class="n">years</span> <span class="k">else</span> <span class="kc">None</span>
     <span class="n">year_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">years</span><span class="p">)</span> <span class="k">if</span> <span class="n">years</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Recency reranking </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">merged</span><span class="p">)</span><span class="si">}</span><span class="s2"> documents: "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">year_min</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">year_max</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">rrf_min</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">rrf_max</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
 
     <span class="n">blended</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">merged</span><span class="p">:</span>
@@ -747,7 +844,9 @@
         <span class="n">final</span> <span class="o">=</span> <span class="n">relevance_weight</span> <span class="o">*</span> <span class="n">norm_rrf</span> <span class="o">+</span> <span class="n">time_weight</span> <span class="o">*</span> <span class="n">time_score</span>
         <span class="n">blended</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="n">final</span><span class="p">))</span>
 
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">blended</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">blended</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ranked</span></div>
 
 
 

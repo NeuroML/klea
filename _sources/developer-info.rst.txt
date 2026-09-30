@@ -63,6 +63,18 @@ its faithful core.
 - `RAG component diagram (Level 3)
   <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-component-rag.md>`__
 
+Level 3 -- Component (Agent)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The agent component diagram zooms into the ``klea_agent`` container and
+shows its components -- the general-path graph nodes, the supporting
+orchestrator / API / UI components, and the LLM, MCP, session and
+inspection interactions -- and embeds the auto-generated LangGraph Mermaid
+source as its faithful core.
+
+- `Agent component diagram (Level 3)
+  <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-component-agent.md>`__
+
 Deployment
 ~~~~~~~~~~
 
@@ -73,8 +85,8 @@ platform with HuggingFace Spaces as a nested node).
 - `Deployment diagram
   <https://github.com/NeuroML/klea/blob/development/devdocs/system/c4-deployment.md>`__
 
-Further component (agent) and code views will be added to ``devdocs/`` as
-they are written.
+Further code and lower-level views will be added to ``devdocs/`` as they
+are written.
 
 Architecture Decision Records (ADRs)
 ------------------------------------

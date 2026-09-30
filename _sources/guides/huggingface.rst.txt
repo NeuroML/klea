@@ -120,13 +120,21 @@ Step 5: Edit ``rag.env``
 ------------------------
 
 Set the chat, embedding, and guard models you want to use.  The
-default deployment uses the HuggingFace Inference API:
+default deployment uses the HuggingFace Inference Providers (hosted) API:
 
 .. code-block:: ini
 
    KLEA_RAG_CHAT_MODEL=huggingface:<model-id>:<provider>
    KLEA_RAG_EMBEDDING_MODEL=huggingface:<model-id>
    KLEA_RAG_GUARD_MODEL=huggingface:<model-id>:<provider>
+
+The ``<provider>`` segment selects the inference provider (e.g.
+``deepinfra``, ``together``) or a routing policy (``cheapest``,
+``fastest``, ``preferred``).  Omit it to let HuggingFace choose
+(``auto``).  Use the ``:local`` suffix (e.g.
+``huggingface:<model-id>:local``) to run a model locally instead of on
+the hosted API - the weights are downloaded on first use, so pick a
+small model.
 
 .. seealso::
 
@@ -168,8 +176,8 @@ MCP server or remove the line entirely.
 
 The ``--title`` flag sets the heading shown in the browser tab and
 the NiceGUI page header.  Other flags such as ``--subtitle`` and
-``--page-icon`` are available too --- see :doc:`../cli/klea-rag` for
-the full reference.
+``--favicon`` (browser-tab icon; defaults to the bundled Klea icon) are
+available too --- see :doc:`../cli/klea-rag` for the full reference.
 
 Step 7: Commit and push
 -----------------------

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.bootstrap - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -333,6 +333,24 @@
 
 <span class="n">PageBuilder</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
 
+<span class="c1">#: Bundled default favicon (the Klea notext logo), shown in the browser tab</span>
+<span class="c1">#: when the caller does not supply one.</span>
+<span class="n">_DEFAULT_FAVICON</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">"static"</span> <span class="o">/</span> <span class="s2">"klea-favicon.png"</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="default_favicon_path">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.bootstrap.default_favicon_path">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">default_favicon_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the bundled Klea favicon path, or ``None`` when absent.</span>
+
+<span class="sd">    The caller passes the result to NiceGUI's ``favicon``; ``None`` leaves</span>
+<span class="sd">    NiceGUI's own default icon in place.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_DEFAULT_FAVICON</span> <span class="k">if</span> <span class="n">_DEFAULT_FAVICON</span><span class="o">.</span><span class="n">is_file</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span></div>
+
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_configure_logging</span><span class="p">(</span><span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Configure process-wide logging for this client process."""</span>
@@ -401,6 +419,7 @@
     <span class="n">nicegui_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"0.0.0.0:7860"</span><span class="p">,</span>
     <span class="n">storage_secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-nicegui-secret-change-me"</span><span class="p">,</span>
     <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-web"</span><span class="p">,</span>
+    <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Start the NiceGUI web server with a Klea page.</span>
 
@@ -429,9 +448,14 @@
 <span class="sd">        persistence.</span>
 <span class="sd">    :param app_name: Log identity for this frontend process, used as the</span>
 <span class="sd">        log file name so each app keeps its own logs.</span>
+<span class="sd">    :param favicon: Browser-tab favicon (a file path, URL, raw SVG or a</span>
+<span class="sd">        single character).  Defaults to the bundled Klea icon.</span>
 <span class="sd">    """</span>
     <span class="n">_configure_logging</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
     <span class="n">_configure_storage</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
+
+    <span class="n">resolved_favicon</span> <span class="o">=</span> <span class="n">favicon</span> <span class="ow">or</span> <span class="n">default_favicon_path</span><span class="p">()</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">resolved_favicon</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="n">host</span><span class="p">,</span> <span class="n">port_str</span> <span class="o">=</span> <span class="n">nicegui_url</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">":"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
     <span class="n">port</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">port_str</span><span class="p">)</span>
@@ -467,6 +491,7 @@
         <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
         <span class="n">reload</span><span class="o">=</span><span class="n">reload</span><span class="p">,</span>
         <span class="n">storage_secret</span><span class="o">=</span><span class="n">storage_secret</span><span class="p">,</span>
+        <span class="n">favicon</span><span class="o">=</span><span class="n">resolved_favicon</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 </pre></div>

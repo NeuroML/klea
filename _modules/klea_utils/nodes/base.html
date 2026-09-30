@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.nodes.base - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -312,6 +312,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">inspect</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
@@ -321,13 +322,14 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputParserException</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptValue</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompts</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.runnables</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.utils.function_calling</span><span class="w"> </span><span class="kn">import</span> <span class="n">convert_to_json_schema</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_runtime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ValidationError</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">model_overrides_from_context</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
@@ -337,16 +339,21 @@
     <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
     <span class="n">add_memory_to_prompt</span><span class="p">,</span>
     <span class="n">classify_llm_invocation_error</span><span class="p">,</span>
-    <span class="n">content_to_str</span><span class="p">,</span>
     <span class="n">estimate_input_tokens</span><span class="p">,</span>
     <span class="n">get_last_n_conversations</span><span class="p">,</span>
     <span class="n">get_provider_allowed_fields</span><span class="p">,</span>
     <span class="n">get_token_limit_param</span><span class="p">,</span>
+    <span class="n">is_empty_structured_parse_error</span><span class="p">,</span>
+    <span class="n">is_output_empty</span><span class="p">,</span>
     <span class="n">is_output_truncated</span><span class="p">,</span>
+    <span class="n">is_structured_capability_rejection</span><span class="p">,</span>
+    <span class="n">is_structured_output_failure</span><span class="p">,</span>
     <span class="n">load_prompt</span><span class="p">,</span>
+    <span class="n">mark_structured_output_unsupported</span><span class="p">,</span>
     <span class="n">parse_output_with_thought</span><span class="p">,</span>
     <span class="n">resolve_langchain_endpoint</span><span class="p">,</span>
     <span class="n">resolve_output_token_limit</span><span class="p">,</span>
+    <span class="n">structured_output_known_unsupported</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe_endpoint_model_limits</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span>
@@ -354,6 +361,40 @@
 <span class="c1">#: Max times to retry an invoke that overflowed the context window, each</span>
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
 <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span> <span class="o">=</span> <span class="mi">3</span>
+
+<span class="c1">#: Max times to retry an invoke that returned an empty response.  Some</span>
+<span class="c1">#: providers (notably HuggingFace) intermittently return a successful but</span>
+<span class="c1">#: blank message; the retry is a plain re-invoke with no window change.</span>
+<span class="n">MAX_EMPTY_OUTPUT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1">#: Max times to retry a transiently failed invoke (a timeout, e.g. a stalled</span>
+<span class="c1">#: stream that never produced a chunk).  Rate limits, auth and model-not-found</span>
+<span class="c1">#: failures are deliberately *not* retried here: the provider SDK already</span>
+<span class="c1">#: retries ``429``/``5xx`` and honours ``Retry-After``, so retrying again</span>
+<span class="c1">#: would multiply the attempts and can amplify a rate limit.</span>
+<span class="n">MAX_TRANSIENT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1">#: Base backoff (seconds) between transient retries; doubles each attempt.</span>
+<span class="n">TRANSIENT_RETRY_BACKOFF_S</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_current_session_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the current LangGraph ``thread_id``, or ``None`` outside a run.</span>
+
+<span class="sd">    The thread id is Klea's stable per-conversation session id.  It is sent as</span>
+<span class="sd">    the opencode ``x-opencode-session`` request header so the backend can</span>
+<span class="sd">    optimise routing and prompt caching (see</span>
+<span class="sd">    :func:`klea_utils.llm.apply_provider_overrides`).</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_config</span>
+
+        <span class="n">config</span> <span class="o">=</span> <span class="n">get_config</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - no run context (e.g. unit tests)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">thread_id</span> <span class="o">=</span> <span class="p">(</span><span class="n">config</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"thread_id"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">thread_id</span> <span class="ow">or</span> <span class="kc">None</span>
+
 
 <span class="c1">#: Max times to retry an invoke whose output was truncated (``finish_reason</span>
 <span class="c1">#: == "length"``), each time growing the reserved output window.  The</span>
@@ -427,6 +468,11 @@
             <span class="k">return</span> <span class="kc">None</span>
 
 
+<span class="c1">#: User-facing fallback when an LLM produced no usable answer and the node</span>
+<span class="c1">#: has no more specific fallback of its own.</span>
+<span class="n">EMPTY_RESULT_FALLBACK</span> <span class="o">=</span> <span class="s2">"Something went wrong. Please retry."</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_empty_result</span><span class="p">(</span><span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return True if *result* carries no usable content.</span>
 
@@ -442,13 +488,15 @@
     <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span> <span class="ow">and</span> <span class="n">result</span> <span class="o">==</span> <span class="n">schema</span><span class="p">()</span>
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">is_output_empty</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
     <span class="k">return</span> <span class="kc">False</span>
 
 
 <div class="viewcode-block" id="BaseLLMNode">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.base.BaseLLMNode">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">BaseLLMNode</span><span class="p">[</span><span class="n">TSchema</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">](</span><span class="n">AbstractLLMNode</span><span class="p">[</span><span class="n">TSchema</span><span class="p">]):</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BaseLLMNode</span><span class="p">[</span><span class="n">TState</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">TOutput</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">](</span>
+    <span class="n">AbstractLLMNode</span><span class="p">[</span><span class="n">TState</span><span class="p">,</span> <span class="n">TOutput</span><span class="p">]</span>
+<span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Base class for LangGraph nodes that load prompts from files.</span>
 
 <span class="sd">    Extends AbstractLLMNode with:</span>
@@ -469,7 +517,7 @@
         <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
         <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">llm_models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-        <span class="n">output_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">TSchema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">output_schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">memory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Initialize with file-based prompt loading and memory support.</span>
@@ -522,12 +570,12 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_prompt_registry_location</span> <span class="o">=</span> <span class="n">value</span>
 
     <span class="nd">@property</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">TSchema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Return Pydantic schema for structured output if required"""</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_schema</span>
 
     <span class="nd">@output_schema</span><span class="o">.</span><span class="n">setter</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">TSchema</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Set Pydantic schema for structured output"""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_output_schema</span> <span class="o">=</span> <span class="n">value</span>
 
@@ -549,7 +597,9 @@
 <span class="sd">        """</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_invoke_config</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">config</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'configurable'</span><span class="p">,</span><span class="w"> </span><span class="p">{}))</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
         <span class="k">return</span> <span class="n">inst</span><span class="p">,</span> <span class="n">config</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_invoke_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
@@ -581,6 +631,7 @@
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">build_config</span><span class="p">(</span>
             <span class="n">context_overrides</span><span class="o">=</span><span class="n">role_overrides</span><span class="p">,</span>
             <span class="n">node_defaults</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_defaults</span><span class="p">,</span>
+            <span class="n">session_id</span><span class="o">=</span><span class="n">_current_session_id</span><span class="p">(),</span>
         <span class="p">)</span>
 
         <span class="c1"># Get the merged configurable dict for provider field filtering.</span>
@@ -696,41 +747,73 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Async invoke LLM with optional structured output + fallback.</span>
 
-<span class="sd">        Wraps the configurable model with ``with_structured_output``</span>
-<span class="sd">        when an output schema exists.  If the provider rejects the</span>
-<span class="sd">        ``response_format`` parameter (e.g. some custom OpenAI-compatible</span>
-<span class="sd">        endpoints), falls back to a plain invoke  ---  the prompt already</span>
-<span class="sd">        contains the JSON schema as text instructions.</span>
+<span class="sd">        When an output schema exists, the model is first invoked through</span>
+<span class="sd">        ``with_structured_output``, unless this ``(provider, model, base_url)``</span>
+<span class="sd">        was already seen refusing the parameter (process-local cache), in which</span>
+<span class="sd">        case the plain invoke is used directly.  Any structured-only failure</span>
+<span class="sd">        ---  a schema validation/JSON parse error, or the provider rejecting</span>
+<span class="sd">        the ``response_format`` parameter  ---  latches the call to a plain</span>
+<span class="sd">        invoke for the rest of this invocation; the prompt already contains the</span>
+<span class="sd">        JSON schema as text instructions and :meth:`_process_output` parses it</span>
+<span class="sd">        tolerantly.  Only a stable capability rejection is remembered in the</span>
+<span class="sd">        cache; parse failures are per-response and are never cached.</span>
 
-<span class="sd">        Both paths route through :meth:`_invoke_with_retries` for adaptive</span>
-<span class="sd">        retries on context overflow / truncated output.</span>
+<span class="sd">        Both strategies share one :meth:`_invoke_with_retries` loop so</span>
+<span class="sd">        context-overflow / truncation / empty retries and infra-error</span>
+<span class="sd">        classification apply uniformly.  Blank responses are the one exception:</span>
+<span class="sd">        they stay on the structured path so its existing empty-retry budget is</span>
+<span class="sd">        used before degrading.</span>
 <span class="sd">        """</span>
         <span class="n">prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_cache_control</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
-            <span class="n">llm_wrapped</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
-            <span class="p">)</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span>
-                    <span class="n">llm_wrapped</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span>
-                <span class="p">)</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-                <span class="k">if</span> <span class="p">(</span>
-                    <span class="n">classify_llm_invocation_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
-                    <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
-                <span class="p">):</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">"Structured output not supported, falling back to prompt-based"</span>
-                    <span class="p">)</span>
-                    <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span>
-                        <span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span>
-                    <span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="k">raise</span>
-        <span class="k">else</span><span class="p">:</span>
+        <span class="n">configurable</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">model_name</span>
+        <span class="n">base_url</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
             <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="k">if</span> <span class="n">structured_output_known_unsupported</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Structured output known unsupported for </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">; "</span>
+                <span class="s2">"using the plain invoke"</span>
+            <span class="p">)</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="n">structured</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="n">use_structured</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">invoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">):</span>
+            <span class="k">nonlocal</span> <span class="n">use_structured</span>
+            <span class="k">if</span> <span class="n">use_structured</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="k">await</span> <span class="n">structured</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                    <span class="c1"># Blank responses keep their structured retry budget: let</span>
+                    <span class="c1"># the retry loop see the error and apply the empty-output</span>
+                    <span class="c1"># backoff instead of switching strategy.</span>
+                    <span class="k">if</span> <span class="n">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="k">raise</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_structured_output_failure</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="k">raise</span>
+                    <span class="k">if</span> <span class="n">is_structured_capability_rejection</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                        <span class="n">mark_structured_output_unsupported</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"Structured output unusable (</span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: "</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">); falling back to the plain invoke for this call"</span>
+                    <span class="p">)</span>
+                    <span class="n">use_structured</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">return</span> <span class="k">await</span> <span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">invoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">output</span>
 
@@ -868,7 +951,7 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Invoke an LLM with adaptive retries on length-related failures.</span>
 
-<span class="sd">        Two retry behaviours, both bounded:</span>
+<span class="sd">        Four retry behaviours, all bounded:</span>
 
 <span class="sd">        * ``context_overflow`` errors (request rejected because input plus</span>
 <span class="sd">          the reserved output exceeds the window) retry up to</span>
@@ -882,6 +965,13 @@
 <span class="sd">          "length"``), or a raised ``length_truncation`` exception (some</span>
 <span class="sd">          SDKs, e.g. the OpenAI streaming / structured-output path, raise</span>
 <span class="sd">          instead of returning a truncated message).</span>
+<span class="sd">        * Empty responses (some providers, notably HuggingFace,</span>
+<span class="sd">          intermittently return a blank successful message) retry up to</span>
+<span class="sd">          :data:`MAX_EMPTY_OUTPUT_RETRIES` times with a plain re-invoke.</span>
+<span class="sd">        * Transient timeouts (e.g. a stream that stalls after the response</span>
+<span class="sd">          starts) retry up to :data:`MAX_TRANSIENT_RETRIES` times with an</span>
+<span class="sd">          exponential backoff.  The provider SDK's own retries do not cover</span>
+<span class="sd">          a post-response stall, so this is the only layer that can.</span>
 
 <span class="sd">        All other failures (rate limits, auth, model-not-found, ...) are</span>
 <span class="sd">        re-raised immediately.  Retrying stops early if resizing the</span>
@@ -894,6 +984,8 @@
 <span class="sd">        """</span>
         <span class="n">overflow_retries</span> <span class="o">=</span> <span class="mi">0</span>
         <span class="n">truncation_retries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">empty_retries</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">transient_retries</span> <span class="o">=</span> <span class="mi">0</span>
 
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="k">try</span><span class="p">:</span>
@@ -927,6 +1019,37 @@
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
                         <span class="k">continue</span>
                     <span class="k">raise</span>
+
+                <span class="c1"># A blank structured response makes the parser raise instead</span>
+                <span class="c1"># of returning an empty message, so route it into the same</span>
+                <span class="c1"># empty-retry budget a plain blank response gets.</span>
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+                    <span class="ow">and</span> <span class="n">empty_retries</span> <span class="o">&lt;</span> <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span>
+                <span class="p">):</span>
+                    <span class="n">empty_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Empty structured LLM output, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
+                        <span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">continue</span>
+
+                <span class="k">if</span> <span class="p">(</span>
+                    <span class="n">category</span> <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">TIMEOUT</span>
+                    <span class="ow">and</span> <span class="n">transient_retries</span> <span class="o">&lt;</span> <span class="n">MAX_TRANSIENT_RETRIES</span>
+                <span class="p">):</span>
+                    <span class="n">transient_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">delay</span> <span class="o">=</span> <span class="n">TRANSIENT_RETRY_BACKOFF_S</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="p">(</span><span class="n">transient_retries</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Transient LLM timeout, retrying in </span><span class="si">%.1f</span><span class="s2">s (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="n">delay</span><span class="p">,</span>
+                        <span class="n">transient_retries</span><span class="p">,</span>
+                        <span class="n">MAX_TRANSIENT_RETRIES</span><span class="p">,</span>
+                        <span class="n">exc</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
+                    <span class="k">continue</span>
                 <span class="k">raise</span>
 
             <span class="k">if</span> <span class="n">is_output_truncated</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
@@ -935,6 +1058,21 @@
                     <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
                     <span class="k">continue</span>
+                <span class="k">return</span> <span class="n">output</span>
+
+            <span class="k">if</span> <span class="n">is_output_empty</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">empty_retries</span> <span class="o">&lt;</span> <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">:</span>
+                    <span class="n">empty_retries</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Empty LLM output, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
+                        <span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"Empty LLM output after </span><span class="si">%d</span><span class="s2"> retries; returning as-is"</span><span class="p">,</span>
+                    <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                <span class="p">)</span>
                 <span class="k">return</span> <span class="n">output</span>
 
             <span class="k">return</span> <span class="n">output</span>
@@ -986,22 +1124,20 @@
 <span class="sd">        revisit the prompt/model rather than expecting a loud invocation</span>
 <span class="sd">        error.</span>
 <span class="sd">        """</span>
-        <span class="n">result</span><span class="p">:</span> <span class="n">TSchema</span> <span class="o">|</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">result</span><span class="p">:</span> <span class="n">TOutput</span> <span class="o">|</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span>
 
         <span class="k">if</span> <span class="n">schema</span><span class="p">:</span>
             <span class="c1"># but answer is returned as message instead of json/dict</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-                <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                    <span class="n">result</span> <span class="o">=</span> <span class="n">schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsing_error"</span><span class="p">]:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s2">"LLM parsing error, using fallback: </span><span class="si">{</span><span class="n">output</span><span class="p">[</span><span class="s1">'parsing_error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
                     <span class="p">)</span>
-                    <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">],</span> <span class="n">schema</span><span class="p">)</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">])</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">result</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsed"</span><span class="p">]</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -1026,7 +1162,47 @@
                 <span class="sa">f</span><span class="s2">"Empty LLM output from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">: nothing usable was "</span>
                 <span class="sa">f</span><span class="s2">"produced (all-default structured result or blank message)"</span>
             <span class="p">)</span>
+            <span class="c1"># Structured nodes define a typed fail-closed default (e.g. the</span>
+            <span class="c1"># router's ``task`` route, the evaluator's ``need_replan``), so</span>
+            <span class="c1"># surface it instead of the empty instance.  Non-structured</span>
+            <span class="c1"># nodes keep the raw output: their ``_get_default_error_result``</span>
+            <span class="c1"># is not necessarily an ``AIMessage`` (the guard returns a bare</span>
+            <span class="c1"># ``str``), and user-facing ones supply their own fallback text.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
 
+        <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_structured_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">AIMessage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Parse a structured-output message, degrading to the typed default.</span>
+
+<span class="sd">        ``parse_output_with_thought`` can raise when the model returned blank</span>
+<span class="sd">        or unrecoverable text (for example a blank message that ``repair_json``</span>
+<span class="sd">        cannot turn into JSON).  Structured nodes define a typed fail-closed</span>
+<span class="sd">        default, so use it rather than letting the parser error escape the</span>
+<span class="sd">        node and abort the run.</span>
+
+<span class="sd">        :param message: The raw model message to parse.</span>
+<span class="sd">        :returns: A schema instance, or ``_get_default_error_result()`` on</span>
+<span class="sd">            parse/validation failure.</span>
+<span class="sd">        """</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">OutputParserException</span><span class="p">,</span> <span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Structured output could not be parsed; using default result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                    <span class="s2">"Parsed output failed schema validation; using default "</span>
+                    <span class="sa">f</span><span class="s2">"result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">result</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invoke_prompt</span><span class="p">(</span>
@@ -1072,7 +1248,7 @@
 <span class="s2">            """</span>
         <span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_system_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_system_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load system prompt from file, optionally adding memory and schema.</span>
 
 <span class="sd">        When memory is enabled, returns a list of ``("system", text)`` plus</span>
@@ -1102,7 +1278,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">system_prompt</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">system_prompt</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_recent_memory_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">BaseMessage</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_recent_memory_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">BaseMessage</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Return the recent verbatim history messages for the prompt.</span>
 
 <span class="sd">        Forward-stable: ``messages[summarised_till - N:]`` keeps the cached</span>
@@ -1132,7 +1308,7 @@
         <span class="n">_</span><span class="p">,</span> <span class="n">recent</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
         <span class="k">return</span> <span class="n">recent</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load human prompt from file."""</span>
         <span class="n">human_prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_prompt_file</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_prefix</span><span class="si">}</span><span class="s2">_user"</span><span class="p">)</span>
 
@@ -1149,6 +1325,28 @@
             <span class="n">prompt_name</span><span class="o">=</span><span class="n">prompt_name</span><span class="p">,</span>
             <span class="n">prompt_registry_location</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_registry_location</span><span class="p">,</span>
         <span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_optional_section</span><span class="p">(</span><span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">body</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Render an optional prompt section, or ``""`` when *body* is empty.</span>
+
+<span class="sd">        ``ChatPromptTemplate`` has no conditionals, so every placeholder always</span>
+<span class="sd">        renders; a bare ``Heading:\\n{value}`` line would leave an empty label</span>
+<span class="sd">        on the calls where the value does not apply.  Nodes therefore compose a</span>
+<span class="sd">        conditional section whole -- heading included -- into one variable and</span>
+<span class="sd">        leave it out entirely when there is nothing to say (prompt</span>
+<span class="sd">        conventions, ``devdocs/system/prompt-conventions.md``).  The user</span>
+<span class="sd">        prompt then carries a bare ``{..._block}`` placeholder.</span>
+
+<span class="sd">        :param title: Section heading text, without the ``#`` markers.</span>
+<span class="sd">        :param body: Section content; whitespace-only means "omit".</span>
+<span class="sd">        :param level: Markdown heading level (default ``2``).</span>
+<span class="sd">        :returns: The rendered section, or ``""`` when *body* is empty.</span>
+<span class="sd">        """</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">body</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">""</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'#'</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">level</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="se">\n\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_prompt_template</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">system_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">human_prompt</span><span class="p">:</span> <span class="nb">str</span>
@@ -1185,7 +1383,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt_template</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">prompt_template</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_memory_addition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_memory_addition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Hook for subclasses to append memory content into the system prompt.</span>
 
 <span class="sd">        Override this method to provide memory-specific content.</span>

@@ -47,15 +47,21 @@ klea-utils extras
    * - ``ollama``
      - ``langchain-ollama``, ``ollama``
      - Ollama inference provider (local models)
+   * - ``anthropic``
+     - ``langchain-anthropic``
+     - Anthropic provider (native ``anthropic:`` and custom ``/messages`` endpoints)
    * - ``ingest``
      - ``docling``, ``typer``, ``xxhash``
      - Document ingestion pipeline
    * - ``nicegui``
      - ``nicegui``
      - NiceGUI web UI frontend
+   * - ``search``
+     - ``astral-dev-toolchain-ripgrep``
+     - Pinned ripgrep binary for the read-only ``grep`` / ``find_files`` tools (falls back to an in-house walker without it)
    * - ``full``
-     - All of the above
-     - All optional extras (vector stores + inference providers + frontends)
+     - All of the above except ``anthropic``
+     - All optional extras (vector stores + inference providers + frontends); Anthropic stays opt-in
 
 Usage::
 
@@ -85,12 +91,15 @@ klea-rag extras
    * - ``ollama``
      - ``klea_utils[ollama]``
      - Ollama inference provider for RAG
+   * - ``anthropic``
+     - ``klea_utils[anthropic]``
+     - Anthropic provider for RAG (native and custom ``/messages`` endpoints)
    * - ``nicegui``
      - ``klea_utils[nicegui]``
      - NiceGUI web UI frontend
    * - ``full``
-     - All vector store and inference provider extras
-     - All RAG optional extras
+     - All vector store and inference provider extras except ``anthropic``
+     - All RAG optional extras; Anthropic stays opt-in
 
 Usage::
 
@@ -170,17 +179,23 @@ Both the RAG and Agent packages load configuration from:
    * ``KLEA_AGENT_ENV_FILE`` or ``klea_agent.env`` for the Agent system
 
    The env file is **optional** -- when it is absent, shell environment
-   variables and class defaults are used, so a clean machine can run with
-   only a JSON config.
+   variables and class defaults are used.  The Agent needs no JSON config,
+   so a clean machine can run it with the environment alone; the RAG needs
+   the JSON config for its store wiring.
 
 2. A JSON configuration file selected by a *profile* name.
 
    Each JSON config is identified by a profile: ``--profile <name>`` loads
    ``<name>.json``.  The file is looked up in the current directory first,
-   then in the per-app config directory (``~/.config/klea/`` for the Agent,
-   ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).  The
-   default profile is ``klea_agent`` / ``klea_rag``, so ``klea_agent.json``
-   and ``klea_rag.json`` are loaded when no ``--profile`` is given.
+   then in the per-app config directory (``~/.config/klea-agent/`` for the
+   Agent, ``~/.config/klea-rag/`` for the RAG, honoring ``XDG_CONFIG_HOME``).
+
+   The RAG has a default profile (``klea_rag``), so ``klea_rag.json`` is
+   loaded when no ``--profile`` is given and is required (the RAG needs its
+   store wiring).  The Agent has **no default config file**: without
+   ``--profile`` (or ``KLEA_AGENT_APP_CONFIG_FILE``) it runs from the
+   built-in ``AppConfig`` defaults plus the environment, and models can be
+   set in the web UI.
 
    Use ``--profile template`` on any CLI to scaffold a ready-to-fill config
    into the current directory (it refuses to overwrite an existing file).
@@ -217,8 +232,18 @@ to try a model without editing any files::
 If a required model is not set, the server still starts but logs a warning
 listing every model environment variable and its current state.  Queries
 then return a clear "No model configured" error.  From the web UI you can
-set models per chat at runtime with the settings (gear) icon, without
-restarting the server.
+set models at runtime, without restarting the server: open the model dialog
+with the settings (gear) icon in the status pane and pick each role's
+provider, model and optional custom URL from the
+`models.dev <https://models.dev>`_ catalogue (free text is still accepted
+for uncatalogued models).  The dialog edits the per-session defaults when
+no chat is open and the current chat's overrides otherwise; saving in a
+chat also updates the defaults, so new chats inherit them.  A first-run
+**Choose models** prompt opens the dialog when setup is incomplete, and
+send stays disabled until the required models and API keys are configured.
+API keys are provider-scoped and managed from the same dialog (**Manage API
+keys**); they are masked in responses and expire after a period unused.  See
+:doc:`components/web-ui` for the interface.
 
 Example invocation::
 
@@ -239,24 +264,55 @@ to be installed::
    # For HuggingFace:
    pip install klea-utils[huggingface]
 
+   # For Anthropic (also enables custom /messages endpoints):
+   pip install klea-utils[anthropic]
+
 See the `LangChain provider docs
 <https://docs.langchain.com/oss/python/integrations/providers/overview>`_
 for other providers and their package names.  The needed extras
-(``huggingface``, ``ollama``) are documented in the extras tables above.
+(``huggingface``, ``ollama``, ``anthropic``) are documented in the extras
+tables above.
 
 Model names are prefixed according to their provider:
 
 * ``ollama:<model_name>:<tag>`` for Ollama models
-* ``huggingface:<model_id>`` for HuggingFace inference providers.
-  The suffix ``:local`` selects the pipeline backend (runs the model
-  locally), while any other suffix (e.g. ``:endpoint``) selects the
-  HuggingFace Endpoints API.  HuggingFace models additionally require
-  the ``HF_TOKEN`` environment variable to be set (see
+* ``huggingface:<model_id>`` for HuggingFace Inference Providers (the
+  hosted API; HuggingFace chooses the provider by default).  The optional
+  third segment selects the inference provider (e.g.
+  ``huggingface:<model_id>:deepinfra``) or a routing policy
+  (``:cheapest``, ``:fastest``, ``:preferred``).  Use
+  ``huggingface:<model_id>:local`` to run the model locally instead: the
+  weights are downloaded and no API key is needed.  Hosted HuggingFace
+  models require the ``HF_TOKEN`` environment variable to be set (see
   `HuggingFace tokens <https://huggingface.co/docs/hub/security-tokens>`_).
-* ``custom:<model_name>:<base_url>`` for OpenAI-compatible endpoints
-  (e.g. ``custom:Qwen:https://inf01.example.com/v1/``).  These use the
-  ``ChatOpenAI`` provider under the hood and require the
-  ``OPENAI_API_KEY`` environment variable.
+* ``custom:<model_name>:<url>`` for endpoints not covered by a native
+  provider.  A bare base URL defaults to the OpenAI Chat Completions API
+  (e.g. ``custom:Qwen:https://inf01.example.com/v1/``); a full endpoint
+  URL instead selects the wire API from its path (e.g. opencode Go serves
+  different models on different endpoints):
+
+  * ``.../chat/completions`` -- OpenAI Chat Completions;
+  * ``.../responses`` -- OpenAI Responses API;
+  * ``.../v1/messages`` -- Anthropic Messages API (requires the
+    ``anthropic`` extra).
+
+  ``OPENAI_API_KEY`` supplies the key for every custom surface, including
+  Anthropic (where it is copied to ``anthropic_api_key``); an explicit
+  per-chat ``api_key`` override takes precedence.
+* ``<provider>:<model_name>`` for providers listed in the
+  `models.dev <https://models.dev>`_ catalog whose endpoint Klea can resolve
+  (for example ``openrouter:qwen/qwen3-coder`` or ``deepseek:deepseek-chat``).
+  Klea reads the provider's endpoint from the catalog, so no URL is needed.
+  The provider's (or, for gateways that mix surfaces, the model's) wire
+  protocol decides the surface: OpenAI Chat Completions (most of the catalog,
+  including OpenRouter) and the OpenAI Responses API both use the OpenAI
+  provider with ``OPENAI_API_KEY`` (Responses is selected automatically for
+  models such as those on OpenCode Go); Anthropic-style endpoints use the
+  Anthropic surface (requires the ``anthropic`` extra) with the same
+  ``OPENAI_API_KEY`` mapping as ``custom:``.  Providers without a catalog
+  endpoint (native SDK providers such as ``groq``/``mistral``) are left to
+  LangChain as before, as are ``huggingface:`` and ``anthropic:``, which keep
+  their dedicated handling.
 * Others (e.g. OpenAI, Anthropic) use their standard model names and
   environment variables as supported by LangChain.
 
@@ -269,6 +325,66 @@ configures vector stores; BM25-only domains need no embedding model.  Note
 that vector stores load at startup from the embedding model, so an
 embedding model chosen per chat in the web UI cannot enable retrieval for
 stores -- set ``KLEA_RAG_EMBEDDING_MODEL`` before starting the server.
+
+Environment variables
+~~~~~~~~~~~~~~~~~~~~~
+
+The environment variables Klea reads, and what they control:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 36 64
+
+   * - Variable
+     - Purpose
+   * - ``KLEA_AGENT_ENV_FILE`` / ``KLEA_RAG_ENV_FILE``
+     - Path to the optional ``k=v`` env file (default ``klea_agent.env`` /
+       ``rag.env``).
+   * - ``KLEA_AGENT_APP_CONFIG_FILE`` / ``KLEA_RAG_APP_CONFIG_FILE``
+     - JSON config file to load; ``--profile`` takes precedence when given.
+   * - ``KLEA_<APP>_<ROLE>_MODEL``
+     - Per-role model defaults, e.g. ``KLEA_AGENT_CHAT_MODEL``,
+       ``KLEA_RAG_EMBEDDING_MODEL`` (see `Model defaults`_).
+   * - ``OPENAI_API_KEY``
+     - API key for OpenAI, for ``custom:`` endpoints, and for catalog
+       providers resolved to the OpenAI or Anthropic surface (see
+       `Model defaults`_).
+   * - ``ANTHROPIC_API_KEY``
+     - API key for the native Anthropic provider.
+   * - ``HF_TOKEN``
+     - HuggingFace token for HuggingFace models/endpoints.
+   * - ``GITHUB_TOKEN``
+     - Optional GitHub token for the repository ``github`` tool (higher rate
+       limits and private repositories).
+   * - ``KLEA_LOG_LEVEL``
+     - Console log level (level name or number; see `Logging`_).
+   * - ``KLEA_TOOL_CALL_TIMEOUT``
+     - Per-call wall-clock backstop for tool calls, in seconds (default
+       ``900``; ``0`` disables).
+   * - ``KLEA_ALLOW_ROOT_TOOLS``
+     - Allow Klea-authored tools to run as root; refused by default.
+   * - ``KLEA_RUN_COMMAND_MAX_TIMEOUT``
+     - Ceiling for ``run_command``'s ``timeout_seconds`` in seconds
+       (default ``600``).
+   * - ``KLEA_MODELS_DEV_URL``
+     - Override the models.dev catalog URL (offline mirror / enterprise
+       proxy).
+   * - ``KLEA_INGEST_MAILTO``
+     - Contact email sent to DOI services (Crossref, OpenAlex) during store
+       ingestion, for their polite pool.
+   * - ``NICEGUI_STORAGE_PATH``
+     - Absolute directory for the web client's per-session storage (see
+       `Web client user storage`_).
+   * - ``RUNNING_IN_DOCKER``
+     - Internal: skip graph-diagram export on startup (set by the container
+       image).
+
+These are shell/process environment variables.  Values set only in the env
+file do **not** reach spawned MCP server subprocesses (which inherit the
+process environment), so tool-related variables such as
+``KLEA_TOOL_CALL_TIMEOUT``, ``KLEA_ALLOW_ROOT_TOOLS`` and
+``KLEA_RUN_COMMAND_MAX_TIMEOUT`` must be exported in the environment that
+launches the app.
 
 .. _logging:
 
@@ -284,7 +400,12 @@ Each Klea application writes its logs to a rotating file (1 MB per file,
 
 The file captures DEBUG output for the Klea packages and third-party
 libraries, while the console shows INFO for Klea and INFO-or-above for
-third-party libraries.  Each CLI uses its own ``<app>`` name:
+third-party libraries.  The console level can be changed with the
+``KLEA_LOG_LEVEL`` environment variable (a case-insensitive level name such
+as ``debug``, or a numeric level) or the shared ``--debug`` flag, which takes
+precedence and also exports the variable so spawned child processes inherit
+it.  The rotating file always captures DEBUG.  Each CLI uses its own
+``<app>`` name:
 
 .. list-table::
    :header-rows: 1
@@ -297,8 +418,8 @@ third-party libraries.  Each CLI uses its own ``<app>`` name:
      - ``klea-rag-tui/klea-rag-tui.log``
    * - ``klea-rag`` web client
      - ``klea-rag-web/klea-rag-web.log``
-   * - ``klea`` (Agent server / graph)
-     - ``klea/klea.log``
+   * - ``klea-agent`` (Agent server / graph)
+     - ``klea-agent/klea-agent.log``
    * - ``klea`` TUI client
      - ``klea-tui/klea-tui.log``
    * - ``klea`` web client

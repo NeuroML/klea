@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="klea-serve" href="klea-serve.html"><link rel="prev" title="nml-mcp" href="nml-mcp.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -188,7 +188,6 @@
     <img class="sidebar-logo" src="../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -254,6 +253,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -372,8 +372,8 @@ ready for general use.</p>
 │                                 [default: KLEA Agent]              │
 │ --subtitle        -b      TEXT  Subtitle shown next to title in    │
 │                                 header                             │
-│ --disclaimer      -c      TEXT  Disclaimer text shown below the    │
-│                                 chat area                          │
+│ --disclaimer      -c      TEXT  Disclaimer text shown in the       │
+│                                 footer                             │
 │                                 [default: Answers use LLM          │
 │                                 technology and may be incorrect.   │
 │                                 Please re-confirm.]                │
@@ -387,6 +387,10 @@ ready for general use.</p>
 │                                 persistence                        │
 │                                 [default:                          │
 │                                 klea-nicegui-secret-change-me]     │
+│ --favicon                 TEXT  Browser-tab icon: a file path,     │
+│                                 http(s)/data URL, raw SVG or a     │
+│                                 single character. Defaults to the  │
+│                                 bundled Klea icon.                 │
 │ --reload          -r            Enable auto-reload on file changes │
 │ --debug                         Enable debug logging               │
 │ --profile         -p      TEXT  Config profile name: loads         │
@@ -405,8 +409,9 @@ ready for general use.</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_ENV_FILE</span></code></dt><dd><p>Path to environment file (default: <code class="docutils literal notranslate"><span class="pre">klea_agent.env</span></code>).</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code></dt><dd><p>Config file used when <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is not given (from the env file,
-the environment, or the default <code class="docutils literal notranslate"><span class="pre">klea_agent.json</span></code>).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_APP_CONFIG_FILE</span></code></dt><dd><p>Config file used when <code class="docutils literal notranslate"><span class="pre">--profile</span></code> is not given (from the env file or
+the environment).  There is no default config file: without this and
+without <code class="docutils literal notranslate"><span class="pre">--profile</span></code> the agent runs from built-in defaults.</p>
 </dd>
 </dl>
 <p>Pass <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">&lt;name&gt;</span></code> to load <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code> from the current

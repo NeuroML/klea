@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.api.models - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -304,52 +304,269 @@
 <span class="sd">"""</span>
 <span class="sd">Per-session model configuration endpoints for runtime model switching.</span>
 
+<span class="sd">Model selection has three layers, lowest priority first:</span>
+
+<span class="sd">1. graph/env defaults (``graph.llm_models``)</span>
+<span class="sd">2. per-session default overrides (the user's "last used" models)</span>
+<span class="sd">3. per-chat overrides (the distinguishing per-conversation feature)</span>
+
+<span class="sd">Overrides store only the model string; API credentials live in the</span>
+<span class="sd">provider-scoped credential store (``/credentials``) and are resolved</span>
+<span class="sd">separately.  Any legacy plaintext ``api_key`` still present in stored</span>
+<span class="sd">overrides is masked before it is returned.</span>
+
 <span class="sd">File: klea_utils/api/models.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">APIRouter</span><span class="p">,</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Request</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.credentials</span><span class="w"> </span><span class="kn">import</span> <span class="n">credential_status</span><span class="p">,</span> <span class="n">mask_secret</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_model_name</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_catalog_models</span><span class="p">,</span> <span class="n">list_catalog_providers</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="ChatModelConfigPayload">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.models.ChatModelConfigPayload">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ChatModelConfigPayload</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></div>
+<div class="viewcode-block" id="ModelPayload">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.models.ModelPayload">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ModelPayload</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Request body for setting a role's model.</span>
 
+<span class="sd">    Only the model string is persisted; credentials are managed through</span>
+<span class="sd">    ``/credentials``.  ``promote_default`` (per-chat writes) also updates</span>
+<span class="sd">    the per-session default so a new chat inherits the last-used model.</span>
+<span class="sd">    Unknown fields (e.g. a legacy ``api_key``) are ignored.</span>
+<span class="sd">    """</span>
+
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">promote_default</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_role_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether a model role can be modified by the user."""</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"llm_models"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_role_config</span><span class="p">(</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">role_entry</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">session_override</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">chat_override</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Resolve one role's effective config (graph default &lt; session &lt; chat)."""</span>
+    <span class="n">model_name</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">role_entry</span><span class="p">,</span> <span class="s2">"model_name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="k">if</span> <span class="n">role_entry</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="n">session_override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">):</span>
+        <span class="n">model_name</span> <span class="o">=</span> <span class="n">session_override</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">chat_override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">):</span>
+        <span class="n">model_name</span> <span class="o">=</span> <span class="n">chat_override</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span>
+
+    <span class="n">role_config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"model"</span><span class="p">:</span> <span class="n">model_name</span><span class="p">,</span>
+        <span class="s2">"modifiable"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">role_entry</span><span class="p">,</span> <span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">role_entry</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">"required"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">role_entry</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span> <span class="k">if</span> <span class="n">role_entry</span> <span class="k">else</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span> <span class="k">if</span> <span class="n">model_name</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">parsed</span> <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">:</span>
+        <span class="n">role_config</span><span class="p">[</span><span class="s2">"provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span>
+    <span class="c1"># Carry any legacy base_url/api_key (masked) present in the overrides.</span>
+    <span class="k">for</span> <span class="n">override</span> <span class="ow">in</span> <span class="p">(</span><span class="n">session_override</span><span class="p">,</span> <span class="n">chat_override</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">):</span>
+            <span class="n">role_config</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">):</span>
+            <span class="n">role_config</span><span class="p">[</span><span class="s2">"api_key"</span><span class="p">]</span> <span class="o">=</span> <span class="n">mask_secret</span><span class="p">(</span><span class="n">override</span><span class="p">[</span><span class="s2">"api_key"</span><span class="p">])</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">role_config</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">role_config</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_active</span><span class="p">(</span>
+    <span class="n">graph</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span><span class="p">,</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Resolve the effective per-role config for a user (and optional chat).</span>
+
+<span class="sd">    :param graph: The graph, whose ``llm_models`` are the env/config defaults.</span>
+<span class="sd">    :param store: Session store with the override layers.</span>
+<span class="sd">    :param user_id: Persistent user identifier.</span>
+<span class="sd">    :param chat_id: Chat to include per-chat overrides for, or ``None`` for</span>
+<span class="sd">        the per-session defaults view.</span>
+<span class="sd">    :returns: ``{role: config}`` with ``overridden`` (this scope) and,</span>
+<span class="sd">        for a chat, ``session_overridden``, plus a ``credential`` block.</span>
+<span class="sd">    """</span>
+    <span class="n">session_overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_session_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
+    <span class="n">chat_overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span> <span class="k">if</span> <span class="n">chat_id</span> <span class="k">else</span> <span class="p">{}</span>
+    <span class="n">llm_models</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"llm_models"</span><span class="p">,</span> <span class="p">{})</span>
+
+    <span class="n">roles</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">llm_models</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="p">(</span><span class="o">*</span><span class="n">session_overrides</span><span class="p">,</span> <span class="o">*</span><span class="n">chat_overrides</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">:</span>
+            <span class="n">roles</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">session_overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">chat_overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">roles</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
+
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">:</span>
+        <span class="n">role_entry</span> <span class="o">=</span> <span class="n">llm_models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+        <span class="n">session_override</span> <span class="o">=</span> <span class="n">session_overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">chat_override</span> <span class="o">=</span> <span class="n">chat_overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">role_config</span> <span class="o">=</span> <span class="n">_role_config</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="n">role_entry</span><span class="p">,</span> <span class="n">session_override</span><span class="p">,</span> <span class="n">chat_override</span><span class="p">)</span>
+        <span class="n">role_config</span><span class="p">[</span><span class="s2">"overridden"</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="nb">bool</span><span class="p">(</span><span class="n">chat_override</span><span class="p">)</span> <span class="k">if</span> <span class="n">chat_id</span> <span class="k">else</span> <span class="nb">bool</span><span class="p">(</span><span class="n">session_override</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">chat_id</span><span class="p">:</span>
+            <span class="n">role_config</span><span class="p">[</span><span class="s2">"session_overridden"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">session_override</span><span class="p">)</span>
+        <span class="n">role_config</span><span class="p">[</span><span class="s2">"credential"</span><span class="p">]</span> <span class="o">=</span> <span class="n">credential_status</span><span class="p">(</span>
+            <span class="n">store</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">role_config</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span>
+        <span class="p">)</span>
+        <span class="n">resolved</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">role_config</span>
+    <span class="k">return</span> <span class="n">resolved</span>
 
 
 <div class="viewcode-block" id="create_models_router">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.models.create_models_router">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">create_models_router</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">APIRouter</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Create an APIRouter for per-chat model configuration.</span>
+<span class="w">    </span><span class="sd">"""Create an APIRouter for per-session and per-chat model configuration.</span>
 
-<span class="sd">    ``GET /chat/{user_id}/{chat_id}/models/overrides``</span>
-<span class="sd">        Returns stored model overrides for a chat.</span>
+<span class="sd">    Model catalogue (suggestions for the model selection UIs)::</span>
 
-<span class="sd">    ``GET /chat/{user_id}/{chat_id}/models/active``</span>
-<span class="sd">        Returns resolved model config (defaults merged with overrides).</span>
+<span class="sd">        GET    /chat/{user_id}/models/catalogue</span>
+<span class="sd">        GET    /chat/{user_id}/models/catalogue?provider=...</span>
 
-<span class="sd">    ``POST /chat/{user_id}/{chat_id}/models/overrides/{role}``</span>
-<span class="sd">        Stores per-chat model overrides.</span>
+<span class="sd">    Per-session defaults::</span>
+
+<span class="sd">        GET    /chat/{user_id}/models/overrides</span>
+<span class="sd">        GET    /chat/{user_id}/models/active</span>
+<span class="sd">        POST   /chat/{user_id}/models/overrides/{role}</span>
+<span class="sd">        DELETE /chat/{user_id}/models/overrides/{role}</span>
+
+<span class="sd">    Per-chat overrides::</span>
+
+<span class="sd">        GET    /chat/{user_id}/{chat_id}/models/overrides</span>
+<span class="sd">        GET    /chat/{user_id}/{chat_id}/models/active</span>
+<span class="sd">        POST   /chat/{user_id}/{chat_id}/models/overrides/{role}</span>
+<span class="sd">        DELETE /chat/{user_id}/{chat_id}/models/overrides/{role}</span>
+
+<span class="sd">    A per-chat POST also promotes the model into the session default</span>
+<span class="sd">    unless ``promote_default`` is false (the "last used" behaviour).</span>
 <span class="sd">    """</span>
     <span class="n">router</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">"/chat"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"models"</span><span class="p">])</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Any</span><span class="p">,</span> <span class="n">SessionStore</span><span class="p">]:</span>
+        <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs.</span>
+        <span class="n">graph</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span>
+        <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
+        <span class="k">return</span> <span class="n">graph</span><span class="p">,</span> <span class="n">store</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Model catalogue</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/catalogue"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_model_catalogue</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the providers, or one provider's models, for model selection.</span>
+
+<span class="sd">        Without ``provider`` the provider list is returned (models.dev</span>
+<span class="sd">        providers plus ollama and custom); with it, that provider's model</span>
+<span class="sd">        ids.  The first call may have to download the models.dev catalog,</span>
+<span class="sd">        which blocks, so the lookup runs in a worker thread.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
+            <span class="n">models</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">list_catalog_models</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"get_model_catalogue(</span><span class="si">%s</span><span class="s2">, provider=</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> model(s)"</span><span class="p">,</span>
+                <span class="n">user_id</span><span class="p">,</span>
+                <span class="n">provider</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">models</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"provider"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span> <span class="s2">"models"</span><span class="p">:</span> <span class="n">models</span><span class="p">}</span>
+        <span class="n">providers</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">list_catalog_providers</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_model_catalogue(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> provider(s)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">providers</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"providers"</span><span class="p">:</span> <span class="n">providers</span><span class="p">}</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Per-session defaults</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/overrides"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_session_model_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the session default model overrides (legacy keys masked)."""</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mask_sensitive</span><span class="p">(</span><span class="n">store</span><span class="o">.</span><span class="n">get_session_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">))</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/active"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_session_active_models</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return defaults + per-session overrides, plus credential status."""</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">_resolve_active</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_session_active_models(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> role(s)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/overrides/</span><span class="si">{role}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">set_session_model_override</span><span class="p">(</span>
+        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="n">ModelPayload</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Set the session default model for a role."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_role_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Rejected model update for locked role=</span><span class="si">%s</span><span class="s2"> user=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">user_id</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
+                <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span>
+                <span class="n">detail</span><span class="o">=</span><span class="sa">f</span><span class="s2">"The '</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2">' model is locked and cannot be modified."</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">store</span><span class="o">.</span><span class="n">set_session_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">})</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">"set_session_model_override(</span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">, model=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="p">,</span>
+            <span class="n">role</span><span class="p">,</span>
+            <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="n">role</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">}</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/overrides/</span><span class="si">{role}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">clear_session_model_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Clear the session default model override for a role."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_role_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Rejected model reset for locked role=</span><span class="si">%s</span><span class="s2"> user=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">user_id</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
+                <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span>
+                <span class="n">detail</span><span class="o">=</span><span class="sa">f</span><span class="s2">"The '</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2">' model is locked and cannot be reset."</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="n">store</span><span class="o">.</span><span class="n">clear_session_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_session_model_override(</span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="n">role</span><span class="p">}</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Per-chat overrides</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
     <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/</span><span class="si">{chat_id}</span><span class="s2">/models/overrides"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_chat_model_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
-        <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
+<span class="w">        </span><span class="sd">"""Return a chat's model overrides (legacy keys masked)."""</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
         <span class="n">overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="s2">"get_chat_model_overrides(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> role(s)"</span><span class="p">,</span>
@@ -357,127 +574,84 @@
             <span class="n">chat_id</span><span class="p">,</span>
             <span class="nb">len</span><span class="p">(</span><span class="n">overrides</span><span class="p">),</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="n">overrides</span>
+        <span class="k">return</span> <span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span>
 
     <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/</span><span class="si">{chat_id}</span><span class="s2">/models/active"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_chat_active_models</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">):</span>
-<span class="w">        </span><span class="sd">"""Return the resolved model config per role (defaults + chat overrides).</span>
-
-<span class="sd">        Reads the graph's ``llm_models`` dict for defaults and merges any</span>
-<span class="sd">        per-chat overrides on top.</span>
-<span class="sd">        """</span>
-        <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
-
-        <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span>
-        <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
-
-        <span class="n">defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">graph</span><span class="o">.</span><span class="n">llm_models</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">cfg</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">model_name</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">}</span>
-            <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_model_name</span>
-
-            <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">model_name</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">:</span>
-                <span class="n">cfg</span><span class="p">[</span><span class="s2">"provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span>
-            <span class="n">cfg</span><span class="p">[</span><span class="s2">"modifiable"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-            <span class="n">cfg</span><span class="p">[</span><span class="s2">"required"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-            <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">cfg</span>
-
-        <span class="n">overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">override</span> <span class="ow">in</span> <span class="n">overrides</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">defaults</span><span class="p">:</span>
-                <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"model"</span><span class="p">])</span>
-                <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">):</span>
-                    <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span><span class="p">[</span><span class="s2">"provider"</span><span class="p">]</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_model_name</span>
-
-                    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"model"</span><span class="p">])</span>
-                    <span class="k">if</span> <span class="n">parsed</span> <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">:</span>
-                        <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span>
-                <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">):</span>
-                    <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"api_key"</span><span class="p">]</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"...</span><span class="si">{</span><span class="n">override</span><span class="p">[</span><span class="s1">'api_key'</span><span class="p">][</span><span class="o">-</span><span class="mi">4</span><span class="p">:]</span><span class="si">}</span><span class="s2">"</span>
-                <span class="k">if</span> <span class="n">override</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">):</span>
-                    <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">][</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">defaults</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">override</span>
-
-        <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">defaults</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="n">value</span><span class="p">[</span><span class="s2">"overridden"</span><span class="p">]</span> <span class="o">=</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">overrides</span>
-
+<span class="w">        </span><span class="sd">"""Return defaults + user + chat overrides, plus credential status."""</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">_resolve_active</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="o">=</span><span class="n">chat_id</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="s2">"get_chat_active_models(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> role(s)"</span><span class="p">,</span>
             <span class="n">user_id</span><span class="p">,</span>
             <span class="n">chat_id</span><span class="p">,</span>
-            <span class="nb">len</span><span class="p">(</span><span class="n">defaults</span><span class="p">),</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">),</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="n">defaults</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return whether a model role can be modified by the user."""</span>
-        <span class="n">entry</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"llm_models"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">True</span>
-        <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">data</span>
 
     <span class="nd">@router</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/</span><span class="si">{chat_id}</span><span class="s2">/models/overrides/</span><span class="si">{role}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">set_chat_model_override</span><span class="p">(</span>
         <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">payload</span><span class="p">:</span> <span class="n">ChatModelConfigPayload</span><span class="p">,</span>
+        <span class="n">payload</span><span class="p">:</span> <span class="n">ModelPayload</span><span class="p">,</span>
         <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
     <span class="p">):</span>
-        <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
-
-        <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Set a chat's model override, promoting it to the session default."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">payload</span><span class="o">.</span><span class="n">promote_default</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_role_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Rejected model update for locked role=</span><span class="si">%s</span><span class="s2"> user=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">role</span><span class="p">,</span>
+                <span class="n">user_id</span><span class="p">,</span>
+                <span class="n">chat_id</span><span class="p">,</span>
+            <span class="p">)</span>
             <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
                 <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span>
                 <span class="n">detail</span><span class="o">=</span><span class="sa">f</span><span class="s2">"The '</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2">' model is locked and cannot be modified."</span><span class="p">,</span>
             <span class="p">)</span>
-        <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
         <span class="n">store</span><span class="o">.</span><span class="n">create_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-        <span class="n">store</span><span class="o">.</span><span class="n">set_override</span><span class="p">(</span>
-            <span class="n">user_id</span><span class="p">,</span>
-            <span class="n">chat_id</span><span class="p">,</span>
-            <span class="n">role</span><span class="p">,</span>
-            <span class="n">payload</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">exclude</span><span class="o">=</span><span class="p">{</span><span class="s2">"user_id"</span><span class="p">},</span> <span class="n">exclude_none</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
-        <span class="p">)</span>
+        <span class="n">store</span><span class="o">.</span><span class="n">set_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">payload</span><span class="o">.</span><span class="n">promote_default</span><span class="p">:</span>
+            <span class="n">store</span><span class="o">.</span><span class="n">set_session_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="p">{</span><span class="s2">"model"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">})</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="s2">"set_chat_model_override(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">, model=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="s2">"set_chat_model_override(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">, model=</span><span class="si">%s</span><span class="s2">, promote=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
             <span class="n">user_id</span><span class="p">,</span>
             <span class="n">chat_id</span><span class="p">,</span>
             <span class="n">role</span><span class="p">,</span>
             <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">payload</span><span class="o">.</span><span class="n">promote_default</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"ok"</span><span class="p">,</span>
             <span class="s2">"chat_id"</span><span class="p">:</span> <span class="n">chat_id</span><span class="p">,</span>
             <span class="s2">"role"</span><span class="p">:</span> <span class="n">role</span><span class="p">,</span>
             <span class="s2">"model"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+            <span class="s2">"promoted"</span><span class="p">:</span> <span class="n">payload</span><span class="o">.</span><span class="n">promote_default</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="nd">@router</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/</span><span class="si">{chat_id}</span><span class="s2">/models/overrides/</span><span class="si">{role}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">clear_chat_model_override</span><span class="p">(</span>
-        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
+        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">request</span><span class="p">:</span> <span class="n">Request</span>
     <span class="p">):</span>
-<span class="w">        </span><span class="sd">"""Remove the model override for a single role in a chat."""</span>
-        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
-
-        <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Clear a chat's model override (falls back to the session default)."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">chat_id</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_role_is_modifiable</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">role</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="s2">"Rejected model reset for locked role=</span><span class="si">%s</span><span class="s2"> user=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">role</span><span class="p">,</span>
+                <span class="n">user_id</span><span class="p">,</span>
+                <span class="n">chat_id</span><span class="p">,</span>
+            <span class="p">)</span>
             <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
                 <span class="n">status_code</span><span class="o">=</span><span class="mi">403</span><span class="p">,</span>
                 <span class="n">detail</span><span class="o">=</span><span class="sa">f</span><span class="s2">"The '</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2">' model is locked and cannot be reset."</span><span class="p">,</span>
             <span class="p">)</span>
-        <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
         <span class="n">store</span><span class="o">.</span><span class="n">clear_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="s2">"clear_chat_model_override(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span>

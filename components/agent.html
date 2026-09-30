@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Klea Utils" href="utils.html"><link rel="prev" title="Web interface" href="web-ui.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Klea Agent - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -188,7 +188,6 @@
     <img class="sidebar-logo" src="../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -254,6 +253,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -355,11 +355,14 @@ answers the user directly.</p></li>
 <li><p><strong>Review</strong> – the plan can pause for human review.  The review step
 currently auto-approves (a canned approval); real interactivity
 (LangGraph interrupt/resume) is pending.</p></li>
-<li><p><strong>Work loop</strong> – for each step the tools picker selects tools, the tool
-caller dispatches them (in parallel), and a deterministic triage router
-plus an operational evaluator decide whether to retry the step, replan,
-or move on.  If the picker finds no suitable tool, the plan is
-revised rather than looping.</p></li>
+<li><p><strong>Work loop</strong> – the plan is a dependency graph: independent steps run
+together in a batch, while a step that needs an earlier step’s result waits
+for it.  The tools picker binds the arguments for the batch, the tool caller
+dispatches them concurrently (except calls that touch the same file, which
+run in order), and a deterministic triage router plus an operational
+evaluator decide, per step, whether to retry the step, replan, or move on.
+If the picker finds no suitable tool, the plan is revised rather than
+looping.</p></li>
 <li><p><strong>Answer</strong> – once the plan is done, the answer is composed from the
 step results and delivered.</p></li>
 </ol>
@@ -369,13 +372,31 @@ step results and delivered.</p></li>
 <p>Conversation history is summarised per session, so long-running chats stay
 within the model’s context window.</p>
 </section>
+<section id="project-context">
+<h2>Project context<a class="headerlink" href="#project-context" title="Link to this heading">¶</a></h2>
+<p>The agent reads a project instruction file from its working directory and
+loads it into session-scoped <em>discovery</em>: <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> is preferred, with
+<code class="docutils literal notranslate"><span class="pre">CLAUDE.md</span></code> as the fallback (the first one present wins).  The file is
+read once per session and re-read only when its modification time changes,
+so editing it updates the agent without restarting the server.</p>
+<p>The discovered text is rendered into the <strong>Planner</strong> and the final
+<strong>answer-composer</strong> prompts, so project conventions (build and test
+commands, code layout, house style) inform both how a task is planned and
+how the reply is written.  It is not injected into the per-round nodes,
+which see project specifics through the plan instead.  A project with no
+instruction file simply has no extra context.</p>
+</section>
 <section id="tool-access">
 <h2>Tool access<a class="headerlink" href="#tool-access" title="Link to this heading">¶</a></h2>
 <p>The agent defaults to the <code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level, and the level can be
 changed per chat in the web UI’s status pane.  Under <code class="docutils literal notranslate"><span class="pre">read_only</span></code> only
-tools annotated read-only are offered.  See <a class="reference internal" href="mcp-servers.html"><span class="doc">MCP servers</span></a> for the
-access model and its sandboxing caveats; environment and coding requests
-are answerable in full mode through the bundled <code class="docutils literal notranslate"><span class="pre">run_command</span></code> tool.</p>
+tools annotated read-only are offered, so file listing, reading and search
+(<code class="docutils literal notranslate"><span class="pre">read_file</span></code> / <code class="docutils literal notranslate"><span class="pre">grep</span></code> / <code class="docutils literal notranslate"><span class="pre">find_files</span></code>) stay available while destructive
+tools such as <code class="docutils literal notranslate"><span class="pre">run_command</span></code> and the file editors (<code class="docutils literal notranslate"><span class="pre">write_file</span></code> /
+<code class="docutils literal notranslate"><span class="pre">edit_file</span></code>) do not.  See <a class="reference internal" href="mcp-servers.html"><span class="doc">MCP servers</span></a> for the access model and its
+sandboxing caveats; environment and coding requests are answerable in full
+mode through the bundled <code class="docutils literal notranslate"><span class="pre">run_command</span></code>, <code class="docutils literal notranslate"><span class="pre">write_file</span></code> and <code class="docutils literal notranslate"><span class="pre">edit_file</span></code>
+tools.</p>
 </section>
 <section id="status">
 <h2>Status<a class="headerlink" href="#status" title="Link to this heading">¶</a></h2>
@@ -455,6 +476,7 @@ until this lands;</p></li>
 <li><a class="reference internal" href="#operating-modes">Operating modes</a></li>
 <li><a class="reference internal" href="#how-a-task-runs">How a task runs</a></li>
 <li><a class="reference internal" href="#memory">Memory</a></li>
+<li><a class="reference internal" href="#project-context">Project context</a></li>
 <li><a class="reference internal" href="#tool-access">Tool access</a></li>
 <li><a class="reference internal" href="#status">Status</a></li>
 </ul>

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html"><link rel="search" title="Search" href="../../../../search.html">
         <link rel="prefetch" href="../../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.mcp.tool_impls.read_file - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/errors.html">Error types</a></li>
@@ -317,6 +317,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">DocumentConversionError</span><span class="p">,</span> <span class="n">PermissionDeniedError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_target_note</span><span class="p">,</span> <span class="n">nearby_entries</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">_html_to_text</span>
 
@@ -384,6 +385,7 @@
     <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">,</span>
     <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100_000</span><span class="p">,</span>
     <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_DEFAULT_MAX_BYTES</span><span class="p">,</span>
+    <span class="n">line_numbers</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Read a file and return a slice of its text content.</span>
@@ -406,10 +408,14 @@
 <span class="sd">        line slice.</span>
 <span class="sd">    :param max_bytes: Maximum file size in bytes to read; larger files are</span>
 <span class="sd">        refused with an error.</span>
+<span class="sd">    :param line_numbers: Prefix each returned line with its line number</span>
+<span class="sd">        (default).  Set ``False`` to return the raw line text, e.g. to copy</span>
+<span class="sd">        a span into an edit tool's ``old_string``.</span>
 <span class="sd">    :param project_root: Boundary directory for the permission check.</span>
 <span class="sd">        Defaults to the current working directory.</span>
 <span class="sd">    :returns: dict with path, content, line_start, line_end, total_lines,</span>
-<span class="sd">        truncated, error.</span>
+<span class="sd">        truncated, error, nearby, note.  ``nearby``/``note`` are populated on a</span>
+<span class="sd">        missing/not-a-file error so the caller can see what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Reading file</span><span class="se">\n</span><span class="s2">"</span>
@@ -418,6 +424,7 @@
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">limit</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_chars</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_bytes</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_numbers</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">project_root</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
     <span class="p">)</span>
 
@@ -439,6 +446,7 @@
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">the_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not a readable file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">directory</span><span class="p">,</span> <span class="n">nearby</span> <span class="o">=</span> <span class="n">nearby_entries</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
             <span class="s2">"content"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
@@ -447,6 +455,8 @@
             <span class="s2">"total_lines"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
             <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
             <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Not a file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="s2">"nearby"</span><span class="p">:</span> <span class="n">nearby</span><span class="p">,</span>
+            <span class="s2">"note"</span><span class="p">:</span> <span class="n">missing_target_note</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">nearby</span><span class="p">),</span>
         <span class="p">}</span>
 
     <span class="n">size</span> <span class="o">=</span> <span class="n">the_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
@@ -519,11 +529,14 @@
     <span class="n">end</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">start</span> <span class="o">+</span> <span class="n">limit</span>
     <span class="n">sliced</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
 
-    <span class="n">numbered</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_no</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">"</span>
-        <span class="k">for</span> <span class="n">line_no</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">sliced</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">sliced</span><span class="p">)</span>
-    <span class="p">]</span>
-    <span class="n">content</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">numbered</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">line_numbers</span><span class="p">:</span>
+        <span class="n">rendered</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_no</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">for</span> <span class="n">line_no</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">sliced</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">sliced</span><span class="p">)</span>
+        <span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rendered</span> <span class="o">=</span> <span class="n">sliced</span>
+    <span class="n">content</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rendered</span><span class="p">)</span>
 
     <span class="n">line_start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
     <span class="n">line_end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">sliced</span><span class="p">)</span>

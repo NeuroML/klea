@@ -19,8 +19,9 @@ Environment variables
     Path to environment file (default: ``klea_agent.env``).
 
 ``KLEA_AGENT_APP_CONFIG_FILE``
-    Config file used when ``--profile`` is not given (from the env file,
-    the environment, or the default ``klea_agent.json``).
+    Config file used when ``--profile`` is not given (from the env file or
+    the environment).  There is no default config file: without this and
+    without ``--profile`` the agent runs from built-in defaults.
 
 Pass ``--profile <name>`` to load ``<name>.json`` from the current
 directory or the config directory; ``--profile template`` scaffolds a

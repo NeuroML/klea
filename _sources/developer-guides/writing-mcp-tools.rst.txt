@@ -23,7 +23,10 @@ available in the tool schema:
 2. **Parameters** -- describe each parameter in a Google-style ``Args:``
    section.  fastmcp parses these into the tool's input schema, and Klea
    renders them as compact one-line parameter entries (name, type,
-   required flag, description).
+   required/optional, default, description).  Optionality is always stated
+   explicitly and a non-null schema default is shown (for example
+   ``pattern (string, optional, default "*")``), so the tool picker does not
+   have to infer it.
 
 3. **Do not** set the tool description to the raw full docstring.  Klea
    shows the opening text block as the description and the

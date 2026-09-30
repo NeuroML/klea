@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="API Reference" href="../api/index.html"><link rel="prev" title="Developer guides" href="index.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Writing MCP tools - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -188,7 +188,6 @@
     <img class="sidebar-logo" src="../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -254,6 +253,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -331,7 +331,10 @@ the LLM.</p></li>
 <li><p><strong>Parameters</strong> – describe each parameter in a Google-style <code class="docutils literal notranslate"><span class="pre">Args:</span></code>
 section.  fastmcp parses these into the tool’s input schema, and Klea
 renders them as compact one-line parameter entries (name, type,
-required flag, description).</p></li>
+required/optional, default, description).  Optionality is always stated
+explicitly and a non-null schema default is shown (for example
+<code class="docutils literal notranslate"><span class="pre">pattern</span> <span class="pre">(string,</span> <span class="pre">optional,</span> <span class="pre">default</span> <span class="pre">&quot;*&quot;)</span></code>), so the tool picker does not
+have to infer it.</p></li>
 <li><p><strong>Do not</strong> set the tool description to the raw full docstring.  Klea
 shows the opening text block as the description and the
 <code class="docutils literal notranslate"><span class="pre">Args:</span></code>-derived schema as the parameter list, so duplicating the

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../search.html">
         <link rel="prefetch" href="../../../../../_static/klea-logo.png" as="image">
 
-    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.state - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,7 +187,6 @@
     <img class="sidebar-logo" src="../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
-  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,6 +252,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../api/utils/errors.html">Error types</a></li>
@@ -314,44 +314,139 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Container</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NotRequired</span><span class="p">,</span> <span class="n">TypedDict</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="MessageData">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.MessageData">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MessageData</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A single rendered chat message.</span>
+
+<span class="sd">    ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an</span>
+<span class="sd">    optional small title (used by tool blocks).  Tool messages add the</span>
+<span class="sd">    mime/display/data/meta fields used by the chat-bubble renderer.</span>
+<span class="sd">    """</span>
+
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">header</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">mime</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">data</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">meta</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span></div>
+
+
+
+<div class="viewcode-block" id="StateSection">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.StateSection">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">StateSection</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A status-pane section streamed by a graph node."""</span>
+
+    <span class="n">heading</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">display</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">preformatted</span><span class="p">:</span> <span class="nb">bool</span></div>
+
+
+
+<div class="viewcode-block" id="InspectorEntry">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.InspectorEntry">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectorEntry</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""An inspector entry buffered for the most recent query in a chat."""</span>
+
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">node</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">heading</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">details</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">timing_seconds</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="InspectorMarker">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.InspectorMarker">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">InspectorMarker</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A per-query heading in the inspector pane.</span>
+
+<span class="sd">    Marks the start of a query's inspection section, so entries from</span>
+<span class="sd">    different queries can be told apart when the pane keeps them all.</span>
+<span class="sd">    """</span>
+
+    <span class="nb">type</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span></div>
+
+
+
+<div class="viewcode-block" id="TokenUsage">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.TokenUsage">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TokenUsage</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Accumulated token totals for an in-memory chat session."""</span>
+
+    <span class="n">input_tokens</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">output_tokens</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span></div>
+
+
+
+<div class="viewcode-block" id="ChatData">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.ChatData">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChatData</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""In-memory state for one chat session (see :func:`ensure_chat`).</span>
+
+<span class="sd">    Keys are created by :func:`ensure_chat`; the ``NotRequired`` ones are</span>
+<span class="sd">    populated lazily by the stream/hydration/context-control paths.  The</span>
+<span class="sd">    dict is a frontend cache only, not an API contract.</span>
+<span class="sd">    """</span>
+
+    <span class="c1">#: Human-readable display name (auto-generated, renameable).</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="c1">#: ``datetime.timestamp()`` of creation.</span>
+    <span class="n">created</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="c1">#: Whether the chat session is pinned to the top of the list.</span>
+    <span class="n">pinned</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="c1">#: Rendered transcript messages.</span>
+    <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">MessageData</span><span class="p">]</span>
+    <span class="c1">#: Inspector items for this chat, in order: a per-query</span>
+    <span class="c1">#: :class:`InspectorMarker` followed by that query's entries.  Kept</span>
+    <span class="c1">#: for the browser session (not persisted).</span>
+    <span class="n">inspector_entries</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">InspectorEntry</span> <span class="o">|</span> <span class="n">InspectorMarker</span><span class="p">]</span>
+    <span class="c1">#: Indices into ``inspector_entries`` currently expanded in the UI.</span>
+    <span class="n">inspector_expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="c1">#: Indices of inspector query sections currently collapsed.</span>
+    <span class="n">inspector_sections_collapsed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="c1">#: Status-pane sections, keyed by node label / section key.</span>
+    <span class="n">state_sections</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">StateSection</span><span class="p">]</span>
+    <span class="c1">#: Active model config per role (from ``fetch_active_models``).</span>
+    <span class="n">model_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="c1">#: Accumulated token totals for this chat.</span>
+    <span class="n">token_usage</span><span class="p">:</span> <span class="n">TokenUsage</span>
+    <span class="c1">#: Hydrated graph session context (e.g. the agent operating mode).</span>
+    <span class="n">context</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="c1">#: App-defined context-control preferences (mode / access level).</span>
+    <span class="n">mode_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">access_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></div>
+
+
 
 <span class="c1"># Per-chat data store.  External modules may read/write this dict</span>
 <span class="c1"># directly for performance; the helper functions below cover the</span>
 <span class="c1"># common create-or-get and sorted-lookup cases.</span>
-<span class="c1">#</span>
-<span class="c1"># Using plain dicts rather than Pydantic BaseModel because this is a</span>
-<span class="c1"># simple in-memory frontend cache (not an API contract) and NiceGUI</span>
-<span class="c1"># naturally works with dict access.  The saved schema is documented</span>
-<span class="c1"># inline in ensure_chat() below.</span>
-<span class="n">chats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+<span class="n">chats</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChatData</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
 
 <div class="viewcode-block" id="ensure_chat">
 <a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.ensure_chat">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">ensure_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">ensure_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChatData</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the chat session dict for *user_id* / *chat_id*, creating it if missing.</span>
 
-<span class="sd">    Each chat session dict has the following keys::</span>
-
-<span class="sd">        name                Human-readable display name (auto-generated)</span>
-<span class="sd">        created             ``datetime.timestamp()`` of creation (float).</span>
-<span class="sd">        pinned              Whether the chat session is pinned to the top of the list.</span>
-<span class="sd">        messages            List of ``(text, stamp, is_user)`` tuples where</span>
-<span class="sd">                            *is_user* is ``True`` for user messages and</span>
-<span class="sd">                            ``False`` for bot / system messages.</span>
-<span class="sd">        inspector_entries   List of dicts with info/debug events for the most</span>
-<span class="sd">                            recent query in this chat session.</span>
-<span class="sd">        inspector_expanded  Set of indices into *inspector_entries* that are</span>
-<span class="sd">                            currently expanded in the UI.</span>
-<span class="sd">        state_sections      Dict of ``{node_label: section_data}`` for the status</span>
-<span class="sd">                            pane, ordered by first insertion (per node label).</span>
-<span class="sd">        model_info          Dict of active model config per role</span>
-<span class="sd">                            (from ``fetch_active_models``).</span>
-<span class="sd">        token_usage         Numeric token totals accumulated for this in-memory</span>
-<span class="sd">                            chat session.</span>
+<span class="sd">    The dict schema is documented on :class:`ChatData`; this function</span>
+<span class="sd">    creates the always-present keys and returns the (possibly new) entry.</span>
 <span class="sd">    """</span>
     <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">chats</span><span class="p">:</span>
@@ -364,6 +459,7 @@
             <span class="s2">"messages"</span><span class="p">:</span> <span class="p">[],</span>
             <span class="s2">"inspector_entries"</span><span class="p">:</span> <span class="p">[],</span>
             <span class="s2">"inspector_expanded"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
+            <span class="s2">"inspector_sections_collapsed"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"state_sections"</span><span class="p">:</span> <span class="p">{},</span>
             <span class="s2">"model_info"</span><span class="p">:</span> <span class="p">{},</span>
             <span class="s2">"token_usage"</span><span class="p">:</span> <span class="p">{</span>
@@ -378,9 +474,98 @@
 
 
 
+<div class="viewcode-block" id="resolve_choice">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.resolve_choice">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_choice</span><span class="p">(</span>
+    <span class="n">pending</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">pref</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">context_value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">allowed</span><span class="p">:</span> <span class="n">Container</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">default</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the effective UI choice from pending, pref, context, default.</span>
+
+<span class="sd">    Used by the status-pane context controls (operating mode / tool access</span>
+<span class="sd">    level) so their defaults render before a chat exists: the caller passes</span>
+<span class="sd">    the pending request (``PageContext.query_extra``), the per-chat</span>
+<span class="sd">    preference, and the hydrated context value; the first one that is a known</span>
+<span class="sd">    option wins, otherwise *default*.</span>
+
+<span class="sd">    :param pending: The pending request (next query's value), or ``None``.</span>
+<span class="sd">    :param pref: The per-chat preference, or ``None``.</span>
+<span class="sd">    :param context_value: The value from the hydrated ``context`` event.</span>
+<span class="sd">    :param allowed: The set of valid option values.</span>
+<span class="sd">    :param default: The fallback value.</span>
+<span class="sd">    :returns: The first valid value among the candidates, else *default*.</span>
+<span class="sd">    """</span>
+    <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">pending</span><span class="p">,</span> <span class="n">pref</span><span class="p">,</span> <span class="n">context_value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">allowed</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="n">default</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_chat_choice">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.resolve_chat_choice">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_chat_choice</span><span class="p">(</span>
+    <span class="n">current_chat</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pending</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">pref</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">context_value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">allowed</span><span class="p">:</span> <span class="n">Container</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+    <span class="n">default</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the effective choice for *current_chat*.</span>
+
+<span class="sd">    ``pending`` (``PageContext.query_extra``) is page-session scoped, not</span>
+<span class="sd">    per-chat, so it is only consulted before a chat exists -- e.g. choosing an</span>
+<span class="sd">    operating mode or access level for the first message.  Once a chat exists</span>
+<span class="sd">    its per-chat preference and hydrated context win, so switching chats</span>
+<span class="sd">    restores each chat's own value instead of the last selection made</span>
+<span class="sd">    elsewhere.</span>
+
+<span class="sd">    :param current_chat: The active chat session dict, or a falsy value.</span>
+<span class="sd">    :param pending: The pending request, or ``None``.</span>
+<span class="sd">    :param pref: The per-chat preference, or ``None``.</span>
+<span class="sd">    :param context_value: The value from the hydrated ``context`` event.</span>
+<span class="sd">    :param allowed: The set of valid option values.</span>
+<span class="sd">    :param default: The fallback value.</span>
+<span class="sd">    :returns: The resolved value, else *default*.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
+        <span class="n">pending</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">resolve_choice</span><span class="p">(</span><span class="n">pending</span><span class="p">,</span> <span class="n">pref</span><span class="p">,</span> <span class="n">context_value</span><span class="p">,</span> <span class="n">allowed</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="missing_credentials">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.missing_credentials">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">missing_credentials</span><span class="p">(</span><span class="n">model_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return roles whose resolved model needs an API key that is not set.</span>
+
+<span class="sd">    Used by the UI to flag roles that cannot run until the user stores a</span>
+<span class="sd">    provider credential (or sets the provider's environment variable).</span>
+<span class="sd">    Roles whose provider needs no key (e.g. local Ollama) are ignored, as</span>
+<span class="sd">    are roles with no model resolved yet.</span>
+
+<span class="sd">    :param model_info: The resolved per-role config from ``fetch_active_models``</span>
+<span class="sd">        / ``fetch_session_models`` (each value carries a ``credential`` block).</span>
+<span class="sd">    :returns: Role names whose credential source is ``none`` but required.</span>
+<span class="sd">    """</span>
+    <span class="n">missing</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">model_info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">credential</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requires_key"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">credential</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"none"</span><span class="p">:</span>
+            <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">missing</span></div>
+
+
+
 <div class="viewcode-block" id="get_chats_sorted">
 <a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.get_chats_sorted">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">get_chats_sorted</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">]]:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_chats_sorted</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ChatData</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">"""Return (chat_id, data) pairs for *user_id*, pinned first, then by creation desc.</span>
 
 <span class="sd">    Filters by the user_id prefix so that in a multi-browser scenario</span>

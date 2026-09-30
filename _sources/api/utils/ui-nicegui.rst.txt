@@ -52,6 +52,10 @@ Shared components
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.ui.web.nicegui.components.choice
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.ui.web.nicegui.components.chat_bubble
    :members:
    :show-inheritance:
