@@ -414,3 +414,23 @@ class TestCredentials:
         )
         assert status["requires_key"] is False
         assert status["source"] == "none"
+
+    def test_credential_status_local_huggingface_is_keyless(self, credentials_app):
+        """A local HuggingFace backend needs no key, unlike the hosted one."""
+        store: SessionStore = credentials_app.state.chat_sessions
+        local = credential_status(store, "u1", "huggingface:org/model:local")
+        assert local["requires_key"] is False
+        hosted = credential_status(store, "u1", "huggingface:org/model")
+        assert hosted["requires_key"] is True
+
+    def test_credential_status_huggingface_reads_hf_token(
+        self, credentials_app, monkeypatch
+    ):
+        """The hosted HuggingFace backend reads HF_TOKEN, not HUGGINGFACE_API_KEY."""
+        monkeypatch.setenv("HF_TOKEN", "hf-env-4321")
+        monkeypatch.delenv("HUGGINGFACE_API_KEY", raising=False)
+        status = credential_status(
+            credentials_app.state.chat_sessions, "u1", "huggingface:org/model"
+        )
+        assert status["source"] == "env"
+        assert status["masked"] == "...4321"

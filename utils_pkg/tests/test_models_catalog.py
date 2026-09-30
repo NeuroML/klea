@@ -410,6 +410,17 @@ class TestEndpointModelLimits(unittest.TestCase):
         self.assertEqual(kwargs["headers"]["Authorization"], "Bearer mistral-secret")
 
 
+class TestProviderApiKeyEnv(unittest.TestCase):
+    """Tests for get_provider_api_key_env (provider -> API key env var)."""
+
+    def test_convention_and_aliases(self):
+        assert models_catalog.get_provider_api_key_env("openai") == "OPENAI_API_KEY"
+        assert models_catalog.get_provider_api_key_env("mistralai") == "MISTRAL_API_KEY"
+        # HuggingFace reads HF_TOKEN, not HUGGINGFACE_API_KEY.
+        assert models_catalog.get_provider_api_key_env("huggingface") == "HF_TOKEN"
+        assert models_catalog.get_provider_api_key_env("HuggingFace") == "HF_TOKEN"
+
+
 class TestProviderEndpoint(unittest.TestCase):
     """Tests for get_provider_endpoint (provider -> api + npm)."""
 

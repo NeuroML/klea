@@ -430,9 +430,13 @@ _ENDPOINT_LIMITS_CACHE: dict[tuple[str, str], tuple[float, ModelLimits]] = {}
 #: LangChain provider id -> API key env var name, for providers whose id
 #: does not map to ``{PROVIDER}_API_KEY``.  ``mistralai`` reads
 #: ``MISTRAL_API_KEY`` in the langchain-mistralai SDK (not
-#: ``MISTRALAI_API_KEY``).  The alias exists so the probe authenticates
+#: ``MISTRALAI_API_KEY``) and both HuggingFace SDKs read ``HF_TOKEN`` (not
+#: ``HUGGINGFACE_API_KEY``).  The alias exists so the probe authenticates
 #: with the same credential the model invoke would use.
-_LANGCHAIN_PROVIDER_API_KEY_ENV: dict[str, str] = {"mistralai": "MISTRAL_API_KEY"}
+_LANGCHAIN_PROVIDER_API_KEY_ENV: dict[str, str] = {
+    "mistralai": "MISTRAL_API_KEY",
+    "huggingface": "HF_TOKEN",
+}
 
 
 def get_provider_api_key_env(provider: str) -> str:
