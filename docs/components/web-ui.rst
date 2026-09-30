@@ -81,6 +81,12 @@ so new chats start from the same models.  **Manage API keys** opens the
 provider-scoped credentials editor: keys are stored per provider on the
 server, returned only in masked form, and expire after a period unused.
 
+For a ``huggingface`` role the dialog also shows a **Run** choice
+(hosted inference providers, or local) and, for the hosted backend, an
+**inference provider** field (``auto``, ``cheapest``, ``fastest``,
+``preferred``, or a specific provider).  A hosted model is therefore never
+silently downloaded; ``Run: Local`` is the explicit opt-in.
+
 .. note::
 
    The screenshots on this page are captured from a local deployment and

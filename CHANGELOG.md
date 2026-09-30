@@ -25,6 +25,7 @@
 - Stored credentials expire after a configurable TTL (`KLEA_CREDENTIAL_TTL_DAYS`, default 7 days; `0` disables) once unused, swept at startup and on access.
 - Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
 - Web UI: the model dialog picks each role's model with provider, model and optional custom-URL dropdowns filled from the models.dev catalogue, while still accepting free text for uncatalogued models (for example `ollama:` or a self-hosted endpoint).
+- Web UI: for a `huggingface` role the model dialog offers a **Run** choice (hosted inference providers, or local) and an **inference provider** field (`auto`/`cheapest`/`fastest`/`preferred`, or a specific provider), with a "pick one or type in" hint on the editable fields.
 - Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 
 ### Changed
@@ -45,6 +46,7 @@
 - Bundled `list_files` returns the unfiltered listing (with a `note`) when a `pattern`/`include_*` filter matches nothing but the directory is not empty, so an empty filtered result is not mistaken for an empty directory.
 - Bundled `read_file`/`edit_file` report `nearby` entries (the nearest existing directory's contents) and a `note` when the target is missing, so the caller sees what actually exists instead of only an error.
 - Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
+- A bare `huggingface:<model>` now resolves to the hosted Inference Providers API (`auto`) instead of the local pipeline backend, which downloaded the model as a side effect; `:local` opts into running locally, and `:<provider>` / `:cheapest|:fastest|:preferred` select the inference provider or routing policy.
 - `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
 - Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
 - Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
@@ -61,6 +63,8 @@
 - Web UI: opening the model/API-key dialog from a background task (for example the first-run prompt) no longer fails; dialogs are built in an explicit slot.
 - Web UI: the chat setup prompt and status pane update as soon as models or API keys are configured (and after deleting the user session), instead of showing stale configuration.
 - Web UI: the model dialog updates a role's API-key status live while a model is typed, lets "Manage API keys" configure a provider that is not saved yet, saves all changed roles at once, and keeps the dialog open when resetting a role.
+- HuggingFace credentials are read from `HF_TOKEN` instead of the non-existent `HUGGINGFACE_API_KEY`, and a local HuggingFace backend is reported as needing no key.
+- Web UI: long tooltips wrap instead of being clipped on the right.
 
 ### Dependencies
 
