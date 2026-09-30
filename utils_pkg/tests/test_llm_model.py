@@ -200,6 +200,51 @@ class TestModelParsing:
         assert c.get("model_provider") is None or c["model_provider"] == ""
 
 
+class TestHuggingFaceBackend:
+    """The HF backend is selected by the third model-string segment.
+
+    A bare ``huggingface:<model>`` must default to the hosted Inference
+    Providers API (never a silent local download); ``:local`` opts in.
+    """
+
+    def test_no_suffix_is_hosted_auto(self):
+        c = configurable(build(model_name="huggingface:org/model"))
+        assert c["model_provider"] == "huggingface"
+        assert c["model"] == "org/model"
+        assert c["backend"] == "endpoint"
+        assert c["provider"] == "auto"
+
+    def test_local_suffix_uses_pipeline(self):
+        c = configurable(build(model_name="huggingface:org/model:local"))
+        assert c["model_provider"] == "huggingface"
+        assert c["model"] == "org/model"
+        assert c["backend"] == "pipeline"
+        assert "provider" not in c
+
+    def test_inference_provider_suffix(self):
+        c = configurable(build(model_name="huggingface:org/model:deepinfra"))
+        assert c["backend"] == "endpoint"
+        assert c["provider"] == "deepinfra"
+        assert c["model"] == "org/model"
+
+    def test_routing_policy_appended_to_model_id(self):
+        """Policies are appended to the model id, provider stays auto."""
+        c = configurable(build(model_name="huggingface:org/model:cheapest"))
+        assert c["backend"] == "endpoint"
+        assert c["provider"] == "auto"
+        assert c["model"] == "org/model:cheapest"
+
+    def test_explicit_backend_is_not_overwritten(self):
+        """A backend set by an earlier layer (context) wins (setdefault)."""
+        c = configurable(
+            build(
+                model_name="huggingface:org/model",
+                context_overrides={"backend": "pipeline"},
+            )
+        )
+        assert c["backend"] == "pipeline"
+
+
 # ---------------------------------------------------------------------------
 # api_key -> huggingfacehub_api_token mapping
 # ---------------------------------------------------------------------------

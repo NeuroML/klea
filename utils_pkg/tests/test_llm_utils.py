@@ -24,7 +24,7 @@ from klea_utils.llm import (
     missing_required_roles,
     parse_model_name,
     provider_api_key_env,
-    provider_requires_api_key,
+    requires_api_key,
     resolve_langchain_endpoint,
     split_output_by_section,
 )
@@ -450,11 +450,20 @@ def test_credential_scope_same_provider_models_share_scope():
     assert credential_scope("openai:gpt-4o") == credential_scope("openai:gpt-4.1")
 
 
-def test_provider_requires_api_key_excludes_local():
-    """Ollama (and an empty provider) need no API key."""
-    assert provider_requires_api_key("openai") is True
-    assert provider_requires_api_key("ollama") is False
-    assert provider_requires_api_key("") is False
+def test_requires_api_key_provider_ids():
+    """A bare provider id is judged on the provider."""
+    assert requires_api_key("openai") is True
+    assert requires_api_key("ollama") is False
+    assert requires_api_key("") is False
+
+
+def test_requires_api_key_model_strings():
+    """A model string is judged on its provider, with a local-HF exception."""
+    assert requires_api_key("openai:gpt-4o") is True
+    assert requires_api_key("ollama:qwen3:0.6b") is False
+    assert requires_api_key("huggingface:org/model") is True
+    assert requires_api_key("huggingface:org/model:deepinfra") is True
+    assert requires_api_key("huggingface:org/model:local") is False
 
 
 def test_provider_api_key_env_convention():

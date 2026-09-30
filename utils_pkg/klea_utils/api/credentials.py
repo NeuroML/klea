@@ -24,7 +24,7 @@ from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import (
     credential_scope,
     provider_api_key_env,
-    provider_requires_api_key,
+    requires_api_key,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,7 +54,7 @@ def credential_status(
         *source* is ``"user"``, ``"env"`` or ``"none"``.
     """
     scope = credential_scope(model_name)
-    requires = provider_requires_api_key(scope.provider)
+    requires = requires_api_key(model_name)
     stored = (
         store.get_credential(user_id, scope.provider, scope.endpoint or "")
         if scope.provider

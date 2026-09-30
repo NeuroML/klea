@@ -133,6 +133,80 @@ def join_model_string(
     return f"{provider}:{model_name}:{suffix}" if suffix else f"{provider}:{model_name}"
 
 
+#: HuggingFace provider id.  Its backend is selected by the third
+#: model-string segment: ``huggingface:<model>`` (or an inference provider /
+#: routing policy) uses the hosted Inference Providers API, while
+#: ``huggingface:<model>:local`` runs the model locally with the pipeline
+#: backend.
+HUGGINGFACE_PROVIDER = "huggingface"
+#: Suffix selecting the local (pipeline) HuggingFace backend.
+HUGGINGFACE_LOCAL_SUFFIX = "local"
+#: Inference provider used for the hosted backend when none is given (the
+#: HuggingFace router's default selection).
+HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER = "auto"
+#: HuggingFace routing policies.  Unlike a concrete provider name these must
+#: be appended to the model id: the client's ``provider`` argument accepts
+#: only ``auto`` or a concrete provider name, not a policy.
+HUGGINGFACE_ROUTING_POLICIES: frozenset[str] = frozenset(
+    {"cheapest", "fastest", "preferred"}
+)
+
+
+class HuggingFaceBackend(NamedTuple):
+    """Resolved HuggingFace backend for a model string suffix.
+
+    ``backend`` is the ``ChatHuggingFace`` backend (``"pipeline"`` or
+    ``"endpoint"``), ``model_id`` is the repo id to pass (with a routing
+    policy appended for the hosted backend), and ``kwargs`` are the
+    ``from_model_id`` kwargs to inject (``backend`` and, for the hosted
+    backend, ``provider``).
+    """
+
+    backend: str
+    model_id: str
+    kwargs: dict[str, Any]
+
+
+def resolve_huggingface_backend(
+    model_name: str, suffix: str | None
+) -> HuggingFaceBackend:
+    """Resolve the HuggingFace backend from a model name and its suffix.
+
+    ``:local`` selects the local pipeline backend; any other suffix is an
+    inference provider (``auto`` when absent) for the hosted Inference
+    Providers API.  The routing policies (:data:`HUGGINGFACE_ROUTING_POLICIES`)
+    are appended to the model id instead of being passed as ``provider``,
+    because the HuggingFace client's ``provider`` argument accepts only
+    ``auto`` or a concrete provider name.
+
+    :param model_name: HuggingFace repo id, e.g. ``"openai/gpt-oss-20b"``.
+    :param suffix: Third model-string segment, or ``None``.
+    :returns: The resolved :class:`HuggingFaceBackend`.
+    """
+    suffix = (suffix or "").strip()
+    if suffix == HUGGINGFACE_LOCAL_SUFFIX:
+        return HuggingFaceBackend(
+            backend="pipeline", model_id=model_name, kwargs={"backend": "pipeline"}
+        )
+    if suffix in HUGGINGFACE_ROUTING_POLICIES:
+        return HuggingFaceBackend(
+            backend="endpoint",
+            model_id=f"{model_name}:{suffix}",
+            kwargs={
+                "backend": "endpoint",
+                "provider": HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
+            },
+        )
+    return HuggingFaceBackend(
+        backend="endpoint",
+        model_id=model_name,
+        kwargs={
+            "backend": "endpoint",
+            "provider": suffix or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
+        },
+    )
+
+
 class CredentialScope(NamedTuple):
     """Provider (and, for custom endpoints, endpoint) a credential belongs to.
 
@@ -171,8 +245,8 @@ def credential_scope(model_name: str) -> CredentialScope:
     return CredentialScope(provider=provider, endpoint=endpoint)
 
 
-def provider_requires_api_key(provider: str) -> bool:
-    """Return whether *provider* needs an API key.
+def _provider_needs_key(provider: str) -> bool:
+    """Return whether *provider* asks for an API key.
 
     Local providers (e.g. Ollama) authenticate anonymously, so they must
     not be treated as missing a credential.
@@ -183,13 +257,40 @@ def provider_requires_api_key(provider: str) -> bool:
 def provider_api_key_env(provider: str) -> str | None:
     """Return the env var holding *provider*'s API key, or ``None``.
 
-    Providers that need no key (see :func:`provider_requires_api_key`)
-    return ``None``.  Otherwise mirrors the SDK convention so the UI can
-    report whether a credential comes from the environment.
+    Providers that need no key (see :func:`requires_api_key`) return
+    ``None``.  Otherwise mirrors the SDK convention so the UI can report
+    whether a credential comes from the environment.
     """
-    if not provider_requires_api_key(provider):
+    if not _provider_needs_key(provider):
         return None
     return get_provider_api_key_env(provider)
+
+
+def requires_api_key(model_name: str) -> bool:
+    """Return whether *model_name* needs an API key.
+
+    Accepts either a bare provider id (``openai``, ``ollama``) or a full
+    model string (``openai:gpt-4o``, ``huggingface:org/model:local``).
+    Local providers (Ollama) and locally-run HuggingFace models
+    (``huggingface:<model>:local``) authenticate locally and need no
+    credential; every other provider does.  A string that cannot be parsed
+    is judged by its provider part; a string with no ``:`` is treated as a
+    provider id.
+    """
+    raw = (model_name or "").strip()
+    try:
+        parsed = parse_model_name(raw)
+    except ValueError:
+        # Half-typed ``provider:`` - judge by the provider part.
+        return _provider_needs_key(raw.split(":", 1)[0])
+    if parsed.provider is None:
+        return _provider_needs_key(raw)
+    if (
+        parsed.provider == HUGGINGFACE_PROVIDER
+        and parsed.suffix == HUGGINGFACE_LOCAL_SUFFIX
+    ):
+        return False
+    return _provider_needs_key(parsed.provider)
 
 
 #: Recognised wire-API endpoint suffixes for ``custom:`` model URLs, mapped to
@@ -1044,10 +1145,12 @@ def setup_embedding(model_name_full, logger):
             provider="openai",
             base_url=parsed.suffix,
         )
-    elif parsed.provider == "huggingface":
+    elif parsed.provider == HUGGINGFACE_PROVIDER:
         # "local" suffix -> HuggingFaceEmbeddings (local sentence-transformers).
-        # Any other suffix -> HuggingFaceEndpointEmbeddings (HF Inference API).
-        if parsed.suffix == "local":
+        # Any other suffix (or none) -> HuggingFaceEndpointEmbeddings (hosted
+        # Inference Providers API).
+        hf_backend = resolve_huggingface_backend(parsed.model_name, parsed.suffix)
+        if hf_backend.backend == "pipeline":
             logger.debug(
                 "Using huggingface local embedding model: %s",
                 parsed.model_name,
@@ -1056,16 +1159,17 @@ def setup_embedding(model_name_full, logger):
 
             model_var = HuggingFaceEmbeddings(model_name=parsed.model_name)
         else:
+            provider = hf_backend.kwargs["provider"]
             logger.debug(
                 "Using huggingface endpoint embedding model: %s (provider: %s)",
-                parsed.model_name,
-                parsed.suffix or "auto",
+                hf_backend.model_id,
+                provider,
             )
             from langchain_huggingface import HuggingFaceEndpointEmbeddings
 
             model_var = HuggingFaceEndpointEmbeddings(
-                model=parsed.model_name,
-                provider=parsed.suffix or "auto",
+                model=hf_backend.model_id,
+                provider=provider,
                 task="feature-extraction",
             )
     else:
@@ -1680,14 +1784,15 @@ class LLMModel(BaseModel):
         # string suffix.  These are not fields on ChatHuggingFace itself
         # (they flow through to HuggingFaceEndpoint) so they'd be filtered
         # out later  ---  we set them here so they survive provider filtering.
-        if overrides.get("model_provider") == "huggingface" and parsed.suffix:
-            if parsed.suffix == "local":
-                overrides.setdefault("backend", "pipeline")
-            else:
-                overrides.setdefault("backend", "endpoint")
-                overrides.setdefault("provider", parsed.suffix)
+        # A bare ``huggingface:<model>`` defaults to the hosted Inference
+        # Providers API (``auto``); ``:local`` opts into the local pipeline.
+        if overrides.get("model_provider") == "huggingface":
+            hf_backend = resolve_huggingface_backend(parsed.model_name, parsed.suffix)
+            overrides["model"] = hf_backend.model_id
+            for key, value in hf_backend.kwargs.items():
+                overrides.setdefault(key, value)
             logger.debug(
-                f"HuggingFace kwargs injected:\n{mask_sensitive(overrides) = }"
+                f"HuggingFace backend resolved:\n{mask_sensitive(overrides) = }"
             )
 
         # Layer 4: per-provider defaults from graph config.  Only fills in
