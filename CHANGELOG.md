@@ -24,7 +24,7 @@
 - Provider-scoped API credentials (per user, keyed by provider plus the endpoint for custom/explicit-URL models) with a `/credentials/{user_id}` API; keys are never returned raw (masked suffix and a `user`/`env`/`none` source only).
 - Stored credentials expire after a configurable TTL (`KLEA_CREDENTIAL_TTL_DAYS`, default 7 days; `0` disables) once unused, swept at startup and on access.
 - Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
-- Resumable runs: `/query/stream` accepts `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
+- Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 
 ### Changed
 
@@ -82,7 +82,7 @@
 - Session-scoped artefacts: a completed task's deliverable is persisted as a concise artefact and is available to later tasks in the same session.
 - The agent loads the project instruction file (`AGENTS.md`, falling back to `CLAUDE.md`) into session-scoped discovery (re-read only when it changes) and renders it into the Planner and final-answer prompts, so project conventions inform both planning and the reply.
 - Unified replan reason: automated replans (tool failure or `need_replan`) carry a concrete reason back to the Planner.
-- Agent chat payload accepts `resume` to resume a failed run from its checkpoint on `/query/stream` (no query sent); `/query` rejects it.
+- Agent chat payload accepts `resume` to resume a failed run from its checkpoint on `/query` or `/query/stream` (no query sent); a resume request carrying a query is rejected.
 
 ### Changed
 

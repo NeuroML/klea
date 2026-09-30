@@ -435,8 +435,8 @@ last successful super-step, so the run stays resumable.  Two mechanisms
   ``429``/``5xx`` and honours ``Retry-After``).
 * A failed run is resumed by invoking the thread with ``None`` (no query),
   which re-runs only the failed node and downstream - completed tool side
-  effects are not repeated.  ``/query/stream`` exposes this as a
-  ``resume=true`` flag (no query) and the web UI offers a Retry action on a
+  effects are not repeated.  ``/query`` and ``/query/stream`` expose this as
+  a ``resume=true`` flag (no query) and the web UI offers a Retry action on a
   ``resumable`` error.  A graph-rendered failure answer is deliberately not
   produced: it would run to ``END`` and foreclose resume.
 

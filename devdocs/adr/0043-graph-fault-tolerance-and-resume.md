@@ -66,10 +66,11 @@ window (option A cannot).
 * **No failure answer.** A node error stops the graph at the failed node,
   so the checkpoint stays resumable.  UX is handled at the API/client
   layer instead.
-* **Resume.** `BaseLangGraph.run_graph_astream_events(query=None)` passes
-  `None` to `astream_events` (skipping the input merge); the graph
-  re-enters the failed node, not the entry node.  A `resume: bool` flag on
-  `/query/stream` triggers it; the request carries no query.
+* **Resume.** `BaseLangGraph`'s query wrappers (`run_graph_invoke`,
+  `run_graph_stream`, `graph_stream`, `run_graph_astream_events`) accept
+  `query=None` and pass a `None` input, so the graph re-enters the failed
+  node, not the entry node.  A `resume: bool` flag on both `/query` and
+  `/query/stream` triggers it; a resume request carries no query.
 * **Persistence.** The user turn is written when the run starts and the
   assistant reply on `complete`, so a failed turn is recorded and a resume
   completes the same turn instead of duplicating it (one user row, one
@@ -86,8 +87,9 @@ window (option A cannot).
 * Good, because a failed turn is visible, persisted, and retryable.
 * Good, because the resume path is shared plumbing, ready for the HITL
   interrupt work.
-* Bad, because resume is streaming-only (`/query` is synchronous and
-  unchanged) and is a flag on the shared chat payload.
+* Bad, because resume is a flag on the shared chat payload (both
+  endpoints) and a resume request must carry no query, so the payload
+  validator has to encode that.
 * Bad, because `InitGraphState` is skipped on resume, so any per-turn
   bookkeeping it does must not be needed by the resumed node (currently
   fine: it is entry-only).

@@ -227,8 +227,8 @@ class TestChat:
         assert [m["role"] for m in messages] == ["user"]
         assert messages[0]["content"] == "hello"
 
-    async def test_query_error_not_stored(self, app, client):
-        """Graph error on /query raises 500 and nothing is persisted."""
+    async def test_query_error_stores_only_user_turn(self, app, client):
+        """A failed /query still records the user turn (retryable), not an answer."""
         self.logger.info("Injecting error into run_graph_invoke")
         app.state.graph.run_graph_invoke.side_effect = Exception("boom")
 
@@ -241,5 +241,6 @@ class TestChat:
 
         store: SessionStore = app.state.chat_sessions
         messages = store.get_messages("err-user", "err-chat")
-        self.logger.info(f"Messages stored after error: {len(messages)}")
-        assert len(messages) == 0
+        self.logger.info(f"Messages stored after error: {messages}")
+        assert [m["role"] for m in messages] == ["user"]
+        assert messages[0]["content"] == "hello"

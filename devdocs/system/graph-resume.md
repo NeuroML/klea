@@ -68,9 +68,9 @@ whereas a new query is a new turn.
   post-200 streaming stall, `StreamChunkTimeoutError`) should be retried at
   the invocation level (`BaseLLMNode._invoke_with_retries`) before the
   graph is allowed to stop.
-* The resume endpoint is a flag on the streaming chat endpoint; it passes
-  no query (`None` input) and only the identity needed to derive the
-  `thread_id`.
+* The resume endpoint is a flag on the chat endpoints (`/query` and
+  `/query/stream`); it passes no query (`None` input) and only the identity
+  needed to derive the `thread_id`.
 * Persistence: record the user turn when the run starts and the assistant
   reply when it completes, so a failed turn is visible/retryable and a
   resume completes the same turn rather than duplicating it.
