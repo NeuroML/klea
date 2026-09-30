@@ -356,7 +356,7 @@
     <span class="n">structured_output_known_unsupported</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe_endpoint_model_limits</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span><span class="p">,</span> <span class="n">NodeStreamData</span><span class="p">,</span> <span class="n">NodeStreamEvent</span>
 
 <span class="c1">#: Max times to retry an invoke that overflowed the context window, each</span>
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
@@ -1008,6 +1008,13 @@
                         <span class="n">overflow_retries</span><span class="p">,</span>
                         <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                        <span class="n">reason</span><span class="o">=</span><span class="s2">"context window exceeded"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="o">=</span><span class="n">overflow_retries</span><span class="p">,</span>
+                        <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">"shrink"</span><span class="p">,</span>
+                        <span class="n">max_tokens</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_current_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">),</span>
+                    <span class="p">)</span>
                     <span class="k">continue</span>
 
                 <span class="k">if</span> <span class="n">category</span> <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">LENGTH_TRUNCATION</span><span class="p">:</span>
@@ -1017,6 +1024,13 @@
                     <span class="k">if</span> <span class="n">grow</span><span class="p">:</span>
                         <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                            <span class="n">reason</span><span class="o">=</span><span class="s2">"output truncated"</span><span class="p">,</span>
+                            <span class="n">attempt</span><span class="o">=</span><span class="n">truncation_retries</span><span class="p">,</span>
+                            <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_TRUNCATION_RETRIES</span><span class="p">,</span>
+                            <span class="n">action</span><span class="o">=</span><span class="s2">"grow"</span><span class="p">,</span>
+                            <span class="n">max_tokens</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_current_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">),</span>
+                        <span class="p">)</span>
                         <span class="k">continue</span>
                     <span class="k">raise</span>
 
@@ -1033,6 +1047,11 @@
                         <span class="n">empty_retries</span><span class="p">,</span>
                         <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                        <span class="n">reason</span><span class="o">=</span><span class="s2">"empty structured response"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="o">=</span><span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
                     <span class="k">continue</span>
 
                 <span class="k">if</span> <span class="p">(</span>
@@ -1048,6 +1067,11 @@
                         <span class="n">MAX_TRANSIENT_RETRIES</span><span class="p">,</span>
                         <span class="n">exc</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                        <span class="n">reason</span><span class="o">=</span><span class="s2">"timed out"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="o">=</span><span class="n">transient_retries</span><span class="p">,</span>
+                        <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_TRANSIENT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
                     <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">delay</span><span class="p">)</span>
                     <span class="k">continue</span>
                 <span class="k">raise</span>
@@ -1057,6 +1081,13 @@
                 <span class="k">if</span> <span class="n">grow</span><span class="p">:</span>
                     <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                        <span class="n">reason</span><span class="o">=</span><span class="s2">"output truncated"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="o">=</span><span class="n">truncation_retries</span><span class="p">,</span>
+                        <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_TRUNCATION_RETRIES</span><span class="p">,</span>
+                        <span class="n">action</span><span class="o">=</span><span class="s2">"grow"</span><span class="p">,</span>
+                        <span class="n">max_tokens</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_current_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">),</span>
+                    <span class="p">)</span>
                     <span class="k">continue</span>
                 <span class="k">return</span> <span class="n">output</span>
 
@@ -1067,6 +1098,11 @@
                         <span class="s2">"Empty LLM output, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">)"</span><span class="p">,</span>
                         <span class="n">empty_retries</span><span class="p">,</span>
                         <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_emit_retry</span><span class="p">(</span>
+                        <span class="n">reason</span><span class="o">=</span><span class="s2">"empty response"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="o">=</span><span class="n">empty_retries</span><span class="p">,</span>
+                        <span class="n">max_attempts</span><span class="o">=</span><span class="n">MAX_EMPTY_OUTPUT_RETRIES</span><span class="p">,</span>
                     <span class="p">)</span>
                     <span class="k">continue</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -1110,6 +1146,60 @@
             <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Output truncated but output window cannot grow further"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_current_output_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the output-token window currently set in *config*, or None."""</span>
+        <span class="n">overrides</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s2">"configurable"</span><span class="p">]</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">get_token_limit_param</span><span class="p">(</span><span class="n">provider</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit_retry</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">attempt</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">max_attempts</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">action</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+        <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Report an LLM invoke retry to the live UI and the inspect tab.</span>
+
+<span class="sd">        Emits a ``progress`` event (the live line, via the shared</span>
+<span class="sd">        ``_emit_progress`` helper) and an ``inspect`` event (a permanent</span>
+<span class="sd">        entry in the inspect tab) carrying the structured retry details.</span>
+
+<span class="sd">        Guarded because ``_invoke_with_retries`` is called directly by unit</span>
+<span class="sd">        tests outside a LangGraph run, where no stream writer exists; the</span>
+<span class="sd">        caller has already logged the retry.</span>
+
+<span class="sd">        :param reason: Short human-readable cause (e.g. ``"timed out"``).</span>
+<span class="sd">        :param attempt: 1-based retry number.</span>
+<span class="sd">        :param max_attempts: Total retry budget for this kind.</span>
+<span class="sd">        :param action: Output-window action (``"shrink"``/``"grow"``) or "".</span>
+<span class="sd">        :param max_tokens: The new output window, when it changed.</span>
+<span class="sd">        """</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2"> (retry </span><span class="si">{</span><span class="n">attempt</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">max_attempts</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="n">details</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"attempt"</span><span class="p">:</span> <span class="n">attempt</span><span class="p">,</span>
+            <span class="s2">"max"</span><span class="p">:</span> <span class="n">max_attempts</span><span class="p">,</span>
+            <span class="s2">"reason"</span><span class="p">:</span> <span class="n">reason</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="n">action</span><span class="p">:</span>
+            <span class="n">details</span><span class="p">[</span><span class="s2">"action"</span><span class="p">]</span> <span class="o">=</span> <span class="n">action</span>
+        <span class="k">if</span> <span class="n">max_tokens</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">details</span><span class="p">[</span><span class="s2">"max_tokens"</span><span class="p">]</span> <span class="o">=</span> <span class="n">max_tokens</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_progress</span><span class="p">(</span><span class="n">heading</span><span class="o">=</span><span class="n">summary</span><span class="p">)</span>
+            <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
+                <span class="nb">type</span><span class="o">=</span><span class="s2">"inspect"</span><span class="p">,</span>
+                <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+                <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span><span class="n">heading</span><span class="o">=</span><span class="s2">"Retry"</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="c1"># No active run (direct unit-test call): the retry is still logged.</span>
+            <span class="k">pass</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_process_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Common output processing with error handling.</span>

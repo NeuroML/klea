@@ -363,7 +363,9 @@
 
 <span class="sd">    Each yielded dict has at least a ``"type"`` key.  Known types::</span>
 
-<span class="sd">        progress    {"type": "progress", "node": "&lt;label&gt;"}</span>
+<span class="sd">        progress    {"type": "progress", "node": "&lt;label&gt;",</span>
+<span class="sd">                     "data": {"heading": "&lt;text&gt;"}}  (heading is the line shown;</span>
+<span class="sd">                     it changes for an LLM invoke retry)</span>
 <span class="sd">        inspect     {"type": "inspect", "node": "&lt;label&gt;", "data": {...}}</span>
 <span class="sd">        token       {"type": "token", "content": "&lt;chunk&gt;", "node": "&lt;label&gt;"}</span>
 <span class="sd">                    (only for opted-in free-text nodes)</span>

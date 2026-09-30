@@ -442,7 +442,9 @@ verbatim to the graph run (see <a class="reference internal" href="#klea_utils.g
 <dd><p>Run the graph and yield structured streaming events.</p>
 <p>Yields dicts with:</p>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;progress&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;}</span></code></dt><dd><p>When the graph enters a new node (via <code class="docutils literal notranslate"><span class="pre">write_custom_stream</span></code>)</p>
+<dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;progress&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>When the graph enters a new node, or when the node’s progress
+heading changes (e.g. an LLM invoke retry).  <code class="docutils literal notranslate"><span class="pre">data[&quot;heading&quot;]</span></code>
+is the line shown while the node runs.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">{&quot;type&quot;:</span> <span class="pre">&quot;inspect&quot;,</span> <span class="pre">&quot;node&quot;:</span> <span class="pre">&quot;&lt;label&gt;&quot;,</span> <span class="pre">&quot;data&quot;:</span> <span class="pre">{...}}</span></code></dt><dd><p>Inspection data from a node after execution (summary + details)</p>
 </dd>

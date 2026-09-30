@@ -345,7 +345,7 @@
 <span class="sd">        :param state: Current graph state</span>
 <span class="sd">        :returns: Routing label ("safe" or "unsafe")</span>
 <span class="sd">        """</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">({</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_progress</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">state</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="n">guard_decision</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"guard_decision"</span><span class="p">,</span> <span class="s2">"safe"</span><span class="p">)</span>

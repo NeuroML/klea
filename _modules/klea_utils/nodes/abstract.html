@@ -336,10 +336,18 @@
 
     <span class="n">heading</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">"Section heading for the inspector panel (right pane)"</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Display heading for the event: the line shown while the node "</span>
+            <span class="s2">"runs for a ``progress`` event, or the section heading for an "</span>
+            <span class="s2">"``inspect`` one."</span>
+        <span class="p">),</span>
     <span class="p">)</span>
     <span class="n">summary</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
-        <span class="n">description</span><span class="o">=</span><span class="s2">"Human-readable summary, always rendered by frontend"</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+        <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Human-readable summary, always rendered by the frontend for an "</span>
+            <span class="s2">"``inspect`` event (left blank for ``progress``)."</span>
+        <span class="p">),</span>
     <span class="p">)</span>
     <span class="n">details</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">,</span>
@@ -376,7 +384,9 @@
 <span class="sd">    This is the contract between the graph infrastructure and the frontend.</span>
 <span class="sd">    """</span>
 
-    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Event type"</span><span class="p">)</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+        <span class="n">description</span><span class="o">=</span><span class="s2">"Event type"</span>
+    <span class="p">)</span>
     <span class="n">node</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Node label"</span><span class="p">)</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">NodeStreamData</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Event payload"</span><span class="p">)</span></div>
 
@@ -475,13 +485,31 @@
 <span class="sd">        """</span>
         <span class="k">return</span> <span class="kc">True</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit_progress</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">heading</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit a ``progress`` event for this node.</span>
+
+<span class="sd">        ``node`` is always this node's label, so the runner keys timing and</span>
+<span class="sd">        dedup on a stable identity; ``heading`` is the line shown while the</span>
+<span class="sd">        node runs (it defaults to the label, and a retry passes a richer</span>
+<span class="sd">        string).  Only ``heading`` is consumed for a ``progress`` event; the</span>
+<span class="sd">        other fields stay empty.</span>
+
+<span class="sd">        :param heading: Display text; defaults to the node label.</span>
+<span class="sd">        """</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">"progress"</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span><span class="n">heading</span><span class="o">=</span><span class="n">heading</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Emit streaming event before node execution.</span>
 
-<span class="sd">        Default: emits a ``progress`` event with the node label.</span>
+<span class="sd">        Default: emits a ``progress`` event with the node label as heading.</span>
 <span class="sd">        Override to customise pre-execution streaming.</span>
 <span class="sd">        """</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">({</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">})</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_emit_progress</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_post_exec_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Emit streaming events after node execution.</span>

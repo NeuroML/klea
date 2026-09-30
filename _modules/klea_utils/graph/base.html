@@ -1369,8 +1369,10 @@
 
 <span class="sd">        Yields dicts with:</span>
 
-<span class="sd">        ``{"type": "progress", "node": "&lt;label&gt;"}``</span>
-<span class="sd">            When the graph enters a new node (via ``write_custom_stream``)</span>
+<span class="sd">        ``{"type": "progress", "node": "&lt;label&gt;", "data": {...}}``</span>
+<span class="sd">            When the graph enters a new node, or when the node's progress</span>
+<span class="sd">            heading changes (e.g. an LLM invoke retry).  ``data["heading"]``</span>
+<span class="sd">            is the line shown while the node runs.</span>
 <span class="sd">        ``{"type": "inspect", "node": "&lt;label&gt;", "data": {...}}``</span>
 <span class="sd">            Inspection data from a node after execution (summary + details)</span>
 <span class="sd">        ``{"type": "token", "content": "&lt;chunk&gt;", "node": "&lt;label&gt;"}``</span>
@@ -1430,6 +1432,7 @@
         <span class="p">)</span>
 
         <span class="n">current_node</span> <span class="o">=</span> <span class="s2">""</span>
+        <span class="n">current_heading</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="n">node_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
         <span class="n">total_start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
         <span class="n">last_values</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{}</span>
@@ -1450,6 +1453,8 @@
                     <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">)</span>
                     <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="p">:</span>
                         <span class="k">continue</span>
+                    <span class="n">payload</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+                    <span class="n">heading</span> <span class="o">=</span> <span class="n">payload</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="k">if</span> <span class="n">node</span> <span class="o">!=</span> <span class="n">current_node</span><span class="p">:</span>
                         <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
                         <span class="k">if</span> <span class="n">current_node</span><span class="p">:</span>
@@ -1460,8 +1465,22 @@
                             <span class="p">)</span>
                         <span class="n">node_start</span> <span class="o">=</span> <span class="n">now</span>
                         <span class="n">current_node</span> <span class="o">=</span> <span class="n">node</span>
+                        <span class="n">current_heading</span> <span class="o">=</span> <span class="n">heading</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Progress: </span><span class="si">{</span><span class="n">current_node</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-                        <span class="k">yield</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="n">current_node</span><span class="p">}</span>
+                        <span class="k">yield</span> <span class="p">{</span>
+                            <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span>
+                            <span class="s2">"node"</span><span class="p">:</span> <span class="n">current_node</span><span class="p">,</span>
+                            <span class="s2">"data"</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span>
+                        <span class="p">}</span>
+                    <span class="k">elif</span> <span class="n">heading</span> <span class="ow">and</span> <span class="n">heading</span> <span class="o">!=</span> <span class="n">current_heading</span><span class="p">:</span>
+                        <span class="c1"># Same node, changed heading (e.g. an LLM invoke retry):</span>
+                        <span class="c1"># forward it without resetting the node timer.</span>
+                        <span class="n">current_heading</span> <span class="o">=</span> <span class="n">heading</span>
+                        <span class="k">yield</span> <span class="p">{</span>
+                            <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span>
+                            <span class="s2">"node"</span><span class="p">:</span> <span class="n">current_node</span><span class="p">,</span>
+                            <span class="s2">"data"</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span>
+                        <span class="p">}</span>
 
                 <span class="k">elif</span> <span class="n">event_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">):</span>
                     <span class="n">node</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">)</span>
