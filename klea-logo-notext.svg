@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   viewBox="0 0 176 176"
+   width="176"
+   height="176"
+   role="img"
+   aria-labelledby="title desc"
+   version="1.1"
+   id="svg8"
+   sodipodi:docname="klea-logo-notext.svg"
+   inkscape:version="1.4.4 (dcaf3e7d9e, 2026-05-05)"
+   inkscape:export-filename="klea-logo-notext.png"
+   inkscape:export-xdpi="192"
+   inkscape:export-ydpi="192"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs8" />
+  <sodipodi:namedview
+     id="namedview8"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:zoom="0.84"
+     inkscape:cx="385.71429"
+     inkscape:cy="88.095238"
+     inkscape:window-width="1920"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg8" />
+  <title
+     id="title">Klea</title>
+  <desc
+     id="desc">
+    Klea logo with a network-inspired K symbol representing connected scientific knowledge.
+  </desc>
+  <!--
+    Klea logo
+
+    Navy: #12365A
+    Teal: #35C5B3
+    Blue: #2496E8
+  -->
+  <!-- Network-inspired K symbol -->
+  <g
+     id="g9"
+     transform="translate(-52,-22)">
+    <line
+       x1="82"
+       y1="40"
+       x2="82"
+       y2="180"
+       stroke="#12365a"
+       stroke-width="14"
+       stroke-linecap="round"
+       id="line1" />
+    <path
+       d="m 82,110 c 30,0 40,-28 78,-45 12,-5 24,-9 38,-9"
+       fill="none"
+       stroke="#2496e8"
+       stroke-width="11"
+       stroke-linecap="round"
+       id="path1" />
+    <path
+       d="m 82,110 c 33,0 53,0 84,0 12,0 22,0 32,0"
+       fill="none"
+       stroke="#35c5b3"
+       stroke-width="11"
+       stroke-linecap="round"
+       id="path2" />
+    <path
+       d="m 82,110 c 30,0 40,28 78,45 12,5 24,9 38,9"
+       fill="none"
+       stroke="#2496e8"
+       stroke-width="11"
+       stroke-linecap="round"
+       id="path3" />
+    <circle
+       cx="82"
+       cy="40"
+       r="18"
+       fill="#2496e8"
+       id="circle3" />
+    <circle
+       cx="82"
+       cy="110"
+       r="18"
+       fill="#12365a"
+       id="circle4" />
+    <circle
+       cx="82"
+       cy="180"
+       r="18"
+       fill="#2496e8"
+       id="circle5" />
+    <circle
+       cx="198"
+       cy="56"
+       r="18"
+       fill="#2496e8"
+       id="circle6" />
+    <circle
+       cx="198"
+       cy="110"
+       r="18"
+       fill="#35c5b3"
+       id="circle7" />
+    <circle
+       cx="198"
+       cy="164"
+       r="18"
+       fill="#2496e8"
+       id="circle8" />
+  </g>
+  <!-- Wordmark -->
+  <text
+     xml:space="preserve"
+     style="font-size:29.3333px;line-height:1.25;font-family:sans-serif;text-align:center;text-anchor:middle"
+     x="216.95239"
+     y="63.714287"
+     id="text9"><tspan
+       sodipodi:role="line"
+       id="tspan8"
+       x="216.95239"
+       y="63.714287" /></text>
+  <metadata
+     id="metadata9">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Klea</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>
