@@ -315,6 +315,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncGenerator</span><span class="p">,</span> <span class="n">Generator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">quote</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
 
@@ -544,6 +545,97 @@
     <span class="n">data</span> <span class="o">=</span> <span class="n">_fetch_json_sync</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Credentials for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="p">[]))</span>
     <span class="k">return</span> <span class="n">data</span> <span class="ow">or</span> <span class="p">[]</span></div>
+
+
+
+<span class="c1">#: Timeout for the model catalogue calls.  Longer than the default: the</span>
+<span class="c1">#: first call may have to download the models.dev catalog on the server.</span>
+<span class="n">CATALOGUE_FETCH_TIMEOUT_SECONDS</span> <span class="o">=</span> <span class="mi">30</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_catalogue_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the model catalogue URL, optionally for one provider."""</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="si">}</span><span class="s2">/chat/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/models/catalogue"</span>
+    <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
+        <span class="n">url</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"?provider=</span><span class="si">{</span><span class="n">quote</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="n">url</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_catalogue_list</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">key</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Pull the ``providers`` / ``models`` list out of a catalogue response."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">items</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">items</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">items</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[]</span>
+
+
+<div class="viewcode-block" id="fetch_catalogue_providers">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sse.fetch_catalogue_providers">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_catalogue_providers</span><span class="p">(</span><span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fetch the providers offered for model selection.</span>
+
+<span class="sd">    Calls ``GET /chat/{user_id}/models/catalogue``.  Returns an empty list</span>
+<span class="sd">    on any error, so the model fields fall back to plain free text.</span>
+
+<span class="sd">    :param server_url: Base URL of the backend API server.</span>
+<span class="sd">    :param user_id: Opaque persistent user identifier.</span>
+<span class="sd">    :returns: Sorted provider ids, e.g. ``["anthropic", "custom", ...]``.</span>
+<span class="sd">    """</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">_catalogue_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_fetch_json</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">CATALOGUE_FETCH_TIMEOUT_SECONDS</span><span class="p">)</span>
+    <span class="n">providers</span> <span class="o">=</span> <span class="n">_catalogue_list</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s2">"providers"</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Catalogue providers for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">providers</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">providers</span></div>
+
+
+
+<div class="viewcode-block" id="fetch_catalogue_providers_sync">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sse.fetch_catalogue_providers_sync">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch_catalogue_providers_sync</span><span class="p">(</span><span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Synchronous counterpart of :func:`fetch_catalogue_providers`."""</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">_catalogue_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">_fetch_json_sync</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">CATALOGUE_FETCH_TIMEOUT_SECONDS</span><span class="p">)</span>
+    <span class="n">providers</span> <span class="o">=</span> <span class="n">_catalogue_list</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s2">"providers"</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Catalogue providers for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">providers</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">providers</span></div>
+
+
+
+<div class="viewcode-block" id="fetch_catalogue_models">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sse.fetch_catalogue_models">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_catalogue_models</span><span class="p">(</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Fetch the model ids offered for one provider.</span>
+
+<span class="sd">    Calls ``GET /chat/{user_id}/models/catalogue?provider=...``.  Returns an</span>
+<span class="sd">    empty list on any error, and for providers whose models are free text</span>
+<span class="sd">    (ollama, custom).</span>
+
+<span class="sd">    :param server_url: Base URL of the backend API server.</span>
+<span class="sd">    :param user_id: Opaque persistent user identifier.</span>
+<span class="sd">    :param provider: Klea provider id, e.g. ``"openai"``.</span>
+<span class="sd">    :returns: Sorted model ids, e.g. ``["gpt-4o", "gpt-4o-mini", ...]``.</span>
+<span class="sd">    """</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">_catalogue_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_fetch_json</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">CATALOGUE_FETCH_TIMEOUT_SECONDS</span><span class="p">)</span>
+    <span class="n">models</span> <span class="o">=</span> <span class="n">_catalogue_list</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s2">"models"</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Catalogue models for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">models</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">models</span></div>
+
+
+
+<div class="viewcode-block" id="fetch_catalogue_models_sync">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sse.fetch_catalogue_models_sync">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch_catalogue_models_sync</span><span class="p">(</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Synchronous counterpart of :func:`fetch_catalogue_models`."""</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="n">_catalogue_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">_fetch_json_sync</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">CATALOGUE_FETCH_TIMEOUT_SECONDS</span><span class="p">)</span>
+    <span class="n">models</span> <span class="o">=</span> <span class="n">_catalogue_list</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s2">"models"</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Catalogue models for </span><span class="si">%s</span><span class="s2"> (</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">models</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">models</span></div>
 
 
 

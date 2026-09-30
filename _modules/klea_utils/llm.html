@@ -350,7 +350,9 @@
 
     <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
     <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></div>
+    <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="c1">#: Model variant.  Not supported yet, so ``None`` for now.</span>
+    <span class="n">variant</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 
@@ -398,6 +400,44 @@
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">ParsedModelName</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">model_name</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">suffix</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span></div>
+
+
+
+<span class="c1">#: Providers whose third model string segment is not an endpoint URL: for</span>
+<span class="c1">#: ``ollama`` it is the model tag (``ollama:qwen3:0.6b``) and for</span>
+<span class="c1">#: ``huggingface`` the inference provider (``huggingface:org/model:novita``).</span>
+<span class="c1">#: The model selection UIs offer no custom URL for these.</span>
+<span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"ollama"</span><span class="p">,</span> <span class="s2">"huggingface"</span><span class="p">})</span>
+
+
+<div class="viewcode-block" id="join_model_string">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.join_model_string">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">join_model_string</span><span class="p">(</span>
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Join model name components back into a model string.</span>
+
+<span class="sd">    The inverse of :func:`parse_model_name`, used by the model selection</span>
+<span class="sd">    UIs on save.  Gives ``provider:model_name``, or</span>
+<span class="sd">    ``provider:model_name:suffix`` when a suffix (e.g. a custom endpoint</span>
+<span class="sd">    URL) is set.</span>
+
+<span class="sd">    Without a provider the model name is returned as it is, so a full</span>
+<span class="sd">    model string typed straight into the model field still works.</span>
+
+<span class="sd">    :param provider: Klea provider id, e.g. ``"openai"``.</span>
+<span class="sd">    :param model_name: Model id within the provider, e.g. ``"gpt-4o"``.</span>
+<span class="sd">    :param suffix: Optional third segment.</span>
+<span class="sd">    :returns: The model string, or ``""`` when no model name is set.</span>
+<span class="sd">    """</span>
+    <span class="n">provider</span> <span class="o">=</span> <span class="p">(</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">model_name</span> <span class="o">=</span> <span class="n">model_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_name</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">provider</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">model_name</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">suffix</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">"</span></div>
 
 
 

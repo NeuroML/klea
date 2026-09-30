@@ -473,9 +473,23 @@ API key.  Used so readiness checks do not flag e.g. a local Ollama
 deployment as missing a credential.</p>
 </dd></dl>
 
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.PROVIDERS_WITHOUT_CUSTOM_URL">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">PROVIDERS_WITHOUT_CUSTOM_URL</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.14)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'huggingface',</span> <span class="pre">'ollama'})</span></span><a class="headerlink" href="#klea_utils.llm.PROVIDERS_WITHOUT_CUSTOM_URL" title="Link to this definition">¶</a></dt>
+<dd><p>for
+<code class="docutils literal notranslate"><span class="pre">ollama</span></code> it is the model tag (<code class="docutils literal notranslate"><span class="pre">ollama:qwen3:0.6b</span></code>) and for
+<code class="docutils literal notranslate"><span class="pre">huggingface</span></code> the inference provider (<code class="docutils literal notranslate"><span class="pre">huggingface:org/model:novita</span></code>).
+The model selection UIs offer no custom URL for these.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Providers whose third model string segment is not an endpoint URL</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py class">
 <dt class="sig sig-object py" id="klea_utils.llm.ParsedModelName">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">ParsedModelName</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#ParsedModelName"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.ParsedModelName" title="Link to this definition">¶</a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">ParsedModelName</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">variant</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/llm.html#ParsedModelName"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.ParsedModelName" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NamedTuple" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></a></p>
 <p>Parsed components of a model name string.</p>
 <dl class="py attribute">
@@ -494,6 +508,12 @@ deployment as missing a credential.</p>
 <dt class="sig sig-object py" id="klea_utils.llm.ParsedModelName.suffix">
 <span class="sig-name descname"><span class="pre">suffix</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#klea_utils.llm.ParsedModelName.suffix" title="Link to this definition">¶</a></dt>
 <dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.llm.ParsedModelName.variant">
+<span class="sig-name descname"><span class="pre">variant</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><a class="headerlink" href="#klea_utils.llm.ParsedModelName.variant" title="Link to this definition">¶</a></dt>
+<dd><p>Model variant.  Not supported yet, so <code class="docutils literal notranslate"><span class="pre">None</span></code> for now.</p>
 </dd></dl>
 
 </dd></dl>
@@ -895,6 +915,30 @@ retry them on the structured path or fall back to plain.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>True when the structured call should give way to a plain invoke.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.join_model_string">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">join_model_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#join_model_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.join_model_string" title="Link to this definition">¶</a></dt>
+<dd><p>Join model name components back into a model string.</p>
+<p>The inverse of <a class="reference internal" href="#klea_utils.llm.parse_model_name" title="klea_utils.llm.parse_model_name"><code class="xref py py-func docutils literal notranslate"><span class="pre">parse_model_name()</span></code></a>, used by the model selection
+UIs on save.  Gives <code class="docutils literal notranslate"><span class="pre">provider:model_name</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">provider:model_name:suffix</span></code> when a suffix (e.g. a custom endpoint
+URL) is set.</p>
+<p>Without a provider the model name is returned as it is, so a full
+model string typed straight into the model field still works.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Klea provider id, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;openai&quot;</span></code>.</p></li>
+<li><p><strong>model_name</strong> – Model id within the provider, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;gpt-4o&quot;</span></code>.</p></li>
+<li><p><strong>suffix</strong> – Optional third segment.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The model string, or <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> when no model name is set.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1304,10 +1348,12 @@ still reject – the first attempt for a key always probes.</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.llm.PROVIDERS_WITHOUT_API_KEY"><code class="docutils literal notranslate"><span class="pre">PROVIDERS_WITHOUT_API_KEY</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.PROVIDERS_WITHOUT_CUSTOM_URL"><code class="docutils literal notranslate"><span class="pre">PROVIDERS_WITHOUT_CUSTOM_URL</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName"><code class="docutils literal notranslate"><span class="pre">ParsedModelName</span></code></a><ul>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.model_name"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.model_name</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.provider"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.provider</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.suffix"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.suffix</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.ParsedModelName.variant"><code class="docutils literal notranslate"><span class="pre">ParsedModelName.variant</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.llm.add_memory_to_prompt"><code class="docutils literal notranslate"><span class="pre">add_memory_to_prompt()</span></code></a></li>
@@ -1331,6 +1377,7 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.is_output_truncated"><code class="docutils literal notranslate"><span class="pre">is_output_truncated()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_structured_capability_rejection"><code class="docutils literal notranslate"><span class="pre">is_structured_capability_rejection()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.is_structured_output_failure"><code class="docutils literal notranslate"><span class="pre">is_structured_output_failure()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.join_model_string"><code class="docutils literal notranslate"><span class="pre">join_model_string()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.load_prompt"><code class="docutils literal notranslate"><span class="pre">load_prompt()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.mark_structured_output_unsupported"><code class="docutils literal notranslate"><span class="pre">mark_structured_output_unsupported()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.missing_required_roles"><code class="docutils literal notranslate"><span class="pre">missing_required_roles()</span></code></a></li>

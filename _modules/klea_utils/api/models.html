@@ -318,6 +318,7 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
@@ -327,6 +328,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.credentials</span><span class="w"> </span><span class="kn">import</span> <span class="n">credential_status</span><span class="p">,</span> <span class="n">mask_secret</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_model_name</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_catalog_models</span><span class="p">,</span> <span class="n">list_catalog_providers</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -439,6 +441,11 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">create_models_router</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">APIRouter</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Create an APIRouter for per-session and per-chat model configuration.</span>
 
+<span class="sd">    Model catalogue (suggestions for the model selection UIs)::</span>
+
+<span class="sd">        GET    /chat/{user_id}/models/catalogue</span>
+<span class="sd">        GET    /chat/{user_id}/models/catalogue?provider=...</span>
+
 <span class="sd">    Per-session defaults::</span>
 
 <span class="sd">        GET    /chat/{user_id}/models/overrides</span>
@@ -463,6 +470,32 @@
         <span class="n">graph</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">graph</span>
         <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">chat_sessions</span>
         <span class="k">return</span> <span class="n">graph</span><span class="p">,</span> <span class="n">store</span>
+
+    <span class="c1"># ------------------------------------------------------------------</span>
+    <span class="c1"># Model catalogue</span>
+    <span class="c1"># ------------------------------------------------------------------</span>
+
+    <span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"/</span><span class="si">{user_id}</span><span class="s2">/models/catalogue"</span><span class="p">)</span>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">get_model_catalogue</span><span class="p">(</span><span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Return the providers, or one provider's models, for model selection.</span>
+
+<span class="sd">        Without ``provider`` the provider list is returned (models.dev</span>
+<span class="sd">        providers plus ollama and custom); with it, that provider's model</span>
+<span class="sd">        ids.  The first call may have to download the models.dev catalog,</span>
+<span class="sd">        which blocks, so the lookup runs in a worker thread.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="n">provider</span><span class="p">:</span>
+            <span class="n">models</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">list_catalog_models</span><span class="p">,</span> <span class="n">provider</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="s2">"get_model_catalogue(</span><span class="si">%s</span><span class="s2">, provider=</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> model(s)"</span><span class="p">,</span>
+                <span class="n">user_id</span><span class="p">,</span>
+                <span class="n">provider</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">models</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"provider"</span><span class="p">:</span> <span class="n">provider</span><span class="p">,</span> <span class="s2">"models"</span><span class="p">:</span> <span class="n">models</span><span class="p">}</span>
+        <span class="n">providers</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">to_thread</span><span class="p">(</span><span class="n">list_catalog_providers</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_model_catalogue(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> provider(s)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">providers</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"providers"</span><span class="p">:</span> <span class="n">providers</span><span class="p">}</span>
 
     <span class="c1"># ------------------------------------------------------------------</span>
     <span class="c1"># Per-session defaults</span>

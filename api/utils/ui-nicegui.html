@@ -1234,6 +1234,9 @@ overrides otherwise; saving in a chat also promotes the changed role into
 the session defaults (“last used”).  API keys are not part of the model
 override  —  they are provider-scoped and edited in a separate, masked
 (write-only) credentials dialog.</p>
+<p>Each role’s model is picked with a provider field, a model field and an
+optional custom URL, all filled from the models.dev catalogue and joined
+back into a single model string on save.</p>
 <p>File: klea_utils/ui/web/nicegui/components/model_dialog.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
