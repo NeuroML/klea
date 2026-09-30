@@ -32,10 +32,18 @@ class NodeStreamData(BaseModel):
 
     heading: str = Field(
         default="",
-        description="Section heading for the inspector panel (right pane)",
+        description=(
+            "Display heading for the event: the line shown while the node "
+            "runs for a ``progress`` event, or the section heading for an "
+            "``inspect`` one."
+        ),
     )
     summary: str = Field(
-        description="Human-readable summary, always rendered by frontend"
+        default="",
+        description=(
+            "Human-readable summary, always rendered by the frontend for an "
+            "``inspect`` event (left blank for ``progress``)."
+        ),
     )
     details: dict[str, Any] = Field(
         default_factory=dict,
@@ -69,7 +77,9 @@ class NodeStreamEvent(BaseModel):
     This is the contract between the graph infrastructure and the frontend.
     """
 
-    type: Literal["inspect", "state", "usage"] = Field(description="Event type")
+    type: Literal["progress", "inspect", "state", "usage"] = Field(
+        description="Event type"
+    )
     node: str = Field(description="Node label")
     data: NodeStreamData = Field(description="Event payload")
 
@@ -159,13 +169,31 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
         """
         return True
 
+    def _emit_progress(self, heading: str = "") -> None:
+        """Emit a ``progress`` event for this node.
+
+        ``node`` is always this node's label, so the runner keys timing and
+        dedup on a stable identity; ``heading`` is the line shown while the
+        node runs (it defaults to the label, and a retry passes a richer
+        string).  Only ``heading`` is consumed for a ``progress`` event; the
+        other fields stay empty.
+
+        :param heading: Display text; defaults to the node label.
+        """
+        event = NodeStreamEvent(
+            type="progress",
+            node=self.label,
+            data=NodeStreamData(heading=heading or self.label),
+        )
+        self.write_custom_stream(event.model_dump())
+
     def _pre_exec_stream(self) -> None:
         """Emit streaming event before node execution.
 
-        Default: emits a ``progress`` event with the node label.
+        Default: emits a ``progress`` event with the node label as heading.
         Override to customise pre-execution streaming.
         """
-        self.write_custom_stream({"type": "progress", "node": self.label})
+        self._emit_progress()
 
     def _post_exec_stream(self) -> None:
         """Emit streaming events after node execution.

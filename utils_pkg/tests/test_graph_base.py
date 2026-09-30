@@ -680,6 +680,83 @@ class _ContextCaptureGraph(BaseLangGraph):
         pass
 
 
+class _ProgressEventCompiled:
+    """Fake compiled graph yielding a fixed list of ``astream_events`` dicts."""
+
+    def __init__(self, events: list[dict]):
+        self._events = events
+
+    async def astream_events(self, *args, **kwargs):
+        return self._iter()
+
+    async def _iter(self):
+        for event in self._events:
+            yield event
+
+
+class TestProgressStreaming:
+    """``run_graph_astream_events`` progress: node identity vs heading.
+
+    Timing/dedup is keyed on ``node``; the displayed text comes from
+    ``data["heading"]``.  A heading change for the same node (an LLM invoke
+    retry) is forwarded without being treated as a new node.
+    """
+
+    def _events(self, data_payloads: list[dict]) -> _ContextCaptureGraph:
+        compiled = _ProgressEventCompiled(
+            [{"method": "custom", "params": {"data": d}} for d in data_payloads]
+        )
+        return _ContextCaptureGraph(cast(Any, compiled))
+
+    async def _progress(self, graph):
+        events = [e async for e in graph.run_graph_astream_events("q")]
+        return [e for e in events if e.get("type") == "progress"]
+
+    async def test_progress_carries_node_and_heading(self):
+        graph = self._events(
+            [{"type": "progress", "node": "Planner", "data": {"heading": "Planner"}}]
+        )
+        assert await self._progress(graph) == [
+            {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}}
+        ]
+
+    async def test_same_node_heading_change_is_forwarded(self):
+        graph = self._events(
+            [
+                {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}},
+                {
+                    "type": "progress",
+                    "node": "Planner",
+                    "data": {"heading": "Planner (retry 1/2: timed out)"},
+                },
+            ]
+        )
+        headings = [e["data"]["heading"] for e in await self._progress(graph)]
+        assert headings == ["Planner", "Planner (retry 1/2: timed out)"]
+
+    async def test_repeated_heading_is_deduped(self):
+        graph = self._events(
+            [
+                {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}},
+                {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}},
+            ]
+        )
+        headings = [e["data"]["heading"] for e in await self._progress(graph)]
+        assert headings == ["Planner"]
+
+    async def test_new_node_resets_heading(self):
+        graph = self._events(
+            [
+                {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}},
+                {"type": "progress", "node": "Answer", "data": {"heading": "Answer"}},
+            ]
+        )
+        assert [e["node"] for e in await self._progress(graph)] == [
+            "Planner",
+            "Answer",
+        ]
+
+
 class TestRunContextForwarding:
     """The four query run methods forward the ADR-0033 context verbatim."""
 

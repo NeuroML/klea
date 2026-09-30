@@ -1042,8 +1042,10 @@ class BaseLangGraph(ABC):
 
         Yields dicts with:
 
-        ``{"type": "progress", "node": "<label>"}``
-            When the graph enters a new node (via ``write_custom_stream``)
+        ``{"type": "progress", "node": "<label>", "data": {...}}``
+            When the graph enters a new node, or when the node's progress
+            heading changes (e.g. an LLM invoke retry).  ``data["heading"]``
+            is the line shown while the node runs.
         ``{"type": "inspect", "node": "<label>", "data": {...}}``
             Inspection data from a node after execution (summary + details)
         ``{"type": "token", "content": "<chunk>", "node": "<label>"}``
@@ -1103,6 +1105,7 @@ class BaseLangGraph(ABC):
         )
 
         current_node = ""
+        current_heading = ""
         node_start = time.monotonic()
         total_start = time.monotonic()
         last_values: dict = {}
@@ -1123,6 +1126,8 @@ class BaseLangGraph(ABC):
                     node = data.get("node")
                     if not node:
                         continue
+                    payload = data.get("data") or {}
+                    heading = payload.get("heading", "")
                     if node != current_node:
                         now = time.monotonic()
                         if current_node:
@@ -1133,8 +1138,22 @@ class BaseLangGraph(ABC):
                             )
                         node_start = now
                         current_node = node
+                        current_heading = heading
                         self.logger.debug(f"Progress: {current_node}")
-                        yield {"type": "progress", "node": current_node}
+                        yield {
+                            "type": "progress",
+                            "node": current_node,
+                            "data": payload,
+                        }
+                    elif heading and heading != current_heading:
+                        # Same node, changed heading (e.g. an LLM invoke retry):
+                        # forward it without resetting the node timer.
+                        current_heading = heading
+                        yield {
+                            "type": "progress",
+                            "node": current_node,
+                            "data": payload,
+                        }
 
                 elif event_type in ("inspect", "state", "usage", "tool"):
                     node = data.get("node")
