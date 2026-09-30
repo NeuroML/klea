@@ -62,6 +62,14 @@ def make_parser(
         help="NiceGUI storage secret for session persistence",
     )
     parser.add_argument(
+        "--favicon",
+        default=None,
+        help=(
+            "Browser-tab icon: a file path, http(s)/data URL, raw SVG or a "
+            "single character (default: the bundled Klea icon)"
+        ),
+    )
+    parser.add_argument(
         "--reload",
         action="store_true",
         help="Enable auto-reload on file changes (supported by nicegui only)",

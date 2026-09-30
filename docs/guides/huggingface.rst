@@ -176,8 +176,8 @@ MCP server or remove the line entirely.
 
 The ``--title`` flag sets the heading shown in the browser tab and
 the NiceGUI page header.  Other flags such as ``--subtitle`` and
-``--page-icon`` are available too --- see :doc:`../cli/klea-rag` for
-the full reference.
+``--favicon`` (browser-tab icon; defaults to the bundled Klea icon) are
+available too --- see :doc:`../cli/klea-rag` for the full reference.
 
 Step 7: Commit and push
 -----------------------

@@ -10,10 +10,18 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import contextlib
 import logging
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
-from klea_utils.ui.cli import _maybe_spawn_server, _run_web, make_client_app
+import typer
+from klea_utils.ui.cli import (
+    _maybe_spawn_server,
+    _resolve_favicon,
+    _run_web,
+    make_client_app,
+)
 from typer.testing import CliRunner
 
 logger = logging.getLogger(__name__)
@@ -108,6 +116,13 @@ class TestMakeClientApp(unittest.TestCase):
             self.assertEqual(kwargs["web_app_name"], "klea-rag-web")
             self.assertEqual(kwargs["reload"], False)
             self.assertEqual(kwargs["debug"], False)
+            self.assertEqual(kwargs["favicon"], "")
+
+    def test_web_favicon_routing(self):
+        with mock.patch("klea_utils.ui.cli._run_web") as run_web:
+            result = self.runner.invoke(self.app, ["web", "--favicon", "K"])
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(run_web.call_args.kwargs["favicon"], "K")
 
     def test_web_reload_and_debug_routing(self):
         with mock.patch("klea_utils.ui.cli._run_web") as run_web:
@@ -128,6 +143,38 @@ class TestMakeClientApp(unittest.TestCase):
 
     def test_top_level_flags_do_not_exist(self):
         self.assertEqual(self.runner.invoke(self.app, ["--server", "x"]).exit_code, 2)
+
+
+class TestResolveFavicon(unittest.TestCase):
+    """--favicon resolution: pass-through vs local path validation."""
+
+    def test_empty_is_none(self):
+        self.assertIsNone(_resolve_favicon(None))
+        self.assertIsNone(_resolve_favicon(""))
+        self.assertIsNone(_resolve_favicon("   "))
+
+    def test_url_svg_and_char_pass_through(self):
+        for value in (
+            "https://example.com/icon.png",
+            "http://example.com/icon.png",
+            "data:image/svg+xml,<svg/>",
+            "<svg></svg>",
+            "K",
+        ):
+            self.assertEqual(_resolve_favicon(value), value)
+
+    def test_existing_file_is_resolved_absolute(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "icon.png"
+            path.write_bytes(b"\x89PNG")
+            resolved = _resolve_favicon(str(path))
+            assert resolved is not None
+            self.assertTrue(Path(resolved).is_absolute())
+            self.assertEqual(Path(resolved), path.resolve())
+
+    def test_missing_file_raises(self):
+        with self.assertRaises(ValueError):
+            _resolve_favicon("/definitely/not/here/icon.png")
 
 
 class TestMaybeSpawnServer(unittest.TestCase):
@@ -236,6 +283,72 @@ class TestRunWeb(unittest.TestCase):
         subprocess_run.assert_called_once()
         command = " ".join(subprocess_run.call_args.args[0])
         self.assertIn("--reload", command)
+
+    def test_favicon_forwarded_to_app(self):
+        spec = mock.Mock()
+        spec.origin = "/opt/klea/nicegui/app.py"
+        with tempfile.TemporaryDirectory() as tmp:
+            icon = Path(tmp) / "icon.png"
+            icon.write_bytes(b"\x89PNG")
+            with (
+                mock.patch(
+                    "klea_utils.ui.cli.importlib.util.find_spec", return_value=spec
+                ),
+                mock.patch(
+                    "klea_utils.ui.cli.chdir", return_value=contextlib.nullcontext()
+                ),
+                mock.patch("klea_utils.ui.cli.subprocess.run") as subprocess_run,
+                mock.patch(
+                    "klea_utils.ui.cli._maybe_spawn_server",
+                    return_value=contextlib.nullcontext(),
+                ),
+            ):
+                _run_web(
+                    server_url="http://127.0.0.1:8005",
+                    title="KLEA RAG",
+                    subtitle="S",
+                    disclaimer="D",
+                    footer_text="F",
+                    nicegui_url="0.0.0.0:7860",
+                    storage_secret="SECRET",
+                    reload=False,
+                    debug=False,
+                    web_app_name="klea-rag-web",
+                    app_module="klea_rag.api.main:app",
+                    web_entry="klea_rag.ui.web.app",
+                    favicon=str(icon),
+                )
+
+        subprocess_run.assert_called_once()
+        command = " ".join(subprocess_run.call_args.args[0])
+        self.assertIn(f"--favicon {icon.resolve()}", command)
+
+    def test_missing_favicon_errors_before_spawn(self):
+        with (
+            mock.patch(
+                "klea_utils.ui.cli._maybe_spawn_server",
+                return_value=contextlib.nullcontext(),
+            ) as spawn,
+            mock.patch("klea_utils.ui.cli.subprocess.run") as subprocess_run,
+            self.assertRaises(typer.Exit),
+        ):
+            _run_web(
+                server_url="http://127.0.0.1:8005",
+                title="T",
+                subtitle="",
+                disclaimer="",
+                footer_text="",
+                nicegui_url="0.0.0.0:7860",
+                storage_secret="SECRET",
+                reload=False,
+                debug=False,
+                web_app_name="klea-rag-web",
+                app_module="klea_rag.api.main:app",
+                web_entry="klea_rag.ui.web.app",
+                favicon="/no/such/favicon.png",
+            )
+        spawn.assert_not_called()
+        subprocess_run.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -28,6 +28,34 @@ def _validate_url(value: str) -> str:
         raise typer.BadParameter(str(e))
 
 
+def _resolve_favicon(value: str | None) -> str | None:
+    """Resolve a ``--favicon`` value to something NiceGUI can use.
+
+    An empty value returns ``None`` so the caller falls back to the
+    bundled Klea icon.  ``http(s)``/``data:`` URLs, raw SVG and a single
+    character are passed through unchanged; anything else is treated as a
+    local file path, expanded and required to exist, so a typo fails fast
+    instead of silently falling back to the default icon.  Relative paths
+    are resolved against the current directory (the web app runs from its
+    own package directory, so a relative path would otherwise miss).
+
+    :param value: Raw ``--favicon`` value, or ``None``.
+    :returns: The favicon to hand to NiceGUI, or ``None``.
+    :raises ValueError: When *value* looks like a path but does not exist.
+    """
+    value = (value or "").strip()
+    if not value:
+        return None
+    if value.startswith(("http://", "https://", "data:", "<svg")):
+        return value
+    if len(value) == 1:
+        return value
+    path = Path(value).expanduser()
+    if not path.is_file():
+        raise ValueError(f"Favicon file not found: {value}")
+    return str(path.resolve())
+
+
 def _maybe_spawn_server(
     server_url: str,
     app_module: str,
@@ -140,6 +168,7 @@ def _run_web(
     web_app_name: str,
     app_module: str,
     web_entry: str,
+    favicon: str | None = None,
     profile: str | None = None,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
@@ -160,6 +189,11 @@ def _run_web(
 
         require_extra("nicegui", "nicegui")
     except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
+    try:
+        favicon = _resolve_favicon(favicon)
+    except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from None
     if debug:
@@ -199,6 +233,7 @@ def _run_web(
                     + f" --nicegui-url '{nicegui_url}'"
                     + f" --storage-secret '{storage_secret}'"
                     + f" --app-name '{web_app_name}'"
+                    + (f" --favicon '{favicon}'" if favicon else "")
                     + (" --reload" if reload else "")
                 ),
                 check=False,
@@ -352,6 +387,14 @@ def make_client_app(
             "--storage-secret",
             help="NiceGUI storage secret for session persistence",
         ),
+        favicon: str = typer.Option(
+            "",
+            "--favicon",
+            help=(
+                "Browser-tab icon: a file path, http(s)/data URL, raw SVG or "
+                "a single character. Defaults to the bundled Klea icon."
+            ),
+        ),
         reload: bool = typer.Option(
             False, "--reload", "-r", help="Enable auto-reload on file changes"
         ),
@@ -371,6 +414,7 @@ def make_client_app(
             web_app_name=web_app_name,
             app_module=app_module,
             web_entry=web_entry,
+            favicon=favicon,
             profile=profile,
             config_env_var=config_env_var,
             config_dir=config_dir,

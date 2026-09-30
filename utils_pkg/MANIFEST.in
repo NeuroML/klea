@@ -1,3 +1,4 @@
 include Readme.md
 include LICENSE*
 recursive-include klea_utils/nodes/prompts *
+recursive-include klea_utils/ui/web/nicegui/static *

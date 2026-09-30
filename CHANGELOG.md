@@ -26,6 +26,7 @@
 - Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
 - Web UI: the model dialog picks each role's model with provider, model and optional custom-URL dropdowns filled from the models.dev catalogue, while still accepting free text for uncatalogued models (for example `ollama:` or a self-hosted endpoint).
 - Web UI: for a `huggingface` role the model dialog offers a **Run** choice (hosted inference providers, or local) and an **inference provider** field (`auto`/`cheapest`/`fastest`/`preferred`, or a specific provider), with a "pick one or type in" hint on the editable fields.
+- Web UI: `klea web` and `klea-rag web` accept `--favicon` (a file path, `http(s)`/`data:` URL, raw SVG or a single character) for the browser-tab icon, which now defaults to the bundled Klea icon instead of NiceGUI's.
 - Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 
 ### Changed

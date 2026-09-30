@@ -31,6 +31,21 @@ logger = logging.getLogger(__name__)
 
 PageBuilder = Callable[..., Any]
 
+#: Bundled default favicon (the Klea notext logo), shown in the browser tab
+#: when the caller does not supply one.
+_DEFAULT_FAVICON = (
+    Path(__file__).resolve().parent.parent / "static" / "klea-favicon.png"
+)
+
+
+def default_favicon_path() -> Path | None:
+    """Return the bundled Klea favicon path, or ``None`` when absent.
+
+    The caller passes the result to NiceGUI's ``favicon``; ``None`` leaves
+    NiceGUI's own default icon in place.
+    """
+    return _DEFAULT_FAVICON if _DEFAULT_FAVICON.is_file() else None
+
 
 def _configure_logging(app_name: str) -> None:
     """Configure process-wide logging for this client process."""
@@ -97,6 +112,7 @@ def run_nicegui_server(
     nicegui_url: str = "0.0.0.0:7860",
     storage_secret: str = "klea-nicegui-secret-change-me",
     app_name: str = "klea-web",
+    favicon: str | Path | None = None,
 ) -> None:
     """Start the NiceGUI web server with a Klea page.
 
@@ -125,9 +141,14 @@ def run_nicegui_server(
         persistence.
     :param app_name: Log identity for this frontend process, used as the
         log file name so each app keeps its own logs.
+    :param favicon: Browser-tab favicon (a file path, URL, raw SVG or a
+        single character).  Defaults to the bundled Klea icon.
     """
     _configure_logging(app_name)
     _configure_storage(app_name)
+
+    resolved_favicon = favicon or default_favicon_path()
+    logger.debug(f"{resolved_favicon = }")
 
     host, port_str = nicegui_url.rsplit(":", 1)
     port = int(port_str)
@@ -163,4 +184,5 @@ def run_nicegui_server(
         show=False,
         reload=reload,
         storage_secret=storage_secret,
+        favicon=resolved_favicon,
     )

@@ -161,6 +161,7 @@ def run_agent_web(
     nicegui_url: str = "0.0.0.0:7860",
     storage_secret: str = "klea-nicegui-secret-change-me",
     app_name: str = "klea-web",
+    favicon: str | None = None,
 ) -> None:
     """Start the agent NiceGUI web server with :func:`setup_layout`.
 
@@ -178,6 +179,7 @@ def run_agent_web(
     :param storage_secret: Secret used by NiceGUI for browser session
         persistence.
     :param app_name: Log identity for this frontend process.
+    :param favicon: Browser-tab favicon (defaults to the bundled Klea icon).
     """
     bootstrap.run_nicegui_server(
         title,
@@ -190,4 +192,5 @@ def run_agent_web(
         nicegui_url=nicegui_url,
         storage_secret=storage_secret,
         app_name=app_name,
+        favicon=favicon,
     )
