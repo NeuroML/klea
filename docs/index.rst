@@ -1,6 +1,11 @@
 Welcome to Klea
 ===============
 
+.. image:: _static/klea-logo.png
+   :alt: Klea logo
+   :width: 240px
+   :align: center
+
 Knowledge vaLidated Expert AI Assistant for scientific research.
 
 Grounded, citation-backed answers over your own research sources.
