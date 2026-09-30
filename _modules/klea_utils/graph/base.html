@@ -1205,7 +1205,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_invoke">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_invoke</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1213,7 +1213,9 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run the graph with a simple string query.</span>
 
-<span class="sd">        :param query: User query string</span>
+<span class="sd">        :param query: User query string, or ``None`` to **resume** the thread</span>
+<span class="sd">            from its last checkpoint (the failed node is re-run; the entry</span>
+<span class="sd">            node is not).  On resume ``extra_state`` is ignored.</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation (e.g. an app-specific ``mode`` request).  These are</span>
@@ -1240,12 +1242,19 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
-        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
-            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Resume: pass ``None`` so LangGraph continues from the checkpoint</span>
+            <span class="c1"># at the failed node (it does not re-enter the entry node).</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+                <span class="n">graph_input</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">graph_input</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="n">final_state</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">(</span>
-            <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
+            <span class="n">graph_input</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
         <span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">final_state</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
@@ -1259,7 +1268,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_stream">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_stream</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1267,11 +1276,12 @@
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Run the graph and yield intermediate ``message_for_user`` values.</span>
 
-<span class="sd">        :param query: User query string</span>
+<span class="sd">        :param query: User query string, or ``None`` to resume the thread</span>
+<span class="sd">            from its last checkpoint (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
-<span class="sd">            request).</span>
+<span class="sd">            request).  Ignored on resume.</span>
 <span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
 <span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :yields: ``message_for_user`` strings from each node</span>
@@ -1281,12 +1291,17 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
-        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
-            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+                <span class="n">graph_input</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">graph_input</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
         <span class="k">async</span> <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span>
-            <span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
+            <span class="n">graph_input</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
         <span class="p">):</span>
             <span class="k">for</span> <span class="n">node</span><span class="p">,</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">chunk</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">node</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">state</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
@@ -1301,7 +1316,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.graph_stream">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">graph_stream</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1309,11 +1324,12 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run the graph and return the raw astream result.</span>
 
-<span class="sd">        :param query: User query string</span>
+<span class="sd">        :param query: User query string, or ``None`` to resume the thread</span>
+<span class="sd">            from its last checkpoint (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
-<span class="sd">            request).</span>
+<span class="sd">            request).  Ignored on resume.</span>
 <span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
 <span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :returns: Raw async generator from ``graph.astream()``</span>
@@ -1323,11 +1339,16 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">input_state</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
-        <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
-            <span class="n">input_state</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
-        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">input_state</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
+            <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
+                <span class="n">graph_input</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra_state</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_apply_access_level_default</span><span class="p">(</span><span class="n">graph_input</span><span class="p">,</span> <span class="n">extra_state</span><span class="p">)</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">astream</span><span class="p">(</span><span class="n">graph_input</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">res</span></div>
 
 
