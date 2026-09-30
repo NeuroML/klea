@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.graph.reducers - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -310,30 +310,21 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
-
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">TokenUsage</span>
 
 
 <div class="viewcode-block" id="add_token_usage">
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.reducers.add_token_usage">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">add_token_usage</span><span class="p">(</span>
-    <span class="n">left</span><span class="p">:</span> <span class="n">TokenUsage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">right</span><span class="p">:</span> <span class="n">TokenUsage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">left</span><span class="p">:</span> <span class="n">TokenUsage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="n">right</span><span class="p">:</span> <span class="n">TokenUsage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TokenUsage</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Add token usage updates from sequential or concurrent graph nodes.</span>
-
-<span class="sd">    Only the numeric counters are summed.  ``role`` identifies the node that</span>
-<span class="sd">    produced a single update, so it is not meaningful for the aggregate and is</span>
-<span class="sd">    dropped (left empty) rather than concatenated.</span>
-<span class="sd">    """</span>
+<span class="w">    </span><span class="sd">"""Add token usage updates from sequential or concurrent graph nodes."""</span>
     <span class="n">left</span> <span class="o">=</span> <span class="n">TokenUsage</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="n">left</span><span class="p">)</span>
     <span class="n">right</span> <span class="o">=</span> <span class="n">TokenUsage</span><span class="o">.</span><span class="n">model_validate</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">TokenUsage</span><span class="p">(</span>
         <span class="n">input_tokens</span><span class="o">=</span><span class="n">left</span><span class="o">.</span><span class="n">input_tokens</span> <span class="o">+</span> <span class="n">right</span><span class="o">.</span><span class="n">input_tokens</span><span class="p">,</span>
         <span class="n">output_tokens</span><span class="o">=</span><span class="n">left</span><span class="o">.</span><span class="n">output_tokens</span> <span class="o">+</span> <span class="n">right</span><span class="o">.</span><span class="n">output_tokens</span><span class="p">,</span>
         <span class="n">total_tokens</span><span class="o">=</span><span class="n">left</span><span class="o">.</span><span class="n">total_tokens</span> <span class="o">+</span> <span class="n">right</span><span class="o">.</span><span class="n">total_tokens</span><span class="p">,</span>
-        <span class="n">reasoning_tokens</span><span class="o">=</span><span class="n">left</span><span class="o">.</span><span class="n">reasoning_tokens</span> <span class="o">+</span> <span class="n">right</span><span class="o">.</span><span class="n">reasoning_tokens</span><span class="p">,</span>
-        <span class="n">cached_tokens</span><span class="o">=</span><span class="n">left</span><span class="o">.</span><span class="n">cached_tokens</span> <span class="o">+</span> <span class="n">right</span><span class="o">.</span><span class="n">cached_tokens</span><span class="p">,</span>
     <span class="p">)</span></div>
 
 </pre></div>

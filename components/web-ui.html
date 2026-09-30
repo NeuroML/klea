@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Klea Agent" href="agent.html"><link rel="prev" title="MCP servers" href="mcp-servers.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>Web interface - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -188,6 +188,7 @@
     <img class="sidebar-logo" src="../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -253,7 +254,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/errors.html">Error types</a></li>
@@ -318,23 +318,14 @@ talks to the backend API.  It is started with <code class="docutils literal notr
 linked from the <a class="reference internal" href="../index.html"><span class="doc">home page</span></a>.</p>
 <p>The layout has three parts: a left drawer listing chat sessions, a centre
 panel with two tabs (<strong>chat</strong> and <strong>inspect</strong>), and a right drawer with
-per-chat state (the <em>status pane</em>).  A single footer line carries the
-disclaimer and the “Powered by” note.</p>
+per-chat state (the <em>status pane</em>).</p>
 <section id="chat">
 <h2>Chat<a class="headerlink" href="#chat" title="Link to this heading">¶</a></h2>
 <p>The chat tab is where questions are asked.  Answers stream in as they are
 generated, and each answer is grounded in the retrieved sources rather
-than the model’s memory alone.  Messages render as full-width blocks: the
-user’s prompt is tinted, the agent’s reply is plain text, and file changes
-the agent makes appear as their own diff blocks before the reply.  Long
-lines wrap, and the input box sits at the bottom (drag its corner to
-resize it).  Use the left drawer to start a new chat or switch between
-existing ones, and the status pane to choose the model for the chat.</p>
-<p>Send stays disabled until the models a run needs (and any required API
-keys) are configured; the first run opens a <strong>Choose models</strong> prompt to set
-them.  If a run fails with a recoverable error, an inline <strong>Retry</strong> action
-resumes it from its checkpoint – re-running only the failed step – instead
-of starting the query over.</p>
+than the model’s memory alone.  The input box sits at the bottom; use the
+left drawer to start a new chat or switch between existing ones, and the
+status pane to choose the model for the chat.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>
@@ -346,16 +337,11 @@ answer.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a
 </section>
 <section id="inspect">
 <h2>Inspect<a class="headerlink" href="#inspect" title="Link to this heading">¶</a></h2>
-<p>The inspect tab is the transparency view.  It updates live as the graph
-runs: each pipeline step appends an entry as it finishes – for example
-classification, retrieval, answering and evaluation – with the step’s
-heading, how long it took, a short summary, and a collapsible <strong>View
-details</strong> panel holding the raw structured data for that step.  That data
-renders as syntax-highlighted JSON (multi-line string values such as
-prompts are expanded for readability) with a copy button.  Entries are
-grouped under a collapsible section per query (timestamp plus the query
-text), and the pane keeps every query’s section for the browser session
-instead of clearing after each one.  This is what makes a Klea answer
+<p>The inspect tab is the transparency view.  After a query completes it
+lists one entry per pipeline step – for example classification,
+retrieval, answering and evaluation – with the step’s heading, how long
+it took, a short summary, and a collapsible <strong>View details</strong> panel holding
+the raw structured data for that step.  This is what makes a Klea answer
 inspectable: you can see which sources were retrieved and how the
 pipeline arrived at its response.</p>
 <figure class="align-center" id="id2">
@@ -373,22 +359,6 @@ for each role (with a settings button to change them), running token
 totals, and the per-step state sections that stream while the graph runs.
 In the agent, the operating mode and tool access level selectors appear
 here as well.</p>
-<p>The settings button opens the model dialog.  Each role’s model is chosen
-with three fields – a <strong>provider</strong> dropdown, a <strong>model</strong> dropdown, and an
-optional <strong>custom URL</strong> – filled from the <a class="reference external" href="https://models.dev">models.dev</a>
-catalogue.  Free text is still accepted for models that are not in the
-catalogue (for example <code class="docutils literal notranslate"><span class="pre">ollama:</span></code> models or a self-hosted endpoint), and a
-custom URL overrides the provider’s default endpoint.  The dialog edits the
-current chat’s models when a chat is open and the per-session defaults
-otherwise; saving in a chat also updates the session defaults (“last used”),
-so new chats start from the same models.  <strong>Manage API keys</strong> opens the
-provider-scoped credentials editor: keys are stored per provider on the
-server, returned only in masked form, and expire after a period unused.</p>
-<p>For a <code class="docutils literal notranslate"><span class="pre">huggingface</span></code> role the dialog also shows a <strong>Run</strong> choice
-(hosted inference providers, or local) and, for the hosted backend, an
-<strong>inference provider</strong> field (<code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">cheapest</span></code>, <code class="docutils literal notranslate"><span class="pre">fastest</span></code>,
-<code class="docutils literal notranslate"><span class="pre">preferred</span></code>, or a specific provider).  A hosted model is therefore never
-silently downloaded; <code class="docutils literal notranslate"><span class="pre">Run:</span> <span class="pre">Local</span></code> is the explicit opt-in.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The screenshots on this page are captured from a local deployment and

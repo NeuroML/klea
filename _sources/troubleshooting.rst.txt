@@ -103,16 +103,6 @@ Set ``KLEA_RAG_GUARD_MODEL`` / ``KLEA_AGENT_GUARD_MODEL`` to an empty
 value to skip safety screening entirely.  The guard runs before
 classification, so unsafe queries are declined immediately.
 
-**Hugging Face requests at startup even though the model is cached**
-
-The cross-encoder is loaded with the Hugging Face client, which checks the
-Hub for updates on each start.  Set ``HF_HUB_OFFLINE=1`` to skip these checks
-once the model is downloaded; unset it again if a model needs downloading.
-It also blocks the Hugging Face Inference API, so do not set it when using
-``huggingface:`` models.  See :doc:`components/rag` and the `Hugging Face
-environment variables
-<https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables>`_.
-
 **JSON / env / profile errors**
 
 ``KLEA_RAG_ENV_FILE`` must point at a valid ``k=v`` env file; ``--profile

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.chat_area - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -319,11 +319,10 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -354,53 +353,15 @@
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Type your message below to begin"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
                     <span class="s2">"text-sm text-grey-5"</span>
                 <span class="p">)</span>
-                <span class="c1"># First-run setup call-to-action: point the user straight</span>
-                <span class="c1"># at the model dialog when anything required is missing.</span>
-                <span class="n">missing_models</span> <span class="o">=</span> <span class="n">missing_required_roles</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-                <span class="n">missing_keys</span> <span class="o">=</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">missing_models</span> <span class="ow">or</span> <span class="n">missing_keys</span><span class="p">:</span>
-                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center gap-1 mt-2 p-4"</span><span class="p">):</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Models are not configured"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                            <span class="s2">"text-sm font-bold"</span>
-                        <span class="p">)</span>
-                        <span class="k">if</span> <span class="n">missing_models</span><span class="p">:</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                                <span class="s2">"Set the required models to start: "</span>
-                                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-                                    <span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_models</span>
-                                <span class="p">)</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
-                        <span class="k">elif</span> <span class="n">missing_keys</span><span class="p">:</span>
-                            <span class="n">providers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-                                <span class="p">{</span>
-                                    <span class="p">(</span>
-                                        <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">[</span><span class="n">role</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span>
-                                        <span class="ow">or</span> <span class="p">{}</span>
-                                    <span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                                    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_keys</span>
-                                <span class="p">}</span>
-                                <span class="o">-</span> <span class="p">{</span><span class="s2">""</span><span class="p">}</span>
-                            <span class="p">)</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                                <span class="s2">"Add an API key for: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">providers</span><span class="p">)</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
-                            <span class="s2">"Choose models"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span>
-                        <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">msgs</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"messages"</span><span class="p">]</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">msg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">msgs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">stamp</span><span class="p">,</span> <span class="n">is_user</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">msgs</span><span class="p">):</span>
                 <span class="n">collapsed</span> <span class="o">=</span> <span class="n">idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span>
-                <span class="n">text</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                 <span class="n">ChatBubble</span><span class="p">(</span>
                     <span class="n">text</span><span class="o">=</span><span class="n">linkify_md</span><span class="p">(</span><span class="n">text</span><span class="p">),</span>
-                    <span class="n">stamp</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"stamp"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">role</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">),</span>
-                    <span class="n">header</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">mime</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">data</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">meta</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+                    <span class="n">stamp</span><span class="o">=</span><span class="n">stamp</span><span class="p">,</span>
+                    <span class="n">is_user</span><span class="o">=</span><span class="n">is_user</span><span class="p">,</span>
                     <span class="n">collapsed</span><span class="o">=</span><span class="n">collapsed</span><span class="p">,</span>
                     <span class="n">idx</span><span class="o">=</span><span class="n">idx</span><span class="p">,</span>
                     <span class="n">on_copy</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="o">=</span><span class="n">text</span><span class="p">:</span> <span class="n">ui</span><span class="o">.</span><span class="n">run_javascript</span><span class="p">(</span>

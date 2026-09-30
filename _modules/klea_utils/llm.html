@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html">
         <link rel="prefetch" href="../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.llm - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/errors.html">Error types</a></li>
@@ -312,14 +312,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
@@ -330,17 +327,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptValue</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableConfig</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ValidationError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMInvocationErrorCategory</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.imports</span><span class="w"> </span><span class="kn">import</span> <span class="n">require_extra</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">MODELS_DEV_PROVIDERS_IGNORED</span><span class="p">,</span>
-    <span class="n">get_catalog_model_limits</span><span class="p">,</span>
-    <span class="n">get_provider_api_key_env</span><span class="p">,</span>
-    <span class="n">get_provider_endpoint</span><span class="p">,</span>
-    <span class="n">probe_endpoint_model_limits</span><span class="p">,</span>
-<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_catalog_model_limits</span><span class="p">,</span> <span class="n">probe_endpoint_model_limits</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -353,9 +343,7 @@
 
     <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
     <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
-    <span class="c1">#: Model variant.  Not supported yet, so ``None`` for now.</span>
-    <span class="n">variant</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+    <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></div>
 
 
 
@@ -403,394 +391,6 @@
         <span class="p">)</span>
 
     <span class="k">return</span> <span class="n">ParsedModelName</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">model_name</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">suffix</span><span class="o">=</span><span class="n">parts</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span></div>
-
-
-
-<span class="c1">#: Providers whose third model string segment is not an endpoint URL: for</span>
-<span class="c1">#: ``ollama`` it is the model tag (``ollama:qwen3:0.6b``) and for</span>
-<span class="c1">#: ``huggingface`` the inference provider (``huggingface:org/model:novita``).</span>
-<span class="c1">#: The model selection UIs offer no custom URL for these.</span>
-<span class="n">PROVIDERS_WITHOUT_CUSTOM_URL</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"ollama"</span><span class="p">,</span> <span class="s2">"huggingface"</span><span class="p">})</span>
-
-
-<div class="viewcode-block" id="join_model_string">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.join_model_string">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">join_model_string</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Join model name components back into a model string.</span>
-
-<span class="sd">    The inverse of :func:`parse_model_name`, used by the model selection</span>
-<span class="sd">    UIs on save.  Gives ``provider:model_name``, or</span>
-<span class="sd">    ``provider:model_name:suffix`` when a suffix (e.g. a custom endpoint</span>
-<span class="sd">    URL) is set.</span>
-
-<span class="sd">    Without a provider the model name is returned as it is, so a full</span>
-<span class="sd">    model string typed straight into the model field still works.</span>
-
-<span class="sd">    :param provider: Klea provider id, e.g. ``"openai"``.</span>
-<span class="sd">    :param model_name: Model id within the provider, e.g. ``"gpt-4o"``.</span>
-<span class="sd">    :param suffix: Optional third segment.</span>
-<span class="sd">    :returns: The model string, or ``""`` when no model name is set.</span>
-<span class="sd">    """</span>
-    <span class="n">provider</span> <span class="o">=</span> <span class="p">(</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="n">model_name</span> <span class="o">=</span> <span class="n">model_name</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="n">suffix</span> <span class="o">=</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_name</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">""</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">provider</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">model_name</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">suffix</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">"</span></div>
-
-
-
-<span class="c1">#: HuggingFace provider id.  Its backend is selected by the third</span>
-<span class="c1">#: model-string segment: ``huggingface:&lt;model&gt;`` (or an inference provider /</span>
-<span class="c1">#: routing policy) uses the hosted Inference Providers API, while</span>
-<span class="c1">#: ``huggingface:&lt;model&gt;:local`` runs the model locally with the pipeline</span>
-<span class="c1">#: backend.</span>
-<span class="n">HUGGINGFACE_PROVIDER</span> <span class="o">=</span> <span class="s2">"huggingface"</span>
-<span class="c1">#: Suffix selecting the local (pipeline) HuggingFace backend.</span>
-<span class="n">HUGGINGFACE_LOCAL_SUFFIX</span> <span class="o">=</span> <span class="s2">"local"</span>
-<span class="c1">#: Inference provider used for the hosted backend when none is given (the</span>
-<span class="c1">#: HuggingFace router's default selection).</span>
-<span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span> <span class="o">=</span> <span class="s2">"auto"</span>
-<span class="c1">#: HuggingFace routing policies.  Unlike a concrete provider name these must</span>
-<span class="c1">#: be appended to the model id: the client's ``provider`` argument accepts</span>
-<span class="c1">#: only ``auto`` or a concrete provider name, not a policy.</span>
-<span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-    <span class="p">{</span><span class="s2">"cheapest"</span><span class="p">,</span> <span class="s2">"fastest"</span><span class="p">,</span> <span class="s2">"preferred"</span><span class="p">}</span>
-<span class="p">)</span>
-
-
-<div class="viewcode-block" id="HuggingFaceBackend">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.HuggingFaceBackend">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">HuggingFaceBackend</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Resolved HuggingFace backend for a model string suffix.</span>
-
-<span class="sd">    ``backend`` is the ``ChatHuggingFace`` backend (``"pipeline"`` or</span>
-<span class="sd">    ``"endpoint"``), ``model_id`` is the repo id to pass (with a routing</span>
-<span class="sd">    policy appended for the hosted backend), and ``kwargs`` are the</span>
-<span class="sd">    ``from_model_id`` kwargs to inject (``backend`` and, for the hosted</span>
-<span class="sd">    backend, ``provider``).</span>
-<span class="sd">    """</span>
-
-    <span class="n">backend</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">model_id</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></div>
-
-
-
-<div class="viewcode-block" id="resolve_huggingface_backend">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_huggingface_backend">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_huggingface_backend</span><span class="p">(</span>
-    <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">suffix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">HuggingFaceBackend</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Resolve the HuggingFace backend from a model name and its suffix.</span>
-
-<span class="sd">    ``:local`` selects the local pipeline backend; any other suffix is an</span>
-<span class="sd">    inference provider (``auto`` when absent) for the hosted Inference</span>
-<span class="sd">    Providers API.  The routing policies (:data:`HUGGINGFACE_ROUTING_POLICIES`)</span>
-<span class="sd">    are appended to the model id instead of being passed as ``provider``,</span>
-<span class="sd">    because the HuggingFace client's ``provider`` argument accepts only</span>
-<span class="sd">    ``auto`` or a concrete provider name.</span>
-
-<span class="sd">    :param model_name: HuggingFace repo id, e.g. ``"openai/gpt-oss-20b"``.</span>
-<span class="sd">    :param suffix: Third model-string segment, or ``None``.</span>
-<span class="sd">    :returns: The resolved :class:`HuggingFaceBackend`.</span>
-<span class="sd">    """</span>
-    <span class="n">suffix</span> <span class="o">=</span> <span class="p">(</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">suffix</span> <span class="o">==</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
-            <span class="n">backend</span><span class="o">=</span><span class="s2">"pipeline"</span><span class="p">,</span> <span class="n">model_id</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span> <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"pipeline"</span><span class="p">}</span>
-        <span class="p">)</span>
-    <span class="k">if</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">HUGGINGFACE_ROUTING_POLICIES</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
-            <span class="n">backend</span><span class="o">=</span><span class="s2">"endpoint"</span><span class="p">,</span>
-            <span class="n">model_id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-            <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
-                <span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"endpoint"</span><span class="p">,</span>
-                <span class="s2">"provider"</span><span class="p">:</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
-            <span class="p">},</span>
-        <span class="p">)</span>
-    <span class="k">return</span> <span class="n">HuggingFaceBackend</span><span class="p">(</span>
-        <span class="n">backend</span><span class="o">=</span><span class="s2">"endpoint"</span><span class="p">,</span>
-        <span class="n">model_id</span><span class="o">=</span><span class="n">model_name</span><span class="p">,</span>
-        <span class="n">kwargs</span><span class="o">=</span><span class="p">{</span>
-            <span class="s2">"backend"</span><span class="p">:</span> <span class="s2">"endpoint"</span><span class="p">,</span>
-            <span class="s2">"provider"</span><span class="p">:</span> <span class="n">suffix</span> <span class="ow">or</span> <span class="n">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span><span class="p">,</span>
-        <span class="p">},</span>
-    <span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="CredentialScope">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.CredentialScope">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">CredentialScope</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Provider (and, for custom endpoints, endpoint) a credential belongs to.</span>
-
-<span class="sd">    API keys are credentials for a provider -- and for an explicit or</span>
-<span class="sd">    ``custom:`` endpoint, that endpoint -- not for a role or a model.</span>
-<span class="sd">    Two models sharing a provider (``openai:gpt-4o`` and</span>
-<span class="sd">    ``openai:gpt-4.1``) share a scope; ``custom:m:&lt;url&gt;`` and any</span>
-<span class="sd">    ``http(s)`` endpoint suffix scope to that URL.</span>
-<span class="sd">    """</span>
-
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
-
-
-
-<span class="c1">#: Providers that authenticate locally/anonymously and therefore need no</span>
-<span class="c1">#: API key.  Used so readiness checks do not flag e.g. a local Ollama</span>
-<span class="c1">#: deployment as missing a credential.</span>
-<span class="n">PROVIDERS_WITHOUT_API_KEY</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"ollama"</span><span class="p">})</span>
-
-
-<div class="viewcode-block" id="credential_scope">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.credential_scope">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">credential_scope</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CredentialScope</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return the credential scope for *model_name*.</span>
-
-<span class="sd">    :param model_name: Provider-prefixed model string, e.g.</span>
-<span class="sd">        ``openai:gpt-4o`` or ``custom:model:https://host/v1``.</span>
-<span class="sd">    :returns: :class:`CredentialScope` -- a lowercased provider and an</span>
-<span class="sd">        optional endpoint for custom / explicit-URL models.</span>
-<span class="sd">    """</span>
-    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">model_name</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
-    <span class="n">provider</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span>
-    <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">and</span> <span class="p">(</span>
-        <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"custom"</span> <span class="ow">or</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"http://"</span><span class="p">,</span> <span class="s2">"https://"</span><span class="p">))</span>
-    <span class="p">):</span>
-        <span class="n">endpoint</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span>
-    <span class="k">return</span> <span class="n">CredentialScope</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="n">endpoint</span><span class="p">)</span></div>
-
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_provider_needs_key</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return whether *provider* asks for an API key.</span>
-
-<span class="sd">    Local providers (e.g. Ollama) authenticate anonymously, so they must</span>
-<span class="sd">    not be treated as missing a credential.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">and</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">PROVIDERS_WITHOUT_API_KEY</span>
-
-
-<div class="viewcode-block" id="provider_api_key_env">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.provider_api_key_env">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return the env var holding *provider*'s API key, or ``None``.</span>
-
-<span class="sd">    Providers that need no key (see :func:`requires_api_key`) return</span>
-<span class="sd">    ``None``.  Otherwise mirrors the SDK convention so the UI can report</span>
-<span class="sd">    whether a credential comes from the environment.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">provider</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="n">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="requires_api_key">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.requires_api_key">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">requires_api_key</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return whether *model_name* needs an API key.</span>
-
-<span class="sd">    Accepts either a bare provider id (``openai``, ``ollama``) or a full</span>
-<span class="sd">    model string (``openai:gpt-4o``, ``huggingface:org/model:local``).</span>
-<span class="sd">    Local providers (Ollama) and locally-run HuggingFace models</span>
-<span class="sd">    (``huggingface:&lt;model&gt;:local``) authenticate locally and need no</span>
-<span class="sd">    credential; every other provider does.  A string that cannot be parsed</span>
-<span class="sd">    is judged by its provider part; a string with no ``:`` is treated as a</span>
-<span class="sd">    provider id.</span>
-<span class="sd">    """</span>
-    <span class="n">raw</span> <span class="o">=</span> <span class="p">(</span><span class="n">model_name</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="c1"># Half-typed ``provider:`` - judge by the provider part.</span>
-        <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">":"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
-    <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-    <span class="k">if</span> <span class="p">(</span>
-        <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span>
-        <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="n">HUGGINGFACE_LOCAL_SUFFIX</span>
-    <span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="k">return</span> <span class="n">_provider_needs_key</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">)</span></div>
-
-
-
-<span class="c1">#: Recognised wire-API endpoint suffixes for ``custom:`` model URLs, mapped to</span>
-<span class="c1">#: the resolution target ``(model_provider, use_responses_api)``.  A ``None``</span>
-<span class="c1">#: means the flag is not applicable (or is the provider default) and should be</span>
-<span class="c1">#: left unset.  Detection is purely URL-path based so no external model list or</span>
-<span class="c1">#: catalog is needed.</span>
-<span class="n">_CUSTOM_ENDPOINT_SURFACES</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"/chat/completions"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"openai"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
-    <span class="s2">"/responses"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"openai"</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
-    <span class="s2">"/v1/messages"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"anthropic"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-<span class="p">}</span>
-
-<span class="c1">#: models.dev npm packages that are a known **non-OpenAI** wire surface Klea</span>
-<span class="c1">#: does not implement (e.g. Google Gemini).  Catalog providers whose npm is</span>
-<span class="c1">#: one of these are left to LangChain.  Everything else with an ``api`` is</span>
-<span class="c1">#: treated as OpenAI-shaped -- ``@ai-sdk/openai-compatible``, the vendor</span>
-<span class="c1">#: packages (``@openrouter/ai-sdk-provider``, ...), and the long tail -- which</span>
-<span class="c1">#: is the catalog's dominant convention.</span>
-<span class="n">_CATALOG_NON_OPENAI_NPM</span><span class="p">:</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-    <span class="p">{</span>
-        <span class="s2">"@ai-sdk/google"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/google-vertex"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/google-vertex/anthropic"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/amazon-bedrock"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/amazon-bedrock/mantle"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/cohere"</span><span class="p">,</span>
-        <span class="s2">"@ai-sdk/azure"</span><span class="p">,</span>
-    <span class="p">}</span>
-<span class="p">)</span>
-
-
-<div class="viewcode-block" id="CustomEndpoint">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.CustomEndpoint">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">CustomEndpoint</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Resolved API surface for a ``custom:`` model endpoint URL.</span>
-
-<span class="sd">    ``base_url`` is the URL to hand to the provider SDK (the endpoint resource</span>
-<span class="sd">    path is stripped, because the SDK appends it again).  ``model_provider`` is</span>
-<span class="sd">    the LangChain provider to use, and ``use_responses_api`` selects the OpenAI</span>
-<span class="sd">    Responses API when ``True`` (``None`` leaves the SDK default).</span>
-<span class="sd">    """</span>
-
-    <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">model_provider</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="n">use_responses_api</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
-
-
-
-<div class="viewcode-block" id="resolve_custom_endpoint">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_custom_endpoint">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_custom_endpoint</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CustomEndpoint</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Detect the wire API surface from a ``custom:`` model endpoint URL.</span>
-
-<span class="sd">    The suffix of *url* selects the API surface so that one ``custom:`` model</span>
-<span class="sd">    string works for any OpenAI-compatible endpoint, the OpenAI Responses API,</span>
-<span class="sd">    or the Anthropic Messages API (e.g. opencode Go serves different models on</span>
-<span class="sd">    different surfaces).  Because each provider SDK appends its own resource</span>
-<span class="sd">    path, the matched suffix is stripped from the returned ``base_url``:</span>
-
-<span class="sd">    * ``.../chat/completions`` -&gt; OpenAI Chat Completions (``openai``)</span>
-<span class="sd">    * ``.../responses``        -&gt; OpenAI Responses API (``openai``, responses)</span>
-<span class="sd">    * ``.../v1/messages``      -&gt; Anthropic Messages API (``anthropic``;</span>
-<span class="sd">      the SDK re-appends ``/v1/messages``, so ``.../zen/go`` is returned)</span>
-
-<span class="sd">    Any other URL is treated as a plain base URL and defaults to the standard</span>
-<span class="sd">    OpenAI Chat Completions surface (``openai``, flag unset), preserving the</span>
-<span class="sd">    behaviour for self-hosted OpenAI-compatible endpoints.</span>
-
-<span class="sd">    :param url: The ``custom:`` model string suffix (a base URL or a full</span>
-<span class="sd">        endpoint URL).</span>
-<span class="sd">    :returns: The resolved :class:`CustomEndpoint`.</span>
-<span class="sd">    :raises ValueError: If *url* is empty.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">url</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Empty custom endpoint URL"</span><span class="p">)</span>
-
-    <span class="n">stripped</span> <span class="o">=</span> <span class="n">url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">suffix</span><span class="p">,</span> <span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">use_responses_api</span><span class="p">)</span> <span class="ow">in</span> <span class="n">_CUSTOM_ENDPOINT_SURFACES</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">if</span> <span class="n">stripped</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">):</span>
-            <span class="n">base_url</span> <span class="o">=</span> <span class="n">stripped</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">suffix</span><span class="p">)]</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">base_url</span><span class="p">:</span>
-                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Custom endpoint URL </span><span class="si">{</span><span class="n">url</span><span class="si">!r}</span><span class="s2"> has no base path"</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Resolved custom endpoint </span><span class="si">{</span><span class="n">url</span><span class="si">!r}</span><span class="s2"> -&gt; provider="</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2">, use_responses_api=</span><span class="si">{</span><span class="n">use_responses_api</span><span class="si">!r}</span><span class="s2">, "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_url</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
-            <span class="p">)</span>
-            <span class="k">return</span> <span class="n">CustomEndpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">use_responses_api</span><span class="p">)</span>
-
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No known endpoint suffix in </span><span class="si">{</span><span class="n">url</span><span class="si">!r}</span><span class="s2">; treating as an OpenAI base URL"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">CustomEndpoint</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="s2">"openai"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="resolve_catalog_provider_endpoint">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_catalog_provider_endpoint">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_catalog_provider_endpoint</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CustomEndpoint</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Resolve a catalog provider to a wire surface via its models.dev entry.</span>
-
-<span class="sd">    Lets a user write ``provider:model`` (e.g. ``openrouter:...``) without an</span>
-<span class="sd">    explicit URL: the catalog's ``api`` supplies the base URL and its ``npm``</span>
-<span class="sd">    package identifies the wire protocol.  The wire surface is resolved from</span>
-<span class="sd">    the npm:</span>
-
-<span class="sd">    * ``@ai-sdk/anthropic`` -&gt; Anthropic Messages API</span>
-<span class="sd">      (``/v1/messages``);</span>
-<span class="sd">    * ``@ai-sdk/openai`` -&gt; OpenAI Responses API (``/responses``);</span>
-<span class="sd">    * ``@ai-sdk/openai-compatible`` (and anything else with an ``api``) -&gt;</span>
-<span class="sd">      OpenAI Chat Completions, the catalog's overwhelming default.</span>
-
-<span class="sd">    The npm is resolved *per model* when a model name is given, so gateway</span>
-<span class="sd">    providers that serve different models on different surfaces (OpenCode,</span>
-<span class="sd">    OpenRouter, ...) pick the right one -- the catalog records this as a</span>
-<span class="sd">    per-model ``provider.npm`` override.</span>
-
-<span class="sd">    The returned ``base_url`` is what the SDK appends its resource path to.</span>
-<span class="sd">    For the Anthropic surface the catalog ``api`` typically already ends in</span>
-<span class="sd">    ``/v1`` (e.g. ``.../anthropic/v1``) while ``ChatAnthropic`` re-appends</span>
-<span class="sd">    ``/v1/messages``, so a trailing ``/v1`` is stripped here; a full</span>
-<span class="sd">    ``.../v1/messages`` is handled by :func:`resolve_custom_endpoint`.</span>
-
-<span class="sd">    Returns ``None`` when the provider is not in the catalog, has no ``api``</span>
-<span class="sd">    (native SDK providers resolve their own endpoint), uses a surface Klea</span>
-<span class="sd">    does not implement (e.g. ``@ai-sdk/google``), or the catalog is</span>
-<span class="sd">    unavailable -- callers then leave the model string to LangChain.</span>
-
-<span class="sd">    :param provider: Klea provider id (e.g. ``"openrouter"``).</span>
-<span class="sd">    :param model_name: Model identifier within the provider, or ``None``.</span>
-<span class="sd">    :returns: The resolved :class:`CustomEndpoint`, or ``None``.</span>
-<span class="sd">    """</span>
-    <span class="n">entry</span> <span class="o">=</span> <span class="n">get_provider_endpoint</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model_name</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">api</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">npm</span> <span class="o">==</span> <span class="s2">"@ai-sdk/anthropic"</span><span class="p">:</span>
-        <span class="c1"># ``ChatAnthropic`` appends ``/v1/messages`` to ``anthropic_api_url``;</span>
-        <span class="c1"># drop a trailing ``/v1`` (and any full ``/v1/messages``) first.</span>
-        <span class="n">base_url</span> <span class="o">=</span> <span class="n">entry</span><span class="o">.</span><span class="n">api</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"/v1/messages"</span><span class="p">,</span> <span class="s2">"/v1"</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">base_url</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">suffix</span><span class="p">):</span>
-                <span class="n">base_url</span> <span class="o">=</span> <span class="n">base_url</span><span class="p">[:</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">suffix</span><span class="p">)]</span>
-                <span class="k">break</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"Catalog provider </span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2"> -&gt; anthropic surface, </span><span class="si">{</span><span class="n">base_url</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">CustomEndpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">,</span> <span class="s2">"anthropic"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">npm</span> <span class="o">==</span> <span class="s2">"@ai-sdk/openai"</span><span class="p">:</span>
-        <span class="c1"># The native OpenAI SDK surface is the Responses API; its base URL is</span>
-        <span class="c1"># used as-is (the SDK appends ``/responses``).</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Catalog provider </span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2"> -&gt; openai responses surface"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">CustomEndpoint</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">api</span><span class="p">,</span> <span class="s2">"openai"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">entry</span><span class="o">.</span><span class="n">npm</span> <span class="ow">in</span> <span class="n">_CATALOG_NON_OPENAI_NPM</span><span class="p">:</span>
-        <span class="c1"># A known non-OpenAI wire surface Klea does not implement (e.g.</span>
-        <span class="c1"># ``@ai-sdk/google``): leave the model string to LangChain rather than</span>
-        <span class="c1"># guessing an OpenAI wire.  Everything else is assumed OpenAI-shaped</span>
-        <span class="c1"># (``@ai-sdk/openai-compatible`` and vendor packages such as</span>
-        <span class="c1"># ``@openrouter/ai-sdk-provider``), which is the catalog's default.</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"Catalog provider </span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2"> uses unsupported npm </span><span class="si">{</span><span class="n">entry</span><span class="o">.</span><span class="n">npm</span><span class="si">!r}</span><span class="s2">; "</span>
-            <span class="s2">"leaving to LangChain"</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="n">resolved</span> <span class="o">=</span> <span class="n">resolve_custom_endpoint</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">api</span><span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Catalog provider </span><span class="si">{</span><span class="n">provider</span><span class="si">!r}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">resolved</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">resolved</span></div>
 
 
 
@@ -852,9 +452,7 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
         <span class="k">except</span> <span class="n">OutputParserException</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Handling OutputParserException. </span><span class="si">{</span><span class="n">answer</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">cleaned</span> <span class="o">=</span> <span class="n">repair_json</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">cleaned</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">cleaned</span><span class="p">)</span>
 
     <span class="k">else</span><span class="p">:</span>
@@ -872,9 +470,7 @@
         <span class="k">try</span><span class="p">:</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
         <span class="k">except</span> <span class="n">OutputParserException</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Handling OutputParserException. </span><span class="si">{</span><span class="n">answer</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">cleaned</span> <span class="o">=</span> <span class="n">repair_json</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">cleaned</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">result</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">cleaned</span><span class="p">)</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">thought</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
@@ -1071,180 +667,6 @@
 
 
 
-<div class="viewcode-block" id="is_output_empty">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_output_empty">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">is_output_empty</span><span class="p">(</span><span class="n">output</span><span class="p">:</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True if an LLM output carries no usable text content.</span>
-
-<span class="sd">    Some providers (notably HuggingFace) intermittently return a successful</span>
-<span class="sd">    response with blank content.  Handles both plain ``AIMessage`` outputs</span>
-<span class="sd">    and structured-output dicts (``{"raw": AIMessage, "parsed": ...}``); for</span>
-<span class="sd">    the structured form the ``raw`` message is inspected, so a blank raw</span>
-<span class="sd">    response is flagged even when the parser produced an all-default</span>
-<span class="sd">    instance.</span>
-
-<span class="sd">    :param output: The raw output from ``llm.invoke()``.</span>
-<span class="sd">    :returns: True when the output has no non-whitespace text.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="n">raw</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw"</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-            <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-        <span class="c1"># No raw message to inspect: empty unless the parser still produced</span>
-        <span class="c1"># a non-None structured result.</span>
-        <span class="k">return</span> <span class="n">output</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"parsed"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-        <span class="k">return</span> <span class="ow">not</span> <span class="n">content_to_str</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">content</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">return</span> <span class="kc">False</span></div>
-
-
-
-<div class="viewcode-block" id="is_empty_structured_parse_error">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_empty_structured_parse_error">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">is_empty_structured_parse_error</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True if *exc* is a structured-output parse error on blank text.</span>
-
-<span class="sd">    On the structured path, ``with_structured_output(...).ainvoke`` **raises**</span>
-<span class="sd">    :class:`OutputParserException` for a blank model response instead of</span>
-<span class="sd">    returning a dict, so :func:`is_output_empty` never sees it and the</span>
-<span class="sd">    empty-response retry in ``BaseLLMNode._invoke_with_retries`` is skipped.</span>
-<span class="sd">    LangChain's parsers phrase the failure as ``"Invalid json output: ..."``</span>
-<span class="sd">    followed by the (here empty) raw text, so match that shape rather than</span>
-<span class="sd">    treating every parser error as retryable: a non-empty invalid payload is</span>
-<span class="sd">    a real schema mismatch that should not be retried.</span>
-
-<span class="sd">    :param exc: The exception raised by the structured-output invoke.</span>
-<span class="sd">    :returns: True when the parser failed because the response was blank.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">OutputParserException</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
-    <span class="n">marker</span> <span class="o">=</span> <span class="s2">"invalid json output:"</span>
-    <span class="n">lower</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">marker</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">lower</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">lower</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span> <span class="p">:]</span>
-    <span class="c1"># Strip the LangChain troubleshooting URL/whitespace before judging.</span>
-    <span class="n">payload</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span>
-        <span class="sa">r</span><span class="s2">"for troubleshooting"</span><span class="p">,</span> <span class="n">payload</span><span class="p">,</span> <span class="n">maxsplit</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span>
-    <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
-    <span class="k">return</span> <span class="ow">not</span> <span class="n">payload</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
-
-
-
-<div class="viewcode-block" id="is_structured_output_failure">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_structured_output_failure">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">is_structured_output_failure</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True if *exc* means the structured call produced no usable output.</span>
-
-<span class="sd">    The structured path (``with_structured_output(...).ainvoke``) can fail in</span>
-<span class="sd">    ways the plain invoke cannot: the provider rejects the ``response_format``</span>
-<span class="sd">    parameter, or the model returns content that does not satisfy the schema.</span>
-<span class="sd">    Some SDKs surface the latter as a pydantic :class:`ValidationError` (the</span>
-<span class="sd">    OpenAI client validates JSON inside its own parser) rather than a LangChain</span>
-<span class="sd">    parser error, so both types are treated as a structured failure.</span>
-
-<span class="sd">    Detection is by exception type wherever possible, so a provider's new error</span>
-<span class="sd">    wording does not need a new pattern; the one message-classified case is</span>
-<span class="sd">    :data:`~klea_utils.errors.LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED`</span>
-<span class="sd">    (parameter refusal), which has no distinct exception type.</span>
-
-<span class="sd">    Empty responses are deliberately included: the caller decides whether to</span>
-<span class="sd">    retry them on the structured path or fall back to plain.</span>
-
-<span class="sd">    :param exc: Exception raised by the structured invoke.</span>
-<span class="sd">    :returns: True when the structured call should give way to a plain invoke.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="p">(</span><span class="n">ValidationError</span><span class="p">,</span> <span class="n">OutputParserException</span><span class="p">,</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">)):</span>
-        <span class="k">return</span> <span class="kc">True</span>
-    <span class="k">return</span> <span class="p">(</span>
-        <span class="n">classify_llm_invocation_error</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
-        <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
-    <span class="p">)</span></div>
-
-
-
-<span class="c1">#: Process-local negative cache of ``(provider, model, base_url)`` triples</span>
-<span class="c1">#: whose endpoint has been seen refusing structured output.  Populated only</span>
-<span class="c1">#: from a stable :func:`is_structured_capability_rejection` (see there): a</span>
-<span class="c1">#: per-response schema parse failure must never disable structured output for</span>
-<span class="c1">#: later calls.  Deliberately in-memory only -- a persisted negative could go</span>
-<span class="c1">#: stale if a deployment later adds ``response_format`` support, and one</span>
-<span class="c1">#: re-probe per process is cheap.</span>
-<span class="n">_STRUCTURED_UNSUPPORTED</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_structured_output_cache_key</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Normalize a structured-output capability cache key.</span>
-
-<span class="sd">    ``openai``-shaped deployments can share a provider and model name while</span>
-<span class="sd">    pointing at different ``base_url``\\ s with different capabilities, so the</span>
-<span class="sd">    endpoint is part of the identity.  Values are trimmed and lower-cased so</span>
-<span class="sd">    trivially different spellings share an entry.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="p">(</span>
-        <span class="n">provider</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
-        <span class="n">model</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">(),</span>
-        <span class="n">base_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="k">if</span> <span class="n">base_url</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span>
-
-
-<div class="viewcode-block" id="structured_output_known_unsupported">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.structured_output_known_unsupported">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">structured_output_known_unsupported</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True if this endpoint was seen refusing structured output.</span>
-
-<span class="sd">    Consulted before building ``with_structured_output`` so a rejecting</span>
-<span class="sd">    endpoint is not re-probed on every node call.  A miss (``False``) may</span>
-<span class="sd">    still reject -- the first attempt for a key always probes.</span>
-
-<span class="sd">    :param provider: Resolved ``model_provider`` (e.g. ``"openai"``).</span>
-<span class="sd">    :param model: Resolved model identifier.</span>
-<span class="sd">    :param base_url: Endpoint base URL, when one applies.</span>
-<span class="sd">    :returns: True when the key is known to reject ``response_format``.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="n">_structured_output_cache_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span> <span class="ow">in</span> <span class="p">(</span>
-        <span class="n">_STRUCTURED_UNSUPPORTED</span>
-    <span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="mark_structured_output_unsupported">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.mark_structured_output_unsupported">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">mark_structured_output_unsupported</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Record a stable capability rejection for the process lifetime.</span>
-
-<span class="sd">    :param provider: Resolved ``model_provider``.</span>
-<span class="sd">    :param model: Resolved model identifier.</span>
-<span class="sd">    :param base_url: Endpoint base URL, when one applies.</span>
-<span class="sd">    """</span>
-    <span class="n">key</span> <span class="o">=</span> <span class="n">_structured_output_cache_key</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">base_url</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="p">:</span>
-        <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">"Structured output unsupported for provider </span><span class="si">%r</span><span class="s2"> model </span><span class="si">%r</span><span class="s2"> (base_url=</span><span class="si">%r</span><span class="s2">); "</span>
-            <span class="s2">"using prompt-based output for the rest of this process"</span><span class="p">,</span>
-            <span class="n">provider</span><span class="p">,</span>
-            <span class="n">model</span><span class="p">,</span>
-            <span class="n">base_url</span><span class="p">,</span>
-        <span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="clear_structured_output_cache">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.clear_structured_output_cache">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">clear_structured_output_cache</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Clear the process-local structured-output capability cache (tests)."""</span>
-    <span class="n">_STRUCTURED_UNSUPPORTED</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
-
-
-
 <div class="viewcode-block" id="get_token_limit_param">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.get_token_limit_param">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">get_token_limit_param</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -1277,26 +699,16 @@
 
 
 <span class="c1">#: Fallback max output tokens used when no node/role default provides a value.</span>
-<span class="c1">#:</span>
-<span class="c1">#: Deliberately generous: reasoning models spend most of the completion budget</span>
-<span class="c1">#: on hidden reasoning tokens, so a small cap truncates even tiny structured</span>
-<span class="c1">#: payloads.  The value is a ceiling, not a target, and is clamped per model by</span>
-<span class="c1">#: :func:`resolve_output_token_limit` (catalog output limit and context</span>
-<span class="c1">#: headroom), so a large default is safe for small models too.</span>
-<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">16384</span>
+<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">4096</span>
 
 <span class="c1">#: Built-in per-role max output token defaults.  Nodes may override these</span>
 <span class="c1">#: with the generic ``max_output_tokens`` key in ``model_defaults``, and</span>
 <span class="c1">#: admins may override them per provider via the ``providers`` config</span>
 <span class="c1">#: section.</span>
-<span class="c1">#:</span>
-<span class="c1">#: ``guard`` stays small: a safety classifier emits a one-word verdict, so</span>
-<span class="c1">#: there is no reason to reserve a large window.  Every other role gets the</span>
-<span class="c1">#: generous default so reasoning models do not truncate.</span>
 <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"chat"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
-    <span class="s2">"plan"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
-    <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
+    <span class="s2">"chat"</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
+    <span class="s2">"plan"</span><span class="p">:</span> <span class="mi">4096</span><span class="p">,</span>
+    <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">1024</span><span class="p">,</span>
 <span class="p">}</span>
 
 <span class="c1">#: The three max-output token parameter names used across providers.</span>
@@ -1537,12 +949,10 @@
             <span class="n">provider</span><span class="o">=</span><span class="s2">"openai"</span><span class="p">,</span>
             <span class="n">base_url</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">,</span>
         <span class="p">)</span>
-    <span class="k">elif</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="n">HUGGINGFACE_PROVIDER</span><span class="p">:</span>
+    <span class="k">elif</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
         <span class="c1"># "local" suffix -&gt; HuggingFaceEmbeddings (local sentence-transformers).</span>
-        <span class="c1"># Any other suffix (or none) -&gt; HuggingFaceEndpointEmbeddings (hosted</span>
-        <span class="c1"># Inference Providers API).</span>
-        <span class="n">hf_backend</span> <span class="o">=</span> <span class="n">resolve_huggingface_backend</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">backend</span> <span class="o">==</span> <span class="s2">"pipeline"</span><span class="p">:</span>
+        <span class="c1"># Any other suffix -&gt; HuggingFaceEndpointEmbeddings (HF Inference API).</span>
+        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="s2">"Using huggingface local embedding model: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
                 <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
@@ -1551,17 +961,16 @@
 
             <span class="n">model_var</span> <span class="o">=</span> <span class="n">HuggingFaceEmbeddings</span><span class="p">(</span><span class="n">model_name</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">provider</span> <span class="o">=</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">kwargs</span><span class="p">[</span><span class="s2">"provider"</span><span class="p">]</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="s2">"Using huggingface endpoint embedding model: </span><span class="si">%s</span><span class="s2"> (provider: </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
-                <span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span><span class="p">,</span>
-                <span class="n">provider</span><span class="p">,</span>
+                <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
+                <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">"auto"</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_huggingface</span><span class="w"> </span><span class="kn">import</span> <span class="n">HuggingFaceEndpointEmbeddings</span>
 
             <span class="n">model_var</span> <span class="o">=</span> <span class="n">HuggingFaceEndpointEmbeddings</span><span class="p">(</span>
-                <span class="n">model</span><span class="o">=</span><span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span><span class="p">,</span>
-                <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
+                <span class="n">model</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span>
+                <span class="n">provider</span><span class="o">=</span><span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="ow">or</span> <span class="s2">"auto"</span><span class="p">,</span>
                 <span class="n">task</span><span class="o">=</span><span class="s2">"feature-extraction"</span><span class="p">,</span>
             <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
@@ -1655,19 +1064,6 @@
     <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\b400\b[^\n]*invalid_request_error"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
 <span class="p">]</span>
 
-<span class="c1">#: Strict subset of :data:`_STRUCTURED_OUTPUT_REJECTED_PATTERNS` naming the</span>
-<span class="c1">#: structured-output parameter itself.  Only these indicate a *stable</span>
-<span class="c1">#: capability gap* of the deployment, so only these may populate the</span>
-<span class="c1">#: process-local capability cache.  The generic</span>
-<span class="c1">#: ``400 invalid_request_error`` pattern is intentionally excluded: it can</span>
-<span class="c1">#: also match an unrelated bad request (e.g. an unsupported sampling</span>
-<span class="c1">#: parameter), and caching that would silently disable structured output.</span>
-<span class="n">_STRUCTURED_OUTPUT_CAPABILITY_PATTERNS</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">re</span><span class="o">.</span><span class="n">Pattern</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"response_format"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
-    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
-    <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"structured output"</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">),</span>
-<span class="p">]</span>
-
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_flatten_exception_messages</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Collect the message from an exception and its cause chain.</span>
@@ -1687,28 +1083,6 @@
         <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">current</span><span class="p">))</span>
         <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="o">.</span><span class="n">__cause__</span> <span class="ow">or</span> <span class="n">current</span><span class="o">.</span><span class="n">__context__</span>
     <span class="k">return</span> <span class="n">messages</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_exception_chain_has_timeout</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True when *exc* or a cause is a timeout by type or class name.</span>
-
-<span class="sd">    Message heuristics miss timeouts whose text carries no "timeout" token</span>
-<span class="sd">    (for example ``langchain_openai``'s ``StreamChunkTimeoutError``), so the</span>
-<span class="sd">    exception type and class name are checked along the cause chain too.</span>
-
-<span class="sd">    :param exc: The exception to inspect.</span>
-<span class="sd">    :returns: True when a timeout exception is present in the chain.</span>
-<span class="sd">    """</span>
-    <span class="n">current</span><span class="p">:</span> <span class="ne">BaseException</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="n">exc</span>
-    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-    <span class="k">while</span> <span class="n">current</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">id</span><span class="p">(</span><span class="n">current</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
-        <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">current</span><span class="p">))</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">current</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
-            <span class="s2">"timeout"</span> <span class="ow">in</span> <span class="nb">type</span><span class="p">(</span><span class="n">current</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-        <span class="p">):</span>
-            <span class="k">return</span> <span class="kc">True</span>
-        <span class="n">current</span> <span class="o">=</span> <span class="n">current</span><span class="o">.</span><span class="n">__cause__</span> <span class="ow">or</span> <span class="n">current</span><span class="o">.</span><span class="n">__context__</span>
-    <span class="k">return</span> <span class="kc">False</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_matches_any</span><span class="p">(</span><span class="n">patterns</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">re</span><span class="o">.</span><span class="n">Pattern</span><span class="p">[</span><span class="nb">str</span><span class="p">]],</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
@@ -1742,32 +1116,11 @@
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">AUTH_FAILED</span>
     <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_MODEL_NOT_FOUND_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">MODEL_NOT_FOUND</span>
-    <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_TIMEOUT_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">_exception_chain_has_timeout</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_TIMEOUT_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">TIMEOUT</span>
     <span class="k">if</span> <span class="n">_matches_any</span><span class="p">(</span><span class="n">_STRUCTURED_OUTPUT_REJECTED_PATTERNS</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">STRUCTURED_OUTPUT_REJECTED</span>
     <span class="k">return</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">UNKNOWN</span></div>
-
-
-
-<div class="viewcode-block" id="is_structured_capability_rejection">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.is_structured_capability_rejection">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">is_structured_capability_rejection</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return True if *exc* is a stable capability rejection of structured output.</span>
-
-<span class="sd">    Stricter than the ``STRUCTURED_OUTPUT_REJECTED`` category returned by</span>
-<span class="sd">    :func:`classify_llm_invocation_error`: only messages naming</span>
-<span class="sd">    ``response_format`` / ``json_schema`` / ``structured output`` qualify.  The</span>
-<span class="sd">    category's generic ``400 invalid_request_error`` pattern is excluded so an</span>
-<span class="sd">    unrelated bad request cannot poison the capability cache.</span>
-
-<span class="sd">    :param exc: The exception raised by the structured invoke.</span>
-<span class="sd">    :returns: True when the endpoint will keep refusing the parameter.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="n">_matches_any</span><span class="p">(</span>
-        <span class="n">_STRUCTURED_OUTPUT_CAPABILITY_PATTERNS</span><span class="p">,</span>
-        <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_flatten_exception_messages</span><span class="p">(</span><span class="n">exc</span><span class="p">)),</span>
-    <span class="p">)</span></div>
 
 
 
@@ -1848,113 +1201,6 @@
     <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Configurable chat model created (provider/model set per invoke)"</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">model_var</span></div>
-
-
-
-<span class="c1"># ---------------------------------------------------------------------------</span>
-<span class="c1"># Provider request headers</span>
-<span class="c1"># ---------------------------------------------------------------------------</span>
-<span class="c1"># Klea identifies itself to OpenAI-compatible inference endpoints with its own</span>
-<span class="c1"># User-Agent, and sends a stable per-conversation session header to</span>
-<span class="c1"># opencode-hosted endpoints so the backend can optimise routing and prompt</span>
-<span class="c1"># caching.  Provider specifics live behind one hook so call sites stay clean.</span>
-
-<span class="c1">#: Host suffix for opencode-hosted OpenAI-compatible endpoints.  These accept</span>
-<span class="c1">#: an ``x-opencode-session`` header carrying the conversation/session id.</span>
-<span class="n">_OPENCODE_HOST_SUFFIX</span> <span class="o">=</span> <span class="s2">"opencode.ai"</span>
-
-
-<div class="viewcode-block" id="resolve_user_agent">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.resolve_user_agent">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_user_agent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return ``&lt;prefix&gt;/&lt;version&gt;`` for the running application.</span>
-
-<span class="sd">    Mirrors ``web_fetch._honest_user_agent``: the version is read from the</span>
-<span class="sd">    installed distribution named *prefix* (``importlib.metadata`` normalises</span>
-<span class="sd">    separators, so the graph name doubles as the distribution name --</span>
-<span class="sd">    ``klea-agent`` -&gt; ``klea_agent``) and falls back to ``dev`` when metadata</span>
-<span class="sd">    is unavailable (e.g. an uninstalled checkout).</span>
-
-<span class="sd">    :param prefix: Application name, e.g. ``"klea-agent"``.</span>
-<span class="sd">    :returns: The User-Agent string, e.g. ``"klea-agent/0.0.1"``.</span>
-<span class="sd">    """</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">importlib.metadata</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageNotFoundError</span><span class="p">,</span> <span class="n">version</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">version_str</span> <span class="o">=</span> <span class="n">version</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">PackageNotFoundError</span><span class="p">:</span>
-        <span class="n">version_str</span> <span class="o">=</span> <span class="s2">""</span>
-    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">version_str</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'dev'</span><span class="si">}</span><span class="s2">"</span></div>
-
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_is_opencode_endpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return ``True`` when *base_url* points at an opencode-hosted endpoint."""</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">base_url</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">False</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">urllib.parse</span><span class="w"> </span><span class="kn">import</span> <span class="n">urlparse</span>
-
-    <span class="n">host</span> <span class="o">=</span> <span class="p">(</span><span class="n">urlparse</span><span class="p">(</span><span class="n">base_url</span><span class="p">)</span><span class="o">.</span><span class="n">hostname</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">host</span> <span class="o">==</span> <span class="n">_OPENCODE_HOST_SUFFIX</span> <span class="ow">or</span> <span class="n">host</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"."</span> <span class="o">+</span> <span class="n">_OPENCODE_HOST_SUFFIX</span><span class="p">)</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_default_request_headers</span><span class="p">(</span>
-    <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Default request headers for chat providers (OpenAI, Anthropic).</span>
-
-<span class="sd">    Identifies Klea with a User-Agent and, for opencode-hosted endpoints,</span>
-<span class="sd">    sends the per-conversation ``x-opencode-session`` header so the backend can</span>
-<span class="sd">    optimise routing and prompt caching.</span>
-<span class="sd">    """</span>
-    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="n">user_agent</span><span class="p">:</span>
-        <span class="n">headers</span><span class="p">[</span><span class="s2">"User-Agent"</span><span class="p">]</span> <span class="o">=</span> <span class="n">user_agent</span>
-    <span class="k">if</span> <span class="n">session_id</span> <span class="ow">and</span> <span class="n">_is_opencode_endpoint</span><span class="p">(</span><span class="n">base_url</span><span class="p">):</span>
-        <span class="n">headers</span><span class="p">[</span><span class="s2">"x-opencode-session"</span><span class="p">]</span> <span class="o">=</span> <span class="n">session_id</span>
-    <span class="k">return</span> <span class="n">headers</span>
-
-
-<span class="c1">#: Per-provider request-header builders.  ``custom`` endpoints resolve to the</span>
-<span class="c1">#: ``openai`` or ``anthropic`` provider in ``build_config`` (see</span>
-<span class="c1">#: :func:`resolve_custom_endpoint`) and both share the default builder.  Add a</span>
-<span class="c1">#: provider here (rather than branching in ``build_config``) if another</span>
-<span class="c1">#: integration needs its own headers.</span>
-<span class="n">_PROVIDER_HEADER_BUILDERS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"openai"</span><span class="p">:</span> <span class="n">_default_request_headers</span><span class="p">,</span>
-    <span class="s2">"anthropic"</span><span class="p">:</span> <span class="n">_default_request_headers</span><span class="p">,</span>
-<span class="p">}</span>
-
-
-<div class="viewcode-block" id="apply_provider_overrides">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.apply_provider_overrides">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">apply_provider_overrides</span><span class="p">(</span>
-    <span class="n">overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Add provider-specific request headers to a configurable dict (in place).</span>
-
-<span class="sd">    Called once at the end of :meth:`LLMModel.build_config`.  Only providers</span>
-<span class="sd">    with a registered builder are affected; any ``default_headers`` already in</span>
-<span class="sd">    *overrides* win over ours.</span>
-
-<span class="sd">    :param overrides: The merged ``config["configurable"]`` dict.</span>
-<span class="sd">    :param session_id: Per-conversation session id (LangGraph ``thread_id``).</span>
-<span class="sd">    :param user_agent: Klea User-Agent (see :func:`resolve_user_agent`).</span>
-<span class="sd">    """</span>
-    <span class="n">builder</span> <span class="o">=</span> <span class="n">_PROVIDER_HEADER_BUILDERS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">builder</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="c1"># Anthropic stores its endpoint under ``anthropic_api_url``; every other</span>
-    <span class="c1"># provider uses ``base_url``.</span>
-    <span class="n">endpoint</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"anthropic_api_url"</span><span class="p">)</span>
-    <span class="n">headers</span> <span class="o">=</span> <span class="n">builder</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span> <span class="n">session_id</span><span class="p">,</span> <span class="n">user_agent</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">headers</span><span class="p">:</span>
-        <span class="k">return</span>
-    <span class="n">existing</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"default_headers"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-    <span class="n">overrides</span><span class="p">[</span><span class="s2">"default_headers"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="o">**</span><span class="n">headers</span><span class="p">,</span> <span class="o">**</span><span class="n">existing</span><span class="p">}</span></div>
 
 
 
@@ -2063,8 +1309,6 @@
     <span class="n">provider_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">modifiable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">required</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="c1">#: Klea User-Agent sent to OpenAI-compatible endpoints (``klea-agent/&lt;v&gt;``).</span>
-    <span class="n">user_agent</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
 <div class="viewcode-block" id="LLMModel.build_config">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.LLMModel.build_config">[docs]</a>
@@ -2072,7 +1316,6 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">context_overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">node_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Merge up to five layers of model configuration into a ``RunnableConfig``.</span>
 
@@ -2090,8 +1333,6 @@
 <span class="sd">            present in ``node_defaults``.</span>
 <span class="sd">        :param node_defaults: Frozen per-node defaults (e.g.</span>
 <span class="sd">            ``{"temperature": 0.3}``).  Always win.</span>
-<span class="sd">        :param session_id: Per-conversation session id (LangGraph ``thread_id``)</span>
-<span class="sd">            used for the opencode ``x-opencode-session`` header.</span>
 <span class="sd">        :returns: A ``RunnableConfig`` with the ``configurable`` key</span>
 <span class="sd">            populated.</span>
 <span class="sd">        """</span>
@@ -2135,81 +1376,26 @@
         <span class="c1"># parse_model_name is defined in this module  ---  no lazy import needed.</span>
         <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">overrides</span><span class="p">[</span><span class="s2">"model"</span><span class="p">])</span>
         <span class="n">overrides</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span>
-        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"custom"</span><span class="p">:</span>
-            <span class="c1"># The suffix may be a bare base URL (default: OpenAI Chat</span>
-            <span class="c1"># Completions) or a full endpoint URL whose surface we detect</span>
-            <span class="c1"># (chat completions / responses / messages).  See</span>
-            <span class="c1"># resolve_custom_endpoint.</span>
-            <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
-                <span class="n">custom_endpoint</span><span class="p">:</span> <span class="n">CustomEndpoint</span> <span class="o">=</span> <span class="n">resolve_custom_endpoint</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
-                <span class="n">overrides</span><span class="p">[</span><span class="s2">"model_provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">model_provider</span>
-                <span class="k">if</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">model_provider</span> <span class="o">==</span> <span class="s2">"anthropic"</span><span class="p">:</span>
-                    <span class="c1"># Anthropic's LangChain field is anthropic_api_url, and its</span>
-                    <span class="c1"># SDK re-appends /v1/messages to the stripped base URL.</span>
-                    <span class="n">overrides</span><span class="p">[</span><span class="s2">"anthropic_api_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">base_url</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">overrides</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">base_url</span>
-                <span class="k">if</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">use_responses_api</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">overrides</span><span class="p">[</span><span class="s2">"use_responses_api"</span><span class="p">]</span> <span class="o">=</span> <span class="n">custom_endpoint</span><span class="o">.</span><span class="n">use_responses_api</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">overrides</span><span class="p">[</span><span class="s2">"model_provider"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"openai"</span>
-        <span class="c1"># for certain providers, we do not want to use the models dev</span>
-        <span class="c1"># catalogue, since langchain handles them natively</span>
+        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">==</span> <span class="s2">"custom"</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">"model_provider"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"openai"</span>
         <span class="k">elif</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">:</span>
             <span class="n">overrides</span><span class="p">[</span><span class="s2">"model_provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span>
-            <span class="c1"># explicit end point url</span>
-            <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
-                <span class="n">overrides</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">MODELS_DEV_PROVIDERS_IGNORED</span><span class="p">:</span>
-                    <span class="c1"># No explicit endpoint (``provider:model``): resolve it from</span>
-                    <span class="c1"># the models.dev catalog when the provider is an OpenAI- or</span>
-                    <span class="c1"># Anthropic-compatible endpoint, so users need not write a</span>
-                    <span class="c1"># ``custom:`` URL.  Native SDK providers (no catalog ``api``)</span>
-                    <span class="c1"># are left to LangChain, which knows their default endpoint.</span>
-                    <span class="n">endpoint</span> <span class="o">=</span> <span class="n">resolve_catalog_provider_endpoint</span><span class="p">(</span>
-                        <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span>
-                    <span class="p">)</span>
-                    <span class="k">if</span> <span class="n">endpoint</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                        <span class="n">overrides</span><span class="p">[</span><span class="s2">"model_provider"</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">model_provider</span>
-                        <span class="k">if</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">model_provider</span> <span class="o">==</span> <span class="s2">"anthropic"</span><span class="p">:</span>
-                            <span class="n">overrides</span><span class="p">[</span><span class="s2">"anthropic_api_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">base_url</span>
-                        <span class="k">else</span><span class="p">:</span>
-                            <span class="n">overrides</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">base_url</span>
-                        <span class="k">if</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">use_responses_api</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                            <span class="n">overrides</span><span class="p">[</span><span class="s2">"use_responses_api"</span><span class="p">]</span> <span class="o">=</span> <span class="n">endpoint</span><span class="o">.</span><span class="n">use_responses_api</span>
+        <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">"base_url"</span><span class="p">]</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"After model string parse:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-
-        <span class="c1"># A custom or catalog-resolved Anthropic endpoint still authenticates</span>
-        <span class="c1"># with the generic key users set as OPENAI_API_KEY (ChatAnthropic</span>
-        <span class="c1"># itself reads ANTHROPIC_API_KEY).  Copy it across so one key works</span>
-        <span class="c1"># for every non-native custom surface; an explicit api_key override</span>
-        <span class="c1"># wins.  The native ``anthropic:`` provider keeps ANTHROPIC_API_KEY.</span>
-        <span class="k">if</span> <span class="p">(</span>
-            <span class="n">parsed</span><span class="o">.</span><span class="n">provider</span> <span class="o">!=</span> <span class="s2">"anthropic"</span>
-            <span class="ow">and</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"anthropic"</span>
-        <span class="p">):</span>
-            <span class="n">require_extra</span><span class="p">(</span><span class="s2">"langchain_anthropic"</span><span class="p">,</span> <span class="s2">"anthropic"</span><span class="p">)</span>
-            <span class="n">custom_key</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"OPENAI_API_KEY"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">custom_key</span><span class="p">:</span>
-                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"anthropic_api_key"</span><span class="p">,</span> <span class="n">custom_key</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"After anthropic key mapping:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
-            <span class="p">)</span>
 
         <span class="c1"># Inject HuggingFace from_model_id kwargs derived from the model</span>
         <span class="c1"># string suffix.  These are not fields on ChatHuggingFace itself</span>
         <span class="c1"># (they flow through to HuggingFaceEndpoint) so they'd be filtered</span>
         <span class="c1"># out later  ---  we set them here so they survive provider filtering.</span>
-        <span class="c1"># A bare ``huggingface:&lt;model&gt;`` defaults to the hosted Inference</span>
-        <span class="c1"># Providers API (``auto``); ``:local`` opts into the local pipeline.</span>
-        <span class="k">if</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
-            <span class="n">hf_backend</span> <span class="o">=</span> <span class="n">resolve_huggingface_backend</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">model_name</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
-            <span class="n">overrides</span><span class="p">[</span><span class="s2">"model"</span><span class="p">]</span> <span class="o">=</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">model_id</span>
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">hf_backend</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"huggingface"</span> <span class="ow">and</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span> <span class="o">==</span> <span class="s2">"local"</span><span class="p">:</span>
+                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"pipeline"</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"endpoint"</span><span class="p">)</span>
+                <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="n">parsed</span><span class="o">.</span><span class="n">suffix</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"HuggingFace backend resolved:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"HuggingFace kwargs injected:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
             <span class="p">)</span>
 
         <span class="c1"># Layer 4: per-provider defaults from graph config.  Only fills in</span>
@@ -2230,57 +1416,9 @@
             <span class="n">overrides</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"huggingfacehub_api_token"</span><span class="p">,</span> <span class="n">overrides</span><span class="p">[</span><span class="s2">"api_key"</span><span class="p">])</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"After api_key mapping:</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 
-        <span class="c1"># Provider-specific request headers (Klea User-Agent; opencode session</span>
-        <span class="c1"># header on opencode-hosted endpoints).</span>
-        <span class="n">apply_provider_overrides</span><span class="p">(</span>
-            <span class="n">overrides</span><span class="p">,</span> <span class="n">session_id</span><span class="o">=</span><span class="n">session_id</span><span class="p">,</span> <span class="n">user_agent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span>
-        <span class="p">)</span>
-
         <span class="c1"># Wrap in the "configurable" key expected by _ConfigurableModel.</span>
         <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">RunnableConfig</span><span class="p">,</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">})</span></div>
 </div>
-
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_role_is_missing</span><span class="p">(</span><span class="n">cfg</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return whether a single role's model config has no usable model.</span>
-
-<span class="sd">    Accepts either the resolved API config dict (``{"model": ...,</span>
-<span class="sd">    "required": ...}``) or an :class:`LLMModel` (``model_name`` /</span>
-<span class="sd">    ``required`` attributes), so the same predicate serves the graph's</span>
-<span class="sd">    startup check and the frontends.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
-        <span class="n">required</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">model</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">required</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">"required"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
-        <span class="n">model</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="s2">"model_name"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">required</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">model</span>
-
-
-<div class="viewcode-block" id="missing_required_roles">
-<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.missing_required_roles">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">missing_required_roles</span><span class="p">(</span><span class="n">models</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Return the roles that are required but have no model configured.</span>
-
-<span class="sd">    Single source of truth for the "is a required model missing?"</span>
-<span class="sd">    predicate, shared by the graph's startup warning</span>
-<span class="sd">    (``BaseLangGraph._check_required_models``) and the frontends (which</span>
-<span class="sd">    need it to decide whether a query may be sent and to point the user</span>
-<span class="sd">    at the model selector).</span>
-
-<span class="sd">    Values may be either the resolved API config dict returned by the</span>
-<span class="sd">    model endpoints (e.g. ``GET /chat/{user_id}/models/active``, with</span>
-<span class="sd">    ``model`` / ``required`` keys) or :class:`LLMModel` instances (with</span>
-<span class="sd">    ``model_name`` / ``required``).  A role is missing when ``required``</span>
-<span class="sd">    is true (the default) and its model is empty.  Roles are returned in</span>
-<span class="sd">    the input's iteration order.</span>
-
-<span class="sd">    :param models: Mapping of role name to its config dict or object.</span>
-<span class="sd">    :returns: Required role names with no model set.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="p">[</span><span class="n">role</span> <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">models</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">_role_is_missing</span><span class="p">(</span><span class="n">cfg</span><span class="p">)]</span></div>
 
 
 

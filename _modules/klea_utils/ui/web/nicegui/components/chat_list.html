@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.chat_list - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -385,7 +385,6 @@
                 <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">reset_center_tab</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
         <span class="k">else</span><span class="p">:</span>
@@ -468,7 +467,6 @@
                     <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"side"</span><span class="p">),</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"more_vert"</span><span class="p">)</span>
                     <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round"</span><span class="p">)</span>
-                    <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"icon-btn"</span><span class="p">)</span>
                     <span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click.stop"</span><span class="p">,</span> <span class="k">lambda</span><span class="p">:</span> <span class="kc">None</span><span class="p">),</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">menu</span><span class="p">(),</span>
                 <span class="p">):</span>
@@ -561,19 +559,9 @@
             <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span>
             <span class="n">old_id</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="c1"># The new identity has no model overrides or credentials --- they</span>
-        <span class="c1"># were purged with the old user's data --- so drop the cached</span>
-        <span class="c1"># config and re-resolve it.  Without this the status pane and the</span>
-        <span class="c1"># chat-area "choose a model" prompt keep showing the old user's</span>
-        <span class="c1"># setup.</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">credentials</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_session_model_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_session_model_info</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span><span class="p">()</span>
         <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_toggle_left_drawer</span><span class="p">():</span>

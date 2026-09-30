@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.api.sessions_db - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -304,10 +304,8 @@
 <span class="sd">"""</span>
 <span class="sd">Persistent SQLite-backed store for chat session data.</span>
 
-<span class="sd">Manages four tables alongside the LangGraph checkpoint DB:</span>
-<span class="sd">    - chat_sessions (chat metadata, listing, and per-chat model overrides)</span>
-<span class="sd">    - session_overrides (per-user default model overrides)</span>
-<span class="sd">    - user_credentials (per-user provider API credentials)</span>
+<span class="sd">Manages two tables alongside the LangGraph checkpoint DB:</span>
+<span class="sd">    - chat_sessions (chat metadata, listing, and model overrides)</span>
 <span class="sd">    - messages (curated Q&amp;A history for chat display)</span>
 
 <span class="sd">There is no separate ``state`` table.  Graph state (plan, goal,</span>
@@ -324,7 +322,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">sqlite3</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
@@ -333,48 +330,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-<span class="c1">#: Default lifetime for an unused per-user API credential.  Credentials</span>
-<span class="c1">#: untouched for longer are purged so plaintext keys are not retained</span>
-<span class="c1">#: indefinitely.</span>
-<span class="n">DEFAULT_CREDENTIAL_TTL_SECONDS</span> <span class="o">=</span> <span class="mi">7</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
-
-<span class="c1">#: Env var overriding the credential TTL, in days (``0`` disables expiry).</span>
-<span class="n">CREDENTIAL_TTL_ENV_VAR</span> <span class="o">=</span> <span class="s2">"KLEA_CREDENTIAL_TTL_DAYS"</span>
-
-<span class="c1">#: Minimum gap between opportunistic credential purges.</span>
-<span class="n">CREDENTIAL_PURGE_INTERVAL_SECONDS</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
-
-<span class="c1">#: Minimum gap between ``last_used_at`` bumps for a credential.</span>
-<span class="n">CREDENTIAL_TOUCH_INTERVAL_SECONDS</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
-
-
-<div class="viewcode-block" id="resolve_credential_ttl_seconds">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.resolve_credential_ttl_seconds">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_credential_ttl_seconds</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Resolve the credential TTL (seconds) from the environment.</span>
-
-<span class="sd">    Reads :data:`CREDENTIAL_TTL_ENV_VAR` (days).  A missing/invalid value</span>
-<span class="sd">    falls back to :data:`DEFAULT_CREDENTIAL_TTL_SECONDS`; ``0`` or a</span>
-<span class="sd">    negative value disables expiry.</span>
-<span class="sd">    """</span>
-    <span class="n">raw</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">CREDENTIAL_TTL_ENV_VAR</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">raw</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">DEFAULT_CREDENTIAL_TTL_SECONDS</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">days</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">"Invalid </span><span class="si">%s</span><span class="s2">=</span><span class="si">%r</span><span class="s2">; using default </span><span class="si">%d</span><span class="s2"> days"</span><span class="p">,</span>
-            <span class="n">CREDENTIAL_TTL_ENV_VAR</span><span class="p">,</span>
-            <span class="n">raw</span><span class="p">,</span>
-            <span class="n">DEFAULT_CREDENTIAL_TTL_SECONDS</span> <span class="o">//</span> <span class="p">(</span><span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span><span class="p">),</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">DEFAULT_CREDENTIAL_TTL_SECONDS</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">days</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">return</span> <span class="mf">0.0</span>
-    <span class="k">return</span> <span class="n">days</span> <span class="o">*</span> <span class="mi">24</span> <span class="o">*</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span></div>
-
 
 
 <div class="viewcode-block" id="SessionStore">
@@ -402,32 +357,6 @@
 <span class="s2">    -- State is NOT stored here.  Read from LangGraph checkpoint</span>
 <span class="s2">    -- via ``graph.aget_state(thread_id)`` instead.</span>
 
-<span class="s2">    -- Per-user default model overrides, applied to every chat below any</span>
-<span class="s2">    -- per-chat overrides.  Keyed by user alone (no chat).  JSON blob:</span>
-<span class="s2">    -- {"rag":{"model":...,},"guard":{...}}</span>
-<span class="s2">    CREATE TABLE IF NOT EXISTS session_overrides (</span>
-<span class="s2">        user_id     TEXT PRIMARY KEY,</span>
-<span class="s2">        overrides   TEXT NOT NULL DEFAULT '</span><span class="si">{}</span><span class="s2">'</span>
-<span class="s2">    );</span>
-
-<span class="s2">    -- Per-user API credentials, keyed by provider (plus the endpoint for</span>
-<span class="s2">    -- custom / explicit-URL models).  Secrets are stored in plaintext,</span>
-<span class="s2">    -- mirroring the opencode config behaviour; the API never returns them</span>
-<span class="s2">    -- raw (only a masked suffix).  ``last_used_at`` drives the unused-key</span>
-<span class="s2">    -- TTL purge (see ``purge_expired_credentials``).</span>
-<span class="s2">    CREATE TABLE IF NOT EXISTS user_credentials (</span>
-<span class="s2">        user_id      TEXT NOT NULL,</span>
-<span class="s2">        provider     TEXT NOT NULL,</span>
-<span class="s2">        endpoint     TEXT NOT NULL DEFAULT '',</span>
-<span class="s2">        secret       TEXT NOT NULL,</span>
-<span class="s2">        created_at   REAL NOT NULL DEFAULT 0,</span>
-<span class="s2">        last_used_at REAL NOT NULL DEFAULT 0,</span>
-<span class="s2">        PRIMARY KEY (user_id, provider, endpoint)</span>
-<span class="s2">    );</span>
-
-<span class="s2">    CREATE INDEX IF NOT EXISTS idx_user_credentials_last_used</span>
-<span class="s2">        ON user_credentials(last_used_at);</span>
-
 <span class="s2">    CREATE TABLE IF NOT EXISTS messages (</span>
 <span class="s2">        id          INTEGER PRIMARY KEY AUTOINCREMENT,</span>
 <span class="s2">        user_id     TEXT NOT NULL,</span>
@@ -443,11 +372,7 @@
 
 <span class="s2">    """</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
-        <span class="n">credential_ttl_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span>
@@ -455,15 +380,6 @@
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">row_factory</span> <span class="o">=</span> <span class="n">sqlite3</span><span class="o">.</span><span class="n">Row</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
-        <span class="c1"># Unused-credential TTL.  ``None`` resolves from the environment</span>
-        <span class="c1"># (KLEA_CREDENTIAL_TTL_DAYS); &lt;=0 disables expiry.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_credential_ttl_seconds</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">resolve_credential_ttl_seconds</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">credential_ttl_seconds</span> <span class="ow">is</span> <span class="kc">None</span>
-            <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">credential_ttl_seconds</span><span class="p">)</span>
-        <span class="p">)</span>
-        <span class="c1"># Timestamp of the last opportunistic purge (0 forces one on first use).</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_last_credential_purge</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="c1"># Improve concurrency and durability for threaded access</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"PRAGMA journal_mode=WAL"</span><span class="p">)</span>
@@ -567,17 +483,11 @@
 <div class="viewcode-block" id="SessionStore.delete_user_chats">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.delete_user_chats">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">delete_user_chats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Remove all chats, messages, overrides, and credentials for a user."""</span>
+<span class="w">        </span><span class="sd">"""Remove all chats and messages for a user."""</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s2">"DELETE FROM messages WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,))</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
                 <span class="s2">"DELETE FROM chat_sessions WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,)</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"DELETE FROM session_overrides WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,)</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"DELETE FROM user_credentials WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,)</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"delete_user_chats(</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">)</span></div>
@@ -696,298 +606,6 @@
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_override(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.all_chat_overrides">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.all_chat_overrides">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">all_chat_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">        </span><span class="sd">"""Return every chat that has (parsed) overrides.</span>
-
-<span class="sd">        Each entry is ``{user_id, chat_id, overrides}``.  Used by the</span>
-<span class="sd">        startup migration that moves legacy per-chat ``api_key`` values</span>
-<span class="sd">        into the provider credential store.</span>
-<span class="sd">        """</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT user_id, chat_id, overrides FROM chat_sessions"</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
-        <span class="n">result</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
-            <span class="n">overrides</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_loads</span><span class="p">(</span><span class="n">r</span><span class="p">[</span><span class="s2">"overrides"</span><span class="p">])</span>
-            <span class="k">if</span> <span class="n">overrides</span><span class="p">:</span>
-                <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                    <span class="p">{</span>
-                        <span class="s2">"user_id"</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"user_id"</span><span class="p">],</span>
-                        <span class="s2">"chat_id"</span><span class="p">:</span> <span class="n">r</span><span class="p">[</span><span class="s2">"chat_id"</span><span class="p">],</span>
-                        <span class="s2">"overrides"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">,</span>
-                    <span class="p">}</span>
-                <span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"all_chat_overrides(): </span><span class="si">%d</span><span class="s2"> chat(s) with overrides"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">result</span></div>
-
-
-    <span class="c1"># ------------------------------------------------------------------</span>
-    <span class="c1"># Per-user default model overrides (session_overrides.overrides)</span>
-    <span class="c1"># ------------------------------------------------------------------</span>
-
-<div class="viewcode-block" id="SessionStore.get_session_overrides">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.get_session_overrides">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_session_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">        </span><span class="sd">"""Return per-role default model overrides for *user_id*.</span>
-
-<span class="sd">        These are the user's "last used" defaults, applied to every chat</span>
-<span class="sd">        below any per-chat overrides.  Returns</span>
-<span class="sd">        ``{"rag": {"model": "...", "provider": "..."}, ...}``.</span>
-<span class="sd">        """</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT overrides FROM session_overrides WHERE user_id = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_loads</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"overrides"</span><span class="p">]</span> <span class="k">if</span> <span class="n">row</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_session_overrides(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> role(s)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">result</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.set_session_override">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.set_session_override">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_session_override</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Set or replace the per-user default override for a given role."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT overrides FROM session_overrides WHERE user_id = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_loads</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"overrides"</span><span class="p">])</span> <span class="k">if</span> <span class="n">row</span> <span class="k">else</span> <span class="p">{}</span>
-            <span class="n">current</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">config</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"INSERT INTO session_overrides (user_id, overrides) VALUES (?, ?) "</span>
-                <span class="s2">"ON CONFLICT(user_id) DO UPDATE SET overrides = excluded.overrides"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_dumps</span><span class="p">(</span><span class="n">current</span><span class="p">)),</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="s2">"set_session_override(</span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">, model=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
-            <span class="n">user_id</span><span class="p">,</span>
-            <span class="n">role</span><span class="p">,</span>
-            <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">"?"</span><span class="p">),</span>
-        <span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.clear_session_override">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_session_override">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">clear_session_override</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Remove the per-user default override for a single role."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT overrides FROM session_overrides WHERE user_id = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-            <span class="n">current</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_loads</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"overrides"</span><span class="p">])</span> <span class="k">if</span> <span class="n">row</span> <span class="k">else</span> <span class="p">{}</span>
-            <span class="n">current</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"INSERT INTO session_overrides (user_id, overrides) VALUES (?, ?) "</span>
-                <span class="s2">"ON CONFLICT(user_id) DO UPDATE SET overrides = excluded.overrides"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_json_dumps</span><span class="p">(</span><span class="n">current</span><span class="p">)),</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_session_override(</span><span class="si">%s</span><span class="s2">, role=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.clear_session_overrides">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_session_overrides">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">clear_session_overrides</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Remove all per-user default overrides for *user_id*."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"DELETE FROM session_overrides WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,)</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_session_overrides(</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">)</span></div>
-
-
-    <span class="c1"># ------------------------------------------------------------------</span>
-    <span class="c1"># API credentials (user_credentials; provider + optional endpoint)</span>
-    <span class="c1"># ------------------------------------------------------------------</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_purge_expired_credentials_locked</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Delete credentials unused past the TTL (caller holds the lock)."""</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_credential_ttl_seconds</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="mi">0</span>
-        <span class="n">cutoff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_credential_ttl_seconds</span>
-        <span class="n">cur</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-            <span class="s2">"DELETE FROM user_credentials WHERE last_used_at &lt; ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">cutoff</span><span class="p">,)</span>
-        <span class="p">)</span>
-        <span class="n">removed</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">cur</span><span class="o">.</span><span class="n">rowcount</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">removed</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">removed</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_maybe_purge_expired_credentials_locked</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Opportunistic TTL purge, at most once per interval."""</span>
-        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_credential_purge</span> <span class="o">&lt;</span> <span class="n">CREDENTIAL_PURGE_INTERVAL_SECONDS</span><span class="p">:</span>
-            <span class="k">return</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_last_credential_purge</span> <span class="o">=</span> <span class="n">now</span>
-        <span class="n">removed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_purge_expired_credentials_locked</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">removed</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Purged </span><span class="si">%d</span><span class="s2"> unused credential(s) past TTL"</span><span class="p">,</span> <span class="n">removed</span><span class="p">)</span>
-
-<div class="viewcode-block" id="SessionStore.purge_expired_credentials">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.purge_expired_credentials">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">purge_expired_credentials</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Delete credentials unused for longer than the configured TTL.</span>
-
-<span class="sd">        Called at startup and (opportunistically) on credential access, so</span>
-<span class="sd">        short-lived processes still clean up without a background task.  A</span>
-<span class="sd">        non-positive TTL disables expiry.  Returns the number of rows</span>
-<span class="sd">        removed.</span>
-<span class="sd">        """</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_last_credential_purge</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
-            <span class="n">removed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_purge_expired_credentials_locked</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">removed</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Purged </span><span class="si">%d</span><span class="s2"> unused credential(s) past TTL"</span><span class="p">,</span> <span class="n">removed</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">removed</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.get_credential">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.get_credential">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">get_credential</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return the stored secret for a provider(+endpoint), or ``None``."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_purge_expired_credentials_locked</span><span class="p">()</span>
-            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT secret FROM user_credentials "</span>
-                <span class="s2">"WHERE user_id = ? AND provider = ? AND endpoint = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-        <span class="n">secret</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"secret"</span><span class="p">]</span> <span class="k">if</span> <span class="n">row</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="s2">"get_credential(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-            <span class="n">user_id</span><span class="p">,</span>
-            <span class="n">provider</span><span class="p">,</span>
-            <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span>
-            <span class="s2">"found"</span> <span class="k">if</span> <span class="n">secret</span> <span class="k">else</span> <span class="s2">"none"</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">secret</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.list_credentials">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.list_credentials">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">list_credentials</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">        </span><span class="sd">"""Return credentials for *user_id* with timestamps.</span>
-
-<span class="sd">        Each entry is ``{provider, endpoint, secret, created_at,</span>
-<span class="sd">        last_used_at}``.  Callers must mask ``secret`` before returning it</span>
-<span class="sd">        to a client.</span>
-<span class="sd">        """</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_purge_expired_credentials_locked</span><span class="p">()</span>
-            <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT provider, endpoint, secret, created_at, last_used_at "</span>
-                <span class="s2">"FROM user_credentials "</span>
-                <span class="s2">"WHERE user_id = ? ORDER BY provider, endpoint"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"list_credentials(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
-        <span class="k">return</span> <span class="n">result</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.set_credential">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.set_credential">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">set_credential</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">secret</span><span class="p">:</span> <span class="nb">str</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Store (or replace) the secret for a provider(+endpoint).</span>
-
-<span class="sd">        Records ``created_at``/``last_used_at`` so the unused-key TTL can</span>
-<span class="sd">        apply.  The secret is never logged.</span>
-<span class="sd">        """</span>
-        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"INSERT INTO user_credentials "</span>
-                <span class="s2">"(user_id, provider, endpoint, secret, created_at, last_used_at) "</span>
-                <span class="s2">"VALUES (?, ?, ?, ?, ?, ?) "</span>
-                <span class="s2">"ON CONFLICT(user_id, provider, endpoint) "</span>
-                <span class="s2">"DO UPDATE SET secret = excluded.secret, "</span>
-                <span class="s2">"last_used_at = excluded.last_used_at"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span> <span class="n">secret</span><span class="p">,</span> <span class="n">now</span><span class="p">,</span> <span class="n">now</span><span class="p">),</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_purge_expired_credentials_locked</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"set_credential(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.touch_credential">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.touch_credential">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">touch_credential</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span>
-        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-        <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
-        <span class="n">min_interval_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">CREDENTIAL_TOUCH_INTERVAL_SECONDS</span><span class="p">,</span>
-    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Mark a stored credential as used now (throttled).</span>
-
-<span class="sd">        Bumps ``last_used_at`` so the TTL measures *unused* time.  Writes</span>
-<span class="sd">        are skipped while the previous bump is younger than</span>
-<span class="sd">        *min_interval_seconds* to avoid write amplification on hot paths.</span>
-<span class="sd">        """</span>
-        <span class="n">now</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_now</span><span class="p">()</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT last_used_at FROM user_credentials "</span>
-                <span class="s2">"WHERE user_id = ? AND provider = ? AND endpoint = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">fetchone</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">row</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">return</span>
-            <span class="k">if</span> <span class="n">now</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"last_used_at"</span><span class="p">]</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">min_interval_seconds</span><span class="p">:</span>
-                <span class="k">return</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"UPDATE user_credentials SET last_used_at = ? "</span>
-                <span class="s2">"WHERE user_id = ? AND provider = ? AND endpoint = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">now</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_maybe_purge_expired_credentials_locked</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"touch_credential(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.clear_credential">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_credential">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">clear_credential</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">endpoint</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Remove the stored secret for a provider(+endpoint)."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"DELETE FROM user_credentials "</span>
-                <span class="s2">"WHERE user_id = ? AND provider = ? AND endpoint = ?"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_credential(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span></div>
-
-
-<div class="viewcode-block" id="SessionStore.clear_credentials">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_credentials">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">clear_credentials</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Remove all stored credentials for *user_id*."""</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"DELETE FROM user_credentials WHERE user_id = ?"</span><span class="p">,</span> <span class="p">(</span><span class="n">user_id</span><span class="p">,)</span>
-            <span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"clear_credentials(</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">)</span></div>
 
 
     <span class="c1"># ------------------------------------------------------------------</span>

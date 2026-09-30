@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.theme - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -315,7 +315,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.inspector_code</span><span class="w"> </span><span class="kn">import</span> <span class="n">CODE_HL_CLASS</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">user_storage_or_none</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -348,136 +347,6 @@
     <span class="c1"># Collapse long bot messages to 4 lines with an expand / collapse toggle.</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-collapsed { max-height: 6em; overflow: hidden; }"</span><span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".msg-expanded { max-height: none; }"</span><span class="p">)</span>
-    <span class="c1"># Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a</span>
-    <span class="c1"># margin on ``&lt;pre&gt;``; a long line would overflow the bubble and the page.</span>
-    <span class="c1"># The block is kept inside the bubble and its lines wrap (see the wrap</span>
-    <span class="c1"># rule below); ``overflow-x: auto`` remains as a fallback.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".chat-markdown pre { "</span>
-        <span class="s2">"margin: 0.5rem 0; "</span>
-        <span class="s2">"padding: 0.5rem 0.75rem; "</span>
-        <span class="s2">"overflow-x: auto; "</span>
-        <span class="s2">"max-width: 100%; "</span>
-        <span class="s2">"border-radius: 0.375rem; "</span>
-        <span class="s2">"background: rgba(127, 127, 127, 0.15); }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-markdown code { font-size: 0.8rem; }"</span><span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".chat-markdown :not(pre) &gt; code { "</span>
-        <span class="s2">"background: rgba(127, 127, 127, 0.15); "</span>
-        <span class="s2">"padding: 0.1rem 0.3rem; "</span>
-        <span class="s2">"border-radius: 0.25rem; "</span>
-        <span class="s2">"word-break: break-word; }"</span>
-    <span class="p">)</span>
-    <span class="c1"># Wrap long lines in chat code blocks - user/agent fenced code</span>
-    <span class="c1"># (``.chat-markdown pre``) and tool code boxes (``.tool-code``, a</span>
-    <span class="c1"># ``ui.code`` element) - so they stay within the bubble instead of</span>
-    <span class="c1"># producing a horizontal scrollbar.  The chat area itself still scrolls</span>
-    <span class="c1"># vertically.  ``overflow-wrap: anywhere`` also breaks long unbroken</span>
-    <span class="c1"># tokens (URLs, base64) that would otherwise overflow.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".chat-markdown pre, .chat-markdown pre code, "</span>
-        <span class="s2">".tool-code pre, .tool-code code, .tool-code .codehilite pre { "</span>
-        <span class="s2">"white-space: pre-wrap !important; "</span>
-        <span class="s2">"overflow-wrap: anywhere !important; "</span>
-        <span class="s2">"word-break: break-word !important; }"</span>
-    <span class="p">)</span>
-    <span class="c1"># Keep embedded media (future image/audio blocks) within the bubble.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".chat-bubble img, .chat-bubble video { max-width: 100%; height: auto; }"</span>
-    <span class="p">)</span>
-    <span class="c1"># Chat input: match the transcript blocks' corner radius (the ``rounded``</span>
-    <span class="c1"># prop is a pill, so it is not used).  The textarea autogrows upward as the</span>
-    <span class="c1"># message gets longer (Quasar handles that), capped at 40vh before it</span>
-    <span class="c1"># scrolls, and the send button in the ``append`` slot is anchored to the</span>
-    <span class="c1"># bottom-right so it stays on the textarea's last line.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__control { border-radius: 0.5rem; }"</span><span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__native { max-height: 40vh; overflow: auto; }"</span><span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".chat-input .q-field__append { align-self: flex-end; }"</span><span class="p">)</span>
-    <span class="c1"># Status-pane context controls (operating mode / tool access).  Quasar's</span>
-    <span class="c1"># ``flat`` buttons have no border and its fixed grey palette is hard to see</span>
-    <span class="c1"># on the dark drawer, so the inactive option is drawn as an outline whose</span>
-    <span class="c1"># colour follows its text (``currentColor``).  The row gets a little</span>
-    <span class="c1"># vertical breathing room.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".choice-row { padding-top: 0.35rem; padding-bottom: 0.35rem; }"</span><span class="p">)</span>
-    <span class="c1"># Design tokens: the single source of truth for themed colours.  Light</span>
-    <span class="c1"># values live under ``:root``; dark values override the *same* custom</span>
-    <span class="c1"># properties under ``body.body--dark`` (NiceGUI/Quasar's dark-mode class),</span>
-    <span class="c1"># so components use one variable and never need paired light/dark rules.</span>
-    <span class="c1">#</span>
-    <span class="c1"># The block must live in NiceGUI's ``overrides`` cascade layer: Quasar's</span>
-    <span class="c1"># utilities (e.g. ``.text-primary``) are ``!important`` inside the later</span>
-    <span class="c1"># ``quasar_importants`` layer, and for ``!important`` declarations earlier</span>
-    <span class="c1"># layers win while unlayered rules (where ``ui.add_css`` lands) lose.</span>
-    <span class="c1"># Without the layer these rules are silently ignored and the controls fall</span>
-    <span class="c1"># back to Quasar's fixed blue/greys.</span>
-    <span class="c1">#</span>
-    <span class="c1"># Quasar brand tokens (``--q-*``) additionally need ``!important``: NiceGUI</span>
-    <span class="c1"># auto-applies a ``ui.colors`` element whose ``colors.js`` sets them</span>
-    <span class="c1"># *inline* on ``&lt;body&gt;`` (``document.body.style.setProperty``), and inline</span>
-    <span class="c1"># normal declarations beat stylesheet declarations whatever their layer.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">"@layer overrides {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  :root {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-control: #424242;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-muted: #757575;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-hint: #9e9e9e;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-surface: #e0e0e0;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-bubble-user: #e8f0fe;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-bubble-tool: #f0f0f0;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-attention: #e65100;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  body.body--dark {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Quasar brand token: lighten ``primary`` so primary-tinted widgets (the</span>
-        <span class="c1"># send button, active tab, Save, links, ...) stay legible on dark.</span>
-        <span class="s2">"    --q-primary: #64b5f6 !important;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Unify the dark page background with the ``q-dark`` panels and drawers</span>
-        <span class="c1"># (both use ``--q-dark``, #1d1d1d).  Quasar's default ``--q-dark-page``</span>
-        <span class="c1"># (#121212) is near-black, which left the page/tab strip visibly darker</span>
-        <span class="c1"># than the panels sitting on it.</span>
-        <span class="s2">"    --q-dark-page: #1d1d1d !important;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-control: #e0e0e0;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-muted: #cfcfcf;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-hint: #bdbdbd;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Footer stays a distinct, slightly darker bar (mirrors light mode,</span>
-        <span class="c1"># where the footer is darker than the page).</span>
-        <span class="s2">"    --klea-surface: #161616;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-bubble-user: #1e2a3a;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-bubble-tool: #262626;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    --klea-attention: #ffb74d;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Neutral interactive icons and the inactive segmented option; the</span>
-        <span class="c1"># outline border follows the text colour (Quasar draws</span>
-        <span class="c1"># ``.q-btn--outline`` with ``currentColor``).</span>
-        <span class="s2">"  .icon-btn,</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  .choice-btn:not(.choice-btn--active) {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    color: var(--klea-control) !important;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Attention state for the model settings button when required</span>
-        <span class="c1"># models or API keys are missing, so it stands out from other icons.</span>
-        <span class="s2">"  .model-btn--attention {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    color: var(--klea-attention) !important;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  .choice-label {</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"    color: var(--klea-muted) !important;</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Bar surfaces (footer, ...): Quasar sets no footer background, so the</span>
-        <span class="c1"># app pins one explicitly; this keeps it theme-aware.</span>
-        <span class="s2">"  .footer-bar { background: var(--klea-surface) !important; }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Chat transcript blocks (web-theming: semantic class + token).  All</span>
-        <span class="c1"># three roles span the full chat width; only the surface distinguishes</span>
-        <span class="c1"># them, so the user's prompt reads as a tinted block, the agent's reply</span>
-        <span class="c1"># as plain document text, and a tool round as a neutral block.</span>
-        <span class="s2">"  .chat-bubble--user { background: var(--klea-bubble-user); }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  .chat-bubble--agent { background: transparent; }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  .chat-bubble--tool { background: var(--klea-bubble-tool); }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="c1"># Quasar's grey text classes use fixed literals, so map the ones we use</span>
-        <span class="c1"># onto the tokens in dark mode.</span>
-        <span class="s2">"  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  body.body--dark .text-grey-6 { color: var(--klea-muted) !important; }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"  body.body--dark .text-grey-7 { color: var(--klea-muted) !important; }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="s2">"}"</span>
-    <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-entry &gt; summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; }"</span>
     <span class="p">)</span>
@@ -485,18 +354,6 @@
         <span class="s2">".inspector-entry &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25B6'; font-size: 0.65rem; margin-right: 0.35rem; transition: transform 0.15s; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".inspector-entry[open] &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
-    <span class="c1"># Inspector query sections: same disclosure triangle as entries, plus a</span>
-    <span class="c1"># separating rule between sections so consecutive queries are distinct.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".inspector-section &gt; summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; padding-bottom: 0.5rem; }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".inspector-section &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25B6'; font-size: 0.8rem; margin-right: 0.35rem; transition: transform 0.15s; }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".inspector-section[open] &gt; summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".inspector-section + .inspector-section { border-top: 1px solid rgba(127, 127, 127, 0.3); padding-top: 0.4rem; }"</span>
-    <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-details summary { list-style: none; display: flex; align-items: center; gap: 0.25rem; }"</span>
     <span class="p">)</span>
@@ -510,25 +367,8 @@
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".inspector-details code { white-space: pre-wrap !important; word-break: break-all !important; }"</span>
     <span class="p">)</span>
-    <span class="c1"># Inspector details code block: the relaxed-JSON highlighter renders its</span>
-    <span class="c1"># own HTML (not through ``ui.markdown``, which is what serves NiceGUI's</span>
-    <span class="c1"># ``.codehilite`` token CSS), so serve the token colours here (light and</span>
-    <span class="c1"># dark) and wrap long lines.</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">pygments.formatters.html</span><span class="w"> </span><span class="kn">import</span> <span class="n">HtmlFormatter</span>
-
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="n">HtmlFormatter</span><span class="p">(</span><span class="n">nobackground</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">get_style_defs</span><span class="p">(</span><span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2">"</span><span class="p">))</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="n">HtmlFormatter</span><span class="p">(</span><span class="n">nobackground</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">"github-dark"</span><span class="p">)</span><span class="o">.</span><span class="n">get_style_defs</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">".body--dark .</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2">"</span>
-        <span class="p">)</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">".</span><span class="si">{</span><span class="n">CODE_HL_CLASS</span><span class="si">}</span><span class="s2"> pre </span><span class="se">{{</span><span class="s2"> white-space: pre-wrap !important; "</span>
-        <span class="s2">"word-break: break-all !important; overflow-wrap: anywhere !important; "</span>
-        <span class="s2">"margin: 0; }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".q-tooltip { max-width: 350px !important; white-space: normal !important; padding: 4px 8px !important; }"</span>
+        <span class="s2">".q-tooltip { max-width: 350px !important; overflow: visible !important; white-space: nowrap !important; padding: 4px 8px !important; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".model-tooltip { white-space: pre-wrap !important; max-width: none !important; }"</span>
@@ -557,36 +397,6 @@
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".status-details[open] summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".status-details code { white-space: pre-wrap !important; word-break: break-all !important; }"</span>
-    <span class="p">)</span>
-    <span class="c1"># Preformatted status sections (e.g. the plan): a ``ui.code`` element whose</span>
-    <span class="c1"># visual "code box" is undone, so the content reads as plain pane text.</span>
-    <span class="c1"># ``nicegui-code-noformat`` targets the wrapper (which ``ui.code`` gives the</span>
-    <span class="c1"># ``nicegui-code`` class), cancelling its background, border, shadow,</span>
-    <span class="c1"># radius and copy button; the inner layers are cleared too and long lines</span>
-    <span class="c1"># wrap instead of scrolling.  The plan uses this; chat bubbles and the</span>
-    <span class="c1"># inspector/status JSON keep their normal code styling.</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".nicegui-code-noformat { "</span>
-        <span class="s2">"background: transparent !important; "</span>
-        <span class="s2">"border: none !important; "</span>
-        <span class="s2">"box-shadow: none !important; "</span>
-        <span class="s2">"border-radius: 0 !important; "</span>
-        <span class="s2">"padding: 0.25rem 0 !important; }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".nicegui-code-noformat .nicegui-code-copy { display: none !important; }"</span>
-    <span class="p">)</span>
-    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
-        <span class="s2">".nicegui-code-noformat .nicegui-markdown, "</span>
-        <span class="s2">".nicegui-code-noformat pre, "</span>
-        <span class="s2">".nicegui-code-noformat pre code, "</span>
-        <span class="s2">".nicegui-code-noformat .codehilite, "</span>
-        <span class="s2">".nicegui-code-noformat .highlight { "</span>
-        <span class="s2">"white-space: pre-wrap !important; "</span>
-        <span class="s2">"word-break: break-word !important; "</span>
-        <span class="s2">"background: transparent !important; "</span>
-        <span class="s2">"padding: 0 !important; "</span>
-        <span class="s2">"margin: 0 !important; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".status-entry .nicegui-markdown { overflow: hidden !important; height: auto !important; overflow-wrap: break-word !important; word-break: break-word !important; }"</span>

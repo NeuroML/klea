@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html">
         <link rel="prefetch" href="../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.models_catalog - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/errors.html">Error types</a></li>
@@ -309,8 +309,7 @@
 <span class="sd">LLM output token reservations.  This is needed because some providers</span>
 <span class="sd">(e.g. HuggingFace) reserve the whole context window as output when no</span>
 <span class="sd">max-token parameter is set, which leads to spurious usage limits and rate</span>
-<span class="sd">limiting.  The provider and model lists are also exposed, so the model</span>
-<span class="sd">selection UIs can offer them as suggestions.</span>
+<span class="sd">limiting.</span>
 
 <span class="sd">The catalog is fetched lazily on first use, kept in memory for the</span>
 <span class="sd">process lifetime (``lru_cache``), and mirrored to an on-disk cache</span>
@@ -368,40 +367,9 @@
     <span class="s2">"anthropic"</span><span class="p">:</span> <span class="s2">"anthropic"</span><span class="p">,</span>
     <span class="s2">"google_genai"</span><span class="p">:</span> <span class="s2">"google"</span><span class="p">,</span>
     <span class="s2">"google"</span><span class="p">:</span> <span class="s2">"google"</span><span class="p">,</span>
-    <span class="s2">"google_vertexai"</span><span class="p">:</span> <span class="s2">"google-vertex"</span><span class="p">,</span>
-    <span class="s2">"bedrock_converse"</span><span class="p">:</span> <span class="s2">"amazon-bedrock"</span><span class="p">,</span>
-    <span class="s2">"azure_openai"</span><span class="p">:</span> <span class="s2">"azure"</span><span class="p">,</span>
-    <span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"mistral"</span><span class="p">,</span>
-    <span class="s2">"together"</span><span class="p">:</span> <span class="s2">"togetherai"</span><span class="p">,</span>
     <span class="s2">"custom"</span><span class="p">:</span> <span class="s2">"openai"</span><span class="p">,</span>
     <span class="s2">"ollama"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">}</span>
-
-<span class="c1">#: Providers offered by the model selection UIs that have no catalog entry:</span>
-<span class="c1">#: local ollama models and ``custom:`` endpoints.  Their models are typed in</span>
-<span class="c1">#: as free text.</span>
-<span class="n">NON_CATALOG_PROVIDERS</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"ollama"</span><span class="p">,</span> <span class="s2">"custom"</span><span class="p">)</span>
-
-<span class="c1">#: models.dev catalog provider key -&gt; Klea provider id, for the keys where</span>
-<span class="c1">#: Klea (LangChain) expects a different name in the model string (e.g.</span>
-<span class="c1">#: ``google`` -&gt; ``google_genai``).  Built from the reverse of</span>
-<span class="c1">#: :data:`_MODELS_DEV_PROVIDER_KEYS`, skipping identical names and the</span>
-<span class="c1">#: non-catalog providers (``custom`` also points at ``openai``).  Used when</span>
-<span class="c1">#: listing providers for the model selection UIs; any key not listed here is</span>
-<span class="c1">#: already a valid Klea provider id.</span>
-<span class="n">_KLEA_PROVIDER_IDS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="n">catalog_key</span><span class="p">:</span> <span class="n">klea_id</span>
-    <span class="k">for</span> <span class="n">klea_id</span><span class="p">,</span> <span class="n">catalog_key</span> <span class="ow">in</span> <span class="n">_MODELS_DEV_PROVIDER_KEYS</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">catalog_key</span> <span class="ow">and</span> <span class="n">catalog_key</span> <span class="o">!=</span> <span class="n">klea_id</span> <span class="ow">and</span> <span class="n">klea_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">NON_CATALOG_PROVIDERS</span>
-<span class="p">}</span>
-
-
-<span class="c1">#: Provider ids whose endpoint must NOT be taken from the catalog, because</span>
-<span class="c1">#: Klea has dedicated native handling for them (HuggingFace backend/provider</span>
-<span class="c1">#: selection and token mapping).  Checked before any catalog lookup.  Others</span>
-<span class="c1">#: are covered by the per-provider ``api`` guard: ``anthropic`` and ``openai``</span>
-<span class="c1">#: carry no ``api`` in the catalog, so they already resolve to ``None``.</span>
-<span class="n">MODELS_DEV_PROVIDERS_IGNORED</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"huggingface"</span><span class="p">}</span>
 
 
 <div class="viewcode-block" id="ModelLimits">
@@ -583,156 +551,6 @@
 
 
 
-<div class="viewcode-block" id="list_catalog_providers">
-<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.list_catalog_providers">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">list_catalog_providers</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Return the providers for the model selection UIs, sorted.</span>
-
-<span class="sd">    Every models.dev provider is listed under its Klea provider id (e.g.</span>
-<span class="sd">    ``google`` -&gt; ``google_genai``), plus :data:`NON_CATALOG_PROVIDERS`.</span>
-<span class="sd">    Those two are listed even when the catalog is unavailable, so a local</span>
-<span class="sd">    ollama model or a custom endpoint can still be picked offline.</span>
-
-<span class="sd">    :returns: Sorted list of Klea provider ids.</span>
-<span class="sd">    """</span>
-    <span class="n">providers</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">NON_CATALOG_PROVIDERS</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">catalog</span> <span class="o">=</span> <span class="n">_catalog</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"models.dev catalog unavailable: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-    <span class="k">else</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">provider_entry</span> <span class="ow">in</span> <span class="n">catalog</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_entry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-                <span class="n">providers</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">_KLEA_PROVIDER_IDS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"list_catalog_providers: </span><span class="si">%d</span><span class="s2"> provider(s)"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">providers</span><span class="p">))</span>
-    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">providers</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="list_catalog_models">
-<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.list_catalog_models">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">list_catalog_models</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Return the catalog model ids for one provider, sorted.</span>
-
-<span class="sd">    The ids are what goes after ``provider:`` in a model string (e.g.</span>
-<span class="sd">    ``gpt-4o`` for ``openai``).  Ids containing ``:`` are skipped, because</span>
-<span class="sd">    ``parse_model_name`` would read the part after it as a suffix and the</span>
-<span class="sd">    model string would not resolve to the listed model.</span>
-
-<span class="sd">    Returns an empty list for :data:`NON_CATALOG_PROVIDERS` (their models</span>
-<span class="sd">    are free text), unknown providers, or when the catalog could not be</span>
-<span class="sd">    fetched.</span>
-
-<span class="sd">    :param provider: Klea provider id (e.g. ``"openai"``).</span>
-<span class="sd">    :returns: Sorted list of model ids.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">NON_CATALOG_PROVIDERS</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">[]</span>
-    <span class="n">catalog_key</span> <span class="o">=</span> <span class="n">_catalog_provider_key</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">catalog_key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">[]</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">catalog</span> <span class="o">=</span> <span class="n">_catalog</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"models.dev catalog unavailable: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">[]</span>
-
-    <span class="n">provider_entry</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">catalog_key</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_entry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[]</span>
-    <span class="n">provider_models</span> <span class="o">=</span> <span class="n">provider_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"models"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_models</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="k">return</span> <span class="p">[]</span>
-    <span class="n">models</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-        <span class="n">model_id</span>
-        <span class="k">for</span> <span class="n">model_id</span> <span class="ow">in</span> <span class="n">provider_models</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_id</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">model_id</span> <span class="ow">and</span> <span class="s2">":"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model_id</span>
-    <span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"list_catalog_models(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> model(s)"</span><span class="p">,</span> <span class="n">provider</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">models</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">models</span></div>
-
-
-
-<div class="viewcode-block" id="ProviderEndpoint">
-<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.ProviderEndpoint">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">ProviderEndpoint</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Endpoint metadata for one models.dev provider (optionally per model).</span>
-
-<span class="sd">    ``api`` is the base URL an OpenAI/Anthropic-compatible client appends</span>
-<span class="sd">    its resource path to (``/chat/completions``, ``/v1/messages``, ...), and</span>
-<span class="sd">    ``npm`` is the AI-SDK package name, which identifies the wire protocol</span>
-<span class="sd">    (``@ai-sdk/anthropic`` vs the OpenAI-shaped rest).  The catalog's ``env``</span>
-<span class="sd">    field is deliberately not exposed: it names variables for the npm</span>
-<span class="sd">    package, not for LangChain.</span>
-
-<span class="sd">    Some providers (gateways such as OpenCode, OpenRouter, Cloudflare) serve</span>
-<span class="sd">    different models on different wire surfaces.  The catalog records this as</span>
-<span class="sd">    a per-model ``provider.npm`` override which, when present, wins over the</span>
-<span class="sd">    provider default; :func:`get_provider_endpoint` resolves it when given a</span>
-<span class="sd">    model name.</span>
-<span class="sd">    """</span>
-
-    <span class="n">api</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">npm</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
-
-
-
-<div class="viewcode-block" id="get_provider_endpoint">
-<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.get_provider_endpoint">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">get_provider_endpoint</span><span class="p">(</span>
-    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ProviderEndpoint</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return the endpoint metadata for a models.dev provider, or ``None``.</span>
-
-<span class="sd">    Used to resolve ``provider:model`` model strings to an endpoint without</span>
-<span class="sd">    the user supplying a URL (the catalog ``api``), mirroring how token</span>
-<span class="sd">    limits are read from the same catalog.  Returns ``None`` when the</span>
-<span class="sd">    provider has no catalog entry, the catalog is unavailable, or the entry</span>
-<span class="sd">    carries no ``api`` (native SDK providers such as ``groq``/``mistral``</span>
-<span class="sd">    resolve their own endpoint).</span>
-
-<span class="sd">    When *model_name* is given and the catalog carries a per-model</span>
-<span class="sd">    ``provider.npm`` override (as gateways do for models served on a</span>
-<span class="sd">    different surface, e.g. ``muse-spark-1.2-contributor`` on OpenCode Go),</span>
-<span class="sd">    that npm is returned instead of the provider default.</span>
-
-<span class="sd">    :param provider: Klea provider id (e.g. ``"openrouter"``).</span>
-<span class="sd">    :param model_name: Model identifier within the provider, or ``None``.</span>
-<span class="sd">    :returns: :class:`ProviderEndpoint`, or ``None`` when unavailable.</span>
-<span class="sd">    """</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">catalog</span> <span class="o">=</span> <span class="n">_catalog</span><span class="p">()</span>
-    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"models.dev catalog unavailable: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="n">provider_entry</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">provider_entry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-        <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="n">api</span> <span class="o">=</span> <span class="n">provider_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api"</span><span class="p">)</span>
-    <span class="n">npm</span> <span class="o">=</span> <span class="n">provider_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"npm"</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">model_name</span><span class="p">:</span>
-        <span class="n">model_entry</span> <span class="o">=</span> <span class="p">(</span><span class="n">provider_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"models"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_entry</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-            <span class="n">model_provider</span> <span class="o">=</span> <span class="n">model_entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_provider</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">model_provider</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"npm"</span><span class="p">):</span>
-                <span class="n">model_npm</span> <span class="o">=</span> <span class="n">model_provider</span><span class="p">[</span><span class="s2">"npm"</span><span class="p">]</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">"Using per-model npm override for </span><span class="si">{</span><span class="n">provider</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2">: "</span>
-                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">model_npm</span><span class="si">!r}</span><span class="s2"> (provider default </span><span class="si">{</span><span class="n">npm</span><span class="si">!r}</span><span class="s2">)"</span>
-                <span class="p">)</span>
-                <span class="n">npm</span> <span class="o">=</span> <span class="n">model_npm</span>
-
-    <span class="k">return</span> <span class="n">ProviderEndpoint</span><span class="p">(</span>
-        <span class="n">api</span><span class="o">=</span><span class="n">api</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">api</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">api</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">npm</span><span class="o">=</span><span class="n">npm</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">npm</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">npm</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span></div>
-
-
-
 <span class="c1">#: Time-to-live for the in-memory live-endpoint model-limits cache, in</span>
 <span class="c1">#: seconds.  A model's ``max_model_len`` is a stable property of its</span>
 <span class="c1">#: deployment and rarely changes, so we cache it for the process lifetime;</span>
@@ -750,18 +568,12 @@
 <span class="c1">#: LangChain provider id -&gt; API key env var name, for providers whose id</span>
 <span class="c1">#: does not map to ``{PROVIDER}_API_KEY``.  ``mistralai`` reads</span>
 <span class="c1">#: ``MISTRAL_API_KEY`` in the langchain-mistralai SDK (not</span>
-<span class="c1">#: ``MISTRALAI_API_KEY``) and both HuggingFace SDKs read ``HF_TOKEN`` (not</span>
-<span class="c1">#: ``HUGGINGFACE_API_KEY``).  The alias exists so the probe authenticates</span>
+<span class="c1">#: ``MISTRALAI_API_KEY``).  The alias exists so the probe authenticates</span>
 <span class="c1">#: with the same credential the model invoke would use.</span>
-<span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-    <span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"MISTRAL_API_KEY"</span><span class="p">,</span>
-    <span class="s2">"huggingface"</span><span class="p">:</span> <span class="s2">"HF_TOKEN"</span><span class="p">,</span>
-<span class="p">}</span>
+<span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"mistralai"</span><span class="p">:</span> <span class="s2">"MISTRAL_API_KEY"</span><span class="p">}</span>
 
 
-<div class="viewcode-block" id="get_provider_api_key_env">
-<a class="viewcode-back" href="../../api/utils/models_catalog.html#klea_utils.models_catalog.get_provider_api_key_env">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_langchain_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the API key env var name a LangChain SDK reads for *provider*.</span>
 
 <span class="sd">    The provider id here is a LangChain ``_BUILTIN_PROVIDERS`` key, and</span>
@@ -770,16 +582,10 @@
 <span class="sd">    model invoke would use.  Follows the ``{PROVIDER}_API_KEY`` convention</span>
 <span class="sd">    unless an explicit alias is registered in</span>
 <span class="sd">    :data:`_LANGCHAIN_PROVIDER_API_KEY_ENV`.</span>
-
-<span class="sd">    Also used by the UI to report whether a model's credential comes from</span>
-<span class="sd">    the environment; pass a lowercase Klea model prefix.</span>
 <span class="sd">    """</span>
     <span class="k">return</span> <span class="p">(</span>
-        <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span>
-        <span class="ow">or</span> <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
-        <span class="ow">or</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_API_KEY"</span>
-    <span class="p">)</span></div>
-
+        <span class="n">_LANGCHAIN_PROVIDER_API_KEY_ENV</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">provider</span><span class="p">)</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">provider</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_API_KEY"</span>
+    <span class="p">)</span>
 
 
 <div class="viewcode-block" id="probe_endpoint_model_limits">
@@ -853,11 +659,11 @@
 
 <span class="sd">    When no explicit *api_key* is given, falls back to the standard</span>
 <span class="sd">    ``{PROVIDER}_API_KEY`` environment variable derived from *provider*</span>
-<span class="sd">    via :func:`get_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,</span>
+<span class="sd">    via :func:`_langchain_provider_api_key_env` (e.g. ``OPENAI_API_KEY``,</span>
 <span class="sd">    ``MISTRAL_API_KEY``), matching how the LangChain/OpenAI SDKs resolve</span>
 <span class="sd">    credentials for each provider.</span>
 <span class="sd">    """</span>
-    <span class="n">resolved_key</span> <span class="o">=</span> <span class="n">api_key</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">get_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">))</span>
+    <span class="n">resolved_key</span> <span class="o">=</span> <span class="n">api_key</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_langchain_provider_api_key_env</span><span class="p">(</span><span class="n">provider</span><span class="p">))</span>
     <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"Authorization"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Bearer </span><span class="si">{</span><span class="n">resolved_key</span><span class="si">}</span><span class="s2">"</span><span class="p">}</span> <span class="k">if</span> <span class="n">resolved_key</span> <span class="k">else</span> <span class="p">{}</span>
     <span class="n">url</span> <span class="o">=</span> <span class="n">base_url</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"/models"</span>
     <span class="k">try</span><span class="p">:</span>

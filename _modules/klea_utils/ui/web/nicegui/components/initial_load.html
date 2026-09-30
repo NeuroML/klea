@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../../../genindex.html"><link rel="search" title="Search" href="../../../../../../search.html">
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.ui.web.nicegui.components.initial_load - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../../../../api/utils/errors.html">Error types</a></li>
@@ -319,11 +319,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_api_is_ready</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">hydrate_chats</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">user_storage_or_none</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -338,31 +336,6 @@
 
 <span class="sd">    :param ctx: The shared page context.</span>
 <span class="sd">    """</span>
-
-    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_maybe_prompt_models</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Open the model dialog once per browser if setup is incomplete.</span>
-
-<span class="sd">        Models may come from the environment, so the prompt only appears</span>
-<span class="sd">        when required models (or their API keys) are genuinely missing.</span>
-<span class="sd">        """</span>
-        <span class="n">store</span> <span class="o">=</span> <span class="n">user_storage_or_none</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">store</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">store</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"models_prompt_shown"</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"model prompt already shown for this session"</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="n">missing_models</span> <span class="o">=</span> <span class="n">missing_required_roles</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-        <span class="n">missing_keys</span> <span class="o">=</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">missing_models</span> <span class="ow">or</span> <span class="n">missing_keys</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"models configured; no first-run prompt needed"</span><span class="p">)</span>
-            <span class="k">return</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-            <span class="s2">"first run: missing models=</span><span class="si">%s</span><span class="s2"> missing API keys=</span><span class="si">%s</span><span class="s2">; prompting"</span><span class="p">,</span>
-            <span class="n">missing_models</span><span class="p">,</span>
-            <span class="n">missing_keys</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="k">if</span> <span class="n">store</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">store</span><span class="p">[</span><span class="s2">"models_prompt_shown"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span><span class="p">()</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_initial_load</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Wait for backend, hydrate chats, then refresh UI."""</span>
@@ -397,16 +370,6 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"hydrate done, chats keys=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">chats</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"hydrate failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-
-        <span class="c1"># Per-session default models: needed for the first-run CTA and the</span>
-        <span class="c1"># status pane.  Fetch before rendering so the CTA shows immediately.</span>
-        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_session_model_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="k">await</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_session_model_info</span><span class="p">()</span>
-            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"session model fetch failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-
-        <span class="k">await</span> <span class="n">_maybe_prompt_models</span><span class="p">()</span>
 
         <span class="c1"># Clear banner and enable input.</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">loading_row</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>

@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.api.chat_core - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
@@ -326,14 +326,13 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Request</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastapi.responses</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingResponse</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">credential_scope</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -367,130 +366,14 @@
 
 
 
-<div class="viewcode-block" id="resolve_model_overrides">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.chat_core.resolve_model_overrides">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">resolve_model_overrides</span><span class="p">(</span>
-    <span class="n">graph</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">    </span><span class="sd">"""Assemble the per-run ``model_overrides`` slice.</span>
-
-<span class="sd">    Merges the per-session default overrides with the per-chat overrides</span>
-<span class="sd">    (role-level: a chat's role dict wins entirely), then injects the</span>
-<span class="sd">    user's provider credential (looked up by the model's provider/endpoint</span>
-<span class="sd">    scope) as ``api_key`` for every modifiable role with a resolved model.</span>
-<span class="sd">    Locked roles are left to the graph/env so admin-managed models are not</span>
-<span class="sd">    affected by per-user credentials.</span>
-
-<span class="sd">    :param graph: The graph, whose ``llm_models`` supply the role set and</span>
-<span class="sd">        locked (``modifiable=False``) flags, plus env-default models.</span>
-<span class="sd">    :param store: Session store with the override and credential layers.</span>
-<span class="sd">    :param user_id: Persistent user identifier.</span>
-<span class="sd">    :param chat_id: Chat conversation identifier.</span>
-<span class="sd">    :returns: The effective ``{role: config}`` for the runtime context.</span>
-<span class="sd">    """</span>
-    <span class="n">session_overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_session_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span>
-    <span class="n">chat_overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-
-    <span class="c1"># Role-level merge: a chat's role config replaces the session one.</span>
-    <span class="n">resolved</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="p">(</span><span class="o">*</span><span class="n">session_overrides</span><span class="p">,</span> <span class="o">*</span><span class="n">chat_overrides</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">chat_overrides</span><span class="p">:</span>
-            <span class="n">resolved</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chat_overrides</span><span class="p">[</span><span class="n">role</span><span class="p">])</span>
-        <span class="k">elif</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">session_overrides</span><span class="p">:</span>
-            <span class="n">resolved</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">session_overrides</span><span class="p">[</span><span class="n">role</span><span class="p">])</span>
-
-    <span class="n">llm_models</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"llm_models"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">llm_models</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
-        <span class="c1"># Tests / graphs without a role table: no metadata to inject against.</span>
-        <span class="n">llm_models</span> <span class="o">=</span> <span class="p">{}</span>
-
-    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">resolved</span><span class="p">,</span> <span class="o">*</span><span class="n">llm_models</span><span class="p">]):</span>
-        <span class="n">role_entry</span> <span class="o">=</span> <span class="n">llm_models</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">role_entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">role_entry</span><span class="p">,</span> <span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping credential injection for locked </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-            <span class="k">continue</span>
-        <span class="n">role_config</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
-        <span class="n">model_name</span> <span class="o">=</span> <span class="p">(</span><span class="n">role_config</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
-            <span class="nb">getattr</span><span class="p">(</span><span class="n">role_entry</span><span class="p">,</span> <span class="s2">"model_name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="k">if</span> <span class="n">role_entry</span> <span class="k">else</span> <span class="s2">""</span>
-        <span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">model_name</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="n">scope</span> <span class="o">=</span> <span class="n">credential_scope</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="n">secret</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_credential</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">secret</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="k">if</span> <span class="n">role_config</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">role_config</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="n">resolved</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">role_config</span>
-        <span class="c1"># Do not clobber a legacy inline key; the startup migration should</span>
-        <span class="c1"># have moved it, but be conservative.</span>
-        <span class="n">role_config</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">,</span> <span class="n">secret</span><span class="p">)</span>
-        <span class="n">store</span><span class="o">.</span><span class="n">touch_credential</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Injected credential for </span><span class="si">{</span><span class="n">role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">scope</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-
-    <span class="k">return</span> <span class="n">resolved</span></div>
-
-
-
-<div class="viewcode-block" id="migrate_legacy_overrides">
-<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.chat_core.migrate_legacy_overrides">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">migrate_legacy_overrides</span><span class="p">(</span><span class="n">store</span><span class="p">:</span> <span class="n">SessionStore</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Move legacy per-chat plaintext ``api_key`` values into credentials.</span>
-
-<span class="sd">    Pre-credential deployments stored the key inline in a chat's role</span>
-<span class="sd">    override.  Move each into ``user_credentials`` (scoped to the model's</span>
-<span class="sd">    provider) and strip it from the override, so the unused-key TTL</span>
-<span class="sd">    applies and override payloads no longer carry secrets.  Returns the</span>
-<span class="sd">    number of roles migrated.</span>
-<span class="sd">    """</span>
-    <span class="n">migrated</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">store</span><span class="o">.</span><span class="n">all_chat_overrides</span><span class="p">():</span>
-        <span class="n">user_id</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"user_id"</span><span class="p">]</span>
-        <span class="n">chat_id</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"chat_id"</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">role_config</span> <span class="ow">in</span> <span class="n">row</span><span class="p">[</span><span class="s2">"overrides"</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">role_config</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"api_key"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">role_config</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="n">secret</span> <span class="o">=</span> <span class="n">role_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">)</span>
-            <span class="n">stripped</span> <span class="o">=</span> <span class="p">{</span>
-                <span class="n">key</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">role_config</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">key</span> <span class="o">!=</span> <span class="s2">"api_key"</span>
-            <span class="p">}</span>
-            <span class="n">scope</span> <span class="o">=</span> <span class="n">credential_scope</span><span class="p">(</span><span class="n">role_config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span> <span class="ow">and</span> <span class="n">secret</span><span class="p">:</span>
-                <span class="n">existing</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_credential</span><span class="p">(</span>
-                    <span class="n">user_id</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span>
-                <span class="p">)</span>
-                <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">store</span><span class="o">.</span><span class="n">set_credential</span><span class="p">(</span>
-                        <span class="n">user_id</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">provider</span><span class="p">,</span> <span class="n">scope</span><span class="o">.</span><span class="n">endpoint</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span> <span class="n">secret</span>
-                    <span class="p">)</span>
-            <span class="k">if</span> <span class="n">stripped</span><span class="p">:</span>
-                <span class="n">store</span><span class="o">.</span><span class="n">set_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">,</span> <span class="n">stripped</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">store</span><span class="o">.</span><span class="n">clear_override</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
-            <span class="n">migrated</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-                <span class="s2">"Migrated legacy api_key: user=</span><span class="si">%s</span><span class="s2"> chat=</span><span class="si">%s</span><span class="s2"> role=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">user_id</span><span class="p">,</span>
-                <span class="n">chat_id</span><span class="p">,</span>
-                <span class="n">role</span><span class="p">,</span>
-            <span class="p">)</span>
-    <span class="k">if</span> <span class="n">migrated</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Migrate legacy overrides: </span><span class="si">%d</span><span class="s2"> role(s) migrated"</span><span class="p">,</span> <span class="n">migrated</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">migrated</span></div>
-
-
-
 <div class="viewcode-block" id="run_query">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.chat_core.run_query">[docs]</a>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_query</span><span class="p">(</span>
     <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">context_fields</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -498,20 +381,16 @@
 
 <span class="sd">    Applies the stored per-chat model overrides for the duration of the</span>
 <span class="sd">    call (via the LangGraph Runtime context, ADR-0033), maps graph errors</span>
-<span class="sd">    onto HTTP status codes, and writes the user turn when the run starts and</span>
-<span class="sd">    the assistant reply on success (so a failed turn is recorded and a</span>
-<span class="sd">    resume completes it without duplication).</span>
+<span class="sd">    onto HTTP status codes, and writes the user query + assistant answer</span>
+<span class="sd">    to the session store.</span>
 
 <span class="sd">    :param request: Request carrying ``app.state.graph`` / ``chat_sessions``</span>
-<span class="sd">    :param query: User query text; required unless *resume* is true, and</span>
-<span class="sd">        must be empty when *resume* is true</span>
+<span class="sd">    :param query: User query text</span>
 <span class="sd">    :param user_id: Persistent user identifier</span>
 <span class="sd">    :param chat_id: Chat conversation identifier</span>
-<span class="sd">    :param resume: Resume the thread's last failed run from its checkpoint</span>
-<span class="sd">        (invoked with ``None``; no user turn is written)</span>
 <span class="sd">    :param extra_state: Optional app-specific initial state fields passed</span>
 <span class="sd">        to the graph invocation (e.g. the agent's operating ``mode``</span>
-<span class="sd">        request).  Ignored on resume.</span>
+<span class="sd">        request).</span>
 <span class="sd">    :param context_fields: Optional app-defined per-run context fields that</span>
 <span class="sd">        the plumbing forwards together with the framework-provided</span>
 <span class="sd">        ``model_overrides`` slice (ADR-0033).  The assembled dict is</span>
@@ -527,13 +406,10 @@
 <span class="sd">        not produced on the bare ``ainvoke`` path (``run_graph_invoke``)</span>
 <span class="sd">        -- fetch it via ``/query/stream`` ``context`` events or the</span>
 <span class="sd">        hydration endpoint ``GET /chat/{user_id}/{chat_id}/context``.</span>
-<span class="sd">    :raises HTTPException: 400 on a missing/extra query, an empty resume,</span>
-<span class="sd">        or ``ValueError``; 503 on ``RuntimeError``; 500 on any other failure</span>
+<span class="sd">    :raises HTTPException: 400 on ``ValueError``, 503 on ``RuntimeError``,</span>
+<span class="sd">        500 on any other failure</span>
 <span class="sd">    """</span>
-    <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs; EmptyInputError is</span>
-    <span class="c1"># only needed when a resume finds nothing to continue.</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmptyInputError</span>
-
+    <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
 
     <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span>
@@ -541,30 +417,14 @@
     <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
     <span class="n">thread_id</span> <span class="o">=</span> <span class="n">thread_id_for</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-        <span class="s2">"run_query(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">) thread=</span><span class="si">%s</span><span class="s2"> resume=</span><span class="si">%s</span><span class="s2"> context_fields=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+        <span class="s2">"run_query(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">) thread=</span><span class="si">%s</span><span class="s2"> context_fields=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
         <span class="n">user_id</span><span class="p">,</span>
         <span class="n">chat_id</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">,</span>
-        <span class="n">resume</span><span class="p">,</span>
         <span class="nb">list</span><span class="p">((</span><span class="n">context_fields</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
     <span class="p">)</span>
 
-    <span class="n">user_message</span> <span class="o">=</span> <span class="p">(</span><span class="n">query</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">user_message</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
-            <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"query must be empty when resume is true"</span>
-        <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">resume</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">user_message</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
-            <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"query is required unless resume is true"</span>
-        <span class="p">)</span>
-
     <span class="n">store</span><span class="o">.</span><span class="n">create_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">resume</span><span class="p">:</span>
-        <span class="c1"># Record the user turn when the run starts (not only on success), so</span>
-        <span class="c1"># a turn that fails mid-run is still visible and retryable.</span>
-        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="n">user_message</span><span class="p">)</span>
-
     <span class="c1"># Per-run runtime context (ADR-0033): the framework provides the stored</span>
     <span class="c1"># per-chat ``model_overrides`` slice; apps may add their own fields via</span>
     <span class="c1"># ``context_fields``.  The plain dict is coerced/validated against the</span>
@@ -572,7 +432,7 @@
     <span class="c1"># *instance* here would skip that coercion, so chat_core stays</span>
     <span class="c1"># agnostic -- apps that diverge override the node layer, not the</span>
     <span class="c1"># runner).</span>
-    <span class="n">overrides</span> <span class="o">=</span> <span class="n">resolve_model_overrides</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+    <span class="n">overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="o">**</span><span class="p">(</span><span class="n">context_fields</span> <span class="ow">or</span> <span class="p">{}),</span>
         <span class="s2">"model_overrides"</span><span class="p">:</span> <span class="n">overrides</span> <span class="ow">or</span> <span class="p">{},</span>
@@ -580,12 +440,10 @@
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"run_query: assembled runtime context=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">mask_sensitive</span><span class="p">(</span><span class="n">context</span><span class="p">))</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">run_graph_invoke</span><span class="p">(</span>
-            <span class="kc">None</span> <span class="k">if</span> <span class="n">resume</span> <span class="k">else</span> <span class="n">user_message</span><span class="p">,</span>
-            <span class="n">thread_id</span><span class="p">,</span>
-            <span class="n">extra_state</span><span class="o">=</span><span class="n">extra_state</span><span class="p">,</span>
-            <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+            <span class="n">query</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">extra_state</span><span class="o">=</span><span class="n">extra_state</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
         <span class="p">)</span>
         <span class="n">message</span> <span class="o">=</span> <span class="n">result</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
         <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="s2">"run_query(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">): answer </span><span class="si">%d</span><span class="s2"> chars"</span><span class="p">,</span>
@@ -593,13 +451,6 @@
             <span class="n">chat_id</span><span class="p">,</span>
             <span class="nb">len</span><span class="p">(</span><span class="n">message</span><span class="p">),</span>
         <span class="p">)</span>
-    <span class="k">except</span> <span class="n">EmptyInputError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-            <span class="s2">"run_query: resume requested but nothing to resume for thread=</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-            <span class="n">thread_id</span><span class="p">,</span>
-            <span class="n">e</span><span class="p">,</span>
-        <span class="p">)</span>
-        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"Nothing to resume for this chat."</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Bad request: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span><span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
@@ -614,37 +465,14 @@
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_error_frame</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">error_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">resumable</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return one SSE ``error`` frame, with a ``resumable`` hint.</span>
-
-<span class="sd">    ``resumable`` tells the client it can retry the same run from the</span>
-<span class="sd">    checkpoint (see the graph fault-tolerance note); it is false when there</span>
-<span class="sd">    is nothing to resume.</span>
-<span class="sd">    """</span>
-    <span class="k">return</span> <span class="p">(</span>
-        <span class="s2">"data: "</span>
-        <span class="o">+</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
-            <span class="p">{</span>
-                <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
-                <span class="s2">"message"</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span>
-                <span class="s2">"error_type"</span><span class="p">:</span> <span class="n">error_type</span><span class="p">,</span>
-                <span class="s2">"node"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
-                <span class="s2">"resumable"</span><span class="p">:</span> <span class="n">resumable</span><span class="p">,</span>
-            <span class="p">}</span>
-        <span class="p">)</span>
-        <span class="o">+</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span>
-    <span class="p">)</span>
-
-
 <div class="viewcode-block" id="stream_response">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.chat_core.stream_response">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">stream_response</span><span class="p">(</span>
     <span class="n">request</span><span class="p">:</span> <span class="n">Request</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
-    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">enrich</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">dict</span><span class="p">]],</span> <span class="n">AsyncIterator</span><span class="p">[</span><span class="nb">dict</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">context_fields</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -652,19 +480,14 @@
 <span class="w">    </span><span class="sd">"""Return a ``/query/stream`` SSE response for the graph's events.</span>
 
 <span class="sd">    Applies the stored per-chat model overrides for the duration of the</span>
-<span class="sd">    stream and writes the user turn when the run starts and the assistant</span>
-<span class="sd">    reply on the ``complete`` event, so a turn that fails mid-run is still</span>
-<span class="sd">    recorded and can be retried.  Graph failures become ``error`` SSE events</span>
-<span class="sd">    (with a ``resumable`` hint) instead of dropping the stream.</span>
+<span class="sd">    stream, persists the user query + final assistant answer on the</span>
+<span class="sd">    ``complete`` event, and converts graph failures into ``error`` SSE</span>
+<span class="sd">    events instead of dropping the stream.</span>
 
 <span class="sd">    :param request: Request carrying ``app.state.graph`` / ``chat_sessions``</span>
-<span class="sd">    :param query: User query text; required unless *resume* is true, and</span>
-<span class="sd">        must be empty when *resume* is true</span>
+<span class="sd">    :param query: User query text</span>
 <span class="sd">    :param user_id: Persistent user identifier</span>
 <span class="sd">    :param chat_id: Chat conversation identifier</span>
-<span class="sd">    :param resume: Resume the thread's last failed run from its checkpoint.</span>
-<span class="sd">        The graph is invoked with ``None`` (no query) and the failed node is</span>
-<span class="sd">        re-run; no user turn is written.</span>
 <span class="sd">    :param enrich: Optional async-generator wrapper applied to the raw</span>
 <span class="sd">        ``run_graph_astream_events`` event stream before framing.  Apps</span>
 <span class="sd">        use it to inject app-specific events (e.g. a ``context`` event</span>
@@ -672,7 +495,7 @@
 <span class="sd">        ``None``, every graph event is emitted unchanged.</span>
 <span class="sd">    :param extra_state: Optional app-specific initial state fields passed</span>
 <span class="sd">        to the graph invocation (e.g. the agent's operating ``mode``</span>
-<span class="sd">        request).  Ignored on resume.</span>
+<span class="sd">        request).</span>
 <span class="sd">    :param context_fields: Optional app-defined per-run context fields that</span>
 <span class="sd">        the plumbing forwards together with the framework-provided</span>
 <span class="sd">        ``model_overrides`` slice (ADR-0033).  The assembled dict is</span>
@@ -683,10 +506,7 @@
 <span class="sd">        ``chat_core``.</span>
 <span class="sd">    :returns: A :class:`fastapi.responses.StreamingResponse` SSE stream</span>
 <span class="sd">    """</span>
-    <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs; EmptyInputError is</span>
-    <span class="c1"># only needed when a resume finds nothing to continue.</span>
-    <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">EmptyInputError</span>
-
+    <span class="c1"># Lazy: BaseLangGraph is the base class for all graphs.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span>
 
     <span class="n">graph</span><span class="p">:</span> <span class="n">BaseLangGraph</span>
@@ -694,35 +514,18 @@
     <span class="n">graph</span><span class="p">,</span> <span class="n">store</span> <span class="o">=</span> <span class="n">_graph_and_store</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
     <span class="n">thread_id</span> <span class="o">=</span> <span class="n">thread_id_for</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-        <span class="s2">"stream_response(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">) thread=</span><span class="si">%s</span><span class="s2"> resume=</span><span class="si">%s</span><span class="s2"> context_fields=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+        <span class="s2">"stream_response(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">) thread=</span><span class="si">%s</span><span class="s2"> context_fields=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
         <span class="n">user_id</span><span class="p">,</span>
         <span class="n">chat_id</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">,</span>
-        <span class="n">resume</span><span class="p">,</span>
         <span class="nb">list</span><span class="p">((</span><span class="n">context_fields</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">keys</span><span class="p">()),</span>
     <span class="p">)</span>
 
-    <span class="n">user_message</span> <span class="o">=</span> <span class="p">(</span><span class="n">query</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">user_message</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
-            <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"query must be empty when resume is true"</span>
-        <span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">resume</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">user_message</span><span class="p">:</span>
-        <span class="k">raise</span> <span class="n">HTTPException</span><span class="p">(</span>
-            <span class="n">status_code</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="s2">"query is required unless resume is true"</span>
-        <span class="p">)</span>
-
     <span class="n">store</span><span class="o">.</span><span class="n">create_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">resume</span><span class="p">:</span>
-        <span class="c1"># Record the user turn when the run starts (not on completion), so a</span>
-        <span class="c1"># turn that fails mid-run is still visible and retryable; the</span>
-        <span class="c1"># assistant row is written on ``complete``.</span>
-        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="n">user_message</span><span class="p">)</span>
-
     <span class="c1"># Per-run runtime context (ADR-0033): same assembly as run_query -- the</span>
     <span class="c1"># framework's ``model_overrides`` slice plus any app ``context_fields``,</span>
     <span class="c1"># forwarded as a plain dict for boundary coercion/validation.</span>
-    <span class="n">overrides</span> <span class="o">=</span> <span class="n">resolve_model_overrides</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">store</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+    <span class="n">overrides</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">get_overrides</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">context</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="o">**</span><span class="p">(</span><span class="n">context_fields</span> <span class="ow">or</span> <span class="p">{}),</span>
         <span class="s2">"model_overrides"</span><span class="p">:</span> <span class="n">overrides</span> <span class="ow">or</span> <span class="p">{},</span>
@@ -735,15 +538,13 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stream_response: starting event stream for thread=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">raw_events</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">run_graph_astream_events</span><span class="p">(</span>
-                <span class="kc">None</span> <span class="k">if</span> <span class="n">resume</span> <span class="k">else</span> <span class="n">user_message</span><span class="p">,</span>
-                <span class="n">thread_id</span><span class="p">,</span>
-                <span class="n">extra_state</span><span class="o">=</span><span class="n">extra_state</span><span class="p">,</span>
-                <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+                <span class="n">query</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">,</span> <span class="n">extra_state</span><span class="o">=</span><span class="n">extra_state</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span>
             <span class="p">)</span>
             <span class="n">events</span> <span class="o">=</span> <span class="n">raw_events</span> <span class="k">if</span> <span class="n">enrich</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">enrich</span><span class="p">(</span><span class="n">raw_events</span><span class="p">)</span>
             <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
                 <span class="n">t</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
+                    <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span>
                     <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span>
                         <span class="n">user_id</span><span class="p">,</span>
                         <span class="n">chat_id</span><span class="p">,</span>
@@ -756,21 +557,17 @@
                         <span class="n">chat_id</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="k">yield</span> <span class="sa">f</span><span class="s2">"data: </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">"</span>
-        <span class="k">except</span> <span class="n">EmptyInputError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">"stream_response: resume requested but nothing to resume for "</span>
-                <span class="s2">"thread=</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">thread_id</span><span class="p">,</span>
-                <span class="n">e</span><span class="p">,</span>
-            <span class="p">)</span>
-            <span class="k">yield</span> <span class="n">_error_frame</span><span class="p">(</span>
-                <span class="s2">"Nothing to resume for this chat."</span><span class="p">,</span>
-                <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
-                <span class="n">resumable</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="p">)</span>
         <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">_error_frame</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">resumable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">error_event</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
+                    <span class="s2">"message"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span>
+                    <span class="s2">"error_type"</span><span class="p">:</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                    <span class="s2">"node"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="k">yield</span> <span class="sa">f</span><span class="s2">"data: </span><span class="si">{</span><span class="n">error_event</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">"</span>
 
     <span class="k">return</span> <span class="n">StreamingResponse</span><span class="p">(</span>
         <span class="n">event_stream</span><span class="p">(),</span>

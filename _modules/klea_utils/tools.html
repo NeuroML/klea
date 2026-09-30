@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html">
         <link rel="prefetch" href="../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
         <title>klea_utils.tools - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
@@ -187,6 +187,7 @@
     <img class="sidebar-logo" src="../../_static/klea-logo.png" alt="Logo"/>
   </div>
   
+  <span class="sidebar-brand-text">Klea</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
   <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
@@ -252,7 +253,6 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/nodes.html">Nodes</a></li>
-<li class="toctree-l3"><a class="reference internal" href="../../api/utils/imports.html">Optional-dependency imports</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/paths.html">Path utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/plogging.html">Logging</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../../api/utils/errors.html">Error types</a></li>
@@ -310,7 +310,6 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
@@ -340,7 +339,6 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">textualize_tool_results</span><span class="p">(</span>
     <span class="n">tool_results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span>
     <span class="n">max_len_per_tool</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">include_header</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Format tool call results as LLM-ready text for use in prompt context.</span>
 
@@ -352,62 +350,25 @@
 <span class="sd">    :param max_len_per_tool: If set, truncate each tool's textual content to</span>
 <span class="sd">        this many characters (per-tool cap, not total). Ensures a large first</span>
 <span class="sd">        result doesn't starve later tools' outputs.</span>
-<span class="sd">    :param include_header: When ``True`` (default) emit the batch header</span>
-<span class="sd">        (``## Tool Results``) and a ``### Result i/n`` label per result.  Set</span>
-<span class="sd">        ``False`` to render the bare content of a single result, e.g. when a</span>
-<span class="sd">        caller supplies its own per-result heading.</span>
 <span class="sd">    :returns: Formatted string suitable for inclusion in an LLM prompt</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">tool_results</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">""</span>
 
-    <span class="n">text</span> <span class="o">=</span> <span class="s2">"## Tool Results</span><span class="se">\n</span><span class="s2">"</span> <span class="k">if</span> <span class="n">include_header</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="s2">"## Tool Results</span><span class="se">\n</span><span class="s2">"</span>
     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tool_results</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
-        <span class="k">if</span> <span class="n">include_header</span><span class="p">:</span>
-            <span class="n">text</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">### Result </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_results</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="n">text</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">### Result </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_results</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
 
         <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">_textualize_content_block</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">]</span>
         <span class="n">content</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">max_len_per_tool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">content</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_len_per_tool</span><span class="p">:</span>
             <span class="n">content</span> <span class="o">=</span> <span class="n">content</span><span class="p">[:</span><span class="n">max_len_per_tool</span><span class="p">]</span> <span class="o">+</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">[tool result </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2"> truncated]"</span>
         <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span><span class="p">:</span>
-            <span class="n">text</span> <span class="o">+=</span> <span class="s2">"**Tool call failed:** "</span> <span class="o">+</span> <span class="n">content</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="n">text</span> <span class="o">+=</span> <span class="s2">"**Error:** "</span> <span class="o">+</span> <span class="n">content</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">text</span> <span class="o">+=</span> <span class="s2">"**Tool call succeeded:** "</span> <span class="o">+</span> <span class="n">content</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span>
             <span class="n">text</span> <span class="o">+=</span> <span class="s2">"```</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="n">content</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">```</span><span class="se">\n</span><span class="s2">"</span>
 
     <span class="k">return</span> <span class="n">text</span></div>
-
-
-
-<div class="viewcode-block" id="last_tool_error_text">
-<a class="viewcode-back" href="../../api/utils/tools.html#klea_utils.tools.last_tool_error_text">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">last_tool_error_text</span><span class="p">(</span>
-    <span class="n">tool_results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">max_len</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return the text of the last error result in a batch, or ``""``.</span>
-
-<span class="sd">    Used to give the tool picker concrete feedback when a round failed (for</span>
-<span class="sd">    example an ``edit_file`` ambiguity), so it can adjust the call instead of</span>
-<span class="sd">    repeating it.  Only the last error is returned: the picker retries one</span>
-<span class="sd">    round at a time, so the most recent failure is the one to correct.</span>
-
-<span class="sd">    :param tool_results: The batch's tool results (``None`` treated as empty).</span>
-<span class="sd">    :param max_len: Truncate the extracted text to this many characters.</span>
-<span class="sd">    :returns: The final error result's textual content, or ``""`` if none.</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">tool_results</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">""</span>
-    <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">tool_results</span><span class="p">):</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
-            <span class="k">continue</span>
-        <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">_textualize_content_block</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">content</span><span class="p">]</span>
-        <span class="n">text</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">max_len</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_len</span><span class="p">:</span>
-            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="n">max_len</span><span class="p">]</span> <span class="o">+</span> <span class="s2">" [truncated]"</span>
-        <span class="k">return</span> <span class="n">text</span>
-    <span class="k">return</span> <span class="s2">""</span></div>
 
 
 
@@ -431,17 +392,10 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_format_tool_parameters</span><span class="p">(</span><span class="n">input_schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return a compact one-line-per-parameter summary of an MCP tool schema.</span>
 
-<span class="sd">    The raw JSON Schema ``properties`` dict is verbose (length and range</span>
-<span class="sd">    validators, ``anyOf`` unions); only the parameter name, type, whether it</span>
-<span class="sd">    is required or optional, its default, and the description are useful for</span>
-<span class="sd">    argument binding, so the rest is dropped and whitespace is normalised.</span>
-
-<span class="sd">    Optionality and defaults are stated explicitly rather than left implicit:</span>
-<span class="sd">    a model should not have to infer that a parameter without ``required`` is</span>
-<span class="sd">    optional, and it cannot see that an omitted filter means "all" unless the</span>
-<span class="sd">    default is shown (for example ``pattern (string, optional, default "*")``).</span>
-<span class="sd">    A JSON ``null`` default is omitted: it means "unset" for these tools and</span>
-<span class="sd">    rendering it as ``default null`` invites the model to pass a literal null.</span>
+<span class="sd">    The raw JSON Schema ``properties`` dict is verbose (defaults, length and</span>
+<span class="sd">    range validators, ``anyOf`` unions); only the parameter name, type,</span>
+<span class="sd">    required flag, and description are useful for tool selection, so the</span>
+<span class="sd">    rest is dropped and whitespace is normalised.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">input_schema</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">""</span>
@@ -455,14 +409,8 @@
             <span class="k">continue</span>
         <span class="n">ptype</span> <span class="o">=</span> <span class="n">_collapse_schema_type</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
         <span class="n">desc</span> <span class="o">=</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">((</span><span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"description"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
-        <span class="n">flag</span> <span class="o">=</span> <span class="s2">"required"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">else</span> <span class="s2">"optional"</span>
-        <span class="n">default</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"default"</span><span class="p">)</span>
-        <span class="n">default_part</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">", default </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">default</span><span class="p">,</span><span class="w"> </span><span class="n">ensure_ascii</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-            <span class="k">if</span> <span class="s2">"default"</span> <span class="ow">in</span> <span class="n">schema</span> <span class="ow">and</span> <span class="n">default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
-            <span class="k">else</span> <span class="s2">""</span>
-        <span class="p">)</span>
-        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ptype</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">flag</span><span class="si">}{</span><span class="n">default_part</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">rstrip</span><span class="p">())</span>
+        <span class="n">flag</span> <span class="o">=</span> <span class="s2">", required"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">required</span> <span class="k">else</span> <span class="s2">""</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">ptype</span><span class="si">}{</span><span class="n">flag</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">desc</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">rstrip</span><span class="p">())</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">""</span>
     <span class="k">return</span> <span class="s2">"Parameters:</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
@@ -470,14 +418,11 @@
 
 <div class="viewcode-block" id="build_tool_description">
 <a class="viewcode-back" href="../../api/utils/tools.html#klea_utils.tools.build_tool_description">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n">Tool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Build the full and compact LLM-facing descriptions for an MCP tool.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">build_tool_description</span><span class="p">(</span><span class="n">t</span><span class="p">:</span> <span class="n">Tool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the compact LLM-facing description for an MCP tool.</span>
 
-<span class="sd">    Returns a ``(full, short)`` tuple.  :class:`klea_utils.mcp.schemas.ToolInfo`</span>
-<span class="sd">    stores both: the **full** form (heading + docstring + compact parameter</span>
-<span class="sd">    list) is what the tool picker needs to emit calls, while the **short** form</span>
-<span class="sd">    (heading + docstring only) is for planner-style nodes that reason about</span>
-<span class="sd">    which tools exist without the argument detail (tiered disclosure).</span>
+<span class="sd">    Used to populate :class:`klea_utils.mcp.schemas.ToolInfo.description`</span>
+<span class="sd">    so the tool picker's prompt stays small as more tools are added.</span>
 
 <span class="sd">    Klea expects MCP tool descriptions to follow the *docstring-first*</span>
 <span class="sd">    convention (see ``docs/concepts/mcp.rst``, "Tool description length and</span>
@@ -499,14 +444,10 @@
     <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"## </span><span class="si">{</span><span class="n">t</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span>
     <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">description</span><span class="p">:</span>
         <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">description</span><span class="p">)</span>
-    <span class="n">short</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
-
-    <span class="n">full_parts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
     <span class="n">params</span> <span class="o">=</span> <span class="n">_format_tool_parameters</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">inputSchema</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">params</span><span class="p">:</span>
-        <span class="n">full_parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
-    <span class="n">full</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">full_parts</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">full</span><span class="p">,</span> <span class="n">short</span></div>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">"</span><span class="se">\n\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span></div>
 
 
 
