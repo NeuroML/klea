@@ -27,7 +27,7 @@ exception.
 
 | Event | Source | Shape | Web consumer | TUI |
 |-------|--------|-------|--------------|-----|
-| `progress` | node (custom) | `{type, node}` | streaming spinner label | spinner text |
+| `progress` | node (custom) | `{type, node, data{heading}}` | streaming spinner label (`data.heading`) | spinner text |
 | `inspect` | node (custom) | `{type, node, data{heading, summary, details}}` | inspection pane entry (summary shown, `details` collapsed) | ignored |
 | `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | ignored |
 | `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | ignored |
@@ -37,6 +37,15 @@ exception.
 | `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | printed |
 | `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | spinner fail |
 
+### `progress`
+
+`node` is the emitting node's label and is the stable identity the runner
+keys timing and dedup on; `data.heading` is the line shown while the node
+runs (it defaults to the label).  A same-node heading change - an LLM invoke
+retry - is forwarded without resetting the node timer, so retries appear as
+`<label> (retry n/m: <reason>)` on the spinner (`_emit_progress` on
+`AbstractLangGraphNode`, `_emit_retry` on `BaseLLMNode`).
+
 ### `inspect` (replaces `info`/`debug`)
 
 One inspection event per node execution.  `_get_inspect()` returns
@@ -44,6 +53,9 @@ One inspection event per node execution.  `_get_inspect()` returns
 (`summary` visible, `details` collapsible), not in two event types.  ADR-0013's
 `info` (concise) and `debug` (full) were not tiers - `debug` is a strict
 superset and both were emitted unconditionally - so they were collapsed.
+LLM invoke retries also emit an `inspect` entry mid-run (`heading="Retry"`,
+`details` = `{attempt, max, reason, action?, max_tokens?}`) so the retry
+history is visible alongside the node's own inspection entry.
 
 ### `state`
 

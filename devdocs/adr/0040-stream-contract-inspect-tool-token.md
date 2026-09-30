@@ -58,8 +58,8 @@ duplicative rather than two genuine tiers.
 Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
 
 * **`inspect` replaces `info` and `debug`.**  `NodeStreamEvent.type` is
-  `Literal["inspect", "state", "usage"]`; a node implements a single
-  `_get_inspect()` returning `NodeStreamData`.  The runner forwards
+  `Literal["progress", "inspect", "state", "usage"]`; a node implements a
+  single `_get_inspect()` returning `NodeStreamData`.  The runner forwards
   `inspect`/`state`/`usage` (plus `progress`) from the custom channel.  The web
   inspector renders `inspect` entries; the summary is shown and `details` is
   collapsible.  Nodes that previously emitted only `info` now emit `inspect`
@@ -116,6 +116,21 @@ Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
   `test_nodes_tools_picker.py`, `test_graph_base.py`; RAG/agent node tests.
 * End-to-end: `klea cli` shows a live plan (`inspect` state sections), tool
   blocks for edits, and no token noise.
+
+### Update (2026-09-30)
+
+* `progress` is now part of the typed contract: `NodeStreamEvent.type` gained
+  `"progress"`, and a progress event carries its display line in
+  `data.heading`.  `node` stays the stable identity the runner keys timing and
+  dedup on; a same-node heading change is forwarded without resetting the node
+  timer.
+* `NodeStreamData.summary` now defaults to `""` so a `progress` payload can
+  leave every field except `heading` empty.  `heading` is dual-purpose: the
+  progress line for `progress`, the section heading for `inspect`.
+* LLM invoke retries (`BaseLLMNode._emit_retry`) now report to the user: a
+  `progress` heading change (`<label> (retry n/m: <reason>)`) plus an `inspect`
+  entry (`heading="Retry"`, structured `details`), instead of being visible
+  only in the logs.
 
 ## More Information
 

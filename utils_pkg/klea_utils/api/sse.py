@@ -59,7 +59,9 @@ async def stream_events(
 
     Each yielded dict has at least a ``"type"`` key.  Known types::
 
-        progress    {"type": "progress", "node": "<label>"}
+        progress    {"type": "progress", "node": "<label>",
+                     "data": {"heading": "<text>"}}  (heading is the line shown;
+                     it changes for an LLM invoke retry)
         inspect     {"type": "inspect", "node": "<label>", "data": {...}}
         token       {"type": "token", "content": "<chunk>", "node": "<label>"}
                     (only for opted-in free-text nodes)
