@@ -16,7 +16,13 @@ import logging
 
 import httpx
 import pytest
-from klea_utils.api.sse import stream_events, stream_events_sync
+from klea_utils.api.sse import (
+    fetch_catalogue_models,
+    fetch_catalogue_models_sync,
+    fetch_catalogue_providers,
+    stream_events,
+    stream_events_sync,
+)
 from klea_utils.ui.web.nicegui.components.stream import apply_stream_event
 from klea_utils.ui.web.nicegui.state import chats, ensure_chat
 
@@ -333,3 +339,62 @@ class TestStreamEventsClient:
         next(stream_events_sync("q", "c", "http://backend", resume=True))
         body = json.loads(sse_transport[0].content)
         assert body == {"chat_id": "c", "user_id": "", "resume": True}
+
+
+@pytest.fixture
+def catalogue_transport(monkeypatch):
+    """Serve fake catalogue responses; ``status`` switches to an error reply."""
+
+    state: dict = {"requests": [], "status": 200}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        state["requests"].append(request)
+        if state["status"] != 200:
+            return httpx.Response(state["status"])
+        provider = request.url.params.get("provider")
+        if provider:
+            return httpx.Response(
+                200, json={"provider": provider, "models": ["gpt-4o"]}
+            )
+        return httpx.Response(200, json={"providers": ["custom", "ollama"]})
+
+    def _patch(client_cls: type):
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(_handler)
+            return client_cls(*args, **kwargs)
+
+        return _factory
+
+    monkeypatch.setattr(
+        "klea_utils.api.sse.httpx.AsyncClient", _patch(httpx.AsyncClient)
+    )
+    monkeypatch.setattr("klea_utils.api.sse.httpx.Client", _patch(httpx.Client))
+    return state
+
+
+class TestCatalogueFetch:
+    """Unit tests for the model catalogue fetch helpers."""
+
+    async def test_providers(self, catalogue_transport):
+        providers = await fetch_catalogue_providers("http://backend", "u1")
+        assert providers == ["custom", "ollama"]
+        assert (
+            str(catalogue_transport["requests"][0].url)
+            == "http://backend/chat/u1/models/catalogue"
+        )
+
+    async def test_models_for_provider(self, catalogue_transport):
+        models = await fetch_catalogue_models("http://backend", "u1", "openai")
+        assert models == ["gpt-4o"]
+        assert catalogue_transport["requests"][0].url.params["provider"] == "openai"
+
+    def test_models_sync(self, catalogue_transport):
+        assert fetch_catalogue_models_sync("http://backend", "u1", "openai") == [
+            "gpt-4o"
+        ]
+
+    async def test_error_returns_empty(self, catalogue_transport):
+        """A failed call gives an empty list, so the fields stay free text."""
+        catalogue_transport["status"] = 500
+        assert await fetch_catalogue_providers("http://backend", "u1") == []
+        assert await fetch_catalogue_models("http://backend", "u1", "openai") == []

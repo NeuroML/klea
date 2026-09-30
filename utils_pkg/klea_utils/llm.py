@@ -50,6 +50,8 @@ class ParsedModelName(NamedTuple):
     provider: str | None
     model_name: str
     suffix: str | None
+    #: Model variant.  Not supported yet, so ``None`` for now.
+    variant: str | None = None
 
 
 def parse_model_name(raw: str) -> ParsedModelName:
@@ -94,6 +96,41 @@ def parse_model_name(raw: str) -> ParsedModelName:
         )
 
     return ParsedModelName(provider=provider, model_name=parts[1], suffix=parts[2])
+
+
+#: Providers whose third model string segment is not an endpoint URL: for
+#: ``ollama`` it is the model tag (``ollama:qwen3:0.6b``) and for
+#: ``huggingface`` the inference provider (``huggingface:org/model:novita``).
+#: The model selection UIs offer no custom URL for these.
+PROVIDERS_WITHOUT_CUSTOM_URL: frozenset[str] = frozenset({"ollama", "huggingface"})
+
+
+def join_model_string(
+    provider: str | None, model_name: str, suffix: str | None = None
+) -> str:
+    """Join model name components back into a model string.
+
+    The inverse of :func:`parse_model_name`, used by the model selection
+    UIs on save.  Gives ``provider:model_name``, or
+    ``provider:model_name:suffix`` when a suffix (e.g. a custom endpoint
+    URL) is set.
+
+    Without a provider the model name is returned as it is, so a full
+    model string typed straight into the model field still works.
+
+    :param provider: Klea provider id, e.g. ``"openai"``.
+    :param model_name: Model id within the provider, e.g. ``"gpt-4o"``.
+    :param suffix: Optional third segment.
+    :returns: The model string, or ``""`` when no model name is set.
+    """
+    provider = (provider or "").strip().lower()
+    model_name = model_name.strip()
+    suffix = (suffix or "").strip()
+    if not model_name:
+        return ""
+    if not provider:
+        return model_name
+    return f"{provider}:{model_name}:{suffix}" if suffix else f"{provider}:{model_name}"
 
 
 class CredentialScope(NamedTuple):

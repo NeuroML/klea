@@ -19,6 +19,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -28,6 +29,7 @@ from pydantic import BaseModel
 from klea_utils.api.credentials import credential_status, mask_secret
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import parse_model_name
+from klea_utils.models_catalog import list_catalog_models, list_catalog_providers
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
@@ -135,6 +137,11 @@ def _resolve_active(
 def create_models_router() -> APIRouter:
     """Create an APIRouter for per-session and per-chat model configuration.
 
+    Model catalogue (suggestions for the model selection UIs)::
+
+        GET    /chat/{user_id}/models/catalogue
+        GET    /chat/{user_id}/models/catalogue?provider=...
+
     Per-session defaults::
 
         GET    /chat/{user_id}/models/overrides
@@ -159,6 +166,32 @@ def create_models_router() -> APIRouter:
         graph: Any = request.app.state.graph
         store: SessionStore = request.app.state.chat_sessions
         return graph, store
+
+    # ------------------------------------------------------------------
+    # Model catalogue
+    # ------------------------------------------------------------------
+
+    @router.get("/{user_id}/models/catalogue")
+    async def get_model_catalogue(user_id: str, provider: str | None = None):
+        """Return the providers, or one provider's models, for model selection.
+
+        Without ``provider`` the provider list is returned (models.dev
+        providers plus ollama and custom); with it, that provider's model
+        ids.  The first call may have to download the models.dev catalog,
+        which blocks, so the lookup runs in a worker thread.
+        """
+        if provider:
+            models = await asyncio.to_thread(list_catalog_models, provider)
+            logger.debug(
+                "get_model_catalogue(%s, provider=%s): %d model(s)",
+                user_id,
+                provider,
+                len(models),
+            )
+            return {"provider": provider, "models": models}
+        providers = await asyncio.to_thread(list_catalog_providers)
+        logger.debug("get_model_catalogue(%s): %d provider(s)", user_id, len(providers))
+        return {"providers": providers}
 
     # ------------------------------------------------------------------
     # Per-session defaults

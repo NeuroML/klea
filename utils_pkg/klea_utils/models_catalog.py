@@ -7,7 +7,8 @@ model -> properties) and exposes the per-model token limits used to bound
 LLM output token reservations.  This is needed because some providers
 (e.g. HuggingFace) reserve the whole context window as output when no
 max-token parameter is set, which leads to spurious usage limits and rate
-limiting.
+limiting.  The provider and model lists are also exposed, so the model
+selection UIs can offer them as suggestions.
 
 The catalog is fetched lazily on first use, kept in memory for the
 process lifetime (``lru_cache``), and mirrored to an on-disk cache
@@ -65,8 +66,31 @@ _MODELS_DEV_PROVIDER_KEYS: dict[str, str | None] = {
     "anthropic": "anthropic",
     "google_genai": "google",
     "google": "google",
+    "google_vertexai": "google-vertex",
+    "bedrock_converse": "amazon-bedrock",
+    "azure_openai": "azure",
+    "mistralai": "mistral",
+    "together": "togetherai",
     "custom": "openai",
     "ollama": None,
+}
+
+#: Providers offered by the model selection UIs that have no catalog entry:
+#: local ollama models and ``custom:`` endpoints.  Their models are typed in
+#: as free text.
+NON_CATALOG_PROVIDERS: tuple[str, ...] = ("ollama", "custom")
+
+#: models.dev catalog provider key -> Klea provider id, for the keys where
+#: Klea (LangChain) expects a different name in the model string (e.g.
+#: ``google`` -> ``google_genai``).  Built from the reverse of
+#: :data:`_MODELS_DEV_PROVIDER_KEYS`, skipping identical names and the
+#: non-catalog providers (``custom`` also points at ``openai``).  Used when
+#: listing providers for the model selection UIs; any key not listed here is
+#: already a valid Klea provider id.
+_KLEA_PROVIDER_IDS: dict[str, str] = {
+    catalog_key: klea_id
+    for klea_id, catalog_key in _MODELS_DEV_PROVIDER_KEYS.items()
+    if catalog_key and catalog_key != klea_id and klea_id not in NON_CATALOG_PROVIDERS
 }
 
 
@@ -249,6 +273,71 @@ def get_catalog_model_limits(provider: str, model_name: str) -> ModelLimits | No
         input=limit.get("input") if isinstance(limit.get("input"), int) else None,
         output=limit.get("output") if isinstance(limit.get("output"), int) else None,
     )
+
+
+def list_catalog_providers() -> list[str]:
+    """Return the providers for the model selection UIs, sorted.
+
+    Every models.dev provider is listed under its Klea provider id (e.g.
+    ``google`` -> ``google_genai``), plus :data:`NON_CATALOG_PROVIDERS`.
+    Those two are listed even when the catalog is unavailable, so a local
+    ollama model or a custom endpoint can still be picked offline.
+
+    :returns: Sorted list of Klea provider ids.
+    """
+    providers = set(NON_CATALOG_PROVIDERS)
+    try:
+        catalog = _catalog()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("models.dev catalog unavailable: %s", e)
+    else:
+        for key, provider_entry in catalog.items():
+            if isinstance(provider_entry, dict):
+                providers.add(_KLEA_PROVIDER_IDS.get(key, key))
+    logger.debug("list_catalog_providers: %d provider(s)", len(providers))
+    return sorted(providers)
+
+
+def list_catalog_models(provider: str) -> list[str]:
+    """Return the catalog model ids for one provider, sorted.
+
+    The ids are what goes after ``provider:`` in a model string (e.g.
+    ``gpt-4o`` for ``openai``).  Ids containing ``:`` are skipped, because
+    ``parse_model_name`` would read the part after it as a suffix and the
+    model string would not resolve to the listed model.
+
+    Returns an empty list for :data:`NON_CATALOG_PROVIDERS` (their models
+    are free text), unknown providers, or when the catalog could not be
+    fetched.
+
+    :param provider: Klea provider id (e.g. ``"openai"``).
+    :returns: Sorted list of model ids.
+    """
+    if provider.lower() in NON_CATALOG_PROVIDERS:
+        return []
+    catalog_key = _catalog_provider_key(provider)
+    if catalog_key is None:
+        return []
+
+    try:
+        catalog = _catalog()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("models.dev catalog unavailable: %s", e)
+        return []
+
+    provider_entry = catalog.get(catalog_key)
+    if not isinstance(provider_entry, dict):
+        return []
+    provider_models = provider_entry.get("models")
+    if not isinstance(provider_models, dict):
+        return []
+    models = sorted(
+        model_id
+        for model_id in provider_models
+        if isinstance(model_id, str) and model_id and ":" not in model_id
+    )
+    logger.debug("list_catalog_models(%s): %d model(s)", provider, len(models))
+    return models
 
 
 class ProviderEndpoint(NamedTuple):

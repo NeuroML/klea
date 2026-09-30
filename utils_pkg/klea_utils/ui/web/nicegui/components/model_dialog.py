@@ -10,12 +10,17 @@ the session defaults ("last used").  API keys are not part of the model
 override  ---  they are provider-scoped and edited in a separate, masked
 (write-only) credentials dialog.
 
+Each role's model is picked with a provider field, a model field and an
+optional custom URL, all filled from the models.dev catalogue and joined
+back into a single model string on save.
+
 File: klea_utils/ui/web/nicegui/components/model_dialog.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import inspect
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -24,10 +29,19 @@ from nicegui import ui
 
 from klea_utils.api.sse import (
     fetch_active_models,
+    fetch_catalogue_models,
+    fetch_catalogue_providers,
     fetch_credentials,
     fetch_session_models,
 )
-from klea_utils.llm import credential_scope, provider_requires_api_key
+from klea_utils.llm import (
+    PROVIDERS_WITHOUT_CUSTOM_URL,
+    ParsedModelName,
+    credential_scope,
+    join_model_string,
+    parse_model_name,
+    provider_requires_api_key,
+)
 from klea_utils.ui.web.nicegui.client import (
     clear_credential,
     clear_model_override,
@@ -40,6 +54,157 @@ from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.state import ensure_chat
 
 logger = logging.getLogger(__name__)
+
+
+def _autocomplete_select(
+    label: str,
+    value: str,
+    options: list[str],
+    on_change: Callable[[str], Any],
+) -> ui.select:
+    """A select that filters as you type and also accepts free text.
+
+    Free text matters because ollama and custom models are not in the
+    catalogue.  Quasar only commits a typed value on Enter, so it is also
+    committed when the field loses focus; otherwise clicking Save straight
+    after typing would quietly keep the old value.
+
+    :param label: Field label.
+    :param value: Initial value; kept as an option even if not in *options*.
+    :param options: Suggestions to filter.
+    :param on_change: Called with the new value; may be async.
+    :returns: The select element.
+    """
+    typed = {"text": value}
+    options = list(options)
+    if value and value not in options:
+        options.insert(0, value)
+
+    async def _changed(e) -> None:
+        typed["text"] = e.value or ""
+        result = on_change(e.value or "")
+        if inspect.isawaitable(result):
+            await result
+
+    select = ui.select(
+        options,
+        label=label,
+        value=value or None,
+        new_value_mode="add-unique",
+        on_change=_changed,
+    ).classes("w-full")
+
+    def _on_input(e) -> None:
+        typed["text"] = e.args if isinstance(e.args, str) else ""
+
+    def _on_blur(_) -> None:
+        text = typed["text"].strip()
+        if not text or text == select.value:
+            return
+        if text not in select.options:
+            select.set_options([*select.options, text])
+        select.value = text
+
+    select.on("input-value", _on_input)
+    select.on("blur", _on_blur)
+    return select
+
+
+class _ModelPicker:
+    """Provider, model and custom URL fields for one role.
+
+    Picking a provider loads its models from the catalogue.  ``value``
+    joins the fields back into a model string, so the dialog's save logic
+    keeps working on plain model strings.
+    """
+
+    def __init__(
+        self,
+        model: str,
+        providers: list[str],
+        models_for: Callable[[str], list[str]],
+        load_models: Callable[[str], Awaitable[list[str]]],
+        on_change: Callable[[str], None],
+    ) -> None:
+        """Build the fields, prefilled from *model*.
+
+        :param model: Current model string for the role.
+        :param providers: Provider suggestions.
+        :param models_for: Returns the already loaded models for a provider.
+        :param load_models: Loads (and caches) the models for a provider.
+        :param on_change: Called with the joined model string on any edit.
+        """
+        model = (model or "").strip()
+        try:
+            parsed = parse_model_name(model)
+        except ValueError:
+            # Half typed (e.g. ``openai:``): keep it whole in the model field
+            # so nothing the user typed is lost.
+            parsed = ParsedModelName(provider=None, model_name=model, suffix=None)
+        suffix = parsed.suffix or ""
+        is_url = suffix.startswith(("http://", "https://"))
+        self._original_provider = parsed.provider or ""
+        self._original_model = parsed.model_name
+        # Any other suffix (e.g. a HuggingFace inference provider) has no
+        # field of its own; it is put back on save while the model is unchanged.
+        self._original_suffix = "" if is_url else suffix
+        self._load_models = load_models
+        self._on_change = on_change
+        self.provider = _autocomplete_select(
+            "Provider", self._original_provider, providers, self._provider_changed
+        )
+        self.model = _autocomplete_select(
+            "Model",
+            self._original_model,
+            models_for(self._original_provider),
+            lambda _: self._changed(),
+        )
+        self.url = ui.input(
+            "Custom URL (optional)",
+            value=suffix if is_url else "",
+            on_change=lambda _: self._changed(),
+        ).classes("w-full")
+        with self.url:
+            ui.tooltip(
+                "Overrides the provider's default endpoint, e.g. a self hosted "
+                "OpenAI compatible server."
+            )
+        self._update_url_visibility()
+
+    @property
+    def value(self) -> str:
+        """The model string built from the current field values."""
+        provider = (self.provider.value or "").strip()
+        model = (self.model.value or "").strip()
+        url = (self.url.value or "").strip()
+        if url and provider.lower() not in PROVIDERS_WITHOUT_CUSTOM_URL:
+            suffix = url
+        elif (provider, model) == (self._original_provider, self._original_model):
+            suffix = self._original_suffix
+        else:
+            suffix = None
+        return join_model_string(provider, model, suffix)
+
+    def disable(self) -> None:
+        """Disable all fields (locked roles)."""
+        self.provider.disable()
+        self.model.disable()
+        self.url.disable()
+
+    def _update_url_visibility(self) -> None:
+        provider = (self.provider.value or "").strip().lower()
+        self.url.set_visibility(provider not in PROVIDERS_WITHOUT_CUSTOM_URL)
+
+    async def _provider_changed(self, provider: str) -> None:
+        """Load the new provider's models and clear the old model."""
+        logger.debug(f"model picker: {provider = }")
+        models = await self._load_models(provider) if provider else []
+        self.model.set_options(models, value=None)
+        self._update_url_visibility()
+        self._changed()
+
+    def _changed(self) -> None:
+        self._on_change(self.value)
 
 
 def attach_model_info(ctx: PageContext) -> None:
@@ -386,6 +551,33 @@ def attach_model_info(ctx: PageContext) -> None:
         role_labels: dict[str, Any] = {}
         role_inputs: dict[str, Any] = {}
 
+        # Catalogue suggestions for the model pickers.  Providers are
+        # fetched once; each provider's models are fetched the first time
+        # it is picked and cached for the life of the dialog.
+        providers = await fetch_catalogue_providers(ctx.server_url, ctx.user_id)
+        catalogue_models: dict[str, list[str]] = {}
+
+        async def _load_models(provider: str) -> list[str]:
+            if provider not in catalogue_models:
+                catalogue_models[provider] = await fetch_catalogue_models(
+                    ctx.server_url, ctx.user_id, provider
+                )
+            return catalogue_models[provider]
+
+        # Preload the providers already in use so the model fields open
+        # with their suggestions.
+        for model_name in role_values.values():
+            try:
+                role_provider = parse_model_name((model_name or "").strip()).provider
+            except ValueError:
+                continue
+            if role_provider:
+                await _load_models(role_provider)
+        logger.debug(
+            f"model config dialog: {len(providers)} catalogue provider(s)\n"
+            f"{list(catalogue_models) = }"
+        )
+
         # Enter an explicit slot: this may run in a background task (the
         # first-run prompt), which has no ambient slot (see PageContext).
         with ctx.dialog_container:
@@ -535,16 +727,16 @@ def attach_model_info(ctx: PageContext) -> None:
                         original_model = cfg.get("model", "")
                         with ui.tab_panel(tab_map[role]):
                             model_value = role_values.get(role, original_model)
-                            model_input = ui.input("Model", value=model_value).classes(
-                                "w-full"
+                            model_picker = _ModelPicker(
+                                model_value,
+                                providers,
+                                lambda p: catalogue_models.get(p, []),
+                                _load_models,
+                                lambda value, r=role: _on_model_change(r, value),
                             )
-                            role_inputs[role] = model_input
+                            role_inputs[role] = model_picker
                             if not modifiable:
-                                model_input.disable()
-                            else:
-                                model_input.on_value_change(
-                                    lambda e, r=role: _on_model_change(r, e.value)
-                                )
+                                model_picker.disable()
                             cred_text, cred_colour = _credential_display(
                                 model_value, cfg.get("credential") or {}
                             )

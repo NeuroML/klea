@@ -20,6 +20,7 @@ from klea_utils.llm import (
     format_alert,
     get_last_n_conversations,
     get_recent_messages,
+    join_model_string,
     missing_required_roles,
     parse_model_name,
     provider_api_key_env,
@@ -190,6 +191,44 @@ def test_parse_model_name(raw, expected_provider, expected_model, expected_suffi
     assert parsed.provider == expected_provider
     assert parsed.model_name == expected_model
     assert parsed.suffix == expected_suffix
+    assert parsed.variant is None
+
+
+@pytest.mark.parametrize(
+    argnames=["fields", "expected"],
+    argvalues=[
+        (("openai", "gpt-4o", None), "openai:gpt-4o"),
+        (("openai", "gpt-4o", "https://host/v1"), "openai:gpt-4o:https://host/v1"),
+        (("ollama", "qwen3:0.6b", None), "ollama:qwen3:0.6b"),
+        (("huggingface", "org/model", "novita"), "huggingface:org/model:novita"),
+        # no provider: the model field holds the whole string
+        ((None, "openai:gpt-4o", None), "openai:gpt-4o"),
+        (("", "bge-m3", ""), "bge-m3"),
+        # no model, nothing to save
+        (("openai", "", "https://host/v1"), ""),
+        # whitespace and provider case are normalised
+        ((" OpenAI ", " gpt-4o ", " "), "openai:gpt-4o"),
+    ],
+)
+def test_join_model_string(fields, expected):
+    assert join_model_string(*fields) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "openai:gpt-4o",
+        "openai:gpt-4o:https://host/v1",
+        "custom:model:http://localhost:8000/v1",
+        "ollama:qwen3:0.6b",
+        "huggingface:org/model:novita",
+        "bge-m3",
+    ],
+)
+def test_parse_then_join_round_trips(raw):
+    """Opening and saving the dialog unchanged must not alter the model."""
+    parsed = parse_model_name(raw)
+    assert join_model_string(parsed.provider, parsed.model_name, parsed.suffix) == raw
 
 
 def _history_messages():

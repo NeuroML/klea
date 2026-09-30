@@ -16,6 +16,7 @@ import json
 import logging
 from collections.abc import AsyncGenerator, Generator
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -225,6 +226,85 @@ def fetch_credentials_sync(server_url: str, user_id: str) -> list[dict[str, Any]
     data = _fetch_json_sync(url)
     logger.debug("Credentials for %s: %d", user_id, len(data or []))
     return data or []
+
+
+#: Timeout for the model catalogue calls.  Longer than the default: the
+#: first call may have to download the models.dev catalog on the server.
+CATALOGUE_FETCH_TIMEOUT_SECONDS = 30
+
+
+def _catalogue_url(server_url: str, user_id: str, provider: str | None) -> str:
+    """Return the model catalogue URL, optionally for one provider."""
+    url = f"{server_url}/chat/{user_id}/models/catalogue"
+    if provider:
+        url += f"?provider={quote(provider)}"
+    return url
+
+
+def _catalogue_list(data: Any, key: str) -> list[str]:
+    """Pull the ``providers`` / ``models`` list out of a catalogue response."""
+    if not isinstance(data, dict):
+        return []
+    items = data.get(key)
+    return items if isinstance(items, list) else []
+
+
+async def fetch_catalogue_providers(server_url: str, user_id: str) -> list[str]:
+    """Fetch the providers offered for model selection.
+
+    Calls ``GET /chat/{user_id}/models/catalogue``.  Returns an empty list
+    on any error, so the model fields fall back to plain free text.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :returns: Sorted provider ids, e.g. ``["anthropic", "custom", ...]``.
+    """
+    url = _catalogue_url(server_url, user_id, None)
+    data = await _fetch_json(url, timeout=CATALOGUE_FETCH_TIMEOUT_SECONDS)
+    providers = _catalogue_list(data, "providers")
+    logger.debug("Catalogue providers for %s: %d", user_id, len(providers))
+    return providers
+
+
+def fetch_catalogue_providers_sync(server_url: str, user_id: str) -> list[str]:
+    """Synchronous counterpart of :func:`fetch_catalogue_providers`."""
+    url = _catalogue_url(server_url, user_id, None)
+    data = _fetch_json_sync(url, timeout=CATALOGUE_FETCH_TIMEOUT_SECONDS)
+    providers = _catalogue_list(data, "providers")
+    logger.debug("Catalogue providers for %s: %d", user_id, len(providers))
+    return providers
+
+
+async def fetch_catalogue_models(
+    server_url: str, user_id: str, provider: str
+) -> list[str]:
+    """Fetch the model ids offered for one provider.
+
+    Calls ``GET /chat/{user_id}/models/catalogue?provider=...``.  Returns an
+    empty list on any error, and for providers whose models are free text
+    (ollama, custom).
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :param provider: Klea provider id, e.g. ``"openai"``.
+    :returns: Sorted model ids, e.g. ``["gpt-4o", "gpt-4o-mini", ...]``.
+    """
+    url = _catalogue_url(server_url, user_id, provider)
+    data = await _fetch_json(url, timeout=CATALOGUE_FETCH_TIMEOUT_SECONDS)
+    models = _catalogue_list(data, "models")
+    logger.debug("Catalogue models for %s (%s): %d", user_id, provider, len(models))
+    return models
+
+
+def fetch_catalogue_models_sync(
+    server_url: str, user_id: str, provider: str
+) -> list[str]:
+    """Synchronous counterpart of :func:`fetch_catalogue_models`."""
+    url = _catalogue_url(server_url, user_id, provider)
+    data = _fetch_json_sync(url, timeout=CATALOGUE_FETCH_TIMEOUT_SECONDS)
+    models = _catalogue_list(data, "models")
+    logger.debug("Catalogue models for %s (%s): %d", user_id, provider, len(models))
+    return models
 
 
 def format_model_info(info: dict[str, dict[str, str]]) -> str:
