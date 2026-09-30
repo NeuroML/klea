@@ -35,6 +35,10 @@ from klea_utils.api.sse import (
     fetch_session_models,
 )
 from klea_utils.llm import (
+    HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
+    HUGGINGFACE_LOCAL_SUFFIX,
+    HUGGINGFACE_PROVIDER,
+    HUGGINGFACE_ROUTING_POLICIES,
     PROVIDERS_WITHOUT_CUSTOM_URL,
     ParsedModelName,
     credential_scope,
@@ -111,11 +115,13 @@ def _autocomplete_select(
 
 
 class _ModelPicker:
-    """Provider, model and custom URL fields for one role.
+    """Provider, model, backend and custom URL fields for one role.
 
-    Picking a provider loads its models from the catalogue.  ``value``
-    joins the fields back into a model string, so the dialog's save logic
-    keeps working on plain model strings.
+    Picking a provider loads its models from the catalogue.  For
+    ``huggingface`` two extra fields select the backend (hosted Inference
+    Providers API, or the local pipeline) and the inference provider /
+    routing policy.  ``value`` joins the fields back into a model string,
+    so the dialog's save logic keeps working on plain model strings.
     """
 
     def __init__(
@@ -145,9 +151,23 @@ class _ModelPicker:
         is_url = suffix.startswith(("http://", "https://"))
         self._original_provider = parsed.provider or ""
         self._original_model = parsed.model_name
-        # Any other suffix (e.g. a HuggingFace inference provider) has no
-        # field of its own; it is put back on save while the model is unchanged.
+        # Any other suffix (e.g. a custom endpoint or a HuggingFace
+        # inference provider) has no field of its own for non-HF providers;
+        # it is put back on save while the model is unchanged.
         self._original_suffix = "" if is_url else suffix
+        # HuggingFace parses its suffix into a backend + inference provider.
+        if self._original_provider.lower() == HUGGINGFACE_PROVIDER:
+            self._original_backend = (
+                "local" if suffix == HUGGINGFACE_LOCAL_SUFFIX else "endpoint"
+            )
+            self._original_inference = (
+                ""
+                if self._original_backend == "local"
+                else (suffix or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER)
+            )
+        else:
+            self._original_backend = "endpoint"
+            self._original_inference = ""
         self._load_models = load_models
         self._on_change = on_change
         self.provider = _autocomplete_select(
@@ -157,6 +177,29 @@ class _ModelPicker:
             "Model",
             self._original_model,
             models_for(self._original_provider),
+            lambda _: self._changed(),
+        )
+        self.backend = ui.select(
+            {
+                "endpoint": "Hosted (inference providers)",
+                "local": "Local (downloads the model)",
+            },
+            label="Run",
+            value=self._original_backend,
+            on_change=lambda _: self._backend_changed(),
+        ).classes("w-full")
+        with self.backend:
+            ui.tooltip(
+                "Hosted runs on HuggingFace's inference providers; Local "
+                "downloads the weights and needs suitable hardware."
+            )
+        self.inference_provider = _autocomplete_select(
+            "Inference provider",
+            self._original_inference or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
+            [
+                HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
+                *sorted(HUGGINGFACE_ROUTING_POLICIES),
+            ],
             lambda _: self._changed(),
         )
         self.url = ui.input(
@@ -169,13 +212,21 @@ class _ModelPicker:
                 "Overrides the provider's default endpoint, e.g. a self hosted "
                 "OpenAI compatible server."
             )
-        self._update_url_visibility()
+        self._update_field_visibility()
 
     @property
     def value(self) -> str:
         """The model string built from the current field values."""
         provider = (self.provider.value or "").strip()
         model = (self.model.value or "").strip()
+        if provider.lower() == HUGGINGFACE_PROVIDER:
+            if (self.backend.value or "endpoint") == "local":
+                suffix = HUGGINGFACE_LOCAL_SUFFIX
+            else:
+                suffix = (
+                    self.inference_provider.value or ""
+                ).strip() or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER
+            return join_model_string(provider, model, suffix)
         url = (self.url.value or "").strip()
         if url and provider.lower() not in PROVIDERS_WITHOUT_CUSTOM_URL:
             suffix = url
@@ -189,18 +240,32 @@ class _ModelPicker:
         """Disable all fields (locked roles)."""
         self.provider.disable()
         self.model.disable()
+        self.backend.disable()
+        self.inference_provider.disable()
         self.url.disable()
 
-    def _update_url_visibility(self) -> None:
+    def _update_field_visibility(self) -> None:
         provider = (self.provider.value or "").strip().lower()
-        self.url.set_visibility(provider not in PROVIDERS_WITHOUT_CUSTOM_URL)
+        is_hf = provider == HUGGINGFACE_PROVIDER
+        self.url.set_visibility(
+            not is_hf and provider not in PROVIDERS_WITHOUT_CUSTOM_URL
+        )
+        self.backend.set_visibility(is_hf)
+        self.inference_provider.set_visibility(
+            is_hf and (self.backend.value or "endpoint") != "local"
+        )
+
+    def _backend_changed(self) -> None:
+        """Update field visibility when the HuggingFace backend changes."""
+        self._update_field_visibility()
+        self._changed()
 
     async def _provider_changed(self, provider: str) -> None:
         """Load the new provider's models and clear the old model."""
         logger.debug(f"model picker: {provider = }")
         models = await self._load_models(provider) if provider else []
         self.model.set_options(models, value=None)
-        self._update_url_visibility()
+        self._update_field_visibility()
         self._changed()
 
     def _changed(self) -> None:
