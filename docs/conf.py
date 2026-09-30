@@ -39,6 +39,7 @@ html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_title = "Klea"
 html_logo = "_static/klea-logo.png"
+html_favicon = "_static/klea-logo-notext.png"
 html_show_sphinx = False
 
 # Per-page "Edit this page" / "View this page" links pointing at the GitHub
@@ -48,6 +49,9 @@ html_theme_options = {
     "source_repository": "https://github.com/NeuroML/klea",
     "source_branch": "development",
     "source_directory": "docs",
+    # The logo is a wordmark that already reads "Klea", so hide the
+    # duplicated project name text in the sidebar header.
+    "sidebar_hide_name": True,
 }
 
 
