@@ -70,7 +70,6 @@ def textualize_tool_results(
             text += "**Tool call failed:** " + content + "\n"
         else:
             text += "**Tool call succeeded:** " + content + "\n"
-            text += "```\n" + content + "\n```\n"
 
     return text
 
