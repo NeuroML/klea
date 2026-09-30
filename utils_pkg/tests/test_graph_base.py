@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from types import SimpleNamespace
 from typing import Any, cast, override
+from unittest import mock
 
 import pytest
 from fastmcp.mcp_config import MCPConfig
@@ -19,8 +20,11 @@ from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, create_configurable_model
 from klea_utils.mcp.access import ToolAccessOverride
 from klea_utils.nodes.answer_general import AnswerGeneral
+from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.fixed_answer import FixedAnswer
-from langchain_core.messages import AnyMessage
+from langchain_core.messages import AIMessage, AnyMessage
+from langchain_core.prompt_values import StringPromptValue
+from langchain_core.runnables import RunnableConfig
 from mcp.types import Tool, ToolAnnotations
 from pydantic import BaseModel, Field
 
@@ -755,6 +759,167 @@ class TestProgressStreaming:
             "Planner",
             "Answer",
         ]
+
+
+class _RetryToyState(BaseModel):
+    """State for the retry-streaming graph."""
+
+    query: str = ""
+    message_for_user: str = ""
+
+
+class _IntegrationLLMNode(BaseLLMNode[BaseModel, BaseModel]):
+    """Minimal LLM node used only to reach ``_invoke_with_retries``.
+
+    Overrides the abstract hooks so the node can be constructed inside a
+    graph run and have its ``_invoke_llm`` called directly (the full
+    ``execute`` template is not exercised).
+    """
+
+    model_type = "chat"
+
+    def _get_prompt_variables(self, state):
+        return {}
+
+    def _update_state(self, result, state):
+        return {}
+
+    def _get_default_error_result(self):
+        return ""
+
+
+class _RetryGraph(BaseLangGraph):
+    """Toy graph whose only node drives one retrying LLM invoke."""
+
+    env_class: type[BaseModel] = BaseModel
+    config_class: type[BaseModel] = BaseModel
+    env_var: str = "RETRY_ENV_FILE"
+    env_file_default: str = "retry.env"
+    graph_name: str = "RetryGraph"
+
+    def __init__(self, inst):
+        super().__init__(logging_level=logging.INFO, checkpoint="none", log_file=False)
+        self.logger = logging.getLogger(self.graph_name)
+        self._inst = inst
+
+    @override
+    def _load_env(self) -> None:
+        self.app_env = cast(BaseModel, SimpleNamespace(chat_model="dummy"))
+        self.app_config = cast(BaseModel, SimpleNamespace(providers={}))
+
+    @override
+    def _configure_resources(self) -> None:
+        pass
+
+    @override
+    def _setup_models(self) -> None:
+        self.llm_models = {
+            "chat": LLMModel(instance=self._inst, model_name="openai:gpt-4o")
+        }
+
+    @override
+    async def _create_graph(self) -> None:
+        from langgraph.graph import END, START, StateGraph
+
+        inst = self._inst
+        llm_models = self.llm_models
+        logger = self.logger
+        label = "Retrying answer"
+
+        async def _run(state):
+            node = _IntegrationLLMNode(
+                logger=logger,
+                label=label,
+                llm_models=llm_models,
+                output_schema=None,
+            )
+            config = cast(
+                RunnableConfig,
+                {
+                    "configurable": {
+                        "model": "gpt-4o",
+                        "model_provider": "openai",
+                        "max_tokens": 4096,
+                    }
+                },
+            )
+            await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+            return {"message_for_user": "done"}
+
+        workflow = StateGraph(_RetryToyState)
+        workflow.add_node(label, _run)
+        workflow.add_edge(START, label)
+        workflow.add_edge(label, END)
+        self.graph = workflow.compile()
+
+
+class TestRetryEventsStreamed:
+    """End-to-end: a node retry reaches the ``astream_events`` stream.
+
+    The two unit-level halves are tested separately (the node emitter with
+    a stubbed stream writer; the runner with pre-built custom events).  This
+    drives a real compiled graph so ``write_custom_stream`` writes through
+    the live custom channel and the runner forwards the retry
+    ``progress``/``inspect`` events.
+    """
+
+    def setup_method(self):
+        self.logger = logging.getLogger("test_graph_base.retry-stream")
+        # Keep the truncation retry hermetic/offline: no models.dev lookup.
+        self._catalog_patcher = mock.patch(
+            "klea_utils.llm.get_catalog_model_limits", return_value=None
+        )
+        self._catalog_patcher.start()
+
+    def teardown_method(self):
+        self._catalog_patcher.stop()
+
+    async def _events(self, inst):
+        graph = _RetryGraph(inst)
+        await graph.setup()
+        return [e async for e in graph.run_graph_astream_events("q")]
+
+    async def test_timeout_retry_is_streamed(self):
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                TimeoutError("timed out"),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        with mock.patch("klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S", 0.0):
+            events = await self._events(inst)
+
+        headings = [e["data"]["heading"] for e in events if e.get("type") == "progress"]
+        assert any(
+            h.startswith("Retrying answer (retry 1/") and "timed out" in h
+            for h in headings
+        ), headings
+
+        retry = next(
+            e
+            for e in events
+            if e.get("type") == "inspect" and e["data"].get("heading") == "Retry"
+        )
+        assert retry["data"]["details"]["reason"] == "timed out"
+
+    async def test_truncation_retry_is_streamed(self):
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                AIMessage(content="cut", response_metadata={"finish_reason": "length"}),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        events = await self._events(inst)
+
+        retry = next(
+            e
+            for e in events
+            if e.get("type") == "inspect" and e["data"].get("heading") == "Retry"
+        )
+        assert retry["data"]["details"]["action"] == "grow"
+        assert retry["data"]["details"]["reason"] == "output truncated"
 
 
 class TestRunContextForwarding:
