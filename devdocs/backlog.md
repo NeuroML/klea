@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-09-28.
+Last updated: 2026-09-30.
 
 ## HITL / plan review
 
@@ -113,6 +113,28 @@ Last updated: 2026-09-28.
   only, absent on headless servers); `{env:VAR}` references in place of stored
   secrets; and encryption at rest with a key from the deployment's auth
   provider (Keycloak) once deployments authenticate.
+- Model variants (design/ADR first): `ParsedModelName.variant` is unused.  The
+  de-facto standard is opencode's `provider/model#variant`, a named request
+  overlay deep-merged into provider/model settings.  opencode sources variant
+  names from models.dev `reasoning_options` (Klea's catalog already carries
+  this field; the client just does not read it yet), plus hardcoded heuristics
+  and config `variants` overrides, and maps each variant to provider-specific
+  request kwargs.  Klea would need: `reasoning_options` access in
+  `klea_utils/models_catalog.py`; provider -> LangChain kwargs mapping (e.g.
+  ChatOpenAI `reasoning_effort`/`reasoning`, ChatAnthropic
+  `thinking`/`reasoning_effort`); a config `variants` section; `#variant`
+  parsing in `parse_model_name` (`provider:model#variant[:suffix]`); picker
+  support (dropdown from `reasoning_options`, free-text fallback); and an ADR.
+- HuggingFace model discovery: the picker's model list is models.dev's
+  `huggingface` provider (78 curated, mostly large models); small/on-device
+  models (SmolLM2, Qwen2.5-0.5B, ...) are absent and must be typed as free
+  text.  Consider a curated small-model suggestion list (offline) and/or an HF
+  Hub-backed list
+  (`GET https://huggingface.co/api/models?filter=text-generation&sort=downloads`)
+  behind a cached server endpoint with an offline fallback.
+- Verify the HuggingFace local (`:local`) backend end to end once a working
+  local `torch` is available; the maintainer's env has a broken CUDA build
+  (`undefined symbol: ncclCommResume`).
 
 ## Testing
 
