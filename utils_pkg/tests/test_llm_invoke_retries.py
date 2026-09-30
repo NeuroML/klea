@@ -182,6 +182,113 @@ class TestInvokeWithRetries:
             inst, StringPromptValue(text="hi"), config or make_config()
         )
 
+    def _node_with_events(self, inst):
+        """Build a node whose stream writes are collected into a list."""
+        node = make_node(inst)
+        events: list[dict] = []
+        node.write_custom_stream = events.append  # type: ignore[method-assign]
+        return node, events
+
+    @staticmethod
+    def _inspect_details(events):
+        """Return the ``details`` of the first emitted ``inspect`` event."""
+        return next(e for e in events if e["type"] == "inspect")["data"]["details"]
+
+    async def _invoke_events(self, inst, config=None):
+        """Like ``_invoke`` but returns ``(output, emitted_events)``."""
+        node, events = self._node_with_events(inst)
+        out = await node._invoke_llm(
+            inst, StringPromptValue(text="hi"), config or make_config()
+        )
+        return out, events
+
+    async def test_context_overflow_emits_retry_events(self):
+        """An overflow retry emits a progress line and an inspect entry."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                RuntimeError("Error code: 400 - context_length_exceeded"),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        _out, events = await self._invoke_events(inst, make_config(max_tokens=4096))
+
+        progress = [e for e in events if e["type"] == "progress"]
+        inspect = [e for e in events if e["type"] == "inspect"]
+        assert progress[0]["data"]["heading"] == (
+            f"test (retry 1/{MAX_CONTEXT_OVERFLOW_RETRIES}: context window exceeded)"
+        )
+        assert inspect[0]["data"]["heading"] == "Retry"
+        details = inspect[0]["data"]["details"]
+        assert details["action"] == "shrink"
+        assert details["reason"] == "context window exceeded"
+        assert details["max_tokens"] == 2048
+
+    async def test_truncation_emits_grow_retry(self):
+        """A truncated output retries by growing the window, and reports it."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                AIMessage(content="cut", response_metadata={"finish_reason": "length"}),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        _out, events = await self._invoke_events(inst, make_config(max_tokens=4096))
+        details = self._inspect_details(events)
+        assert details["action"] == "grow"
+        assert details["reason"] == "output truncated"
+        assert details["max_tokens"] > 4096
+
+    async def test_timeout_emits_retry(self):
+        """A transient timeout retry is reported (no window action)."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                TimeoutError("timed out"),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        with mock.patch("klea_utils.nodes.base.TRANSIENT_RETRY_BACKOFF_S", 0.0):
+            _out, events = await self._invoke_events(inst)
+        details = self._inspect_details(events)
+        assert details["reason"] == "timed out"
+        assert "action" not in details
+
+    async def test_empty_output_emits_retry(self):
+        """An empty response retry is reported."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=[
+                AIMessage(content=""),
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"}),
+            ]
+        )
+        _out, events = await self._invoke_events(inst)
+        details = self._inspect_details(events)
+        assert details["reason"] == "empty response"
+
+    async def test_no_retry_emits_no_events(self):
+        """A clean invoke emits no progress/inspect retry events."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content="ok", response_metadata={"finish_reason": "stop"}
+            )
+        )
+        _out, events = await self._invoke_events(inst)
+        assert events == []
+
+    async def test_rate_limit_emits_no_events(self):
+        """A non-retryable error emits nothing (it propagates immediately)."""
+        inst = mock.Mock()
+        inst.ainvoke = mock.AsyncMock(
+            side_effect=RuntimeError("Error code: 429 - Rate limit reached")
+        )
+        node, events = self._node_with_events(inst)
+        with pytest.raises(RuntimeError):
+            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        assert events == []
+
     async def test_context_overflow_retry_shrinks_window(self):
         """An overflow error retries once with a halved output window."""
         inst = mock.Mock()

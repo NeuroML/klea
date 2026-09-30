@@ -54,7 +54,7 @@ from ..llm import (
     structured_output_known_unsupported,
 )
 from ..models_catalog import probe_endpoint_model_limits
-from .abstract import AbstractLLMNode
+from .abstract import AbstractLLMNode, NodeStreamData, NodeStreamEvent
 
 #: Max times to retry an invoke that overflowed the context window, each
 #: time shrinking the reserved output window to free headroom.
@@ -704,6 +704,13 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         overflow_retries,
                         MAX_CONTEXT_OVERFLOW_RETRIES,
                     )
+                    self._emit_retry(
+                        reason="context window exceeded",
+                        attempt=overflow_retries,
+                        max_attempts=MAX_CONTEXT_OVERFLOW_RETRIES,
+                        action="shrink",
+                        max_tokens=self._current_output_window(config),
+                    )
                     continue
 
                 if category is LLMInvocationErrorCategory.LENGTH_TRUNCATION:
@@ -713,6 +720,13 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                     if grow:
                         truncation_retries += 1
                         self.logger.warning(message)
+                        self._emit_retry(
+                            reason="output truncated",
+                            attempt=truncation_retries,
+                            max_attempts=MAX_TRUNCATION_RETRIES,
+                            action="grow",
+                            max_tokens=self._current_output_window(config),
+                        )
                         continue
                     raise
 
@@ -729,6 +743,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         empty_retries,
                         MAX_EMPTY_OUTPUT_RETRIES,
                     )
+                    self._emit_retry(
+                        reason="empty structured response",
+                        attempt=empty_retries,
+                        max_attempts=MAX_EMPTY_OUTPUT_RETRIES,
+                    )
                     continue
 
                 if (
@@ -744,6 +763,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         MAX_TRANSIENT_RETRIES,
                         exc,
                     )
+                    self._emit_retry(
+                        reason="timed out",
+                        attempt=transient_retries,
+                        max_attempts=MAX_TRANSIENT_RETRIES,
+                    )
                     await asyncio.sleep(delay)
                     continue
                 raise
@@ -753,6 +777,13 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                 if grow:
                     truncation_retries += 1
                     self.logger.warning(message)
+                    self._emit_retry(
+                        reason="output truncated",
+                        attempt=truncation_retries,
+                        max_attempts=MAX_TRUNCATION_RETRIES,
+                        action="grow",
+                        max_tokens=self._current_output_window(config),
+                    )
                     continue
                 return output
 
@@ -763,6 +794,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         "Empty LLM output, retrying (%d/%d)",
                         empty_retries,
                         MAX_EMPTY_OUTPUT_RETRIES,
+                    )
+                    self._emit_retry(
+                        reason="empty response",
+                        attempt=empty_retries,
+                        max_attempts=MAX_EMPTY_OUTPUT_RETRIES,
                     )
                     continue
                 self.logger.warning(
@@ -806,6 +842,60 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             )
         self.logger.warning("Output truncated but output window cannot grow further")
         return False, ""
+
+    def _current_output_window(self, config: RunnableConfig) -> int | None:
+        """Return the output-token window currently set in *config*, or None."""
+        overrides = config["configurable"]
+        provider = overrides.get("model_provider") or "openai"
+        value = overrides.get(get_token_limit_param(provider))
+        return int(value) if isinstance(value, int) else None
+
+    def _emit_retry(
+        self,
+        *,
+        reason: str,
+        attempt: int,
+        max_attempts: int,
+        action: str = "",
+        max_tokens: int | None = None,
+    ) -> None:
+        """Report an LLM invoke retry to the live UI and the inspect tab.
+
+        Emits a ``progress`` event (the live line, via the shared
+        ``_emit_progress`` helper) and an ``inspect`` event (a permanent
+        entry in the inspect tab) carrying the structured retry details.
+
+        Guarded because ``_invoke_with_retries`` is called directly by unit
+        tests outside a LangGraph run, where no stream writer exists; the
+        caller has already logged the retry.
+
+        :param reason: Short human-readable cause (e.g. ``"timed out"``).
+        :param attempt: 1-based retry number.
+        :param max_attempts: Total retry budget for this kind.
+        :param action: Output-window action (``"shrink"``/``"grow"``) or "".
+        :param max_tokens: The new output window, when it changed.
+        """
+        summary = f"{self.label} (retry {attempt}/{max_attempts}: {reason})"
+        details: dict[str, Any] = {
+            "attempt": attempt,
+            "max": max_attempts,
+            "reason": reason,
+        }
+        if action:
+            details["action"] = action
+        if max_tokens is not None:
+            details["max_tokens"] = max_tokens
+        try:
+            self._emit_progress(heading=summary)
+            event = NodeStreamEvent(
+                type="inspect",
+                node=self.label,
+                data=NodeStreamData(heading="Retry", summary=summary, details=details),
+            )
+            self.write_custom_stream(event.model_dump())
+        except RuntimeError:
+            # No active run (direct unit-test call): the retry is still logged.
+            pass
 
     def _process_output(self, output: AIMessage | dict[str, Any]) -> Any:
         """Common output processing with error handling.
