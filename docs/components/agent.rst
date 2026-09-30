@@ -65,6 +65,22 @@ Memory
 Conversation history is summarised per session, so long-running chats stay
 within the model's context window.
 
+Project context
+---------------
+
+The agent reads a project instruction file from its working directory and
+loads it into session-scoped *discovery*: ``AGENTS.md`` is preferred, with
+``CLAUDE.md`` as the fallback (the first one present wins).  The file is
+read once per session and re-read only when its modification time changes,
+so editing it updates the agent without restarting the server.
+
+The discovered text is rendered into the **Planner** and the final
+**answer-composer** prompts, so project conventions (build and test
+commands, code layout, house style) inform both how a task is planned and
+how the reply is written.  It is not injected into the per-round nodes,
+which see project specifics through the plan instead.  A project with no
+instruction file simply has no extra context.
+
 Tool access
 -----------
 

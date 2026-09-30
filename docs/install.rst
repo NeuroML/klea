@@ -232,8 +232,18 @@ to try a model without editing any files::
 If a required model is not set, the server still starts but logs a warning
 listing every model environment variable and its current state.  Queries
 then return a clear "No model configured" error.  From the web UI you can
-set models per chat at runtime with the settings (gear) icon, without
-restarting the server.
+set models at runtime, without restarting the server: open the model dialog
+with the settings (gear) icon in the status pane and pick each role's
+provider, model and optional custom URL from the
+`models.dev <https://models.dev>`_ catalogue (free text is still accepted
+for uncatalogued models).  The dialog edits the per-session defaults when
+no chat is open and the current chat's overrides otherwise; saving in a
+chat also updates the defaults, so new chats inherit them.  A first-run
+**Choose models** prompt opens the dialog when setup is incomplete, and
+send stays disabled until the required models and API keys are configured.
+API keys are provider-scoped and managed from the same dialog (**Manage API
+keys**); they are masked in responses and expire after a period unused.  See
+:doc:`components/web-ui` for the interface.
 
 Example invocation::
 

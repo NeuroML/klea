@@ -24,6 +24,7 @@
 - Provider-scoped API credentials (per user, keyed by provider plus the endpoint for custom/explicit-URL models) with a `/credentials/{user_id}` API; keys are never returned raw (masked suffix and a `user`/`env`/`none` source only).
 - Stored credentials expire after a configurable TTL (`KLEA_CREDENTIAL_TTL_DAYS`, default 7 days; `0` disables) once unused, swept at startup and on access.
 - Web UI: the model selector works before any chat, a first-run "Choose models" prompt appears when setup is incomplete, and send is disabled until the required models and API keys are configured.
+- Web UI: the model dialog picks each role's model with provider, model and optional custom-URL dropdowns filled from the models.dev catalogue, while still accepting free text for uncatalogued models (for example `ollama:` or a self-hosted endpoint).
 - Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 
 ### Changed
