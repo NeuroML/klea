@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/_static/klea-logo.png" alt="Klea logo" width="240">
+</p>
+
 # Klea
 
 Knowledge vaLidated Expert AI Assistant for scientific research.
