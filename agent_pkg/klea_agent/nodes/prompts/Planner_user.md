@@ -18,17 +18,7 @@
 
 ---
 
-## Project context
-
-### Discovery
-
-{discovery}
-
-### Artefacts
-
-{artefacts}
-
-### Observations
+## Observations
 
 {observations}
 

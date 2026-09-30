@@ -1,3 +1,9 @@
+## Project context
+
+{discovery}
+
+---
+
 ## Goal
 
 {goal}
@@ -17,11 +23,6 @@
 
 ---
 
-## Project context
-
-{discovery}
-
----
 
 ## Observations
 

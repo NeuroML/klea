@@ -86,6 +86,18 @@
 
 ---
 
+## Project context
+
+### Artefacts
+
+{artefacts}
+
+### Discovery
+
+{discovery}
+
+---
+
 ## Available tools
 
 {tools_description}

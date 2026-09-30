@@ -30,7 +30,7 @@ summary.
 
 ## If the outcome is needs_input
 
-* Do not claim the task is done or failed.  Ask the pending question from `outcome_details` clearly and concisely, so the user can answer it in their next message.
+* Do not claim the task is done or failed. Ask the pending question from `outcome_details` clearly and concisely, so the user can answer it in their next message.
 * Keep it short and put the reply text in `answer`.
 
 ---
