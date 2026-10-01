@@ -15,6 +15,7 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.tools import textualize_tool_results
 from pydantic import BaseModel
 
@@ -223,12 +224,14 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         return "Done."
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData:
         """Return the answer summary plus input prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        result = self._last_result
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        result = ctx.result
         if isinstance(result, AnswerSchema):
             summary = f"Answer ready ({len(result.answer)} chars)"
             char_count = len(result.answer)
@@ -240,9 +243,9 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             summary=summary,
             details={
                 "char_count": char_count,
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
             },
         )
 

@@ -21,6 +21,7 @@ from klea_agent.schemas import (
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.nodes.context import LLMNodeContext
 
 
 class TestPlannerState(unittest.TestCase):
@@ -649,8 +650,9 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         status section must render the plan from ``_last_state_updates``.
         """
         planner = self._planner()
-        planner._last_state = KleaAgentState()  # empty, default plan
-        planner._last_state_updates = {
+        state = KleaAgentState()  # empty, default plan
+        ctx = LLMNodeContext()
+        ctx.state_updates = {
             "plan": PlanSchema(
                 step_list=[
                     StepSchema(step_number=1, description="a"),
@@ -660,7 +662,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
             )
         }
 
-        status = planner._get_status()
+        status = planner._get_status(state, ctx)
 
         assert status is not None
         self.assertIn("2 step(s)", status.summary)
@@ -672,12 +674,11 @@ class TestPlannerToolDisclosure(unittest.TestCase):
     def test_status_falls_back_to_state_plan(self):
         """Without state updates, status falls back to ``_last_state.plan``."""
         planner = self._planner()
-        planner._last_state = KleaAgentState(
+        state = KleaAgentState(
             plan=PlanSchema(step_list=[StepSchema(description="only")])
         )
-        planner._last_state_updates = {}
 
-        status = planner._get_status()
+        status = planner._get_status(state, LLMNodeContext())
 
         assert status is not None
         self.assertIn("1 step(s)", status.summary)

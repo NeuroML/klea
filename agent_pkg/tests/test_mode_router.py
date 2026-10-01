@@ -52,7 +52,7 @@ class TestModeDecisionNode:
         """execute writes state; the graph streamer owns the context event."""
         node = ModeDecision(self.logger, "Determining mode")
         emitted: list[dict] = []
-        monkeypatch.setattr(node, "_pre_exec_stream", lambda: None)
+        monkeypatch.setattr(node, "_pre_exec_stream", lambda ctx: None)
         monkeypatch.setattr(node, "write_custom_stream", lambda ev: emitted.append(ev))
 
         state = KleaAgentState(query="q", mode=Mode(requested="scientific"))

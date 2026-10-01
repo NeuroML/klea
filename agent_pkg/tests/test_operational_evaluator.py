@@ -22,6 +22,7 @@ from klea_agent.schemas import (
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema
+from klea_utils.nodes.context import LLMNodeContext
 
 
 def _verdict(
@@ -215,8 +216,7 @@ class TestOperationalEvaluator(unittest.TestCase):
     def test_status_refreshes_live_plan_section(self):
         """The Evaluator updates the Planner's plan section in place."""
         evaluator = self._evaluator()
-        evaluator._last_state = self._state()
-        status = evaluator._get_status()
+        status = evaluator._get_status(self._state(), LLMNodeContext())
         assert status is not None
         self.assertEqual(status.heading, "Plan")
         self.assertEqual(status.key, "plan")

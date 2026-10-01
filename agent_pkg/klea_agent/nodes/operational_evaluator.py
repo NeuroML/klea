@@ -14,6 +14,7 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from langchain_core.messages import AIMessage
 
@@ -240,12 +241,14 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         return update
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData:
         """Return the verdict summary plus prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        result = self._last_result
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        result = ctx.result
         details: dict[str, Any]
         if isinstance(result, EvaluationSchema):
             parts = [f"step {n}: {v.verdict}" for n, v in result.evaluations.items()]
@@ -265,9 +268,9 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             details = {}
         details.update(
             {
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
             }
         )
         return NodeStreamData(
@@ -277,7 +280,9 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
 
     @override
-    def _get_status(self) -> NodeStreamData | None:
+    def _get_status(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData | None:
         """Refresh the live plan section after evaluating a step.
 
         The plan section is shared (``key="plan"``) between the Planner and the
@@ -287,9 +292,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         Planner copy plus a duplicate Evaluator copy.  The verdict itself is in
         the evaluator's ``inspect`` payload and the final answer.
         """
-        state = self._last_state
-        if state is None:
-            return None
         plan = state.plan
         return NodeStreamData(
             heading="Plan",

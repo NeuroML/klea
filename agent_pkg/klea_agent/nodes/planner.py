@@ -16,6 +16,7 @@ from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState, PlannerOutput, PlanSchema
@@ -397,13 +398,14 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         return update
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData:
         """Return the plan summary plus prompt and raw/processed output."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        result = self._last_result
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        result = ctx.result
         if isinstance(result, PlannerOutput):
             summary = (
                 f"Plan with {len(result.plan.step_list)} step(s), "
@@ -415,30 +417,29 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             heading="Plan",
             summary=summary,
             details={
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
-                "tools_description": self._get_tool_descriptions(self._last_state),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
+                "tools_description": self._get_tool_descriptions(state),
             },
         )
 
     @override
-    def _get_status(self) -> NodeStreamData | None:
+    def _get_status(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData | None:
         """Expose the current plan to the status pane (markdown).
 
-        Reads the plan from ``_last_state_updates`` -- the plan this pass just
-        produced -- falling back to the pre-execution ``_last_state.plan``.
-        ``_last_state`` is captured at execution entry, so on a turn's first
+        Reads the plan from ``ctx.state_updates`` -- the plan this pass just
+        produced -- falling back to the pre-execution ``state.plan``.  The
+        incoming state is captured at execution entry, so on a turn's first
         Planner pass it still holds the empty plan that
         :class:`InitGraphState` reset, which would render ``(no plan)``.
         """
         plan = None
-        if self._last_state_updates:
-            plan = self._last_state_updates.get("plan")
+        if ctx.state_updates:
+            plan = ctx.state_updates.get("plan")
         if plan is None:
-            state = self._last_state
-            if state is None:
-                return None
             plan = state.plan
         return NodeStreamData(
             heading="Plan",

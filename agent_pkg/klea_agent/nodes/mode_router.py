@@ -20,6 +20,7 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from klea_utils.nodes.context import NodeContext
 
 from klea_agent.schemas import KleaAgentState, Mode
 
@@ -91,7 +92,8 @@ class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
     @override
     async def execute(self, state: KleaAgentState) -> dict[str, Any]:
         """Resolve the mode, persisting the ask and the resolution."""
-        self._pre_exec_stream()
+        ctx = NodeContext()
+        self._pre_exec_stream(ctx)
         resolved, note = decide_mode(
             state.mode.requested, source_available=self._source_available
         )
@@ -124,7 +126,8 @@ class ModeInformer(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
     @override
     async def execute(self, state: KleaAgentState) -> dict[str, Any]:
         """Return the explanatory note as the final message."""
-        self._pre_exec_stream()
+        ctx = NodeContext()
+        self._pre_exec_stream(ctx)
         note = state.mode.note or "Scientific mode is unavailable."
         self.logger.debug(f"informing user about mode: {note}")
         info = NodeStreamData(heading="Mode", summary=note)

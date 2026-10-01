@@ -20,6 +20,7 @@ from klea_agent.schemas import (
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema
+from klea_utils.nodes.context import LLMNodeContext
 
 
 class TestReasoningNode(unittest.TestCase):
@@ -97,8 +98,8 @@ class TestReasoningNode(unittest.TestCase):
 
     def test_pre_exec_requires_a_current_step(self):
         node = self._node()
-        assert node._pre_exec(self._state()) is True
-        assert node._pre_exec(KleaAgentState()) is False
+        assert node._pre_exec(self._state(), LLMNodeContext()) is True
+        assert node._pre_exec(KleaAgentState(), LLMNodeContext()) is False
 
     def test_prompt_variables_include_current_step(self):
         variables = self._node()._get_prompt_variables(self._state())

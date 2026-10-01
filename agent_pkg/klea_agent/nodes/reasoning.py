@@ -14,6 +14,7 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
 from klea_agent.nodes.triage_router import current_step_key
@@ -72,7 +73,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         )
 
     @override
-    def _pre_exec(self, state: KleaAgentState) -> bool:
+    def _pre_exec(self, state: KleaAgentState, ctx: LLMNodeContext[Any]) -> bool:
         """Run only when there is a current plan step to reason about."""
         return state.plan.current_step() is not None
 
@@ -133,12 +134,14 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         return update
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(
+        self, state: KleaAgentState, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData:
         """Return the conclusion summary plus prompt and raw/processed output."""
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        result = self._last_result
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        result = ctx.result
         if isinstance(result, ReasoningSchema):
             summary = f"Conclusion ready ({len(result.conclusion)} chars)"
             details: dict[str, Any] = {
@@ -150,9 +153,9 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
             details = {}
         details.update(
             {
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
             }
         )
         return NodeStreamData(heading="Reasoning", summary=summary, details=details)
