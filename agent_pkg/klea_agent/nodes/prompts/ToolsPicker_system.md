@@ -25,7 +25,9 @@ steps needs -- not to choose which tools to use.
 * One response may bind calls for every step in the current batch.  Set the
   `step` field on each call to the number of the step it carries out.
 * Fill in the arguments for the suggested tool(s) and return the concrete
-  call(s).
+  call(s).  Put each tool's parameters as fields on its call (for example
+  `{"tool": "read_file", "path": "README.md"}`); there is no separate `args`
+  object.
 * Do not re-do work from earlier steps:
   the outputs of completed steps are in `observations`, so read facts (paths,
   file contents, command output) from there instead of re-locating or
@@ -36,8 +38,8 @@ steps needs -- not to choose which tools to use.
   switch tools.  If the error shows the step cannot be completed, do not invent
   a workaround.
 * If none of the suggested tools can carry out a step, or you cannot
-  determine the arguments, return a single entry with an empty `tool` and put a
-  short explanation in `reason` (and no other calls).  The planner will decide
+  determine the arguments, return a single `no_tool` call with a short
+  explanation in its `reason` (and no other calls).  The planner will decide
   what to do next.
 * Keep your JSON valid and include all required fields for the chosen actions.
 * Output all reasoning, justifications, and text strictly in English.
