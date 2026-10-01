@@ -571,6 +571,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         self,
         config: RunnableConfig,
         direction: Literal["shrink", "grow"],
+        prompt: PromptValue | None = None,
     ) -> bool:
         """Resize the reserved output window.
 
@@ -627,7 +628,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             else:
                 step = TRUNCATION_PHASE2_STEP
                 phase = "large-step"
-            target = min(current + step, self._jump_output_target(overrides))
+            target = min(current + step, self._jump_output_target(overrides, prompt))
 
         # Set the provider token param directly (rather than the generic
         # key) so the resolver's "explicit value wins" precedence does not
@@ -636,8 +637,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         # grow are retries, so use the live endpoint for an accurate
         # context cap (falling back to models.dev), unlike the normal path.
         overrides[token_param] = target
-        last_prompt = getattr(self, "_last_prompt", None)
-        input_chars = len(last_prompt.to_string()) if last_prompt else None
+        input_chars = len(prompt.to_string()) if prompt else None
         resolve_output_token_limit(
             overrides,
             provider=provider,
@@ -656,7 +656,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         )
         return new_value != current
 
-    def _jump_output_target(self, overrides: dict[str, Any]) -> int:
+    def _jump_output_target(
+        self, overrides: dict[str, Any], prompt: PromptValue | None = None
+    ) -> int:
         """Return the output-window ceiling for truncation retries.
 
         The ceiling is :data:`MAX_OUTPUT_TOKENS_CEILING` by default, but
@@ -681,8 +683,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             overrides.get("api_key"),
         )
         if limits and limits.context:
-            last_prompt = getattr(self, "_last_prompt", None)
-            input_chars = len(last_prompt.to_string()) if last_prompt else None
+            input_chars = len(prompt.to_string()) if prompt else None
             if input_chars is not None:
                 headroom = limits.context - estimate_input_tokens(input_chars)
                 target = max(target, headroom)
@@ -748,7 +749,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                     and overflow_retries < MAX_CONTEXT_OVERFLOW_RETRIES
                 ):
                     overflow_retries += 1
-                    if not self._update_output_window(config, "shrink"):
+                    if not self._update_output_window(config, "shrink", prompt):
                         self.logger.warning(
                             "Context overflow but output window cannot shrink further"
                         )
@@ -769,7 +770,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
 
                 if category is LLMInvocationErrorCategory.LENGTH_TRUNCATION:
                     grow, message = self._next_truncation_retry(
-                        config, truncation_retries
+                        config, truncation_retries, prompt
                     )
                     if grow:
                         truncation_retries += 1
@@ -827,7 +828,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                 raise
 
             if is_output_truncated(output):
-                grow, message = self._next_truncation_retry(config, truncation_retries)
+                grow, message = self._next_truncation_retry(
+                    config, truncation_retries, prompt
+                )
                 if grow:
                     truncation_retries += 1
                     self.logger.warning(message)
@@ -864,7 +867,10 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             return output
 
     def _next_truncation_retry(
-        self, config: RunnableConfig, truncation_retries: int
+        self,
+        config: RunnableConfig,
+        truncation_retries: int,
+        prompt: PromptValue | None = None,
     ) -> tuple[bool, str]:
         """Return whether to retry a truncated invoke, and the log message.
 
@@ -886,7 +892,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                 "Output truncated but truncation retry budget exhausted"
             )
             return False, ""
-        if self._update_output_window(config, "grow"):
+        if self._update_output_window(config, "grow", prompt):
             return (
                 True,
                 (
@@ -1060,7 +1066,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         self.logger.debug(f"{prompt =}")
         return prompt
 
-    def _format_output_schema_prompt(self) -> str:
+    def _format_output_schema_prompt(self, schema: type[BaseModel]) -> str:
         """Return the ``Output schema (strict)`` prompt block.
 
         The raw JSON Schema (``title``/``type``/``properties``) invites
@@ -1069,10 +1075,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         sanitized schema (top-level ``title``/``description`` dropped), an
         explicit directive, and a generated example instance.
 
+        :param schema: The run's resolved output schema (static or dynamic).
         :returns: Prompt text describing the required JSON output
         """
-        schema_json = self.output_schema_json
-        schema = {
+        schema_json = convert_to_json_schema(schema)
+        sanitized = {
             key: value
             for key, value in schema_json.items()
             if key not in ("title", "description")
@@ -1084,7 +1091,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
 
             Respond in JSON following this schema:
 
-            {json.dumps(schema).replace("{", "{{").replace("}", "}}")}
+            {json.dumps(sanitized).replace("{", "{{").replace("}", "}}")}
 
             The response must be a raw, valid JSON object like this example
             (replace the placeholder values with real content):
@@ -1114,8 +1121,8 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         """
         system_prompt = self._load_prompt_file(f"{self.prompt_prefix}_system")
 
-        if self.output_schema:
-            system_prompt += self._format_output_schema_prompt()
+        if ctx.output_schema:
+            system_prompt += self._format_output_schema_prompt(ctx.output_schema)
 
         if self.memory:
             memory_addition = self._get_memory_addition(state)

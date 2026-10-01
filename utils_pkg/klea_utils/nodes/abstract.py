@@ -310,12 +310,6 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     this many retries.  Default ``0`` disables the loop.
     """
 
-    _last_state: TState | None = None
-    """The state passed to the most recent :meth:`execute` call."""
-
-    _last_result: TOutput | None = None
-    """The processed output of the most recent LLM invocation."""
-
     def __init__(
         self,
         logger: logging.Logger,
@@ -340,9 +334,6 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                 f"but llm_models only has keys: {list(self.llm_models)}"
             ) from None
         self._output_schema = output_schema
-        #: Validation error from the most recent ``_validate_result`` failure,
-        #: exposed to the prompt as ``validation_feedback`` on a retry.
-        self._validation_feedback: str = ""
 
     def _get_output_schema(
         self, state: TState, ctx: LLMNodeContext[TOutput]
@@ -361,28 +352,12 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
     @final
     async def execute(self, state: TState) -> dict[str, Any]:
-        """Template method defining standard execution flow"""
-        # Clear previous execution context to prevent stale data.
-        # These are instance variables (not locals) so that streaming hooks
-        # (_pre_exec_stream, _post_exec_stream, _get_inspect, _get_status)
-        # can access intermediate values for progress reporting.
-        self._last_state = None
-        self._last_human_prompt = None
-        self._last_system_prompt = None
-        self._last_template = None
-        self._last_variables = None
-        self._last_prompt = None
-        self._last_llm = None
-        self._last_config = None
-        self._last_output = None
-        self._last_result = None
-        self._last_state_updates = None
-        self._final_state = None
-        self._token_usage: TokenUsage | None = None
-        self._validation_feedback: str = ""
+        """Template method defining standard execution flow.
 
-        # Per-run context: this invocation's internal values, kept local to
-        # the run rather than on the shared node instance.
+        All intermediate values live on the per-run ``ctx`` (not on the shared
+        node instance), so concurrent runs cannot clobber each other.  The
+        streaming hooks read them from the same ``ctx``.
+        """
         ctx: LLMNodeContext[TOutput] = LLMNodeContext()
 
         self.logger.debug(f"{state =}")
@@ -394,24 +369,18 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         # Resolve the output schema for this run before the prompt is built
         # (the prompt embeds it): the static schema by default, or a per-run
         # one from a node that overrides ``_get_output_schema``.
-        self._output_schema = self._get_output_schema(state, ctx)
-        ctx.output_schema = self._output_schema
+        ctx.output_schema = self._get_output_schema(state, ctx)
 
-        self._last_state = state
         self._pre_exec_stream(ctx)
 
-        self._last_human_prompt = self._get_human_prompt(state, ctx)
-        ctx.human_prompt = self._last_human_prompt
-        self._last_system_prompt = self._get_system_prompt(state, ctx)
-        ctx.system_prompt = self._last_system_prompt
-        self._last_template = self._create_prompt_template(
-            self._last_system_prompt, self._last_human_prompt, ctx
+        ctx.human_prompt = self._get_human_prompt(state, ctx)
+        ctx.system_prompt = self._get_system_prompt(state, ctx)
+        template = self._create_prompt_template(
+            ctx.system_prompt, ctx.human_prompt, ctx
         )
-        ctx.template = self._last_template
-        self._last_variables = self._get_prompt_variables(state, ctx)
-        ctx.variables = self._last_variables
-        self._last_llm, self._last_config = self._configure_llm(ctx)
-        ctx.llm, ctx.config = self._last_llm, self._last_config
+        ctx.template = template
+        ctx.variables = self._get_prompt_variables(state, ctx)
+        ctx.llm, ctx.config = self._configure_llm(ctx)
 
         # Validation-retry loop: a node may reject a structurally invalid
         # result (``_validate_result``) and re-invoke with the reason exposed
@@ -423,22 +392,18 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             # Re-derive the variables each attempt so the node's own
             # ``_get_prompt_variables`` (and any state it reads) stays the
             # single source, then inject the validation feedback.
-            self._last_variables = self._get_prompt_variables(state, ctx)
-            self._last_variables["validation_feedback"] = self._validation_feedback
-            ctx.variables = self._last_variables
-            self._last_prompt = self._invoke_prompt(
-                self._last_template, self._last_variables, ctx
-            )
-            ctx.prompt = self._last_prompt
-            chars_sent = len(self._last_prompt.to_string())
+            ctx.variables = self._get_prompt_variables(state, ctx)
+            ctx.variables["validation_feedback"] = ctx.validation_feedback
+            prompt = self._invoke_prompt(template, ctx.variables, ctx)
+            ctx.prompt = prompt
+            chars_sent = len(prompt.to_string())
             self.logger.debug(f"{chars_sent = } characters sent to LLM")
-            self._last_output = await self._invoke_llm(ctx)
-            ctx.output = self._last_output
-            chars_received = len(extract_llm_output_content(self._last_output))
+            output = await self._invoke_llm(ctx)
+            ctx.output = output
+            chars_received = len(extract_llm_output_content(output))
             self.logger.debug(f"{chars_received = } characters received from LLM")
-            self._last_result = self._process_output(ctx)
-            ctx.result = self._last_result
-            error = self._validate_result(self._last_result, state, ctx)
+            ctx.result = self._process_output(ctx)
+            error = self._validate_result(ctx.result, state, ctx)
             if not error or attempt >= self.max_validation_retries:
                 if error:
                     self.logger.warning(
@@ -448,7 +413,6 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                     )
                 break
             attempt += 1
-            self._validation_feedback = error
             ctx.validation_feedback = error
             self.logger.warning(
                 "Invalid node result, retrying (%d/%d): %s",
@@ -457,21 +421,17 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                 error,
             )
 
-        self._last_state_updates = self._update_state(self._last_result, state, ctx)
-        ctx.state_updates = self._last_state_updates
+        ctx.state_updates = self._update_state(ctx.result, state, ctx)
 
         # token calculations
-        self._token_usage = self._extract_usage(ctx)
-        ctx.token_usage = self._token_usage
-        self._final_state = self._update_usage_metrics(
-            self._token_usage, self._last_state_updates
-        )
-        ctx.final_state = self._final_state
+        ctx.token_usage = self._extract_usage(ctx)
+        final_state = self._update_usage_metrics(ctx.token_usage, ctx.state_updates)
+        ctx.final_state = final_state
 
         self._post_exec_stream(state, ctx)
 
-        self.logger.debug(f"{self._final_state =}")
-        return self._final_state
+        self.logger.debug(f"{final_state =}")
+        return final_state
 
     def _post_exec_stream(self, state: TState, ctx: LLMNodeContext[TOutput]) -> None:
         """Emit streaming events after LLM invocation.

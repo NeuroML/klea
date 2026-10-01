@@ -139,14 +139,14 @@ def test_schema_to_example_resolves_ref():
 
 def test_prompt_block_strips_title_and_description():
     """The prompt block drops top-level title/description metadata."""
-    rendered = _render(_node(AnswerSchema)._format_output_schema_prompt())
+    rendered = _render(_node(AnswerSchema)._format_output_schema_prompt(AnswerSchema))
     assert '"title"' not in rendered
     assert '"description"' not in rendered
 
 
 def test_prompt_block_contains_directive_and_example():
     """The prompt block tells the model not to echo the schema and shows an example."""
-    rendered = _render(_node(AnswerSchema)._format_output_schema_prompt())
+    rendered = _render(_node(AnswerSchema)._format_output_schema_prompt(AnswerSchema))
     assert "Do not output the schema definition itself" in rendered
     assert '"answer": "text"' in rendered
     assert '"references": ["text"]' in rendered
@@ -154,7 +154,7 @@ def test_prompt_block_contains_directive_and_example():
 
 def test_prompt_block_example_matches_schema():
     """The rendered example parses as JSON and uses the schema's keys."""
-    rendered = _render(_node(NestedSchema)._format_output_schema_prompt())
+    rendered = _render(_node(NestedSchema)._format_output_schema_prompt(NestedSchema))
     example_line = next(
         line.strip()
         for line in rendered.splitlines()
@@ -175,7 +175,7 @@ def test_system_prompt_puts_schema_before_memory(tmp_path):
     node.memory = True
     state = MemoryState(context_summary="remember-the-context")
 
-    system = node._get_system_prompt(state, LLMNodeContext())
+    system = node._get_system_prompt(state, LLMNodeContext(output_schema=AnswerSchema))
 
     # With memory enabled the system prompt is a list of ``("system", text)``
     # plus any recent history messages; the text lives in the first element.

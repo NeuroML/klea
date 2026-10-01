@@ -97,8 +97,8 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
 
         # Schema goes last so it is the instruction closest to the human
         # query (recency), maximizing adherence to the JSON format.
-        if self.output_schema:
-            system_prompt += self._format_output_schema_prompt()
+        if ctx.output_schema:
+            system_prompt += self._format_output_schema_prompt(ctx.output_schema)
 
         if self.memory:
             # Mirror the base node: with memory enabled the system prompt is

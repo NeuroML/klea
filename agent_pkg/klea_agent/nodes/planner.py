@@ -135,9 +135,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             for section in (
                 self._optional_section("Review feedback", state.human_feedback),
                 self._optional_section("Replan reason", state.replan_reason),
-                self._optional_section(
-                    "Validation feedback", self._validation_feedback
-                ),
+                self._optional_section("Validation feedback", ctx.validation_feedback),
             )
             if section
         )

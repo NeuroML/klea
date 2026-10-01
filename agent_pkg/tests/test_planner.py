@@ -687,9 +687,9 @@ class TestPlannerToolDisclosure(unittest.TestCase):
     def test_status_renders_the_plan_just_produced(self):
         """Status reads the new plan, not the pre-execution (empty) state.
 
-        ``_last_state`` is captured at execution entry, so on a turn's first
-        Planner pass it holds the empty plan ``InitGraphState`` reset.  The
-        status section must render the plan from ``_last_state_updates``.
+        The incoming ``state`` on a turn's first Planner pass holds the empty
+        plan ``InitGraphState`` reset.  The status section must render the plan
+        from ``ctx.state_updates`` instead.
         """
         planner = self._planner()
         state = KleaAgentState()  # empty, default plan
@@ -714,7 +714,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         self.assertTrue(status.preformatted)
 
     def test_status_falls_back_to_state_plan(self):
-        """Without state updates, status falls back to ``_last_state.plan``."""
+        """Without state updates, status falls back to the incoming state plan."""
         planner = self._planner()
         state = KleaAgentState(
             plan=PlanSchema(step_list=[StepSchema(description="only")])

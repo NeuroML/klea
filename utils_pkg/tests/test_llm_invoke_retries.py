@@ -579,7 +579,6 @@ class TestInvokeWithRetries:
             )
             config["configurable"]["model_provider"] = "openai"
             node = make_node(inst)
-            node._last_prompt = StringPromptValue(text="hi")
             try:
                 await node._invoke_llm(
                     LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
@@ -625,7 +624,6 @@ class TestInvokeWithRetries:
             config["configurable"]["base_url"] = "https://example.com/v1/"
             config["configurable"]["model_provider"] = "openai"
             node = make_node(inst)
-            node._last_prompt = StringPromptValue(text="hi")
             try:
                 await node._invoke_llm(
                     LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
@@ -722,7 +720,6 @@ class TestInvokeWithRetries:
                 max_tokens=1024, model="mistral-small-latest", provider="mistralai"
             )
             node = make_node(inst)
-            node._last_prompt = StringPromptValue(text="hi")
             out = await node._invoke_llm(
                 LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
             )
@@ -765,7 +762,6 @@ class TestInvokeWithRetries:
                 max_tokens=2048, model="mistral-small-latest", provider="mistralai"
             )
             node = make_node(inst)
-            node._last_prompt = StringPromptValue(text="hi")
             try:
                 await node._invoke_llm(
                     LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
@@ -1147,7 +1143,7 @@ class _ValidatingNode(_MinimalLLMNode):
         self.feedback_seen = []
 
     def _get_prompt_variables(self, state, ctx):
-        self.feedback_seen.append(self._validation_feedback)
+        self.feedback_seen.append(ctx.validation_feedback)
         return {"x": "y"}
 
     def _get_system_prompt(self, state, ctx):
