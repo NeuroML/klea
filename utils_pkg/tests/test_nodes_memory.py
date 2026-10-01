@@ -80,24 +80,23 @@ def test_summarise_triggers_and_excludes_window():
     state = MemoryState(messages=msgs, summarised_till=0)
     assert node._pre_exec(state, NodeContext()) is True
 
+    _, window_start = node._summarisation_window(state)
     expected_start = len(msgs) - len(get_recent_messages(msgs, 50))
-    logger.debug(f"{node._window_start = } {expected_start = }")
-    assert node._window_start == expected_start
-    assert 0 < node._window_start < len(msgs)  # recent window excluded
+    assert window_start == expected_start
+    assert 0 < window_start < len(msgs)  # recent window excluded
 
 
 def test_summarise_update_state_uses_window_start():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(5)
     state = MemoryState(messages=msgs, summarised_till=0)
-    node._pre_exec(state, NodeContext())
 
     updates = node._update_state(
         AIMessage(content="a summary"), state, LLMNodeContext()
     )
-    logger.debug(f"{updates = } {node._window_start = } {len(msgs) = }")
+    expected_start = len(msgs) - len(get_recent_messages(msgs, 50))
     assert "a summary" in updates["context_summary"]
-    assert updates["summarised_till"] == node._window_start
+    assert updates["summarised_till"] == expected_start
     assert updates["summarised_till"] < len(msgs)  # no overlap with window
 
 
@@ -116,14 +115,12 @@ def test_summarise_preserves_state_on_empty_summary():
 def test_summarise_omits_previous_summary_when_empty():
     """First summarisation: no previous-summary section (prompt convention)."""
     node = _make_summarise_node()
-    node.conversation = "user: hi\nassistant: hello"
     variables = node._get_prompt_variables(MemoryState(), LLMNodeContext())
     assert variables["old_summary_block"] == ""
 
 
 def test_summarise_renders_previous_summary_when_present():
     node = _make_summarise_node()
-    node.conversation = "user: hi\nassistant: hello"
     state = MemoryState(context_summary="earlier facts")
     variables = node._get_prompt_variables(state, LLMNodeContext())
     assert variables["old_summary_block"].startswith("## Current summary")

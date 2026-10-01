@@ -83,31 +83,39 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
         self.summarisation_threshold_chars = summarisation_threshold_chars
         self.num_history_chars = num_history_chars
-        self.conversation = ""
-        self._window_start = 0
 
-    @override
-    def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
-        """Skip if not enough old conversation to summarise."""
+    def _summarisation_window(self, state: BaseModel) -> tuple[str, int]:
+        """Return ``(conversation, window_start)`` for this run.
+
+        Derived from *state* on each call rather than stored on the shared
+        node instance, so concurrent runs cannot clobber each other's
+        summarisation window (see ADR-0045).
+        """
         recent = get_recent_messages(
             state.messages,  # type: ignore
             self.num_history_chars,
         )
-        self._window_start = len(state.messages) - len(recent)  # type: ignore
-        self.conversation, _ = get_last_n_conversations(
+        window_start = len(state.messages) - len(recent)  # type: ignore
+        conversation, _ = get_last_n_conversations(
             state.messages,  # type: ignore
             state.summarised_till,  # type: ignore
-            self._window_start,
+            window_start,
         )
+        return conversation, window_start
 
-        if self._window_start <= state.summarised_till:  # type: ignore
+    @override
+    def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
+        """Skip if not enough old conversation to summarise."""
+        conversation, window_start = self._summarisation_window(state)
+
+        if window_start <= state.summarised_till:  # type: ignore
             self.logger.debug("No new history to summarise yet")
             return False
 
-        if len(self.conversation) < self.summarisation_threshold_chars:
+        if len(conversation) < self.summarisation_threshold_chars:
             self.logger.debug(
                 f"Not enough conversation to summarise yet: "
-                f"{len(self.conversation)}/{self.summarisation_threshold_chars} chars"
+                f"{len(conversation)}/{self.summarisation_threshold_chars} chars"
             )
             return False
         return True
@@ -120,12 +128,13 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         previous-summary section is composed as an optional block and omitted
         entirely when there is none (prompt conventions).
         """
+        conversation, _ = self._summarisation_window(state)
         return {
             "old_summary_block": self._optional_section(
                 "Current summary",
                 state.context_summary,  # type: ignore
             ),
-            "conversation": self.conversation,
+            "conversation": conversation,
         }
 
     @override
@@ -147,9 +156,10 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
                 "existing summary and leaving the window unsummarised"
             )
             return {}
+        _conversation, window_start = self._summarisation_window(state)
         return {
             "context_summary": answer,
-            "summarised_till": self._window_start,
+            "summarised_till": window_start,
         }
 
     # TODO: may need updating
