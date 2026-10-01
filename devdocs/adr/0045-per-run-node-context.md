@@ -86,6 +86,13 @@ from `ctx` (schema block, `with_structured_output`, parsing,
 `_jump_output_target` receive the prompt explicitly instead of reading a
 `_last_prompt` attribute, threading it from `_invoke_with_retries`.
 
+Node instance attributes are configuration only: they are set once in
+`__init__` (or a one-shot `set_*` config injector / `@property` setter)
+and never mutated by `execute` or a hook.  This is enforced by an
+architecture test (`utils_pkg/tests/test_node_state_hygiene.py`), which
+parses every class under the three `nodes/` packages and fails on a
+`self.<attr> = ...` assignment outside those construction-time methods.
+
 ### Consequences
 
 * Good, because concurrent runs on shared instances no longer clobber
@@ -105,6 +112,8 @@ from `ctx` (schema block, `with_structured_output`, parsing,
 
 * `utils_pkg/tests/` node, picker, caller, retry, and graph tests pass.
 * `agent_pkg/tests/` and `rag_pkg/tests/` pass.
+* `utils_pkg/tests/test_node_state_hygiene.py` enforces that node classes
+  assign `self.<attr>` only at construction time.
 * `ty check` reports the pre-existing baseline only; `ruff check`/`format`
   clean in all packages.
 
