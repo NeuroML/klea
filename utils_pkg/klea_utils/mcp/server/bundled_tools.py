@@ -255,11 +255,11 @@ async def read_file(
         Field(
             description=(
                 "File path to read. Must be relative to current working "
-                "directory and cannot contain '..' for security"
+                "directory and cannot contain '..' for security. Defaults to '.'"
             ),
             min_length=1,
         ),
-    ],
+    ] = ".",
     offset: Annotated[
         int,
         Field(description="1-indexed line to start reading from", ge=1),
@@ -299,7 +299,9 @@ async def read_file(
 
     Args:
         path: File path to read. Must be relative to the current working
-            directory and cannot contain '..' for security.
+            directory and cannot contain '..' for security. Defaults to the
+            current directory ('.'), which is not a file, so an omitted path
+            yields the nearby-entries fallback instead of a validation error.
         offset: 1-indexed line to start reading from.
         limit: Maximum number of lines to return. None reads to the end.
         max_chars: Hard cap on characters of content to return.

@@ -70,6 +70,13 @@ def test_read_file_tags_and_checkpaths():
     assert _tool_info(bundled_tools.read_file).checkpaths == ["path"]
 
 
+def test_read_file_path_is_optional_with_default():
+    """``path`` defaults to "." so a binding that omits it still validates."""
+    parameters = Tool.from_function(bundled_tools.read_file).parameters
+    assert "path" not in (parameters.get("required") or [])
+    assert parameters["properties"]["path"]["default"] == "."
+
+
 def test_find_files_tags_and_checkpaths():
     assert _tags(bundled_tools.find_files) == {BUNDLED, "local", "files"}
     assert _tool_info(bundled_tools.find_files).checkpaths == ["path"]

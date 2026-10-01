@@ -902,6 +902,19 @@ def test_read_file_missing_file_lists_nearby(tmp_path):
     assert "nope.txt" in result["note"]
 
 
+def test_read_file_defaults_to_cwd_nearby_fallback(tmp_path, monkeypatch):
+    """Omitting ``path`` (default ".") yields the nearby-entries fallback."""
+    (tmp_path / "README.md").write_text("hi")
+    monkeypatch.chdir(tmp_path)
+
+    result = read_file()
+
+    logger.debug(f"{result = }")
+    assert "not a file" in result["error"].lower()
+    assert "README.md" in result["nearby"]
+    assert "README.md" in result["note"]
+
+
 def test_read_file_present_file_has_empty_note(tmp_path):
     """The nearby/note fields are only populated on the missing-file path."""
     f = tmp_path / "a.txt"

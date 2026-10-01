@@ -76,7 +76,7 @@ _ANYDOC_AVAILABLE: bool | None = None
 
 
 def read_file(
-    path: str,
+    path: str = ".",
     offset: int = 1,
     limit: int | None = 2000,
     max_chars: int = 100_000,
@@ -96,7 +96,9 @@ def read_file(
     and the returned ``line_end``/``total_lines`` let the caller continue
     reading a large document in pages.
 
-    :param path: File path to read.
+    :param path: File path to read.  Defaults to the current directory
+        (``"."``), which is not a file, so a missing path yields the
+        nearby-entries fallback.
     :param offset: 1-indexed line to start reading from.
     :param limit: Maximum number of lines to return.  ``None`` reads to the
         end of the file.
