@@ -43,8 +43,8 @@ def _add_css_overrides() -> None:
     ui.add_css(
         ".nicegui-markdown div.alert em { font-style: normal; font-weight: 600; }"
     )
-    # Collapse long bot messages to 4 lines with an expand / collapse toggle.
-    ui.add_css(".msg-collapsed { max-height: 6em; overflow: hidden; }")
+    # Collapse long bot messages to ~6 lines with an expand / collapse toggle.
+    ui.add_css(".msg-collapsed { max-height: 9em; overflow: hidden; }")
     ui.add_css(".msg-expanded { max-height: none; }")
     # Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a
     # margin on ``<pre>``; a long line would overflow the bubble and the page.
