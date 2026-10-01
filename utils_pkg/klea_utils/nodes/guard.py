@@ -63,12 +63,12 @@ class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
         return bool(self._llm_entry.model_name)
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx: Any) -> dict:
         """Format prompt with the user's query."""
         return {"query": state.query}  # type: ignore
 
     @override
-    def _get_system_prompt(self, state: BaseModel) -> str:
+    def _get_system_prompt(self, state: BaseModel, ctx: Any) -> str:
         return ""
 
     @override

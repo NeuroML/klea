@@ -344,7 +344,9 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         #: exposed to the prompt as ``validation_feedback`` on a retry.
         self._validation_feedback: str = ""
 
-    def _get_output_schema(self, state: TState) -> type[TOutput] | None:
+    def _get_output_schema(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> type[TOutput] | None:
         """Return the structured-output schema for this invocation.
 
         Defaults to the node's static :attr:`output_schema`.  Override to
@@ -352,6 +354,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         per-tool discriminated union derived from the run's disclosed tools.
 
         :param state: Current graph state.
+        :param ctx: Per-run node context.
         :returns: The pydantic output schema, or ``None`` for a plain node.
         """
         return self._output_schema
@@ -391,21 +394,21 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         # Resolve the output schema for this run before the prompt is built
         # (the prompt embeds it): the static schema by default, or a per-run
         # one from a node that overrides ``_get_output_schema``.
-        self._output_schema = self._get_output_schema(state)
+        self._output_schema = self._get_output_schema(state, ctx)
         ctx.output_schema = self._output_schema
 
         self._last_state = state
         self._pre_exec_stream(ctx)
 
-        self._last_human_prompt = self._get_human_prompt(state)
+        self._last_human_prompt = self._get_human_prompt(state, ctx)
         ctx.human_prompt = self._last_human_prompt
-        self._last_system_prompt = self._get_system_prompt(state)
+        self._last_system_prompt = self._get_system_prompt(state, ctx)
         ctx.system_prompt = self._last_system_prompt
         self._last_template = self._create_prompt_template(
-            self._last_system_prompt, self._last_human_prompt
+            self._last_system_prompt, self._last_human_prompt, ctx
         )
         ctx.template = self._last_template
-        self._last_variables = self._get_prompt_variables(state)
+        self._last_variables = self._get_prompt_variables(state, ctx)
         ctx.variables = self._last_variables
         self._last_llm, self._last_config = self._configure_llm(ctx)
         ctx.llm, ctx.config = self._last_llm, self._last_config
@@ -420,11 +423,11 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             # Re-derive the variables each attempt so the node's own
             # ``_get_prompt_variables`` (and any state it reads) stays the
             # single source, then inject the validation feedback.
-            self._last_variables = self._get_prompt_variables(state)
+            self._last_variables = self._get_prompt_variables(state, ctx)
             self._last_variables["validation_feedback"] = self._validation_feedback
             ctx.variables = self._last_variables
             self._last_prompt = self._invoke_prompt(
-                self._last_template, self._last_variables
+                self._last_template, self._last_variables, ctx
             )
             ctx.prompt = self._last_prompt
             chars_sent = len(self._last_prompt.to_string())
@@ -699,37 +702,61 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
     @abstractmethod
     def _invoke_prompt(
-        self, prompt_template: ChatPromptTemplate, variables: Any | dict[str, Any]
+        self,
+        prompt_template: ChatPromptTemplate,
+        variables: Any | dict[str, Any],
+        ctx: LLMNodeContext[TOutput],
     ) -> PromptValue:
-        """Format prompt with state-specific parameters"""
+        """Format prompt with state-specific parameters.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
     @abstractmethod
-    def _get_human_prompt(self, state: TState) -> str:
-        """Return human prompt for this node"""
+    def _get_human_prompt(self, state: TState, ctx: LLMNodeContext[TOutput]) -> str:
+        """Return human prompt for this node.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
     @abstractmethod
-    def _get_system_prompt(self, state: TState) -> str | list[Any]:
+    def _get_system_prompt(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> str | list[Any]:
         """Return system prompt for this node.
 
         May return a list of ``("system", text)`` plus recent history
         message objects (when the node keeps a verbatim memory window),
         which ``_create_prompt_template`` places between the system and
         human prompts.
+
+        :param ctx: Per-run node context.
         """
         ...
 
     @abstractmethod
     def _create_prompt_template(
-        self, system_prompt: str | list[Any], human_prompt: str
+        self,
+        system_prompt: str | list[Any],
+        human_prompt: str,
+        ctx: LLMNodeContext[TOutput],
     ) -> ChatPromptTemplate:
-        """Create ChatPromptTemplate for this node"""
+        """Create ChatPromptTemplate for this node.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
     @abstractmethod
-    def _get_prompt_variables(self, state: TState) -> dict:
-        """Format prompt with state-specific parameters"""
+    def _get_prompt_variables(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> dict:
+        """Format prompt with state-specific parameters.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
     @abstractmethod

@@ -13,7 +13,7 @@ import logging
 import pytest
 from klea_utils.llm import get_recent_messages
 from klea_utils.nodes.base import BaseLLMNode
-from klea_utils.nodes.context import NodeContext
+from klea_utils.nodes.context import LLMNodeContext, NodeContext
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
@@ -35,7 +35,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
 
     model_role = "chat"
 
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx) -> dict:
         return {"query": getattr(state, "query", "")}
 
     def _update_state(self, result, state: BaseModel) -> dict:
@@ -115,7 +115,7 @@ def test_summarise_omits_previous_summary_when_empty():
     """First summarisation: no previous-summary section (prompt convention)."""
     node = _make_summarise_node()
     node.conversation = "user: hi\nassistant: hello"
-    variables = node._get_prompt_variables(MemoryState())
+    variables = node._get_prompt_variables(MemoryState(), LLMNodeContext())
     assert variables["old_summary_block"] == ""
 
 
@@ -123,7 +123,7 @@ def test_summarise_renders_previous_summary_when_present():
     node = _make_summarise_node()
     node.conversation = "user: hi\nassistant: hello"
     state = MemoryState(context_summary="earlier facts")
-    variables = node._get_prompt_variables(state)
+    variables = node._get_prompt_variables(state, LLMNodeContext())
     assert variables["old_summary_block"].startswith("## Current summary")
     assert "earlier facts" in variables["old_summary_block"]
 
@@ -165,7 +165,7 @@ def test_memory_injection_returns_list_with_real_messages(tmp_path):
     ]
     state = MemoryState(messages=msgs, context_summary="a summary", query="latest")
 
-    system = node._get_system_prompt(state)
+    system = node._get_system_prompt(state, LLMNodeContext())
     logger.debug(f"{system = }")
     assert isinstance(system, list)
     assert system[0][0] == "system"
@@ -175,7 +175,9 @@ def test_memory_injection_returns_list_with_real_messages(tmp_path):
     assert all(isinstance(m, (HumanMessage, AIMessage)) for m in history)
     assert [m.content for m in history] == ["q1", "a1", "q2"]
 
-    template = node._create_prompt_template(system, node._get_human_prompt(state))
+    template = node._create_prompt_template(
+        system, node._get_human_prompt(state, LLMNodeContext()), LLMNodeContext()
+    )
     prompt = template.invoke({"query": "latest"})
     messages = prompt.to_messages()
     roles = [m.type for m in messages]
@@ -188,7 +190,7 @@ def test_memory_injection_returns_list_with_real_messages(tmp_path):
 def test_memory_injection_off_returns_string(tmp_path):
     node = _dummy_node(tmp_path, memory=False)
     state = MemoryState(messages=[HumanMessage(content="q1")], query="latest")
-    system = node._get_system_prompt(state)
+    system = node._get_system_prompt(state, LLMNodeContext())
     logger.debug(f"{system = }")
     assert isinstance(system, str)
     assert system.startswith("Base system prompt.")

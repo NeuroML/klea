@@ -71,7 +71,7 @@ class _MinimalLLMNode(BaseLLMNode[BaseModel, BaseModel]):
 
     model_role = "chat"
 
-    def _get_prompt_variables(self, state):
+    def _get_prompt_variables(self, state, ctx):
         return {}
 
     def _update_state(self, result, state):
@@ -1146,14 +1146,14 @@ class _ValidatingNode(_MinimalLLMNode):
         self.calls = 0
         self.feedback_seen = []
 
-    def _get_prompt_variables(self, state):
+    def _get_prompt_variables(self, state, ctx):
         self.feedback_seen.append(self._validation_feedback)
         return {"x": "y"}
 
-    def _get_system_prompt(self, state):
+    def _get_system_prompt(self, state, ctx):
         return "system"
 
-    def _get_human_prompt(self, state):
+    def _get_human_prompt(self, state, ctx):
         return "human"
 
     def _pre_exec_stream(self, ctx):

@@ -58,7 +58,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
 
     model_role = "chat"
 
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx) -> dict:
         return {}
 
     def _update_state(self, result, state: BaseModel) -> dict:
@@ -175,7 +175,7 @@ def test_system_prompt_puts_schema_before_memory(tmp_path):
     node.memory = True
     state = MemoryState(context_summary="remember-the-context")
 
-    system = node._get_system_prompt(state)
+    system = node._get_system_prompt(state, LLMNodeContext())
 
     # With memory enabled the system prompt is a list of ``("system", text)``
     # plus any recent history messages; the text lives in the first element.

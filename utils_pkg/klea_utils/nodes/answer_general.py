@@ -75,7 +75,7 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         self.fallback_config = fallback_config
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx: Any) -> dict:
         """Format prompt with the user's query."""
         return {"query": state.query}  # type: ignore
 

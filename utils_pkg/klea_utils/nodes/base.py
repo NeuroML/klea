@@ -1050,9 +1050,12 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         return result
 
     def _invoke_prompt(
-        self, prompt_template: ChatPromptTemplate, variables: Any | dict[str, Any]
+        self,
+        prompt_template: ChatPromptTemplate,
+        variables: Any | dict[str, Any],
+        ctx: LLMNodeContext[TOutput],
     ) -> PromptValue:
-        """Format prompt with state-specific parameters"""
+        """Format prompt with state-specific parameters."""
         prompt = prompt_template.invoke(variables)
         self.logger.debug(f"{prompt =}")
         return prompt
@@ -1093,7 +1096,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             """
         )
 
-    def _get_system_prompt(self, state: TState) -> str | list:
+    def _get_system_prompt(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> str | list:
         """Load system prompt from file, optionally adding memory and schema.
 
         When memory is enabled, returns a list of ``("system", text)`` plus
@@ -1103,6 +1108,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         as a plain string.
 
         :param state: Graph state.
+        :param ctx: Per-run node context.
         :returns: System prompt text, or a list of system text + history
             message objects when memory is enabled.
         """
@@ -1153,7 +1159,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         _, recent = get_last_n_conversations(state.messages, start=start)  # type: ignore
         return recent
 
-    def _get_human_prompt(self, state: TState) -> str:
+    def _get_human_prompt(self, state: TState, ctx: LLMNodeContext[TOutput]) -> str:
         """Load human prompt from file."""
         human_prompt = self._load_prompt_file(f"{self.prompt_prefix}_user")
 
@@ -1194,7 +1200,10 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         return f"{'#' * level} {title}\n\n{text}"
 
     def _create_prompt_template(
-        self, system_prompt: str | list[Any], human_prompt: str
+        self,
+        system_prompt: str | list[Any],
+        human_prompt: str,
+        ctx: LLMNodeContext[TOutput],
     ) -> ChatPromptTemplate:
         """Create ChatPromptTemplate with system and human messages.
 
@@ -1205,6 +1214,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         :param system_prompt: System prompt text or a system-side list
             including recent history messages.
         :param human_prompt: Human prompt text.
+        :param ctx: Per-run node context.
         """
         system_messages = (
             [("system", system_prompt)]

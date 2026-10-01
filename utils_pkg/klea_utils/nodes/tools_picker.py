@@ -145,7 +145,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         )
 
     @override
-    def _get_output_schema(self, state: BaseModel) -> Any:
+    def _get_output_schema(self, state: BaseModel, ctx: Any) -> Any:
         """Build the picker's per-tool call schema for this run.
 
         A discriminated union over the same disclosed tool set as the prompt
@@ -154,7 +154,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         """
         tools = self._disclosed_tools(state)
         if not tools:
-            return super()._get_output_schema(state)
+            return super()._get_output_schema(state, ctx)
         self.logger.debug(f"picker output schema\n{len(tools) = }\n{list(tools) = }")
         return build_tool_call_schema(tools)
 
@@ -164,7 +164,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return bool(self._get_tool_descriptions(state))
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx: Any) -> dict:
         """Format prompt with state-specific variables.
 
         Returns a superset of variables; each prompt file (system + human)

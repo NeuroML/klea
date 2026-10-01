@@ -797,7 +797,7 @@ class _IntegrationLLMNode(BaseLLMNode[BaseModel, BaseModel]):
 
     model_role = "chat"
 
-    def _get_prompt_variables(self, state):
+    def _get_prompt_variables(self, state, ctx):
         return {}
 
     def _update_state(self, result, state):

@@ -127,7 +127,7 @@ def test_get_tool_descriptions_unknown_domain_is_empty():
 def test_output_schema_is_a_per_tool_union():
     """The picker builds its structured schema from the disclosed tools."""
     picker = _make_picker()
-    schema = picker._get_output_schema(AgentLikeState())
+    schema = picker._get_output_schema(AgentLikeState(), LLMNodeContext())
     assert schema is not None
     parsed = schema.model_validate(
         {
@@ -151,7 +151,7 @@ def test_output_schema_is_a_per_tool_union():
 def test_normalize_no_tool_branch_is_unusable():
     """A ``NoTool`` branch normalizes to the empty-tool failure signal."""
     picker = _make_picker()
-    schema = picker._get_output_schema(AgentLikeState())
+    schema = picker._get_output_schema(AgentLikeState(), LLMNodeContext())
     assert schema is not None
     parsed = schema.model_validate(
         {
@@ -173,7 +173,7 @@ def test_normalize_no_tool_branch_is_unusable():
 def test_default_error_result_matches_dynamic_schema():
     """The fail-closed default instantiates the per-run schema."""
     picker = _make_picker()
-    schema = picker._get_output_schema(AgentLikeState())
+    schema = picker._get_output_schema(AgentLikeState(), LLMNodeContext())
     result = picker._get_default_error_result(LLMNodeContext(output_schema=schema))
     assert result.tool_calls == []
 
@@ -256,7 +256,7 @@ def test_default_error_result_is_empty_tool_calls():
 def test_prompt_variables_superset_for_agent_state():
     picker = _make_picker(model_role="plan")
     variables = picker._get_prompt_variables(
-        AgentLikeState(plan=PlanLike(step_list=[Step()]))
+        AgentLikeState(plan=PlanLike(step_list=[Step()])), LLMNodeContext()
     )
     assert {
         "tools_description",
@@ -273,7 +273,9 @@ def test_prompt_variables_superset_for_agent_state():
 
 def test_prompt_variables_query_driven_for_rag_state():
     picker = _make_picker()
-    variables = picker._get_prompt_variables(RagLikeState(query_domains=["NeuroML"]))
+    variables = picker._get_prompt_variables(
+        RagLikeState(query_domains=["NeuroML"]), LLMNodeContext()
+    )
     assert set(variables) == {
         "tools_description",
         "query",
@@ -298,7 +300,9 @@ def test_empty_selection_counts_up_and_adds_feedback():
     )
     assert (
         "no usable tool call"
-        in picker._get_prompt_variables(state_after)["picker_feedback"]
+        in picker._get_prompt_variables(state_after, LLMNodeContext())[
+            "picker_feedback"
+        ]
     )
 
     update2 = picker._update_state(
@@ -326,7 +330,7 @@ def test_tool_error_adds_its_text_to_feedback():
         picker_attempts=0,
         picker_step=0,
     )
-    feedback = picker._get_prompt_variables(state)["picker_feedback"]
+    feedback = picker._get_prompt_variables(state, LLMNodeContext())["picker_feedback"]
     assert "old_string matched 2 times" in feedback
     # Retries are arguments-only on the same tool; no switching.
     assert "same tool" in feedback
@@ -341,7 +345,7 @@ def test_no_error_keeps_empty_selection_feedback():
     state = AgentLikeState(
         plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=0
     )
-    feedback = picker._get_prompt_variables(state)["picker_feedback"]
+    feedback = picker._get_prompt_variables(state, LLMNodeContext())["picker_feedback"]
     assert "no usable tool call" in feedback
 
 
@@ -361,7 +365,7 @@ def test_non_empty_selection_resets_attempts_and_feedback():
         picker_attempts=update["picker_attempts"],
         picker_step=update["picker_step"],
     )
-    assert picker._get_prompt_variables(post)["picker_feedback"] == ""
+    assert picker._get_prompt_variables(post, LLMNodeContext())["picker_feedback"] == ""
 
 
 def test_attempts_reset_when_step_changes():
@@ -422,14 +426,14 @@ def test_one_usable_name_resets_attempts():
 def test_observations_use_rendered_text_for_agent_state():
     """The picker sees all step outputs, not just the last batch (agent)."""
     picker = _make_picker()
-    variables = picker._get_prompt_variables(AgentLikeState())
+    variables = picker._get_prompt_variables(AgentLikeState(), LLMNodeContext())
     assert variables["observations"] == "rendered observations"
 
 
 def test_observations_fall_back_to_tool_results_without_renderer():
     """RAG state has no ``observations_text``, so raw results are passed."""
     picker = _make_picker()
-    variables = picker._get_prompt_variables(RagLikeState())
+    variables = picker._get_prompt_variables(RagLikeState(), LLMNodeContext())
     assert variables["observations"] == []
 
 

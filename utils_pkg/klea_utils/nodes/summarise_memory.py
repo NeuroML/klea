@@ -113,7 +113,7 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         return True
 
     @override
-    def _get_prompt_variables(self, state: BaseModel) -> dict:
+    def _get_prompt_variables(self, state: BaseModel, ctx: Any) -> dict:
         """Format prompt with conversation data.
 
         ``context_summary`` is empty on the first summarisation, so the
