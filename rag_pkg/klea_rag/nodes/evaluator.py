@@ -14,6 +14,7 @@ from typing import Any, ClassVar, override
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.stores.utils import serialize_reference_material
 
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState
@@ -86,14 +87,13 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
         return EvaluateAnswerSchema(next_step="undefined", summary="Evaluation failed")
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(self, state: RAGState, ctx: LLMNodeContext[Any]) -> NodeStreamData:
         """Return evaluation scores plus prompt and raw/processed output."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        assert self._last_state_updates is not None
-        eval_result = self._last_state_updates.get("text_response_eval")
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        assert ctx.state_updates is not None
+        eval_result = ctx.state_updates.get("text_response_eval")
         if eval_result is None:
             summary = "Evaluation failed"
             details = {}
@@ -114,9 +114,9 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
             }
         details.update(
             {
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
             }
         )
         return NodeStreamData(

@@ -17,6 +17,7 @@ from klea_utils.llm import (
 )
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel
 
@@ -141,14 +142,13 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         }
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(self, state: RAGState, ctx: LLMNodeContext[Any]) -> NodeStreamData:
         """Return classification summary plus prompt and raw/processed output."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        assert self._last_state_updates is not None
-        classified = self._last_state_updates.get("query_domains", [])
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        assert ctx.state_updates is not None
+        classified = ctx.state_updates.get("query_domains", [])
         available = list(self.domains.keys())
         return NodeStreamData(
             heading="Question Classification",
@@ -156,9 +156,9 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
             details={
                 "classified_domains": classified,
                 "available_domains": available,
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
-                "processed_output": str(self._last_result),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
+                "processed_output": str(ctx.result),
             },
         )
 

@@ -18,6 +18,7 @@ from klea_utils.llm import (
 )
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.stores.config import FilterFieldInfo
 from klea_utils.stores.filters import normalize_config_filters
 from langchain_core.messages import AIMessage
@@ -182,28 +183,26 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         return RetrievalQueryOutput()
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(self, state: RAGState, ctx: LLMNodeContext[Any]) -> NodeStreamData:
         """Return search query/filters plus prompt, raw output and feedback."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        assert self._last_state_updates is not None
-        rq = self._last_state_updates.get("retrieval_query") or RetrievalQueryOutput()
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        assert ctx.state_updates is not None
+        rq = ctx.state_updates.get("retrieval_query") or RetrievalQueryOutput()
         search_query = rq.search_query
         # Display-only: this node does not bump the counter (the retrieval
         # node does). Here it holds the number of prior retrieval passes, so
         # the current query generation is labelled as the next attempt.
-        state = self._last_state
         attempt = state.retrieval_attempts + 1
         action = "Regenerated" if state.retrieval_attempts > 0 else "Generated"
         details = {
             "search_query": search_query,
             "metadata_filter": rq.to_metadata_filter(),
             "retrieval_attempts": attempt,
-            "input_prompt": prompt_value_to_messages(self._last_prompt),
-            "unprocessed_output": extract_llm_output_content(self._last_output),
-            "processed_output": str(self._last_result),
+            "input_prompt": prompt_value_to_messages(ctx.prompt),
+            "unprocessed_output": extract_llm_output_content(ctx.output),
+            "processed_output": str(ctx.result),
         }
         # Add evaluator feedback if this is a retry
         if state.retrieval_attempts > 0 and state.text_response_eval:
