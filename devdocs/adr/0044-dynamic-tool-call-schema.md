@@ -67,7 +67,7 @@ is the only option that is simultaneously strict-safe, provider-agnostic,
 and schema-enforcing of each tool's required parameters, while keeping the
 rest of the picker contract unchanged.
 
-The picker overrides `_get_output_schema(state)` to build, per run, a
+The picker overrides `_get_output_schema(state, ctx)` to build, per run, a
 schema from the **same disclosed tool set** as the prompt descriptions:
 
 ```
@@ -114,9 +114,9 @@ NoTool           = {tool: Literal["no_tool"], reason: str}
 * Neutral, because Anthropic drops `const`/`discriminator` (the tag becomes
   a description) but keeps each branch's `required`, so the discriminator
   is not strictly enforced while required parameters are.
-* Bad, because the per-run schema is currently resolved onto the shared
-  node via `_get_output_schema`; removing the object variable is deferred
-  to the NodeContext work (same class as the existing `_last_*` state).
+* Good, because the per-run schema is resolved into the run's
+  `NodeContext` (`ctx.output_schema`) and no longer round-trips through a
+  shared `_output_schema` attribute (ADR-0045).
 
 ### Confirmation
 

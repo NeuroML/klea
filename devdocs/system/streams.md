@@ -91,11 +91,12 @@ today; it exists for a future live-typing UI.
 
 ## Known limitations
 
-* Node instances are singletons shared across concurrent runs; the `_last_*`
-  snapshot fields used by the streaming hooks are instance state, so two
-  concurrent runs on one orchestrator can interleave.  Per-run mutable state
-  (counters, picker attempts, step outputs) lives in graph state instead
-  (ADR-0033).  Refactoring the `_last_*` snapshots is outstanding.
+* Node instances are singletons shared across concurrent runs.  Per-run
+  execution scratch (the prompt/LLM/output snapshot the streaming and
+  inspection hooks read) now lives in a per-run `NodeContext` created by
+  `execute` and passed to each hook, so concurrent runs no longer
+  interleave (ADR-0045).  Durable per-run mutable state (counters, picker
+  attempts, step outputs) lives in graph state instead (ADR-0033).
 * Inline media rendering (`image/*`, `audio/*`) is deferred to the `display`
   text fallback; `image/svg+xml` needs sanitisation.
 * `tool` entries render in the web only; TUI ignores them.

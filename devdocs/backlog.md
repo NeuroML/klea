@@ -76,8 +76,6 @@ Last updated: 2026-09-30.
 
 ## Infrastructure / correctness
 
-- Shared-instance `_last_*` snapshot leak (per-run `_last_*` state on shared
-  node instances).
 - Retrieval depth (`k`) is not per-invocation.  `BaseKleaRetriever._k` lives on
   the process-wide `self.stores` / `self.bm25_stores` managers (built once in
   `BaseLangGraph._get_vector_stores`), not in `RAGState`, so it is shared

@@ -53,9 +53,8 @@ share.  How should node behaviour be factored?
 * **B. Free-function helpers** -- expose ``build_prompt``,
   ``invoke_llm``, ``update_state`` as functions that each node calls.
   Rejected: call order would be re-established per node and the
-  ``_last_*`` inspection capture (``_last_prompt``/``_last_output``/
-  ``_last_result``/``_token_usage``) would have no single place to
-  live.
+  per-run execution context captured for inspection (see ADR-0045) would
+  have no single place to live.
 * **C. Shared abstract hierarchy with Template Method per node type
   (chosen)** -- ``utils_pkg/klea_utils/nodes/abstract.py`` provides
   two layers:
