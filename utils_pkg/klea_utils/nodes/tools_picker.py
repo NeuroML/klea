@@ -428,14 +428,14 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return update
 
     @override
-    def _get_default_error_result(self) -> ToolCallsSchema:
+    def _get_default_error_result(self, ctx: Any) -> ToolCallsSchema:
         """Return an empty result matching the current (possibly dynamic) schema.
 
         The static ``ToolCallsSchema`` is the fallback when no per-run schema
         was resolved; otherwise instantiate the dynamic one so its type and
         the downstream normalization stay consistent.
         """
-        schema = self.output_schema
+        schema = ctx.output_schema
         if schema is not None:
             try:
                 return schema(tool_calls=[])

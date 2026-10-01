@@ -21,6 +21,7 @@ from klea_utils.llm import LLMModel, create_configurable_model
 from klea_utils.mcp.access import ToolAccessOverride
 from klea_utils.nodes.answer_general import AnswerGeneral
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from langchain_core.messages import AIMessage, AnyMessage
 from langchain_core.prompt_values import StringPromptValue
@@ -802,7 +803,7 @@ class _IntegrationLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     def _update_state(self, result, state):
         return {}
 
-    def _get_default_error_result(self):
+    def _get_default_error_result(self, ctx):
         return ""
 
 
@@ -839,7 +840,6 @@ class _RetryGraph(BaseLangGraph):
     async def _create_graph(self) -> None:
         from langgraph.graph import END, START, StateGraph
 
-        inst = self._inst
         llm_models = self.llm_models
         logger = self.logger
         label = "Retrying answer"
@@ -861,7 +861,9 @@ class _RetryGraph(BaseLangGraph):
                     }
                 },
             )
-            await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+            await node._invoke_llm(
+                LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
+            )
             return {"message_for_user": "done"}
 
         workflow = StateGraph(_RetryToyState)

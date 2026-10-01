@@ -55,6 +55,7 @@ from ..llm import (
 )
 from ..models_catalog import probe_endpoint_model_limits
 from .abstract import AbstractLLMNode, NodeStreamData, NodeStreamEvent
+from .context import LLMNodeContext
 
 #: Max times to retry an invoke that overflowed the context window, each
 #: time shrinking the reserved output window to free headroom.
@@ -326,7 +327,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         """Return JSON schema string for use in prompts."""
         return convert_to_json_schema(self.output_schema) if self.output_schema else {}
 
-    def _configure_llm(self) -> tuple[Runnable, RunnableConfig]:
+    def _configure_llm(
+        self, ctx: LLMNodeContext[TOutput]
+    ) -> tuple[Runnable, RunnableConfig]:
         """Configure LLM and build per-invoke config.
 
         Returns the raw ``instance`` (a ``_ConfigurableModel``) without
@@ -334,17 +337,18 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         so that providers that reject ``response_format`` can fall back to
         prompt-based structured output.
 
+        :param ctx: Per-run node context.
         :returns: (llm_instance, config_dict) where config_dict is a
             ``RunnableConfig`` with ``configurable`` populated.
         """
         inst = self._llm_entry.instance
-        config = self._build_invoke_config()
+        config = self._build_invoke_config(ctx)
         self.logger.debug(
             f"{self.model_role = }\n{mask_sensitive(config.get('configurable', {})) = }"
         )
         return inst, config
 
-    def _build_invoke_config(self) -> RunnableConfig:
+    def _build_invoke_config(self, ctx: LLMNodeContext[TOutput]) -> RunnableConfig:
         """Build the per-invoke RunnableConfig.
 
         Delegates the full merge (role defaults -> context overrides ->
@@ -401,7 +405,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         # finite budget, mainly for the HuggingFace whole-window
         # reservation).  The retry path in _update_output_window opts into
         # the live endpoint for an accurate cap.
-        input_chars = len(self._last_prompt.to_string()) if self._last_prompt else None
+        input_chars = len(ctx.prompt.to_string()) if ctx.prompt else None
         resolve_output_token_limit(
             overrides,
             provider=overrides.get("model_provider") or "openai",
@@ -485,7 +489,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         return prompt
 
     async def _invoke_llm(
-        self, llm: Runnable, prompt: PromptValue, config: RunnableConfig
+        self, ctx: LLMNodeContext[TOutput]
     ) -> AIMessage | dict[str, Any]:
         """Async invoke LLM with optional structured output + fallback.
 
@@ -506,7 +510,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         they stay on the structured path so its existing empty-retry budget is
         used before degrading.
         """
-        prompt = self._add_cache_control(prompt, config)
+        assert ctx.prompt is not None
+        assert ctx.config is not None
+        prompt = self._add_cache_control(ctx.prompt, ctx.config)
+        config = ctx.config
+        output_schema = ctx.output_schema
         self.logger.debug(f"{prompt = }")
         inst = self._llm_entry.instance
         configurable = config.get("configurable") or {}
@@ -514,7 +522,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         model = configurable.get("model") or self._llm_entry.model_name
         base_url = configurable.get("base_url")
 
-        if not self.output_schema:
+        if not output_schema:
             output = await self._invoke_with_retries(inst.ainvoke, prompt, config)
             self.logger.debug(f"{output = }")
             return output
@@ -529,7 +537,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             return output
 
         structured = inst.with_structured_output(
-            self.output_schema, method="json_schema", include_raw=True
+            output_schema, method="json_schema", include_raw=True
         )
         use_structured = True
 
@@ -943,7 +951,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             # No active run (direct unit-test call): the retry is still logged.
             pass
 
-    def _process_output(self, output: AIMessage | dict[str, Any]) -> Any:
+    def _process_output(self, ctx: LLMNodeContext[TOutput]) -> Any:
         """Common output processing with error handling.
 
         NOTE: structured output is best-effort.  A model can return a valid
@@ -956,20 +964,21 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         revisit the prompt/model rather than expecting a loud invocation
         error.
         """
+        output = ctx.output
         result: TOutput | AIMessage | None = None
-        schema = self.output_schema
+        schema = ctx.output_schema
 
         if schema:
             # but answer is returned as message instead of json/dict
             if isinstance(output, AIMessage):
-                result = self._parse_structured_message(output)
+                result = self._parse_structured_message(output, ctx)
             else:
                 assert isinstance(output, dict)
                 if output["parsing_error"]:
                     self.logger.warning(
                         f"LLM parsing error, using fallback: {output['parsing_error']}"
                     )
-                    result = self._parse_structured_message(output["raw"])
+                    result = self._parse_structured_message(output["raw"], ctx)
                 else:
                     result = output["parsed"]
                     if isinstance(result, dict):
@@ -979,7 +988,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                             self.logger.critical(
                                 f"Unexpected output type: {type(result)}"
                             )
-                            result = self._get_default_error_result()
+                            result = self._get_default_error_result(ctx)
 
             self.logger.debug(f"Processed output: {result}")
         else:
@@ -989,7 +998,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                 f"No output schema. Returning unprocessed output: {result}"
             )
 
-        if _is_empty_result(result, self.output_schema):
+        if _is_empty_result(result, ctx.output_schema):
             self.logger.warning(
                 f"Empty LLM output from {self.label}: nothing usable was "
                 f"produced (all-default structured result or blank message)"
@@ -1000,12 +1009,14 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             # nodes keep the raw output: their ``_get_default_error_result``
             # is not necessarily an ``AIMessage`` (the guard returns a bare
             # ``str``), and user-facing ones supply their own fallback text.
-            if self.output_schema is not None:
-                result = self._get_default_error_result()
+            if ctx.output_schema is not None:
+                result = self._get_default_error_result(ctx)
 
         return result
 
-    def _parse_structured_message(self, message: AIMessage) -> Any:
+    def _parse_structured_message(
+        self, message: AIMessage, ctx: LLMNodeContext[TOutput]
+    ) -> Any:
         """Parse a structured-output message, degrading to the typed default.
 
         ``parse_output_with_thought`` can raise when the model returned blank
@@ -1015,26 +1026,27 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         node and abort the run.
 
         :param message: The raw model message to parse.
+        :param ctx: Per-run node context (supplies the resolved schema).
         :returns: A schema instance, or ``_get_default_error_result()`` on
             parse/validation failure.
         """
-        assert self.output_schema is not None
+        assert ctx.output_schema is not None
         try:
-            result, _ = parse_output_with_thought(message, self.output_schema)
+            result, _ = parse_output_with_thought(message, ctx.output_schema)
         except (OutputParserException, ValidationError, ValueError, TypeError) as exc:
             self.logger.warning(
                 f"Structured output could not be parsed; using default result: {exc}"
             )
-            return self._get_default_error_result()
+            return self._get_default_error_result(ctx)
         if isinstance(result, dict):
             try:
-                return self.output_schema(**result)
+                return ctx.output_schema(**result)
             except (ValidationError, ValueError, TypeError) as exc:
                 self.logger.warning(
                     "Parsed output failed schema validation; using default "
                     f"result: {exc}"
                 )
-                return self._get_default_error_result()
+                return self._get_default_error_result(ctx)
         return result
 
     def _invoke_prompt(

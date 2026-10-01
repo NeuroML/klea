@@ -407,7 +407,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ctx.template = self._last_template
         self._last_variables = self._get_prompt_variables(state)
         ctx.variables = self._last_variables
-        self._last_llm, self._last_config = self._configure_llm()
+        self._last_llm, self._last_config = self._configure_llm(ctx)
         ctx.llm, ctx.config = self._last_llm, self._last_config
 
         # Validation-retry loop: a node may reject a structurally invalid
@@ -429,13 +429,11 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             ctx.prompt = self._last_prompt
             chars_sent = len(self._last_prompt.to_string())
             self.logger.debug(f"{chars_sent = } characters sent to LLM")
-            self._last_output = await self._invoke_llm(
-                self._last_llm, self._last_prompt, self._last_config
-            )
+            self._last_output = await self._invoke_llm(ctx)
             ctx.output = self._last_output
             chars_received = len(extract_llm_output_content(self._last_output))
             self.logger.debug(f"{chars_received = } characters received from LLM")
-            self._last_result = self._process_output(self._last_output)
+            self._last_result = self._process_output(ctx)
             ctx.result = self._last_result
             error = self._validate_result(self._last_result, state)
             if not error or attempt >= self.max_validation_retries:
@@ -460,7 +458,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ctx.state_updates = self._last_state_updates
 
         # token calculations
-        self._token_usage = self._extract_usage(self._last_output)
+        self._token_usage = self._extract_usage(ctx)
         ctx.token_usage = self._token_usage
         self._final_state = self._update_usage_metrics(
             self._token_usage, self._last_state_updates
@@ -480,12 +478,12 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         nodes have no token usage, so this stays in ``AbstractLLMNode``.
         """
         super()._post_exec_stream(state, ctx)
-        usage = self._get_usage()
+        usage = self._get_usage(ctx)
         if usage:
             event = NodeStreamEvent(type="usage", node=self.label, data=usage)
             self.write_custom_stream(event.model_dump())
 
-    def _extract_usage(self, output: AIMessage | dict[str, Any]) -> TokenUsage | None:
+    def _extract_usage(self, ctx: LLMNodeContext[TOutput]) -> TokenUsage | None:
         """Extract this node's token usage from the LLM output.
 
         Reads ``usage_metadata`` when the provider populates it, otherwise
@@ -494,11 +492,12 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         provider payload, leaving ``usage_metadata`` empty.  The reasoning-token
         count is logged so per-node budgets can be benchmarked.
 
-        :param output: The raw LLM output (``AIMessage``, or a structured-output
-            dict with a ``"raw"`` key)
+        :param ctx: Per-run node context (its ``output`` carries the raw LLM
+            output)
         :returns: ``TokenUsage`` for this node, or ``None`` if usage information is
             unavailable
         """
+        output = ctx.output
         if isinstance(output, dict) and "raw" in output:
             output = output["raw"]
         if not isinstance(output, AIMessage):
@@ -591,14 +590,15 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             "response_metadata",
         )
 
-    def _get_usage(self) -> NodeStreamData | None:
+    def _get_usage(self, ctx: LLMNodeContext[TOutput]) -> NodeStreamData | None:
         """Build a ``NodeStreamData`` wrapper for the current node's token usage.
 
+        :param ctx: Per-run node context.
         :returns: ``NodeStreamData`` with numeric token details, or ``None`` if no
             usage recorded
         """
-        if self._token_usage is not None:
-            details = self._token_usage.model_dump()
+        if ctx.token_usage is not None:
+            details = ctx.token_usage.model_dump()
             self.logger.debug(f"{details =}")
             return NodeStreamData(summary="", details=details)
         return None
@@ -661,9 +661,12 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         return None
 
     @abstractmethod
-    def _configure_llm(self) -> tuple[Runnable, RunnableConfig]:
+    def _configure_llm(
+        self, ctx: LLMNodeContext[TOutput]
+    ) -> tuple[Runnable, RunnableConfig]:
         """Configure LLM with structured output and build per-invoke config.
 
+        :param ctx: Per-run node context.
         :returns: (llm_with_structured_output, config_dict) where
             config_dict is a ``RunnableConfig`` with the ``configurable``
             key populated for ``llm.ainvoke()``.
@@ -672,20 +675,26 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
     @abstractmethod
     async def _invoke_llm(
-        self, llm: Runnable, prompt: PromptValue, config: RunnableConfig
+        self, ctx: LLMNodeContext[TOutput]
     ) -> AIMessage | dict[str, Any]:
         """Async invoke LLM  ---  must use ``await llm.ainvoke()`` so the
         event loop can process streaming callbacks (waiter pattern)
         during the LLM call rather than blocking until it completes.
 
-        :param config: ``RunnableConfig`` (including the ``configurable``
-            key) produced by ``_configure_llm``.
+        Reads the model, prompt and config from *ctx*.
+
+        :param ctx: Per-run node context.
         """
         ...
 
     @abstractmethod
-    def _process_output(self, output: AIMessage | dict[str, Any]) -> Any:
-        """Common output processing with error handling"""
+    def _process_output(self, ctx: LLMNodeContext[TOutput]) -> Any:
+        """Common output processing with error handling.
+
+        Reads the raw output and resolved schema from *ctx*.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
     @abstractmethod
@@ -747,8 +756,11 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         return None
 
     @abstractmethod
-    def _get_default_error_result(self) -> Any:
-        """Return default result when processing fails"""
+    def _get_default_error_result(self, ctx: LLMNodeContext[TOutput]) -> Any:
+        """Return default result when processing fails.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
 

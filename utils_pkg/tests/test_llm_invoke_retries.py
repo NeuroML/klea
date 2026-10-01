@@ -32,6 +32,7 @@ from klea_utils.nodes.base import (
     TRUNCATION_LINEAR_STEP,
     BaseLLMNode,
 )
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage
 from langchain_core.prompt_values import StringPromptValue
@@ -76,7 +77,7 @@ class _MinimalLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     def _update_state(self, result, state):
         return {}
 
-    def _get_default_error_result(self):
+    def _get_default_error_result(self, ctx):
         return ""
 
 
@@ -119,7 +120,7 @@ class TestBuildInvokeConfigNoModel:
             _runtime_context(),
             pytest.raises(RuntimeError, match="No model configured for role 'chat'"),
         ):
-            node._build_invoke_config()
+            node._build_invoke_config(LLMNodeContext())
 
     def test_set_model_builds_config(self):
         """A resolved model proceeds past the guard."""
@@ -133,10 +134,10 @@ class TestBuildInvokeConfigNoModel:
             },
             output_schema=None,
         )
-        node._last_prompt = StringPromptValue(text="hi")
-
         with _runtime_context():
-            config = node._build_invoke_config()
+            config = node._build_invoke_config(
+                LLMNodeContext(prompt=StringPromptValue(text="hi"))
+            )
         assert config["configurable"]["model"] == "gpt-4o"
 
     def test_context_overrides_reach_merge(self):
@@ -151,10 +152,10 @@ class TestBuildInvokeConfigNoModel:
             },
             output_schema=None,
         )
-        node._last_prompt = StringPromptValue(text="hi")
-
         with _runtime_context({"chat": {"model": "ollama:qwen3", "temperature": 0.5}}):
-            config = node._build_invoke_config()
+            config = node._build_invoke_config(
+                LLMNodeContext(prompt=StringPromptValue(text="hi"))
+            )
         assert config["configurable"]["model"] == "qwen3"
         assert config["configurable"]["temperature"] == 0.5
 
@@ -185,10 +186,10 @@ class TestHuggingFaceHostedToken:
             },
             output_schema=None,
         )
-        node._last_prompt = StringPromptValue(text="hi")
-
         with _runtime_context({"chat": {"api_key": "hf_test_token"}}):
-            config = node._build_invoke_config()
+            config = node._build_invoke_config(
+                LLMNodeContext(prompt=StringPromptValue(text="hi"))
+            )
 
         cfg = config["configurable"]
         assert cfg.get("huggingfacehub_api_token") == "hf_test_token"
@@ -216,7 +217,9 @@ class TestInvokeWithRetries:
     async def _invoke(self, inst, config=None):
         node = make_node(inst)
         return await node._invoke_llm(
-            inst, StringPromptValue(text="hi"), config or make_config()
+            LLMNodeContext(
+                prompt=StringPromptValue(text="hi"), config=config or make_config()
+            )
         )
 
     def _node_with_events(self, inst):
@@ -235,7 +238,9 @@ class TestInvokeWithRetries:
         """Like ``_invoke`` but returns ``(output, emitted_events)``."""
         node, events = self._node_with_events(inst)
         out = await node._invoke_llm(
-            inst, StringPromptValue(text="hi"), config or make_config()
+            LLMNodeContext(
+                prompt=StringPromptValue(text="hi"), config=config or make_config()
+            )
         )
         return out, events
 
@@ -323,7 +328,11 @@ class TestInvokeWithRetries:
         )
         node, events = self._node_with_events(inst)
         with pytest.raises(RuntimeError):
-            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+            await node._invoke_llm(
+                LLMNodeContext(
+                    prompt=StringPromptValue(text="hi"), config=make_config()
+                )
+            )
         assert events == []
 
     async def test_context_overflow_retry_shrinks_window(self):
@@ -572,7 +581,9 @@ class TestInvokeWithRetries:
             node = make_node(inst)
             node._last_prompt = StringPromptValue(text="hi")
             try:
-                await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+                await node._invoke_llm(
+                    LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
+                )
             except RuntimeError:
                 pass
             else:
@@ -616,7 +627,9 @@ class TestInvokeWithRetries:
             node = make_node(inst)
             node._last_prompt = StringPromptValue(text="hi")
             try:
-                await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+                await node._invoke_llm(
+                    LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
+                )
             except RuntimeError:
                 pass
             else:
@@ -710,7 +723,9 @@ class TestInvokeWithRetries:
             )
             node = make_node(inst)
             node._last_prompt = StringPromptValue(text="hi")
-            out = await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+            out = await node._invoke_llm(
+                LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
+            )
 
         assert out.content == "full"
         assert config["configurable"]["base_url"] == "https://api.mistral.ai/v1"
@@ -752,7 +767,9 @@ class TestInvokeWithRetries:
             node = make_node(inst)
             node._last_prompt = StringPromptValue(text="hi")
             try:
-                await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+                await node._invoke_llm(
+                    LLMNodeContext(prompt=StringPromptValue(text="hi"), config=config)
+                )
             except RuntimeError:
                 pass
             else:
@@ -791,7 +808,13 @@ class TestInvokeWithRetries:
 
         node = make_node(inst, output_schema=_OutputSchema)
         config = make_config()
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), config)
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=config,
+            )
+        )
 
         assert wrapped.ainvoke.await_count == 1
         assert inst.ainvoke.await_count == 1
@@ -809,7 +832,13 @@ class TestInvokeWithRetries:
 
         node = make_node(inst, output_schema=_OutputSchema)
         try:
-            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+            await node._invoke_llm(
+                LLMNodeContext(
+                    output_schema=_OutputSchema,
+                    prompt=StringPromptValue(text="hi"),
+                    config=make_config(),
+                )
+            )
         except RuntimeError:
             pass
         else:
@@ -840,7 +869,13 @@ class TestInvokeWithRetries:
         )
 
         node = make_node(inst, output_schema=_OutputSchema)
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         assert wrapped.ainvoke.await_count == 2
         assert out.content == '{"answer": "ok"}'
@@ -856,7 +891,13 @@ class TestInvokeWithRetries:
 
         node = make_node(inst, output_schema=_OutputSchema)
         try:
-            await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+            await node._invoke_llm(
+                LLMNodeContext(
+                    output_schema=_OutputSchema,
+                    prompt=StringPromptValue(text="hi"),
+                    config=make_config(),
+                )
+            )
         except OutputParserException:
             pass
         else:
@@ -879,7 +920,13 @@ class TestInvokeWithRetries:
         )
 
         node = make_node(inst, output_schema=_OutputSchema)
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         assert wrapped.ainvoke.await_count == 1
         assert inst.ainvoke.await_count == 1
@@ -898,7 +945,13 @@ class TestInvokeWithRetries:
         )
 
         node = make_node(inst, output_schema=_OutputSchema)
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         assert wrapped.ainvoke.await_count == 1
         assert inst.ainvoke.await_count == 1
@@ -918,7 +971,13 @@ class TestInvokeWithRetries:
         )
 
         node = make_node(inst, output_schema=_OutputSchema)
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         # One structured attempt, then the empty plain response is retried
         # on the plain path (not the structured one).
@@ -994,7 +1053,13 @@ class TestStructuredOutputCapabilityCache:
             )
         )
         node = make_node(inst, output_schema=_OutputSchema)
-        out = await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         inst.with_structured_output.assert_not_called()
         assert inst.ainvoke.await_count == 1
@@ -1013,14 +1078,26 @@ class TestStructuredOutputCapabilityCache:
             )
         )
         node = make_node(inst, output_schema=_OutputSchema)
-        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         assert structured_output_known_unsupported("openai", "gpt-4o")
         assert wrapped.ainvoke.await_count == 1
 
         # Second call for the same key bypasses structured entirely.
         inst.with_structured_output.reset_mock()
-        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
         inst.with_structured_output.assert_not_called()
         assert inst.ainvoke.await_count == 2
 
@@ -1035,7 +1112,13 @@ class TestStructuredOutputCapabilityCache:
             )
         )
         node = make_node(inst, output_schema=_OutputSchema)
-        await node._invoke_llm(inst, StringPromptValue(text="hi"), make_config())
+        await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
 
         assert not structured_output_known_unsupported("openai", "gpt-4o")
 
@@ -1079,11 +1162,11 @@ class _ValidatingNode(_MinimalLLMNode):
     def _post_exec_stream(self, state, ctx):
         pass
 
-    async def _invoke_llm(self, llm, prompt, config):
+    async def _invoke_llm(self, ctx):
         self.calls += 1
         return AIMessage(content="raw")
 
-    def _process_output(self, output):
+    def _process_output(self, ctx):
         return self.calls
 
     def _validate_result(self, result, state):
@@ -1093,7 +1176,7 @@ class _ValidatingNode(_MinimalLLMNode):
     def _update_state(self, result, state):
         return {"accepted": result}
 
-    def _get_default_error_result(self):
+    def _get_default_error_result(self, ctx):
         return 0
 
 

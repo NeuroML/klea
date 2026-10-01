@@ -154,6 +154,6 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
     # TODO: may need updating
     @override
-    def _get_default_error_result(self) -> AIMessage:
+    def _get_default_error_result(self, ctx: Any) -> AIMessage:
         """Return default result when processing fails."""
         return AIMessage(content="")

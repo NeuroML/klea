@@ -102,7 +102,9 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         # An empty generation (the base retry budget was exhausted) must not
         # surface as a blank reply to the user; fall back to a clear message.
         if not answer_text.strip():
-            answer_text = content_to_str(self._get_default_error_result().content)
+            answer_text = content_to_str(
+                self._get_default_error_result(LLMNodeContext()).content
+            )
         answer += answer_text
 
         messages = list(state.messages)  # type: ignore
@@ -112,7 +114,7 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         return {"messages": messages, "message_for_user": answer}
 
     @override
-    def _get_default_error_result(self) -> AIMessage:
+    def _get_default_error_result(self, ctx: Any) -> AIMessage:
         """Return the fallback message when the model produced no answer."""
         return AIMessage(content=EMPTY_RESULT_FALLBACK)
 

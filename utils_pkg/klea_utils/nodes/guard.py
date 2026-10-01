@@ -83,6 +83,6 @@ class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
         return {"guard_decision": "safe"}
 
     @override
-    def _get_default_error_result(self) -> str:
+    def _get_default_error_result(self, ctx: Any) -> str:
         """Unused: no schema in this node."""
         return "safe"

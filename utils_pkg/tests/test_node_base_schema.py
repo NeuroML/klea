@@ -64,7 +64,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     def _update_state(self, result, state: BaseModel) -> dict:
         return {}
 
-    def _get_default_error_result(self):
+    def _get_default_error_result(self, ctx):
         return AnswerSchema(answer="fallback")
 
 
@@ -241,7 +241,9 @@ def test_process_output_warns_on_empty_result(caplog):
         "raw": AIMessage(content="{}"),
     }
     with caplog.at_level(logging.WARNING):
-        result = node._process_output(output)
+        result = node._process_output(
+            LLMNodeContext(output=output, output_schema=AnswerSchema)
+        )
     assert result == AnswerSchema(answer="fallback")
     assert "Empty LLM output from Dummy" in caplog.text
 
@@ -255,7 +257,9 @@ def test_process_output_no_warning_on_populated_result(caplog):
         "raw": AIMessage(content='{"answer": "a real answer"}'),
     }
     with caplog.at_level(logging.WARNING):
-        result = node._process_output(output)
+        result = node._process_output(
+            LLMNodeContext(output=output, output_schema=AnswerSchema)
+        )
     assert result == AnswerSchema(answer="a real answer")
     assert "Empty LLM output" not in caplog.text
 
@@ -264,7 +268,9 @@ def test_process_output_blank_message_uses_default(caplog):
     """A blank structured message degrades to the typed default, no raise."""
     node = _node(AnswerSchema)
     with caplog.at_level(logging.WARNING):
-        result = node._process_output(AIMessage(content=""))
+        result = node._process_output(
+            LLMNodeContext(output=AIMessage(content=""), output_schema=AnswerSchema)
+        )
     assert result == AnswerSchema(answer="fallback")
     assert "could not be parsed" in caplog.text
 
@@ -278,7 +284,9 @@ def test_process_output_parsing_error_blank_raw_uses_default(caplog):
         "raw": AIMessage(content=""),
     }
     with caplog.at_level(logging.WARNING):
-        result = node._process_output(output)
+        result = node._process_output(
+            LLMNodeContext(output=output, output_schema=AnswerSchema)
+        )
     assert result == AnswerSchema(answer="fallback")
     assert "using fallback" in caplog.text
     assert "could not be parsed" in caplog.text
@@ -293,18 +301,24 @@ def test_process_output_parsing_error_malformed_raw_uses_default(caplog):
         "raw": AIMessage(content="not json at all"),
     }
     with caplog.at_level(logging.WARNING):
-        result = node._process_output(output)
+        result = node._process_output(
+            LLMNodeContext(output=output, output_schema=AnswerSchema)
+        )
     assert result == AnswerSchema(answer="fallback")
 
 
 def test_llm_post_exec_stream_emits_usage_event():
     """AbstractLLMNode._post_exec_stream adds the LLM-specific usage event."""
     node = _node(AnswerSchema)
-    node._token_usage = TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)
     events: list[dict] = []
     cast(Any, node).write_custom_stream = events.append
 
-    node._post_exec_stream(MemoryState(), LLMNodeContext())
+    node._post_exec_stream(
+        MemoryState(),
+        LLMNodeContext(
+            token_usage=TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)
+        ),
+    )
 
     event_types = [e["type"] for e in events]
     assert event_types == ["usage"]
@@ -441,8 +455,9 @@ async def test_anthropic_cache_control_real_call():
         ]
     )
 
-    first = cast(AIMessage, await node._invoke_llm(inst, prompt, config))
-    second = cast(AIMessage, await node._invoke_llm(inst, prompt, config))
+    invoke_ctx = LLMNodeContext(prompt=prompt, config=config)
+    first = cast(AIMessage, await node._invoke_llm(invoke_ctx))
+    second = cast(AIMessage, await node._invoke_llm(invoke_ctx))
 
     first_details = _anthropic_cache_details(first.usage_metadata)
     second_details = _anthropic_cache_details(second.usage_metadata)
@@ -469,15 +484,17 @@ def test_extract_usage_from_usage_metadata():
     """LangChain-normalised ``usage_metadata`` is read when present."""
     node = _node(AnswerSchema)
     usage = node._extract_usage(
-        AIMessage(
-            content="ok",
-            usage_metadata={
-                "input_tokens": 100,
-                "output_tokens": 20,
-                "total_tokens": 120,
-                "input_token_details": {"cache_read": 64},
-                "output_token_details": {"reasoning": 12},
-            },
+        LLMNodeContext(
+            output=AIMessage(
+                content="ok",
+                usage_metadata={
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "total_tokens": 120,
+                    "input_token_details": {"cache_read": 64},
+                    "output_token_details": {"reasoning": 12},
+                },
+            )
         )
     )
     assert isinstance(usage, TokenUsage)
@@ -493,17 +510,19 @@ def test_extract_usage_falls_back_to_response_metadata():
     """Gateways that leave ``usage_metadata`` empty are still measured."""
     node = _node(AnswerSchema)
     usage = node._extract_usage(
-        AIMessage(
-            content="ok",
-            response_metadata={
-                "token_usage": {
-                    "prompt_tokens": 3407,
-                    "completion_tokens": 505,
-                    "total_tokens": 3912,
-                    "completion_tokens_details": {"reasoning_tokens": 441},
-                    "prompt_tokens_details": {"cached_tokens": 512},
-                }
-            },
+        LLMNodeContext(
+            output=AIMessage(
+                content="ok",
+                response_metadata={
+                    "token_usage": {
+                        "prompt_tokens": 3407,
+                        "completion_tokens": 505,
+                        "total_tokens": 3912,
+                        "completion_tokens_details": {"reasoning_tokens": 441},
+                        "prompt_tokens_details": {"cached_tokens": 512},
+                    }
+                },
+            )
         )
     )
     assert isinstance(usage, TokenUsage)
@@ -518,4 +537,4 @@ def test_extract_usage_falls_back_to_response_metadata():
 def test_extract_usage_none_without_metadata():
     """No usage in either shape yields ``None``."""
     node = _node(AnswerSchema)
-    assert node._extract_usage(AIMessage(content="ok")) is None
+    assert node._extract_usage(LLMNodeContext(output=AIMessage(content="ok"))) is None

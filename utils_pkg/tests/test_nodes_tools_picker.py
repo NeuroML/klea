@@ -12,7 +12,7 @@ import logging
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
-from klea_utils.nodes.context import NodeContext
+from klea_utils.nodes.context import LLMNodeContext, NodeContext
 from klea_utils.nodes.tools_picker import ToolsPicker
 from mcp.types import TextContent
 from pydantic import BaseModel, Field
@@ -173,8 +173,8 @@ def test_normalize_no_tool_branch_is_unusable():
 def test_default_error_result_matches_dynamic_schema():
     """The fail-closed default instantiates the per-run schema."""
     picker = _make_picker()
-    picker._output_schema = picker._get_output_schema(AgentLikeState())
-    result = picker._get_default_error_result()
+    schema = picker._get_output_schema(AgentLikeState())
+    result = picker._get_default_error_result(LLMNodeContext(output_schema=schema))
     assert result.tool_calls == []
 
 
@@ -250,7 +250,7 @@ def test_update_state_writes_tool_calls():
 
 def test_default_error_result_is_empty_tool_calls():
     picker = _make_picker()
-    assert picker._get_default_error_result() == ToolCallsSchema()
+    assert picker._get_default_error_result(LLMNodeContext()) == ToolCallsSchema()
 
 
 def test_prompt_variables_superset_for_agent_state():

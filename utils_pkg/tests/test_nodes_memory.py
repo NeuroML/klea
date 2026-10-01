@@ -41,7 +41,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     def _update_state(self, result, state: BaseModel) -> dict:
         return {}
 
-    def _get_default_error_result(self) -> AIMessage:
+    def _get_default_error_result(self, ctx) -> AIMessage:
         return AIMessage(content="")
 
 
