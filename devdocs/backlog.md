@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-09-30.
+Last updated: 2026-10-01.
 
 ## HITL / plan review
 
@@ -133,6 +133,43 @@ Last updated: 2026-09-30.
 - Verify the HuggingFace local (`:local`) backend end to end once a working
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
+
+## Streaming / tool UX
+
+- Live per-tool status.  The tools caller emits only a node-level `progress`
+  ("Running tools"); per-tool results appear only after the round completes
+  (`state` -> status pane, `tool` -> chat, `inspect`).  There is no
+  "tool X is running" indicator while a call is in flight.  Add one, ideally
+  as a per-call status on the existing `tool` event (`status` =
+  `running`/`ok`/`error`, plus a stable `call_id`) rather than a new event
+  type (ADR-0040 chose one `tool` event with a discriminator).  Accurate live
+  status needs optional per-call callbacks in `dispatch_tool_calls`
+  (`klea_utils/mcp/dispatch.py`), since that is where concurrency and
+  same-resource serialisation are decided; the cheaper batch alternative
+  (mark every call running up-front, all done at the end) is inaccurate for
+  serialised groups and for gated/rejected calls.  Decide: chat-transcript
+  rows vs the top progress line; whether a completed row persists as its
+  output block or a compact `ok`/`error` line; whether the status pane also
+  updates live per call; web only or web + TUI (TUI ignores `tool` today).
+  Files: `utils_pkg/klea_utils/nodes/tools_caller.py`,
+  `utils_pkg/klea_utils/ui/web/nicegui/components/{stream,chat_bubble}.py`,
+  `utils_pkg/klea_utils/ui/web/nicegui/state.py` (`MessageData`),
+  `utils_pkg/klea_utils/graph/base.py` (event forwarding), `ui/tui/repl.py`.
+- Surface `run_command` output in the chat like file-edit diffs.  Its
+  structured result (`command`/`returncode`/`stdout`/`stderr`/`truncated`)
+  is not recognised by `_display_from_structured` (only `display`/`diff`/
+  `code` are), so it produces no `tool` block.  Routes: (1) have
+  `run_command` return a self-describing `display` dict (the ADR-0040
+  convention; cap the payload since `stdout` is already in
+  `structured_content`), or (2) add a generic `command`/`stdout` ->
+  `text/x-shell` convention in `tools_caller.py`.  Decide: show always vs
+  only when there is output or a non-zero exit; stderr inline vs only on a
+  non-zero exit (timeouts/denials stay `is_error` and are not displayed, per
+  ADR-0040); size cap / collapse threshold.  Side effect to accept: once
+  displayed, run_command results count as `displayed_to_user: yes`, so the
+  final answer will not reprint them.  Files:
+  `utils_pkg/klea_utils/mcp/tool_impls/run_command.py`,
+  `utils_pkg/klea_utils/nodes/tools_caller.py`.
 
 ## Testing
 
