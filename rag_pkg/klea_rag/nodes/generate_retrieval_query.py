@@ -154,7 +154,7 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
 
     @override
     def _update_state(
-        self, result: RetrievalQueryOutput, state: RAGState
+        self, result: RetrievalQueryOutput, state: RAGState, ctx: Any
     ) -> dict[str, Any]:
         """Update state with the generated search query and filters.
 

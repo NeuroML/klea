@@ -74,7 +74,7 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
 
     @override
     def _update_state(
-        self, result: EvaluateAnswerSchema, state: RAGState
+        self, result: EvaluateAnswerSchema, state: RAGState, ctx: Any
     ) -> dict[str, Any]:
         """Update state with evaluation result and computed routing decision."""
         return {

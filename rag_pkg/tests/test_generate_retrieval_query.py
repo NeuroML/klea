@@ -85,7 +85,9 @@ def test_update_state_normalizes_filters_and_drops_undeclared():
         search_query="repos",
         filters={"repository_type": "github", "bogus": "x"},
     )
-    updates = node._update_state(result, RAGState(query_domains=["repos"]))
+    updates = node._update_state(
+        result, RAGState(query_domains=["repos"]), LLMNodeContext()
+    )
 
     stored = updates["retrieval_query"]
     assert stored.config_filters == [{"repository_type": {"$eq": "github"}}]
@@ -100,9 +102,9 @@ def test_update_state_handles_multi_value_contains():
         search_query="repos",
         filters={"tags": ["moose", "ca1"]},
     )
-    stored = node._update_state(result, RAGState(query_domains=["repos"]))[
-        "retrieval_query"
-    ]
+    stored = node._update_state(
+        result, RAGState(query_domains=["repos"]), LLMNodeContext()
+    )["retrieval_query"]
     assert stored.config_filters == [
         {
             "$and": [
@@ -118,8 +120,8 @@ def test_update_state_no_allowed_fields_ignores_all_filters():
     result = RetrievalQueryOutput(
         search_query="repos", filters={"repository_type": "github"}
     )
-    stored = node._update_state(result, RAGState(query_domains=["repos"]))[
-        "retrieval_query"
-    ]
+    stored = node._update_state(
+        result, RAGState(query_domains=["repos"]), LLMNodeContext()
+    )["retrieval_query"]
     assert stored.config_filters == []
     assert stored.filters == {"repository_type": "github"}

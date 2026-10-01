@@ -88,7 +88,9 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
         }
 
     @override
-    def _update_state(self, result: AnswerSchema, state: RAGState) -> dict[str, Any]:
+    def _update_state(
+        self, result: AnswerSchema, state: RAGState, ctx: Any
+    ) -> dict[str, Any]:
         """Update state with the generated answer and formatted references."""
         _thought, answer = split_output_by_section(result.answer, "<think>", "</think>")
         refs = result.references

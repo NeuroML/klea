@@ -114,7 +114,7 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         return {"query": state.query}
 
     @override
-    def _update_state(self, result: Any, state: RAGState) -> dict[str, Any]:
+    def _update_state(self, result: Any, state: RAGState, ctx: Any) -> dict[str, Any]:
         """Extract classification result, append query to messages."""
         messages = list(state.messages)
         messages.append(HumanMessage(content=state.query))
