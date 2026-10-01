@@ -32,6 +32,7 @@
 
 ### Changed
 
+- Web UI: the model dialog can copy one role's model configuration to all roles.
 - RAG retrieval runs each retriever call and the cross-encoder inference in worker threads, so a slow store or model no longer blocks the server event loop for other sessions.
 - A streaming run records the user turn when it starts (not only on completion), so a turn that fails mid-run is visible and retryable; the assistant reply is recorded on completion.
 - A custom `/v1/messages` endpoint uses the `anthropic` provider and copies `OPENAI_API_KEY` to `anthropic_api_key`, with an explicit per-chat `api_key` override taking precedence.
@@ -56,6 +57,7 @@
 
 ### Fixed
 
+- Tool picker calls bind their arguments again under strict structured output: a free-form `args` object was closed to `{}` by every provider's strict mode, so calls ran with empty parameters. The picker now builds a per-run, strict-safe schema from the disclosed tools (each tool's parameters as typed fields), so calls bind correctly.
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
 - A transient LLM timeout (including a stream that stalls after its response starts) is retried with bounded backoff instead of aborting the run; timeouts are also matched by exception type, not only message text.
 - Per-node token usage is now read from `response_metadata.token_usage` when `usage_metadata` is empty (gateways and OpenAI-compatible endpoints that report counts only in the raw payload), so token usage and reasoning-token counts are tracked and logged instead of being silently dropped.
@@ -93,6 +95,7 @@
 
 ### Changed
 
+- The tool picker runs on a dedicated `tool_picker` model role instead of borrowing the chat/plan model; there is no silent fallback, so the role must be configured.
 - Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
 - The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.
 - Plan state is now `PlanSchema` extending the authored `PlannerPlanSchema`, with run-history counters (`plan_version`, `human_feedback_rounds`, `automated_plan_revisions`) carried on the plan; `human_feedback`/`replan_reason` remain documented transient node-to-node signals.
