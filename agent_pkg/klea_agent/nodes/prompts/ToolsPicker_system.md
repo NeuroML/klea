@@ -28,6 +28,12 @@ steps needs -- not to choose which tools to use.
   call(s).  Put each tool's parameters as fields on its call (for example
   `{{"tool": "read_file", "path": "README.md"}}`); there is no separate `args`
   object.
+* Build the narrowest call that satisfies the step.  When the step or
+  `observations` names a specific file, module, test or target, pass exactly
+  that (for example `pytest tests/test_x.py`, not a bare `pytest`); never
+  broaden the scope of a step.
+* Reuse exact identifiers (paths, names, ids) from `observations`; do not
+  substitute a generic default when a specific one is known.
 * Do not re-do work from earlier steps:
   the outputs of completed steps are in `observations`, so read facts (paths,
   file contents, command output) from there instead of re-locating or
