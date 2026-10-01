@@ -290,6 +290,18 @@ class _ModelPicker:
         self._on_change(self.value)
 
 
+def _role_label(role: str) -> str:
+    """Return the human-facing tab label for a model role key.
+
+    ``tool_picker`` -> ``"Tool picker"`` (``str.capitalize()`` alone would
+    give ``"Tool_picker"``).
+
+    :param role: Model role key (``chat``, ``tool_picker``, ...).
+    :returns: Display label.
+    """
+    return role.replace("_", " ").capitalize()
+
+
 def attach_model_info(ctx: PageContext) -> None:
     """Register the model-info fetches and the model-config dialog.
 
@@ -625,7 +637,7 @@ def attach_model_info(ctx: PageContext) -> None:
         # Keep the selected tab across body refreshes: a credential change
         # rebuilds the tabs, and without this the user is bounced back to
         # the first role.
-        selected_tab = {"value": roles[0].capitalize()}
+        selected_tab = {"value": _role_label(roles[0])}
         # Current input values and per-role credential labels, so unsaved
         # model edits survive a body refresh and their labels update live.
         role_values: dict[str, str] = {
@@ -744,6 +756,38 @@ def attach_model_info(ctx: PageContext) -> None:
 
             return _handler
 
+        def _use_for_all(role: str) -> None:
+            """Copy this role's model to every modifiable role of its kind.
+
+            Scoped by ``model_type`` so a chat model is never copied onto the
+            embedding role.  Autofills only; the user still saves.
+            """
+            source = role_inputs.get(role)
+            if source is None:
+                return
+            value = source.value.strip()
+            info = _current_info()
+            source_type = info.get(role, {}).get("model_type", "text_generation")
+            applied: list[str] = []
+            for target, cfg in info.items():
+                if target == role or not cfg.get("modifiable", True):
+                    continue
+                if cfg.get("model_type", "text_generation") != source_type:
+                    continue
+                role_values[target] = value
+                applied.append(target)
+            logger.debug(
+                f"model config dialog: use for all\n{source = }\n{value = }\n"
+                f"{applied = }\n{source_type = }"
+            )
+            _render_body.refresh()
+
+        def _on_use_for_all(role: str):
+            def _handler() -> None:
+                _use_for_all(role)
+
+            return _handler
+
         async def _refresh_after_credentials() -> None:
             """Re-read stored credentials and rebuild the model dialog."""
             stored = await fetch_credentials(ctx.server_url, ctx.user_id)
@@ -774,7 +818,7 @@ def attach_model_info(ctx: PageContext) -> None:
             if not roles:
                 logger.warning("model config dialog: refresh found no roles")
                 return
-            role_tabs = [role.capitalize() for role in roles]
+            role_tabs = [_role_label(role) for role in roles]
             value = (
                 selected_tab["value"]
                 if selected_tab["value"] in role_tabs
@@ -798,8 +842,8 @@ def attach_model_info(ctx: PageContext) -> None:
                         cfg = info.get(role, {})
                         modifiable = cfg.get("modifiable", True)
                         tab_map[role] = ui.tab(
-                            name=role.capitalize(),
-                            label=role.capitalize(),
+                            name=_role_label(role),
+                            label=_role_label(role),
                             icon="lock" if not modifiable else None,
                         )
                 tabs.value = value
@@ -831,7 +875,22 @@ def attach_model_info(ctx: PageContext) -> None:
                                     "text-xs text-grey-5 italic"
                                 )
                             else:
+                                same_kind = [
+                                    other
+                                    for other, other_cfg in info.items()
+                                    if other_cfg.get("modifiable", True)
+                                    and other_cfg.get("model_type", "text_generation")
+                                    == cfg.get("model_type", "text_generation")
+                                ]
                                 with ui.row().classes("w-full justify-end"):
+                                    if len(same_kind) > 1:
+                                        ui.button(
+                                            "Use for all roles",
+                                            on_click=_on_use_for_all(role),
+                                        ).props("flat").tooltip(
+                                            "Apply this model to every modifiable "
+                                            "role of the same kind (all chat roles)."
+                                        )
                                     ui.button(
                                         "Reset",
                                         on_click=_on_clear_role(role),
