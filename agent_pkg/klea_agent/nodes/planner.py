@@ -120,7 +120,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         self._tools_info = tools_info or {}
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the query, current plan state and tool catalogue.
 
         The three conditional feedback fields are composed into one optional

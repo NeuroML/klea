@@ -187,7 +187,7 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_prompt_variables_include_criteria(self):
         evaluator = self._evaluator()
-        variables = evaluator._get_prompt_variables(self._state())
+        variables = evaluator._get_prompt_variables(self._state(), LLMNodeContext())
         self.assertIn("do x", variables["goal"])
         self.assertIn("x is done", variables["goal"])
         self.assertIn("step one", variables["plan"])
@@ -196,7 +196,9 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_prompt_variables_include_executed_tools_sentinel(self):
         """The declared ``executed_tools`` input is always rendered."""
-        variables = self._evaluator()._get_prompt_variables(self._state())
+        variables = self._evaluator()._get_prompt_variables(
+            self._state(), LLMNodeContext()
+        )
         self.assertEqual(variables["executed_tools"], "(none)")
 
     def test_prompt_variables_group_executed_tools_by_step(self):
@@ -207,7 +209,7 @@ class TestOperationalEvaluator(unittest.TestCase):
             ToolCallSchema(tool="read_file", step=1),
             ToolCallSchema(tool="write_file", step=2),
         ]
-        variables = self._evaluator()._get_prompt_variables(state)
+        variables = self._evaluator()._get_prompt_variables(state, LLMNodeContext())
         self.assertEqual(
             variables["executed_tools"],
             "Step 1: list_files, read_file\nStep 2: write_file",

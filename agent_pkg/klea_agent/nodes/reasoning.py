@@ -78,7 +78,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         return state.plan.current_step() is not None
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the goal, plan, current step and observations."""
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:

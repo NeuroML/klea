@@ -102,7 +102,7 @@ class TestReasoningNode(unittest.TestCase):
         assert node._pre_exec(KleaAgentState(), LLMNodeContext()) is False
 
     def test_prompt_variables_include_current_step(self):
-        variables = self._node()._get_prompt_variables(self._state())
+        variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())
         assert "form a hypothesis" in variables["current_step"]
         assert "generate a hypothesis" in variables["goal"]
         assert "observations" in variables

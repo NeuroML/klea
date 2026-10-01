@@ -77,7 +77,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         return state.observations_text()
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with goal, plan, per-step executed tools and observations."""
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:

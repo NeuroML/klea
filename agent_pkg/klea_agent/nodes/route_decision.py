@@ -63,7 +63,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         )
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the user query."""
         variables = {"query": state.query}
         self.logger.debug(f"{variables = }")

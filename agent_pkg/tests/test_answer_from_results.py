@@ -13,6 +13,7 @@ import unittest
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults, AnswerSchema
 from klea_agent.schemas import GoalSchema, KleaAgentState, PlanSchema, StepSchema
+from klea_utils.nodes.context import LLMNodeContext
 
 
 class TestAnswerFromResults(unittest.TestCase):
@@ -52,7 +53,7 @@ class TestAnswerFromResults(unittest.TestCase):
         self.assertIn("list files", update["message_for_user"])
 
     def test_prompt_variables_include_plan_and_goal(self):
-        variables = self._node()._get_prompt_variables(self._state())
+        variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())
         self.assertIn("list files", variables["goal"])
         self.assertIn("list files", variables["plan"])
         self.assertIn("observations", variables)
@@ -63,19 +64,19 @@ class TestAnswerFromResults(unittest.TestCase):
     def test_prompt_includes_rendered_discovery(self):
         state = self._state()
         state.discovery_persistent.upsert("AGENTS.md", "use uv")
-        variables = self._node()._get_prompt_variables(state)
+        variables = self._node()._get_prompt_variables(state, LLMNodeContext())
         self.assertIn("### AGENTS.md", variables["discovery"])
         self.assertIn("use uv", variables["discovery"])
 
     def test_prompt_omits_plan_history_for_single_plan(self):
-        variables = self._node()._get_prompt_variables(self._state())
+        variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())
         self.assertEqual(variables["plan_history_block"], "")
 
     def test_prompt_includes_plan_history_after_review(self):
         state = self._state()
         state.plan.plan_version = 2
         state.plan.human_feedback_rounds = 1
-        variables = self._node()._get_prompt_variables(state)
+        variables = self._node()._get_prompt_variables(state, LLMNodeContext())
         self.assertIn("## Plan history", variables["plan_history_block"])
         self.assertIn("version 2", variables["plan_history_block"])
         self.assertIn("1 human review round(s)", variables["plan_history_block"])
@@ -87,7 +88,9 @@ class TestAnswerFromResults(unittest.TestCase):
         return state
 
     def test_failure_outcome_in_prompt_variables(self):
-        variables = self._node()._get_prompt_variables(self._failed_state())
+        variables = self._node()._get_prompt_variables(
+            self._failed_state(), LLMNodeContext()
+        )
         self.assertEqual(variables["outcome"], "failure")
         self.assertEqual(
             variables["outcome_details"], "Failure reason: tool-round budget exhausted"
@@ -110,7 +113,9 @@ class TestAnswerFromResults(unittest.TestCase):
         return state
 
     def test_needs_input_outcome_in_prompt_variables(self):
-        variables = self._node()._get_prompt_variables(self._needs_input_state())
+        variables = self._node()._get_prompt_variables(
+            self._needs_input_state(), LLMNodeContext()
+        )
         self.assertEqual(variables["outcome"], "needs_input")
         self.assertEqual(variables["outcome_details"], "Pending question: which file?")
 

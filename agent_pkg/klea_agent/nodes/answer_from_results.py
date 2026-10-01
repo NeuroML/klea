@@ -108,7 +108,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         return "failure" if AnswerFromResults._is_failure(state) else "success"
 
     @override
-    def _get_prompt_variables(self, state: KleaAgentState) -> dict:
+    def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the outcome, goal, plan, observations and query.
 
         The failure reason and pending question are mutually exclusive and are

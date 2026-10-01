@@ -252,20 +252,22 @@ class TestPlannerState(unittest.TestCase):
     def test_replan_reason_is_exposed(self):
         """The unified replan reason reaches the Planner on a replan."""
         state = KleaAgentState(replan_reason="no progress")
-        variables = self._planner()._get_prompt_variables(state)
+        variables = self._planner()._get_prompt_variables(state, LLMNodeContext())
         self.assertIn("## Replan reason", variables["feedback_block"])
         self.assertIn("no progress", variables["feedback_block"])
 
     def test_feedback_block_is_empty_by_default(self):
         """No conditional feedback means no feedback section at all."""
-        variables = self._planner()._get_prompt_variables(KleaAgentState())
+        variables = self._planner()._get_prompt_variables(
+            KleaAgentState(), LLMNodeContext()
+        )
         self.assertEqual(variables["feedback_block"], "")
 
     def test_discovery_is_rendered(self):
         """Project context (AGENTS.md) is rendered into the prompt variable."""
         state = KleaAgentState()
         state.discovery_persistent.upsert("AGENTS.md", "use uv")
-        variables = self._planner()._get_prompt_variables(state)
+        variables = self._planner()._get_prompt_variables(state, LLMNodeContext())
         self.assertIn("### AGENTS.md", variables["discovery"])
         self.assertIn("use uv", variables["discovery"])
 
