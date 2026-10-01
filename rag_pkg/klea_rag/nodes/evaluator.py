@@ -49,7 +49,7 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
         )
 
     @override
-    def _get_prompt_variables(self, state: RAGState) -> dict:
+    def _get_prompt_variables(self, state: RAGState, ctx: Any) -> dict:
         """Format prompt with question, context, and answer.
 
         The context is a required prompt slot; an empty retrieval is signalled

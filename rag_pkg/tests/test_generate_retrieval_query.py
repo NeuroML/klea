@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from klea_rag.nodes.generate_retrieval_query import GenerateRetrievalQuery
 from klea_rag.schemas import RAGState, RetrievalQueryOutput
+from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.stores.config import FilterFieldInfo
 
 
@@ -34,7 +35,9 @@ def _repos_fields() -> list[FilterFieldInfo]:
 
 def test_prompt_variables_list_configured_filter_fields():
     node = _node({"repos": _repos_fields()})
-    variables = node._get_prompt_variables(RAGState(query_domains=["repos"]))
+    variables = node._get_prompt_variables(
+        RAGState(query_domains=["repos"]), LLMNodeContext()
+    )
     allowed = variables["allowed_filter_fields"]
     assert "repository_type (string)" in allowed
     assert "github, dandi, biomodels or figshare" in allowed
@@ -43,13 +46,17 @@ def test_prompt_variables_list_configured_filter_fields():
 
 def test_no_filter_fields_gives_none_configured():
     node = _node({})
-    variables = node._get_prompt_variables(RAGState(query_domains=["repos"]))
+    variables = node._get_prompt_variables(
+        RAGState(query_domains=["repos"]), LLMNodeContext()
+    )
     assert variables["allowed_filter_fields"] == "(none configured)"
 
 
 def test_unknown_domain_falls_back_to_all_configured_fields():
     node = _node({"repos": _repos_fields()})
-    variables = node._get_prompt_variables(RAGState(query_domains=["unknown"]))
+    variables = node._get_prompt_variables(
+        RAGState(query_domains=["unknown"]), LLMNodeContext()
+    )
     assert "repository_type (string)" in variables["allowed_filter_fields"]
 
 

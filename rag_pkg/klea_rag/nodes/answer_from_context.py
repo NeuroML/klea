@@ -63,7 +63,7 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
         )
 
     @override
-    def _get_prompt_variables(self, state: RAGState) -> dict:
+    def _get_prompt_variables(self, state: RAGState, ctx: Any) -> dict:
         """Format prompt with question and serialized reference material."""
         reference_material = state.reference_material
         reference_material_text = serialize_reference_material(reference_material)

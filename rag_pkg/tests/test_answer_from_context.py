@@ -47,5 +47,5 @@ def test_process_output_empty_returns_retry_message():
 
 def test_empty_reference_material_renders_sentinel():
     """An empty retrieval renders a sentinel, not an empty context label."""
-    variables = _node()._get_prompt_variables(RAGState(query="q"))
+    variables = _node()._get_prompt_variables(RAGState(query="q"), LLMNodeContext())
     assert variables["reference_material"] == "(no reference material)"

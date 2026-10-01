@@ -12,6 +12,7 @@ import logging
 
 from klea_rag.nodes.evaluator import Evaluator
 from klea_rag.schemas import RAGState
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
 
@@ -26,7 +27,7 @@ def _node() -> Evaluator:
 def test_empty_context_renders_sentinel():
     """An empty retrieval renders a sentinel, not an empty context label."""
     state = RAGState(query="q", messages=[AIMessage(content="an answer")])
-    variables = _node()._get_prompt_variables(state)
+    variables = _node()._get_prompt_variables(state, LLMNodeContext())
     assert variables["context"] == "(no context)"
     assert variables["question"] == "q"
     assert variables["answer"] == "an answer"

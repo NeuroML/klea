@@ -84,7 +84,7 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         return domain_str
 
     @override
-    def _get_system_prompt(self, state: RAGState) -> str | list[Any]:
+    def _get_system_prompt(self, state: RAGState, ctx: Any) -> str | list[Any]:
         """Load base prompt, append domains, then rules, then optional memory."""
         system_prompt = self._load_prompt_file(f"{self.prompt_prefix}_system")
 
@@ -109,7 +109,7 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         return system_prompt
 
     @override
-    def _get_prompt_variables(self, state: RAGState) -> dict:
+    def _get_prompt_variables(self, state: RAGState, ctx: Any) -> dict:
         """Format prompt with the user's query."""
         return {"query": state.query}
 

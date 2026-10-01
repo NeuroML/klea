@@ -107,9 +107,9 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         return "\n".join(lines)
 
     @override
-    def _get_system_prompt(self, state: RAGState) -> str | list[Any]:
+    def _get_system_prompt(self, state: RAGState, ctx: Any) -> str | list[Any]:
         """Load system prompt, optionally appending evaluator feedback."""
-        system_prompt = super()._get_system_prompt(state)
+        system_prompt = super()._get_system_prompt(state, ctx)
 
         if state.retrieval_attempts > 0:
             self.logger.info("Regenerating retrieval query, updating system prompt")
@@ -141,7 +141,7 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         return system_prompt
 
     @override
-    def _get_prompt_variables(self, state: RAGState) -> dict:
+    def _get_prompt_variables(self, state: RAGState, ctx: Any) -> dict:
         """Format prompt with user query and the domain's allowed filter fields."""
         return {
             "query": state.query,
