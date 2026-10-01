@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from klea_utils.graph.schemas import TokenUsage
 from klea_utils.llm import extract_llm_output_content
+from klea_utils.nodes.context import LLMNodeContext
 
 
 class NodeStreamData(BaseModel):
@@ -361,6 +362,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         self._token_usage: TokenUsage | None = None
         self._validation_feedback: str = ""
 
+        # Per-run context: this invocation's internal values, kept local to
+        # the run rather than on the shared node instance.
+        ctx: LLMNodeContext[TOutput] = LLMNodeContext()
+
         self.logger.debug(f"{state =}")
 
         if not self._pre_exec(state):
@@ -371,17 +376,23 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         # (the prompt embeds it): the static schema by default, or a per-run
         # one from a node that overrides ``_get_output_schema``.
         self._output_schema = self._get_output_schema(state)
+        ctx.output_schema = self._output_schema
 
         self._last_state = state
         self._pre_exec_stream()
 
         self._last_human_prompt = self._get_human_prompt(state)
+        ctx.human_prompt = self._last_human_prompt
         self._last_system_prompt = self._get_system_prompt(state)
+        ctx.system_prompt = self._last_system_prompt
         self._last_template = self._create_prompt_template(
             self._last_system_prompt, self._last_human_prompt
         )
+        ctx.template = self._last_template
         self._last_variables = self._get_prompt_variables(state)
+        ctx.variables = self._last_variables
         self._last_llm, self._last_config = self._configure_llm()
+        ctx.llm, ctx.config = self._last_llm, self._last_config
 
         # Validation-retry loop: a node may reject a structurally invalid
         # result (``_validate_result``) and re-invoke with the reason exposed
@@ -395,17 +406,21 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             # single source, then inject the validation feedback.
             self._last_variables = self._get_prompt_variables(state)
             self._last_variables["validation_feedback"] = self._validation_feedback
+            ctx.variables = self._last_variables
             self._last_prompt = self._invoke_prompt(
                 self._last_template, self._last_variables
             )
+            ctx.prompt = self._last_prompt
             chars_sent = len(self._last_prompt.to_string())
             self.logger.debug(f"{chars_sent = } characters sent to LLM")
             self._last_output = await self._invoke_llm(
                 self._last_llm, self._last_prompt, self._last_config
             )
+            ctx.output = self._last_output
             chars_received = len(extract_llm_output_content(self._last_output))
             self.logger.debug(f"{chars_received = } characters received from LLM")
             self._last_result = self._process_output(self._last_output)
+            ctx.result = self._last_result
             error = self._validate_result(self._last_result, state)
             if not error or attempt >= self.max_validation_retries:
                 if error:
@@ -417,6 +432,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                 break
             attempt += 1
             self._validation_feedback = error
+            ctx.validation_feedback = error
             self.logger.warning(
                 "Invalid node result, retrying (%d/%d): %s",
                 attempt,
@@ -425,12 +441,15 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             )
 
         self._last_state_updates = self._update_state(self._last_result, state)
+        ctx.state_updates = self._last_state_updates
 
         # token calculations
         self._token_usage = self._extract_usage(self._last_output)
+        ctx.token_usage = self._token_usage
         self._final_state = self._update_usage_metrics(
             self._token_usage, self._last_state_updates
         )
+        ctx.final_state = self._final_state
 
         self._post_exec_stream()
 
