@@ -26,6 +26,7 @@ from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.dispatch import dispatch_tool_calls
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
+from klea_utils.nodes.context import ToolCallerContext
 
 
 class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
@@ -117,9 +118,13 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
             results = []
         self.logger.debug(f"{results =}")
 
+        # Per-run context (values local to the run, not on the shared node).
+        ctx = ToolCallerContext()
+        ctx.tool_results = results
         self._last_state = state
         self._last_tool_results = results
         self._post_exec_stream()
+        ctx.display_flags = list(self._last_display_flags)
 
         updates: dict[str, Any] = {"tool_results": results}
         if self._post_dispatch:
