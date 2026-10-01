@@ -26,7 +26,3 @@ Your job is to select tools that can provide information to answer the user's qu
 ## Available tools
 
 {tools_description}
-
-## User query
-
-{query}

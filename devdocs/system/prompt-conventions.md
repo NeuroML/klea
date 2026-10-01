@@ -41,12 +41,10 @@ entirely, heading included** - never rendered as a label with an empty value.
   may receive, including conditionality ("only meaningful when `outcome` is
   `failure`").  It carries no per-invocation content, so it stays the
   cacheable prefix (ADR-0028).
-  * Exception: a node with no user prompt (e.g. the tools picker, whose
-    `_get_human_prompt` returns `""`) must put volatile content at the very
-    end of the system prompt - the ADR-0028 volatile-tail pattern - as a
-    single optional block.
 * **User prompt (`*_user.md`)** - per-invocation.  It carries the volatile
-  data.  A conditional field appears only when it has content.
+  data.  A conditional field appears only when it has content.  Every node
+  provides one: a system-only request has no user message and is rejected by
+  the Anthropic Messages API.
 
 ## Rule 2 - Required vs conditional fields
 

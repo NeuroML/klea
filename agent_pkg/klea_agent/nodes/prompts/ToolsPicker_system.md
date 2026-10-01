@@ -47,17 +47,3 @@ steps needs -- not to choose which tools to use.
 ## Available tools
 
 {tools_description}
-
----
-
-## Observations
-
-{observations}
-
----
-
-## Current step(s)
-
-{current_step}
-
-{picker_feedback}

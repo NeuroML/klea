@@ -33,11 +33,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     """Node that selects MCP tools for the current step or query.
 
     Shared by Klea Agent and Klea RAG.  The two applications differ only in
-    the prompt file, the model role, and which context fields exist in the
+    the prompt files, the model role, and which context fields exist in the
     state, so all of that is configuration:
 
     - *prompt_registry_location* points at the application's ``prompts/``
-      directory (both apps name their picker prompt ``ToolsPicker_system.md``).
+      directory (both apps name their picker prompts ``ToolsPicker_system.md``
+      and ``ToolsPicker_user.md``).
     - *model_type* selects the ``llm_models`` role (``"plan"`` for the agent,
       ``"chat"`` for RAG).
     - *tools_info* is the per-domain ``BaseLangGraph.tools_info``; when the
@@ -140,11 +141,6 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return bool(self._get_tool_descriptions(state))
 
     @override
-    def _get_human_prompt(self, state: BaseModel) -> str:
-        """Return empty string -- this node only uses a system prompt."""
-        return ""
-
-    @override
     def _get_prompt_variables(self, state: BaseModel) -> dict:
         """Format prompt with state-specific variables.
 
@@ -182,10 +178,11 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 if batch
                 else "(no plan)"
             )
-        # Appended last (its own prompt section) so the stable prefix above
-        # stays cache-friendly; omitted entirely on a normal pick (prompt
-        # conventions).  Derived from the incoming state (thread-isolated), not
-        # instance fields (ADR-0033).
+        # A conditional user-prompt section, composed whole and omitted
+        # entirely on a normal pick (prompt conventions).  The volatile
+        # content belongs in the user prompt, not the cacheable system prefix.
+        # Derived from the incoming state (thread-isolated), not instance
+        # fields (ADR-0033).
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
         last_error = last_tool_error_text(getattr(state, "tool_results", None))
         if last_error:
