@@ -523,8 +523,8 @@ class KleaAgent(BaseLangGraph):
             label="Planning",
             llm_models=self.llm_models,
             memory=self.memory,
+            tools_info=self.tools_info,
         )
-        self._planner_node.set_tools_info(self.tools_info)
         # ToolsPicker/Caller are the shared nodes from ``klea_utils`` (ADR-0020).
         # ``tools_info`` is the per-domain description map built by
         # ``BaseLangGraph._build_tools_info`` before ``_create_graph``; the

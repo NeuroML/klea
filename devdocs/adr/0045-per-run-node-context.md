@@ -87,11 +87,11 @@ from `ctx` (schema block, `with_structured_output`, parsing,
 `_last_prompt` attribute, threading it from `_invoke_with_retries`.
 
 Node instance attributes are configuration only: they are set once in
-`__init__` (or a one-shot `set_*` config injector / `@property` setter)
-and never mutated by `execute` or a hook.  This is enforced by an
-architecture test (`utils_pkg/tests/test_node_state_hygiene.py`), which
-parses every class under the three `nodes/` packages and fails on a
-`self.<attr> = ...` assignment outside those construction-time methods.
+`__init__` (or a `@property` setter) and never mutated by `execute` or a
+hook.  This is enforced by an architecture test
+(`utils_pkg/tests/test_node_state_hygiene.py`), which parses every class
+under the three `nodes/` packages and fails on a `self.<attr> = ...`
+assignment outside those construction-time methods.
 
 ### Consequences
 

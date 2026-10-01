@@ -30,11 +30,6 @@ _ROOT_NODE_BASES = {
 #: Methods allowed to assign ``self.<attr>`` (construction-time config).
 _ALLOWED_METHODS = {"__init__"}
 
-#: Prefixes for one-shot configuration injectors run before the graph is
-#: compiled (for example ``Planner.set_tools_info``).  These configure the
-#: node once; they must not hold per-run state.
-_ALLOWED_METHOD_PREFIXES = ("set_",)
-
 #: Node module directories, relative to the repository root.
 _NODE_DIRS = (
     "utils_pkg/klea_utils/nodes",
@@ -81,11 +76,6 @@ def _is_setter(func: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     )
 
 
-def _is_allowed_config_method(name: str) -> bool:
-    """Return whether *name* is a permitted construction-time config method."""
-    return name in _ALLOWED_METHODS or name.startswith(_ALLOWED_METHOD_PREFIXES)
-
-
 def _self_assignments(func: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
     """Return the attribute names assigned to ``self`` anywhere in *func*."""
     attrs: list[str] = []
@@ -130,7 +120,7 @@ def _find_violations(sources: dict[str, str]) -> list[str]:
             for item in classdef.body:
                 if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     continue
-                if _is_allowed_config_method(item.name) or _is_setter(item):
+                if item.name in _ALLOWED_METHODS or _is_setter(item):
                     continue
                 for attr in _self_assignments(item):
                     violations.append(
@@ -182,9 +172,6 @@ class Node(BaseLLMNode):
     @thing.setter
     def thing(self, value):
         self._thing = value
-
-    def set_options(self, options):
-        self.options = options
 """
     dirty = """
 class Node(BaseLLMNode):

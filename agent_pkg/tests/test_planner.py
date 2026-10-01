@@ -621,16 +621,16 @@ class TestPlannerValidation(unittest.TestCase):
 class TestPlannerToolDisclosure(unittest.TestCase):
     """The planner consumes the compact (short) tool description."""
 
-    def _planner(self) -> Planner:
+    def _planner(self, tools_info=None) -> Planner:
         return Planner(
             logger=logging.getLogger("test"),
             label="Planning",
             llm_models={"plan": object()},
+            tools_info=tools_info,
         )
 
     def test_tool_descriptions_prefer_short(self):
-        planner = self._planner()
-        planner.set_tools_info(
+        planner = self._planner(
             {
                 "code": {
                     "read": ToolInfo(
@@ -645,8 +645,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         )
 
     def test_tool_descriptions_fall_back_to_full(self):
-        planner = self._planner()
-        planner.set_tools_info(
+        planner = self._planner(
             {"code": {"read": ToolInfo(description="read -- full description")}}
         )
         self.assertEqual(
@@ -656,8 +655,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
 
     def test_tool_descriptions_filtered_by_access_level(self):
         """read_only hides destructive and unannotated tools (ADR-0037)."""
-        planner = self._planner()
-        planner.set_tools_info(
+        planner = self._planner(
             {
                 "code": {
                     "read": ToolInfo(description="read tool", read_only=True),
@@ -670,8 +668,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         self.assertEqual(planner._get_tool_descriptions(state), "read tool")
 
     def test_tool_descriptions_full_includes_all(self):
-        planner = self._planner()
-        planner.set_tools_info(
+        planner = self._planner(
             {
                 "code": {
                     "read": ToolInfo(description="read tool", read_only=True),
