@@ -53,6 +53,7 @@ class TestReasoningNode(unittest.TestCase):
         update = self._node()._update_state(
             ReasoningSchema(conclusion="H1: X causes Y", rationale="from obs"),
             self._state(),
+            LLMNodeContext(),
         )
         entries = update["step_outputs"][1]
         assert len(entries) == 1
@@ -62,7 +63,9 @@ class TestReasoningNode(unittest.TestCase):
 
     def test_conclusion_renders_as_reasoning(self):
         update = self._node()._update_state(
-            ReasoningSchema(conclusion="H1: X causes Y"), self._state()
+            ReasoningSchema(conclusion="H1: X causes Y"),
+            self._state(),
+            LLMNodeContext(),
         )
         rendered = update["step_outputs"][1][0].render()
         assert rendered.startswith("### reasoning (displayed_to_user: no)")
@@ -72,7 +75,9 @@ class TestReasoningNode(unittest.TestCase):
         """The justification must be visible to the Evaluator/Planner."""
         state = self._state()
         update = self._node()._update_state(
-            ReasoningSchema(conclusion="H1", rationale="grounded in obs"), state
+            ReasoningSchema(conclusion="H1", rationale="grounded in obs"),
+            state,
+            LLMNodeContext(),
         )
         state.step_outputs = update["step_outputs"]
         observations = state.observations_text()
@@ -81,7 +86,9 @@ class TestReasoningNode(unittest.TestCase):
 
     def test_appends_ai_message_with_rationale(self):
         update = self._node()._update_state(
-            ReasoningSchema(conclusion="H1", rationale="because obs"), self._state()
+            ReasoningSchema(conclusion="H1", rationale="because obs"),
+            self._state(),
+            LLMNodeContext(),
         )
         content = update["messages"][-1].content
         assert "Reasoning (step 1): H1" in content
@@ -92,7 +99,9 @@ class TestReasoningNode(unittest.TestCase):
         state = self._state()
         state.tool_calls = [ToolCallSchema(tool="read_file")]
         state.tool_results = []
-        update = self._node()._update_state(ReasoningSchema(conclusion="H1"), state)
+        update = self._node()._update_state(
+            ReasoningSchema(conclusion="H1"), state, LLMNodeContext()
+        )
         assert update["tool_calls"] == []
         assert update["tool_results"] == []
 

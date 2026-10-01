@@ -50,6 +50,7 @@ class TestPlannerState(unittest.TestCase):
                 ),
             ),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         self.assertEqual(update["goal"].goal, "g")
         self.assertEqual(update["plan"].status, "in_progress")
@@ -70,12 +71,15 @@ class TestPlannerState(unittest.TestCase):
                 ),
             ),
             state,
+            LLMNodeContext(),
         )
         self.assertNotIn("goal", update)
         self.assertEqual(update["plan"].status, "in_progress")
 
     def test_empty_plan_is_unplannable(self):
-        update = self._planner()._update_state(PlannerOutput(), KleaAgentState())
+        update = self._planner()._update_state(
+            PlannerOutput(), KleaAgentState(), LLMNodeContext()
+        )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
 
@@ -113,6 +117,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             state,
+            LLMNodeContext(),
         )
         plan = update["plan"]
         self.assertEqual(plan.step_list[0].status, "done")
@@ -148,6 +153,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             state,
+            LLMNodeContext(),
         )
         plan = update["plan"]
         self.assertEqual(plan.step_list[0].status, "pending")
@@ -166,7 +172,7 @@ class TestPlannerState(unittest.TestCase):
                 ],
             )
         )
-        error = planner._validate_result(output, KleaAgentState())
+        error = planner._validate_result(output, KleaAgentState(), LLMNodeContext())
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("depends on 2", error)
@@ -185,7 +191,7 @@ class TestPlannerState(unittest.TestCase):
                 ],
             )
         )
-        error = planner._validate_result(output, KleaAgentState())
+        error = planner._validate_result(output, KleaAgentState(), LLMNodeContext())
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("earlier", error)
@@ -208,7 +214,9 @@ class TestPlannerState(unittest.TestCase):
                 ],
             )
         )
-        self.assertIsNone(planner._validate_result(output, KleaAgentState()))
+        self.assertIsNone(
+            planner._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
 
     def test_in_review_status_is_kept(self):
         """A plan the Planner flags for review keeps ``in_review``."""
@@ -223,6 +231,7 @@ class TestPlannerState(unittest.TestCase):
                 ),
             ),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "in_review")
 
@@ -244,6 +253,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             state,
+            LLMNodeContext(),
         )
         self.assertEqual(update["human_feedback"], "")
         self.assertEqual(update["plan"].status, "in_progress")
@@ -281,6 +291,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             KleaAgentState(replan_reason="tool failed"),
+            LLMNodeContext(),
         )
         self.assertEqual(update["replan_reason"], "")
 
@@ -294,6 +305,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         self.assertEqual(len(update["messages"]), 1)
         self.assertIn("Plan (in_progress)", update["messages"][0].content)
@@ -317,6 +329,7 @@ class TestPlannerState(unittest.TestCase):
                 plan=PlanSchema(plan_version=3, automated_plan_revisions=2),
                 replan_reason="tool failed",
             ),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertEqual(update["plan"].automated_plan_revisions, 3)
@@ -333,6 +346,7 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             KleaAgentState(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].plan_version, 1)
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
@@ -353,6 +367,7 @@ class TestPlannerState(unittest.TestCase):
                     status="in_review", plan_version=1, automated_plan_revisions=3
                 ),
             ),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
         # The review round is recorded on the plan (durable history signal).
@@ -375,6 +390,7 @@ class TestPlannerState(unittest.TestCase):
                     status="in_progress", plan_version=1, automated_plan_revisions=1
                 ),
             ),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].plan_version, 2)
         self.assertEqual(update["plan"].automated_plan_revisions, 2)
@@ -393,6 +409,7 @@ class TestPlannerState(unittest.TestCase):
                 plan=PlanSchema(plan_version=1, automated_plan_revisions=1),
                 replan_reason="tool failed",
             ),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].automated_plan_revisions, 2)
         self.assertEqual(update["plan"].plan_version, 2)
@@ -421,20 +438,25 @@ class TestPlannerValidation(unittest.TestCase):
 
     def test_rejects_plan_over_step_limit(self):
         output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31)))
-        error = self._planner()._validate_result(output, KleaAgentState())
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("at most 30", error)
 
     def test_accepts_plan_at_step_limit(self):
         output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(30)))
-        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+        self.assertIsNone(
+            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
 
     def test_oversize_plan_fails_closed(self):
         """A plan over the limit that survives retries fails as unplannable."""
         update = self._planner()._update_state(
             PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31))),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertEqual(update["plan"].step_list, [])
@@ -447,7 +469,9 @@ class TestPlannerValidation(unittest.TestCase):
                 step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
             )
         )
-        error = self._planner()._validate_result(output, KleaAgentState())
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("unplannable", error)
@@ -459,13 +483,17 @@ class TestPlannerValidation(unittest.TestCase):
                 step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
             )
         )
-        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+        self.assertIsNone(
+            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
 
     def test_accepts_needs_input_without_steps(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(status="needs_input"), reason="which file?"
         )
-        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+        self.assertIsNone(
+            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
 
     def test_needs_input_sets_status_and_question(self):
         update = self._planner()._update_state(
@@ -479,6 +507,7 @@ class TestPlannerValidation(unittest.TestCase):
                 reason="which file?",
             ),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "needs_input")
         self.assertEqual(update["pending_question"], "which file?")
@@ -491,6 +520,7 @@ class TestPlannerValidation(unittest.TestCase):
                 reason="which file?",
             ),
             KleaAgentState(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "needs_input")
         self.assertEqual(update["pending_question"], "which file?")
@@ -499,7 +529,9 @@ class TestPlannerValidation(unittest.TestCase):
         output = PlannerOutput(
             plan=PlannerPlanSchema(step_list=[StepSchema(description="s")])
         )
-        error = self._planner()._validate_result(output, KleaAgentState())
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("names no tool", error)
@@ -516,7 +548,9 @@ class TestPlannerValidation(unittest.TestCase):
                 ]
             )
         )
-        error = self._planner()._validate_result(output, KleaAgentState())
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("reasoning step but names tools", error)
@@ -527,7 +561,9 @@ class TestPlannerValidation(unittest.TestCase):
                 step_list=[StepSchema(description="analyse", kind="reasoning")]
             )
         )
-        self.assertIsNone(self._planner()._validate_result(output, KleaAgentState()))
+        self.assertIsNone(
+            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
 
     def test_explicit_unplannable_uses_reason(self):
         update = self._planner()._update_state(
@@ -536,6 +572,7 @@ class TestPlannerValidation(unittest.TestCase):
                 reason="required input file is missing",
             ),
             KleaAgentState(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertEqual(update["failure_reason"], "required input file is missing")
@@ -545,6 +582,7 @@ class TestPlannerValidation(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(plan=PlannerPlanSchema(status="in_progress")),
             KleaAgentState(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
@@ -560,6 +598,7 @@ class TestPlannerValidation(unittest.TestCase):
                 reason="single read step",
             ),
             KleaAgentState(query="q"),
+            LLMNodeContext(),
         )
         content = update["messages"][0].content
         self.assertIn("Plan (in_progress)", content)
@@ -574,6 +613,7 @@ class TestPlannerValidation(unittest.TestCase):
                 reason="impossible",
             ),
             KleaAgentState(),
+            LLMNodeContext(),
         )
         self.assertNotIn("goal", update)
 

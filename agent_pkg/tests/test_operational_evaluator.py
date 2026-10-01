@@ -60,7 +60,7 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_step_done_advances_plan_without_answering(self):
         update = self._evaluator()._update_state(
-            _verdict(1, "step_done", "ok"), self._state()
+            _verdict(1, "step_done", "ok"), self._state(), LLMNodeContext()
         )
         self.assertNotIn("message_for_user", update)
         plan = update["plan"]
@@ -71,7 +71,7 @@ class TestOperationalEvaluator(unittest.TestCase):
     def test_plan_done_completes_plan_without_answering(self):
         """The Evaluator never writes ``message_for_user`` (that is AnswerFromResults)."""
         update = self._evaluator()._update_state(
-            EvaluationSchema(overall="plan_done"), self._state()
+            EvaluationSchema(overall="plan_done"), self._state(), LLMNodeContext()
         )
         self.assertNotIn("message_for_user", update)
         plan = update["plan"]
@@ -80,7 +80,7 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_need_replan_marks_step_failed_without_answering(self):
         update = self._evaluator()._update_state(
-            _verdict(1, "need_replan"), self._state()
+            _verdict(1, "need_replan"), self._state(), LLMNodeContext()
         )
         self.assertNotIn("message_for_user", update)
         self.assertEqual(update["plan"].step_list[0].status, "failed")
@@ -88,7 +88,9 @@ class TestOperationalEvaluator(unittest.TestCase):
     def test_need_replan_sets_replan_reason(self):
         """The verdict reason is carried to the Planner via replan_reason."""
         update = self._evaluator()._update_state(
-            _verdict(1, "need_replan", "cannot proceed"), self._state()
+            _verdict(1, "need_replan", "cannot proceed"),
+            self._state(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["replan_reason"], "cannot proceed")
 
@@ -96,12 +98,14 @@ class TestOperationalEvaluator(unittest.TestCase):
         """A non-replan verdict clears any stale replan reason."""
         state = self._state()
         state.replan_reason = "old failure"
-        update = self._evaluator()._update_state(_verdict(1, "step_incomplete"), state)
+        update = self._evaluator()._update_state(
+            _verdict(1, "step_incomplete"), state, LLMNodeContext()
+        )
         self.assertEqual(update["replan_reason"], "")
 
     def test_step_incomplete_keeps_step_pending(self):
         update = self._evaluator()._update_state(
-            _verdict(1, "step_incomplete"), self._state()
+            _verdict(1, "step_incomplete"), self._state(), LLMNodeContext()
         )
         self.assertEqual(update["evaluation"].evaluations[1].verdict, "step_incomplete")
         self.assertEqual(update["plan"].step_list[0].status, "pending")
@@ -110,6 +114,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = self._evaluator()._update_state(
             EvaluationSchema(overall="plan_done"),
             self._state(with_plan=False),
+            LLMNodeContext(),
         )
         self.assertNotIn("message_for_user", update)
         self.assertEqual(update["plan"].status, "completed")
@@ -121,21 +126,25 @@ class TestOperationalEvaluator(unittest.TestCase):
         state.plan = PlanSchema(
             step_list=[StepSchema(step_number=1, description="only step")],
         )
-        update = evaluator._update_state(_verdict(1, "step_done", "looks done"), state)
+        update = evaluator._update_state(
+            _verdict(1, "step_done", "looks done"), state, LLMNodeContext()
+        )
         self.assertEqual(update["plan"].status, "completed")
 
     def test_empty_evaluation_escalates_to_replan(self):
         """A missing verdict (e.g. a failed LLM call) escalates deterministically."""
         evaluator = self._evaluator()
         update = evaluator._update_state(
-            evaluator._get_default_error_result(LLMNodeContext()), self._state()
+            evaluator._get_default_error_result(LLMNodeContext()),
+            self._state(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
         self.assertTrue(update["replan_reason"])
 
     def test_verdict_recorded_in_messages(self):
         update = self._evaluator()._update_state(
-            _verdict(1, "need_replan", "no progress"), self._state()
+            _verdict(1, "need_replan", "no progress"), self._state(), LLMNodeContext()
         )
         self.assertIn("need_replan", update["messages"][-1].content)
         self.assertIn("no progress", update["messages"][-1].content)
@@ -146,7 +155,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         state = self._state()
         state.step_attempt_counts = {1: 2}
         update = evaluator._update_state(
-            _verdict(1, "step_incomplete", "still going"), state
+            _verdict(1, "step_incomplete", "still going"), state, LLMNodeContext()
         )
         self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
@@ -154,7 +163,7 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_progress_clears_step_attempt_budget(self):
         update = self._evaluator()._update_state(
-            _verdict(1, "step_done", "done"), self._state()
+            _verdict(1, "step_done", "done"), self._state(), LLMNodeContext()
         )
         self.assertEqual(update["step_attempt_counts"], {})
 
@@ -168,6 +177,7 @@ class TestOperationalEvaluator(unittest.TestCase):
                 reason="input file does not exist and may not be created",
             ),
             state,
+            LLMNodeContext(),
         )
         self.assertEqual(update["evaluation"].overall, "abort")
         self.assertEqual(update["plan"].status, "aborted")
@@ -182,6 +192,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = evaluator._update_state(
             EvaluationSchema(overall="abort", reason=""),
             self._state(),
+            LLMNodeContext(),
         )
         self.assertEqual(update["failure_reason"], "the goal cannot be achieved")
 

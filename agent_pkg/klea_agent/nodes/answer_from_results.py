@@ -155,7 +155,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
 
     @override
     def _update_state(
-        self, result: AnswerSchema, state: KleaAgentState
+        self, result: AnswerSchema, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Write the final message and persist the task deliverable.
 

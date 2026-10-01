@@ -154,7 +154,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
 
     @override
     def _validate_result(
-        self, result: PlannerOutput, state: KleaAgentState
+        self, result: PlannerOutput, state: KleaAgentState, ctx: Any
     ) -> str | None:
         """Reject a structurally inconsistent or contradictory plan.
 
@@ -200,7 +200,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
 
     @override
     def _update_state(
-        self, result: PlannerOutput, state: KleaAgentState
+        self, result: PlannerOutput, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Write the goal (locked) and the plan, trusting the model's plan.
 

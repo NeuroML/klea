@@ -71,7 +71,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
 
     @override
     def _update_state(
-        self, result: RouteSchema, state: KleaAgentState
+        self, result: RouteSchema, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Store the route; write the inline answer for ``chat``.
 

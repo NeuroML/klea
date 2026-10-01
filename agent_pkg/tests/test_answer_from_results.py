@@ -44,12 +44,14 @@ class TestAnswerFromResults(unittest.TestCase):
 
     def test_writes_message_from_answer(self):
         update = self._node()._update_state(
-            AnswerSchema(answer="here you go"), self._state()
+            AnswerSchema(answer="here you go"), self._state(), LLMNodeContext()
         )
         self.assertEqual(update["message_for_user"], "here you go")
 
     def test_empty_answer_falls_back_to_step_description(self):
-        update = self._node()._update_state(AnswerSchema(), self._state())
+        update = self._node()._update_state(
+            AnswerSchema(), self._state(), LLMNodeContext()
+        )
         self.assertIn("list files", update["message_for_user"])
 
     def test_prompt_variables_include_plan_and_goal(self):
@@ -128,7 +130,7 @@ class TestAnswerFromResults(unittest.TestCase):
 
     def test_success_persists_deliverable_artefact(self):
         update = self._node()._update_state(
-            AnswerSchema(answer="here you go"), self._state()
+            AnswerSchema(answer="here you go"), self._state(), LLMNodeContext()
         )
         artefacts = update["artefacts"]
         assert len(artefacts) == 1
@@ -139,22 +141,24 @@ class TestAnswerFromResults(unittest.TestCase):
 
     def test_same_goal_supersedes_artefact(self):
         node = self._node()
-        first = node._update_state(AnswerSchema(answer="a"), self._state())
+        first = node._update_state(
+            AnswerSchema(answer="a"), self._state(), LLMNodeContext()
+        )
         state = self._state()
         state.artefacts = first["artefacts"]
-        second = node._update_state(AnswerSchema(answer="b"), state)
+        second = node._update_state(AnswerSchema(answer="b"), state, LLMNodeContext())
         assert len(second["artefacts"]) == 1
         assert "b" in next(iter(second["artefacts"].values())).content
 
     def test_failure_does_not_persist_artefact(self):
         update = self._node()._update_state(
-            AnswerSchema(answer="failed"), self._failed_state()
+            AnswerSchema(answer="failed"), self._failed_state(), LLMNodeContext()
         )
         assert "artefacts" not in update
 
     def test_needs_input_does_not_persist_artefact(self):
         update = self._node()._update_state(
-            AnswerSchema(answer="question"), self._needs_input_state()
+            AnswerSchema(answer="question"), self._needs_input_state(), LLMNodeContext()
         )
         assert "artefacts" not in update
 
@@ -169,7 +173,7 @@ class TestAnswerFromResults(unittest.TestCase):
         state = self._state()
         state.step_outputs = {1: []}
         update = self._node()._update_state(
-            AnswerSchema(answer="the concise result"), state
+            AnswerSchema(answer="the concise result"), state, LLMNodeContext()
         )
         artefact = next(iter(update["artefacts"].values()))
         assert "the concise result" in artefact.content

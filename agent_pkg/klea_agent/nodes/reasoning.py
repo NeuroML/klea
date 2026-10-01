@@ -96,7 +96,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
 
     @override
     def _update_state(
-        self, result: ReasoningSchema, state: KleaAgentState
+        self, result: ReasoningSchema, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Record the conclusion as a step output and a concise message.
 

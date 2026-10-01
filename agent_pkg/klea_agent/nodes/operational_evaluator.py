@@ -117,7 +117,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
     @override
     def _update_state(
-        self, result: EvaluationSchema, state: KleaAgentState
+        self, result: EvaluationSchema, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Store the verdict and advance the plan (judge only).
 

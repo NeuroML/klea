@@ -27,21 +27,27 @@ class TestRouteDecisionState:
 
     def test_chat_writes_message(self):
         update = self._node()._update_state(
-            RouteSchema(route="chat", answer="hello"), KleaAgentState(query="hi")
+            RouteSchema(route="chat", answer="hello"),
+            KleaAgentState(query="hi"),
+            LLMNodeContext(),
         )
         assert update["route"].route == "chat"
         assert update["message_for_user"] == "hello"
 
     def test_task_writes_no_message(self):
         update = self._node()._update_state(
-            RouteSchema(route="task"), KleaAgentState(query="list files")
+            RouteSchema(route="task"),
+            KleaAgentState(query="list files"),
+            LLMNodeContext(),
         )
         assert update["route"].route == "task"
         assert "message_for_user" not in update
 
     def test_chat_without_answer_is_not_delivered(self):
         update = self._node()._update_state(
-            RouteSchema(route="chat", answer="  "), KleaAgentState(query="hi")
+            RouteSchema(route="chat", answer="  "),
+            KleaAgentState(query="hi"),
+            LLMNodeContext(),
         )
         assert "message_for_user" not in update
 
