@@ -1655,10 +1655,6 @@ class LLMModel(BaseModel):
     provider_defaults: dict[str, dict[str, Any]] = {}
     modifiable: bool = True
     required: bool = True
-    #: Role whose model this role inherits when it has no model of its own
-    #: (for example ``"chat"``).  Empty means no fallback.  Resolved by
-    #: ``BaseLangGraph._apply_model_names``.
-    fallback_role: str = ""
     #: Klea User-Agent sent to OpenAI-compatible endpoints (``klea-agent/<v>``).
     user_agent: str = ""
 

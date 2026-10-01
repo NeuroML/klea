@@ -116,14 +116,12 @@ class KleaAgent(BaseLangGraph):
             "plan": LLMModel(
                 instance=model,
                 required=True,
-                fallback_role="chat",
             ),
-            # Argument binding is its own role so a stronger model can be used
-            # for the picker without changing chat/plan; defaults to chat.
+            # Argument binding has its own role so a stronger model can be
+            # used for the picker without changing chat/plan.
             "tool_picker": LLMModel(
                 instance=model,
-                required=False,
-                fallback_role="chat",
+                required=True,
             ),
             "guard": LLMModel(
                 instance=model,
@@ -533,7 +531,7 @@ class KleaAgent(BaseLangGraph):
         # explicit ``prompt_registry_location`` is required  ---  the shared
         # class would otherwise resolve ``prompts/`` relative to
         # ``klea_utils``.  ``model_role="tool_picker"`` gives argument binding
-        # its own role (defaults to chat via ``fallback_role``).
+        # its own role.
         self._tools_picker_node = ToolsPicker(
             logger=self.logger,
             label="Selecting tools",

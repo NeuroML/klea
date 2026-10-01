@@ -106,12 +106,11 @@ class RAG(BaseLangGraph):
                 instance=model,
                 required=True,
             ),
-            # Argument binding is its own role so a stronger model can be used
-            # for the picker without changing chat; defaults to chat.
+            # Argument binding has its own role so a stronger model can be
+            # used for the picker without changing chat.
             "tool_picker": LLMModel(
                 instance=model,
-                required=False,
-                fallback_role="chat",
+                required=True,
             ),
             "guard": LLMModel(
                 instance=model,

@@ -586,22 +586,12 @@ class BaseLangGraph(ABC):
 
         Called by :meth:`setup` after ``_load_env()``.  Each role ``r``
         reads its default model from the generated ``app_env.<r>_model``
-        field (env var ``<env_prefix>R_MODEL``).  When a role has no model
-        of its own and declares ``fallback_role``, it inherits that role's
-        model (for example ``tool_picker`` falls back to ``chat``), so a new
-        role does not require every existing config to be updated.
+        field (env var ``<env_prefix>R_MODEL``).
         """
         for role, entry in self.llm_models.items():
             # The env field is generated from the role declaration, so the
             # attribute is not statically known on the settings instance.
-            model_name = getattr(self.app_env, f"{role}_model")
-            fallback = entry.fallback_role
-            if not model_name and fallback and fallback in self.llm_models:
-                model_name = getattr(self.app_env, f"{fallback}_model")
-                self.logger.debug(
-                    f"role {role!r} has no model; falling back to {fallback!r}"
-                )
-            entry.model_name = model_name
+            entry.model_name = getattr(self.app_env, f"{role}_model")
 
     def _apply_provider_defaults(self) -> None:
         """Populate per-provider defaults on each LLMModel from the config.
