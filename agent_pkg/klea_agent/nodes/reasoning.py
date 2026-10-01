@@ -161,6 +161,6 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         return NodeStreamData(heading="Reasoning", summary=summary, details=details)
 
     @override
-    def _get_default_error_result(self) -> ReasoningSchema:
+    def _get_default_error_result(self, ctx: Any) -> ReasoningSchema:
         """Return an explicit failure conclusion so the step cannot pass silently."""
         return ReasoningSchema(conclusion=NO_CONCLUSION_FALLBACK)

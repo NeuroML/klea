@@ -302,6 +302,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
 
     @override
-    def _get_default_error_result(self) -> EvaluationSchema:
+    def _get_default_error_result(self, ctx: Any) -> EvaluationSchema:
         """Return an empty evaluation; ``_update_state`` escalates to replan."""
         return EvaluationSchema()

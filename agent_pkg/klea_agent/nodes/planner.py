@@ -450,6 +450,6 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         )
 
     @override
-    def _get_default_error_result(self) -> PlannerOutput:
+    def _get_default_error_result(self, ctx: Any) -> PlannerOutput:
         """Return an empty output; ``_update_state`` marks it ``unplannable``."""
         return PlannerOutput()

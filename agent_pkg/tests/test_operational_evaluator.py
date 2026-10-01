@@ -128,7 +128,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         """A missing verdict (e.g. a failed LLM call) escalates deterministically."""
         evaluator = self._evaluator()
         update = evaluator._update_state(
-            evaluator._get_default_error_result(), self._state()
+            evaluator._get_default_error_result(LLMNodeContext()), self._state()
         )
         self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
         self.assertTrue(update["replan_reason"])

@@ -113,6 +113,6 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         return NodeStreamData(heading="Route", summary=summary, details=details)
 
     @override
-    def _get_default_error_result(self) -> RouteSchema:
+    def _get_default_error_result(self, ctx: Any) -> RouteSchema:
         """Default to ``task`` when routing fails (fail-closed)."""
         return RouteSchema(route="task")

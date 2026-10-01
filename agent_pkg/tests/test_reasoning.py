@@ -109,7 +109,7 @@ class TestReasoningNode(unittest.TestCase):
 
     def test_default_error_result_is_explicit_failure(self):
         """A failed reasoning step is loud, not a silent empty conclusion."""
-        result = self._node()._get_default_error_result()
+        result = self._node()._get_default_error_result(LLMNodeContext())
         assert result.conclusion == NO_CONCLUSION_FALLBACK
         assert result.conclusion.strip()
         assert result != ReasoningSchema()

@@ -250,6 +250,6 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         )
 
     @override
-    def _get_default_error_result(self) -> AnswerSchema:
+    def _get_default_error_result(self, ctx: Any) -> AnswerSchema:
         """Return an empty result; ``_update_state`` falls back deterministically."""
         return AnswerSchema()

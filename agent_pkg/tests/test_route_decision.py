@@ -12,6 +12,7 @@ import logging
 
 from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.schemas import KleaAgentState, RouteSchema
+from klea_utils.nodes.context import LLMNodeContext
 
 
 class TestRouteDecisionState:
@@ -45,4 +46,4 @@ class TestRouteDecisionState:
         assert "message_for_user" not in update
 
     def test_default_error_result_is_task(self):
-        assert self._node()._get_default_error_result().route == "task"
+        assert self._node()._get_default_error_result(LLMNodeContext()).route == "task"
