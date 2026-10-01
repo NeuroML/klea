@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
+from klea_utils.mcp.call_schema import NO_TOOL_TAG, build_tool_call_schema
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
@@ -101,16 +102,15 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         if prompt_registry_location is not None:
             self.prompt_registry_location = Path(prompt_registry_location)
 
-    def _get_tool_descriptions(self, state: BaseModel) -> str:
-        """Return the combined tool descriptions relevant to *state*.
+    def _disclosed_tools(self, state: BaseModel) -> dict[str, ToolInfo]:
+        """Return the tools disclosed to the model for *state*.
 
-        When the state carries ``query_domains`` (RAG), descriptions are
-        filtered to those domains; otherwise all tools are included (agent).
-        Tools the state's ``access_level`` does not permit are always excluded
-        (ADR-0037), so a disallowed tool is never disclosed to the model.
+        Access-level filtered (ADR-0037); a RAG state additionally filters to
+        its ``query_domains``.  Shared by the description text and the dynamic
+        call schema so both always cover the same tool set.
 
         :param state: Current graph state.
-        :returns: Descriptions joined into one block, or ``""`` when none.
+        :returns: ``{tool_name: ToolInfo}`` for the disclosed tools.
         """
         access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
         tools_info = filter_tools_info(self._tools_info, access_level)
@@ -121,19 +121,41 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         )
         domains = getattr(state, "query_domains", None)
         if domains:
-            parts: list[str] = []
-            for d in domains:
-                if d in tools_info:
-                    parts.extend(
-                        info.description or "" for info in tools_info[d].values()
-                    )
-        else:
-            parts = [
-                info.description or ""
-                for domain_tools in tools_info.values()
-                for info in domain_tools.values()
-            ]
-        return "\n\n".join(parts)
+            return {
+                name: info
+                for d in domains
+                if d in tools_info
+                for name, info in tools_info[d].items()
+            }
+        return {
+            name: info
+            for domain_tools in tools_info.values()
+            for name, info in domain_tools.items()
+        }
+
+    def _get_tool_descriptions(self, state: BaseModel) -> str:
+        """Return the combined tool descriptions relevant to *state*.
+
+        :param state: Current graph state.
+        :returns: Descriptions joined into one block, or ``""`` when none.
+        """
+        return "\n\n".join(
+            info.description or "" for info in self._disclosed_tools(state).values()
+        )
+
+    @override
+    def _get_output_schema(self, state: BaseModel) -> Any:
+        """Build the picker's per-tool call schema for this run.
+
+        A discriminated union over the same disclosed tool set as the prompt
+        descriptions, so every tool's parameters are real, typed fields (not a
+        free-form ``args`` object that strict structured-output modes close).
+        """
+        tools = self._disclosed_tools(state)
+        if not tools:
+            return super()._get_output_schema(state)
+        self.logger.debug(f"picker output schema\n{len(tools) = }\n{list(tools) = }")
+        return build_tool_call_schema(tools)
 
     @override
     def _pre_exec(self, state: BaseModel) -> bool:
@@ -248,6 +270,48 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             self._selection_key(c) for c in previous_calls
         )
 
+    def _normalize_calls(self, result: Any) -> list[ToolCallSchema]:
+        """Normalize the picker result to the dispatch ``ToolCallSchema`` list.
+
+        The output schema is dynamic - a discriminated union of per-tool call
+        models (plus a ``NoTool`` branch), or the legacy ``ToolCallsSchema``
+        when no tools are disclosed.  Normalize either form to the stable
+        interchange type consumed by the caller/triage layers.
+
+        :param result: The processed LLM result.
+        :returns: The calls as :class:`ToolCallSchema` instances.
+        """
+        normalized: list[ToolCallSchema] = []
+        for item in getattr(result, "tool_calls", None) or []:
+            if isinstance(item, ToolCallSchema):
+                normalized.append(item)
+                continue
+            call = getattr(item, "call", None)
+            if call is None:
+                continue
+            step = int(getattr(item, "step", 0) or 0)
+            reason = getattr(item, "reason", "") or ""
+            tool_name = str(getattr(call, "tool", "") or "")
+            if tool_name == NO_TOOL_TAG:
+                normalized.append(
+                    ToolCallSchema(
+                        tool="",
+                        args={},
+                        reason=getattr(call, "reason", "") or reason,
+                        step=step,
+                    )
+                )
+                continue
+            args = (
+                call.model_dump(by_alias=True, exclude={"tool"})
+                if hasattr(call, "model_dump")
+                else {}
+            )
+            normalized.append(
+                ToolCallSchema(tool=tool_name, args=args, reason=reason, step=step)
+            )
+        return normalized
+
     @override
     def _update_state(
         self, result: ToolCallsSchema, state: BaseModel
@@ -267,7 +331,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         escalated instead of dispatched again: identical retries cannot succeed
         and only waste a round.
         """
-        tool_calls = result.tool_calls
+        tool_calls = self._normalize_calls(result)
         usable = any(tc.tool.strip() for tc in tool_calls)
 
         if usable and self._is_identical_failed_retry(tool_calls, state):
@@ -364,7 +428,18 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
 
     @override
     def _get_default_error_result(self) -> ToolCallsSchema:
-        """Return default result when processing fails."""
+        """Return an empty result matching the current (possibly dynamic) schema.
+
+        The static ``ToolCallsSchema`` is the fallback when no per-run schema
+        was resolved; otherwise instantiate the dynamic one so its type and
+        the downstream normalization stay consistent.
+        """
+        schema = self.output_schema
+        if schema is not None:
+            try:
+                return schema(tool_calls=[])
+            except (TypeError, ValueError) as exc:
+                self.logger.warning(f"Fallback schema instantiation failed: {exc}")
         return ToolCallsSchema()
 
     @override

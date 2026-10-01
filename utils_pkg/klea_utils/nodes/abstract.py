@@ -327,6 +327,18 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         #: exposed to the prompt as ``validation_feedback`` on a retry.
         self._validation_feedback: str = ""
 
+    def _get_output_schema(self, state: TState) -> type[TOutput] | None:
+        """Return the structured-output schema for this invocation.
+
+        Defaults to the node's static :attr:`output_schema`.  Override to
+        build one per run - for example the tools picker, whose schema is a
+        per-tool discriminated union derived from the run's disclosed tools.
+
+        :param state: Current graph state.
+        :returns: The pydantic output schema, or ``None`` for a plain node.
+        """
+        return self._output_schema
+
     @final
     async def execute(self, state: TState) -> dict[str, Any]:
         """Template method defining standard execution flow"""
@@ -354,6 +366,11 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         if not self._pre_exec(state):
             self.logger.debug("Pre-exec check failed, skipping execution")
             return {}
+
+        # Resolve the output schema for this run before the prompt is built
+        # (the prompt embeds it): the static schema by default, or a per-run
+        # one from a node that overrides ``_get_output_schema``.
+        self._output_schema = self._get_output_schema(state)
 
         self._last_state = state
         self._pre_exec_stream()

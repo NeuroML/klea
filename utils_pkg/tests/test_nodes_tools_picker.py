@@ -21,16 +21,27 @@ TOOLS_INFO = {
         "get_models": ToolInfo(
             title="Get models from NeuroML-db",
             description="Find models.",
+            input_schema={
+                "type": "object",
+                "properties": {"search_query": {"type": "string"}},
+                "required": ["search_query"],
+            },
         ),
         "run_simulation": ToolInfo(
             title="Run a simulation",
             description="Run simulations.",
+            input_schema={
+                "type": "object",
+                "properties": {"model": {"type": "string"}},
+                "required": ["model"],
+            },
         ),
     },
     "Other": {
         "other_tool": ToolInfo(
             title="Other tool",
             description="Other description.",
+            input_schema={"type": "object", "properties": {}, "required": []},
         )
     },
 }
@@ -110,6 +121,60 @@ def test_get_tool_descriptions_includes_all_without_domains():
 def test_get_tool_descriptions_unknown_domain_is_empty():
     picker = _make_picker()
     assert picker._get_tool_descriptions(RagLikeState(query_domains=["nope"])) == ""
+
+
+def test_output_schema_is_a_per_tool_union():
+    """The picker builds its structured schema from the disclosed tools."""
+    picker = _make_picker()
+    schema = picker._get_output_schema(AgentLikeState())
+    assert schema is not None
+    parsed = schema.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "find models",
+                    "call": {"tool": "get_models", "search_query": "cerebellum"},
+                }
+            ]
+        }
+    )
+    calls = picker._normalize_calls(parsed)
+    assert len(calls) == 1
+    assert calls[0].tool == "get_models"
+    assert calls[0].args == {"search_query": "cerebellum"}
+    assert calls[0].step == 1
+    assert calls[0].reason == "find models"
+
+
+def test_normalize_no_tool_branch_is_unusable():
+    """A ``NoTool`` branch normalizes to the empty-tool failure signal."""
+    picker = _make_picker()
+    schema = picker._get_output_schema(AgentLikeState())
+    assert schema is not None
+    parsed = schema.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "ignore",
+                    "call": {"tool": "no_tool", "reason": "cannot carry out"},
+                }
+            ]
+        }
+    )
+    calls = picker._normalize_calls(parsed)
+    assert len(calls) == 1
+    assert calls[0].tool == ""
+    assert calls[0].reason == "cannot carry out"
+
+
+def test_default_error_result_matches_dynamic_schema():
+    """The fail-closed default instantiates the per-run schema."""
+    picker = _make_picker()
+    picker._output_schema = picker._get_output_schema(AgentLikeState())
+    result = picker._get_default_error_result()
+    assert result.tool_calls == []
 
 
 def test_model_role_selects_entry():
