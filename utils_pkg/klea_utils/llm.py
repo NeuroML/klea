@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, NamedTuple, cast
+from typing import Any, Literal, NamedTuple, cast
 
 from json_repair import repair_json
 from langchain_core.exceptions import OutputParserException
@@ -1643,6 +1643,13 @@ class LLMModel(BaseModel):
     """
 
     model_name: str = ""
+    #: Inference kind the role's model must provide.  ``text_generation``
+    #: covers chat LLMs (chat/plan/tool_picker/guard), resolved through
+    #: ``create_configurable_model``; ``embedding`` covers vector embedders,
+    #: resolved through :func:`setup_embedding`.  Reserved future values:
+    #: ``decision`` (System One / Jev-style typed-decisions), ``reranking``
+    #: and ``classification``.
+    model_type: Literal["text_generation", "embedding"] = "text_generation"
     instance: Any
     role_defaults: dict[str, Any] = {}
     provider_defaults: dict[str, dict[str, Any]] = {}

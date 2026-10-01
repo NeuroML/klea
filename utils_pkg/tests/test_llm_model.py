@@ -5,6 +5,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -322,6 +323,20 @@ class TestProviderDefaults:
 # ---------------------------------------------------------------------------
 # Integration: all layers together
 # ---------------------------------------------------------------------------
+
+
+class TestModelType:
+    """``LLMModel.model_type`` is the model inference-kind axis."""
+
+    def test_defaults_to_text_generation(self):
+        assert LLMModel(instance=None).model_type == "text_generation"
+
+    def test_embedding_kind_is_explicit(self):
+        assert LLMModel(instance=None, model_type="embedding").model_type == "embedding"
+
+    def test_rejects_unknown_kind(self):
+        with pytest.raises(ValueError):
+            LLMModel(instance=None, model_type=cast(Any, "nonsense"))
 
 
 class TestFullMerge:

@@ -97,6 +97,9 @@ def models_app(tmp_path):
                 instance=None, model_name="", required=False, modifiable=False
             ),
             "plan": LLMModel(instance=None, model_name="", required=True),
+            "embedding": LLMModel(
+                instance=None, model_name="ollama:bge-m3", model_type="embedding"
+            ),
         }
 
     _app.state.graph = _Graph()
@@ -130,6 +133,8 @@ class TestModels:
         assert data["chat"]["required"] is True
         assert data["chat"]["modifiable"] is True
         assert data["chat"]["model"] == "ollama:qwen3:0.6b"
+        assert data["chat"]["model_type"] == "text_generation"
+        assert data["embedding"]["model_type"] == "embedding"
         # Guard is optional and locked; plan is required but not set.
         assert data["guard"]["required"] is False
         assert data["guard"]["modifiable"] is False

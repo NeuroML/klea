@@ -123,6 +123,7 @@ class RAG(BaseLangGraph):
             "embedding": LLMModel(
                 instance=None,
                 required=True,
+                model_type="embedding",
             ),
         }
 

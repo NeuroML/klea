@@ -73,6 +73,9 @@ def _role_config(
         "model": model_name,
         "modifiable": getattr(role_entry, "modifiable", True) if role_entry else True,
         "required": getattr(role_entry, "required", True) if role_entry else True,
+        "model_type": getattr(role_entry, "model_type", "text_generation")
+        if role_entry
+        else "text_generation",
     }
     parsed = parse_model_name(model_name) if model_name else None
     if parsed and parsed.provider:
