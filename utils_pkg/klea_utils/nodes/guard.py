@@ -16,6 +16,7 @@ from pydantic import BaseModel
 
 from ..llm import content_to_str
 from .base import BaseLLMNode
+from .context import NodeContext
 
 
 class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
@@ -57,7 +58,7 @@ class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
         )
 
     @override
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
         """Skip execution if no guard model is configured."""
         return bool(self._llm_entry.model_name)
 

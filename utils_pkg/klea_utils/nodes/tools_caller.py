@@ -29,7 +29,9 @@ from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
 from klea_utils.nodes.context import ToolCallerContext
 
 
-class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
+class ToolsCallerNode(
+    AbstractLangGraphNode[BaseModel, dict[str, Any], ToolCallerContext]
+):
     """Node that gates and dispatches the selected MCP tool calls.
 
     Shared by Klea Agent and Klea RAG.  Reads ``state.tool_calls`` (a list of
@@ -80,12 +82,6 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         self._tool_infos = tool_infos
         self._project_root = project_root
         self._post_dispatch = post_dispatch
-        #: Last state/results, set by ``execute`` for the streaming hooks.
-        self._last_state: BaseModel | None = None
-        self._last_tool_results: list[CallToolResult] | None = None
-        #: Per-result display flag from ``_post_exec_stream`` (aligned with
-        #: ``_last_tool_results``), passed to ``post_dispatch``.
-        self._last_display_flags: list[bool] = []
 
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
@@ -97,9 +93,11 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         :param state: Current graph state (must carry ``tool_calls``).
         :returns: ``{"tool_results": [...]}`` plus any callback extras.
         """
-        self._pre_exec_stream()
+        # Per-run context (values local to the run, not on the shared node).
+        ctx = ToolCallerContext()
+        self._pre_exec_stream(ctx)
 
-        if self._pre_exec(state):
+        if self._pre_exec(state, ctx):
             tool_calls = getattr(state, "tool_calls", [])
             access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
             self.logger.debug(
@@ -117,54 +115,49 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
             self.logger.debug("No tool calls to dispatch; writing empty results")
             results = []
         self.logger.debug(f"{results =}")
-
-        # Per-run context (values local to the run, not on the shared node).
-        ctx = ToolCallerContext()
         ctx.tool_results = results
-        self._last_state = state
-        self._last_tool_results = results
-        self._post_exec_stream()
-        ctx.display_flags = list(self._last_display_flags)
+
+        self._post_exec_stream(state, ctx)
 
         updates: dict[str, Any] = {"tool_results": results}
         if self._post_dispatch:
-            updates.update(
-                self._post_dispatch(state, results, self._last_display_flags)
-            )
+            updates.update(self._post_dispatch(state, results, ctx.display_flags))
         return updates
 
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: BaseModel, ctx: ToolCallerContext) -> bool:
         """Run only when there are tool calls and a client to dispatch to."""
         return bool(getattr(state, "tool_calls", None)) and self._mcp_client is not None
 
-    def _post_exec_stream(self) -> None:
+    def _post_exec_stream(self, state: BaseModel, ctx: ToolCallerContext) -> None:
         """Emit the shared events, then any chat-renderable tool output."""
-        super()._post_exec_stream()
-        entries, flags = self._compute_displays()
-        self._last_display_flags = flags
+        super()._post_exec_stream(state, ctx)
+        entries, flags = self._compute_displays(state, ctx)
+        ctx.display_flags = flags
         if entries:
             self.write_custom_stream(
                 {"type": "tool", "node": self.label, "data": {"tools": entries}}
             )
 
-    def _compute_displays(self) -> tuple[list[dict[str, Any]], list[bool]]:
+    def _compute_displays(
+        self, state: BaseModel, ctx: ToolCallerContext
+    ) -> tuple[list[dict[str, Any]], list[bool]]:
         """Return the display entries and a per-result displayed flag.
 
         The entries are the chat-renderable payloads (one per result at most);
-        the flags are aligned with ``self._last_tool_results`` so a caller can
-        record which results were streamed to the user.
+        the flags are aligned with ``ctx.tool_results`` so a caller can record
+        which results were streamed to the user.
         """
-        assert self._last_state is not None
-        assert self._last_tool_results is not None
-        tool_calls = getattr(self._last_state, "tool_calls", [])
+        tool_calls = getattr(state, "tool_calls", [])
         per_result = [
             self._display_entry_for(tc, result)
-            for tc, result in zip(tool_calls, self._last_tool_results, strict=False)
+            for tc, result in zip(tool_calls, ctx.tool_results, strict=False)
         ]
         flags = [entry is not None for entry in per_result]
         return [entry for entry in per_result if entry is not None], flags
 
-    def _tool_display_entries(self) -> list[dict[str, Any]]:
+    def _tool_display_entries(
+        self, tool_calls: list[Any], results: list[CallToolResult]
+    ) -> list[dict[str, Any]]:
         """Return chat-renderable per-tool entries for the last round.
 
         Each entry is ``{tool, title, header, mime, data, meta, display}``:
@@ -182,7 +175,11 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         is not surfaced (ours is the JSON dump).  Errors and results with
         nothing to show are skipped.
         """
-        return self._compute_displays()[0]
+        per_result = [
+            self._display_entry_for(tc, result)
+            for tc, result in zip(tool_calls, results, strict=False)
+        ]
+        return [entry for entry in per_result if entry is not None]
 
     def _display_entry_for(
         self, tc: Any, result: CallToolResult
@@ -295,7 +292,7 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
             return f"```{language}\n{text}\n```"
         return text
 
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(self, state: BaseModel, ctx: ToolCallerContext) -> NodeStreamData:
         """Return the inspection payload for the completed dispatch.
 
         The inspection pane shows the dispatch summary plus the full tool
@@ -303,11 +300,9 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         a compact ``ok``/``error`` view from ``_get_status``; renderable
         outputs (e.g. diffs) surface in the chat.
         """
-        assert self._last_state is not None
-        assert self._last_tool_results is not None
-        tool_calls = getattr(self._last_state, "tool_calls", [])
+        tool_calls = getattr(state, "tool_calls", []) or []
         tool_names = [tc.tool for tc in tool_calls]
-        success_count = sum(1 for r in self._last_tool_results if not r.is_error)
+        success_count = sum(1 for r in ctx.tool_results if not r.is_error)
         return NodeStreamData(
             heading="Tool Execution",
             summary=f"Called {len(tool_names)} tool(s), {success_count} succeeded",
@@ -327,12 +322,14 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
                         "content": str(r.content) if r.content else None,
                         "structured_content": r.structured_content,
                     }
-                    for i, r in enumerate(self._last_tool_results)
+                    for i, r in enumerate(ctx.tool_results)
                 ],
             },
         )
 
-    def _get_status(self) -> NodeStreamData | None:
+    def _get_status(
+        self, state: BaseModel, ctx: ToolCallerContext
+    ) -> NodeStreamData | None:
         """Return per-tool execution status for the status pane.
 
         The status pane shows ground truth -- which tools actually ran and
@@ -345,14 +342,12 @@ class ToolsCallerNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
 
         :returns: A status section, or ``None`` when nothing was called.
         """
-        assert self._last_state is not None
-        assert self._last_tool_results is not None
-        tool_calls = getattr(self._last_state, "tool_calls", [])
+        tool_calls = getattr(state, "tool_calls", []) or []
         # Skip calls with no usable name: rendering the empty title would show
         # a meaningless "****: error".  Their failure is still visible in the
         # inspection pane and drives Triage.
         lines: list[str] = []
-        for tc, result in zip(tool_calls, self._last_tool_results, strict=False):
+        for tc, result in zip(tool_calls, ctx.tool_results, strict=False):
             if not tc.tool.strip():
                 continue
             info = self._tool_infos.get(tc.tool) if self._tool_infos else None

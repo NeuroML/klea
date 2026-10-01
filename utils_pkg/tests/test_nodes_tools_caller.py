@@ -13,6 +13,7 @@ from typing import Any, cast
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
+from klea_utils.nodes.context import ToolCallerContext
 from klea_utils.nodes.tools_caller import ToolsCallerNode
 from mcp.types import ImageContent
 from pydantic import BaseModel, Field
@@ -62,6 +63,13 @@ def _record_stream(node: ToolsCallerNode, events: list[dict]) -> None:
     cast(Any, node).write_custom_stream = events.append
 
 
+def _ctx(results: list[CallToolResult]) -> ToolCallerContext:
+    """Build a per-run context carrying the given tool results."""
+    ctx = ToolCallerContext()
+    ctx.tool_results = results
+    return ctx
+
+
 async def test_always_writes_tool_results():
     """No calls (or no client) still writes empty results, never stale ones."""
     node = _make_node()
@@ -77,12 +85,14 @@ async def test_always_writes_tool_results():
 
 async def test_pre_exec_gates_on_tool_calls_and_client():
     client = FakeMCPClient()
+    ctx = _ctx([])
     node = _make_node(client=client)
-    assert node._pre_exec(MiniState(tool_calls=[ToolCallSchema(tool="a")])) is True
-    assert node._pre_exec(MiniState()) is False
+    assert node._pre_exec(MiniState(tool_calls=[ToolCallSchema(tool="a")]), ctx) is True
+    assert node._pre_exec(MiniState(), ctx) is False
     no_client = _make_node()
     assert (
-        no_client._pre_exec(MiniState(tool_calls=[ToolCallSchema(tool="a")])) is False
+        no_client._pre_exec(MiniState(tool_calls=[ToolCallSchema(tool="a")]), ctx)
+        is False
     )
 
 
@@ -118,18 +128,19 @@ async def test_streaming_uses_shared_hooks():
     """A bare AbstractLangGraphNode subclass emits info/debug/status via the
     base streaming contract, and never emits a usage event (LLM-only)."""
     from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
+    from klea_utils.nodes.context import NodeContext
 
     class BareNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
         async def execute(self, state):
-            self._last_state = state
-            self._pre_exec_stream()
-            self._post_exec_stream()
+            ctx = NodeContext()
+            self._pre_exec_stream(ctx)
+            self._post_exec_stream(state, ctx)
             return {}
 
-        def _get_inspect(self) -> NodeStreamData:
+        def _get_inspect(self, state, ctx) -> NodeStreamData:
             return NodeStreamData(summary="inspect-summary", details={"k": "v"})
 
-        def _get_status(self) -> NodeStreamData:
+        def _get_status(self, state, ctx) -> NodeStreamData:
             return NodeStreamData(summary="status-summary", display="**status**")
 
     node = BareNode(logging.getLogger("test"), "Bare")
@@ -288,15 +299,13 @@ async def test_post_dispatch_can_update_plan_step():
 def test_get_status_lists_tool_outcomes_with_titles():
     """Status pane shows executed tools with a title and ok/error label."""
     node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
-    node._last_state = MiniState(
-        tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
-    )
-    node._last_tool_results = [
+    state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
+    results = [
         CallToolResult(content=[], structured_content=None, meta=None, is_error=False),
         CallToolResult(content=[], structured_content=None, meta=None, is_error=True),
     ]
 
-    status = node._get_status()
+    status = node._get_status(state, _ctx(results))
 
     assert status is not None
     assert status.heading == "Tool Execution"
@@ -307,24 +316,20 @@ def test_get_status_lists_tool_outcomes_with_titles():
 def test_get_status_none_without_tool_calls():
     """An empty round emits no status section."""
     node = _make_node()
-    node._last_state = MiniState()
-    node._last_tool_results = []
 
-    assert node._get_status() is None
+    assert node._get_status(MiniState(), _ctx([])) is None
 
 
 def test_get_status_skips_empty_name_calls():
     """A call with an empty name is not rendered as a meaningless '****: error'."""
     node = _make_node(tool_infos={"read": ToolInfo(title="Read file")})
-    node._last_state = MiniState(
-        tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")]
-    )
-    node._last_tool_results = [
+    state = MiniState(tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")])
+    results = [
         CallToolResult(content=[], structured_content=None, meta=None, is_error=True),
         CallToolResult(content=[], structured_content=None, meta=None, is_error=False),
     ]
 
-    status = node._get_status()
+    status = node._get_status(state, _ctx(results))
 
     assert status is not None
     assert status.display == "- **Read file**: ok"
@@ -333,21 +338,19 @@ def test_get_status_skips_empty_name_calls():
 def test_get_status_none_when_all_names_empty():
     """An all-empty-name round emits no status section."""
     node = _make_node()
-    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="")])
-    node._last_tool_results = [
+    state = MiniState(tool_calls=[ToolCallSchema(tool="")])
+    results = [
         CallToolResult(content=[], structured_content=None, meta=None, is_error=True)
     ]
 
-    assert node._get_status() is None
+    assert node._get_status(state, _ctx(results)) is None
 
 
 def test_tool_display_entries_for_diff_and_text():
     """Renders a fenced diff for file edits and passthrough text otherwise."""
     node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
-    node._last_state = MiniState(
-        tool_calls=[ToolCallSchema(tool="edit_file"), ToolCallSchema(tool="other")]
-    )
-    node._last_tool_results = [
+    tool_calls = [ToolCallSchema(tool="edit_file"), ToolCallSchema(tool="other")]
+    results = [
         CallToolResult(
             content=[],
             structured_content={
@@ -363,7 +366,7 @@ def test_tool_display_entries_for_diff_and_text():
         ),
     ]
 
-    entries = node._tool_display_entries()
+    entries = node._tool_display_entries(tool_calls, results)
 
     assert entries[0]["mime"] == "text/x-diff"
     assert entries[0]["header"] == "Edit file: a.txt (+1/-0)"
@@ -377,10 +380,8 @@ def test_tool_display_entries_for_diff_and_text():
 def test_tool_display_entries_for_code_and_self_describing():
     """``code`` maps to ``text/x-<lang>``; a display dict is passed through."""
     node = _make_node()
-    node._last_state = MiniState(
-        tool_calls=[ToolCallSchema(tool="code_tool"), ToolCallSchema(tool="rich")]
-    )
-    node._last_tool_results = [
+    tool_calls = [ToolCallSchema(tool="code_tool"), ToolCallSchema(tool="rich")]
+    results = [
         CallToolResult(
             content=[],
             structured_content={"code": "print(1)", "language": "python"},
@@ -399,7 +400,7 @@ def test_tool_display_entries_for_code_and_self_describing():
         ),
     ]
 
-    entries = node._tool_display_entries()
+    entries = node._tool_display_entries(tool_calls, results)
 
     assert entries[0]["mime"] == "text/x-python"
     assert entries[0]["data"] == "print(1)"
@@ -413,8 +414,8 @@ def test_tool_display_entries_for_code_and_self_describing():
 def test_tool_display_entries_from_image_content_block():
     """A typed MCP ImageContent is surfaced using its mimeType."""
     node = _make_node()
-    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="plot")])
-    node._last_tool_results = [
+    tool_calls = [ToolCallSchema(tool="plot")]
+    results = [
         CallToolResult(
             content=[ImageContent(type="image", data="BBBB", mimeType="image/png")],
             structured_content=None,
@@ -422,7 +423,7 @@ def test_tool_display_entries_from_image_content_block():
         )
     ]
 
-    entries = node._tool_display_entries()
+    entries = node._tool_display_entries(tool_calls, results)
 
     assert entries[0]["mime"] == "image/png"
     assert entries[0]["data"] == "BBBB"
@@ -431,17 +432,15 @@ def test_tool_display_entries_from_image_content_block():
 
 def test_tool_display_entries_skip_errors_and_empty():
     node = _make_node()
-    node._last_state = MiniState(
-        tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
-    )
-    node._last_tool_results = [
+    tool_calls = [ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
+    results = [
         CallToolResult(
             content=[], structured_content={"diff": "+x"}, meta=None, is_error=True
         ),
         CallToolResult(content=[], structured_content=None, meta=None),
     ]
 
-    assert node._tool_display_entries() == []
+    assert node._tool_display_entries(tool_calls, results) == []
 
 
 def test_post_exec_stream_emits_tool_event():
@@ -449,8 +448,8 @@ def test_post_exec_stream_emits_tool_event():
     node = _make_node(tool_infos={"write_file": ToolInfo(title="Write file")})
     events: list[dict] = []
     _record_stream(node, events)
-    node._last_state = MiniState(tool_calls=[ToolCallSchema(tool="write_file")])
-    node._last_tool_results = [
+    state = MiniState(tool_calls=[ToolCallSchema(tool="write_file")])
+    results = [
         CallToolResult(
             content=[],
             structured_content={
@@ -463,7 +462,7 @@ def test_post_exec_stream_emits_tool_event():
         )
     ]
 
-    node._post_exec_stream()
+    node._post_exec_stream(state, _ctx(results))
 
     tool_events = [e for e in events if e["type"] == "tool"]
     assert len(tool_events) == 1
@@ -473,13 +472,13 @@ def test_post_exec_stream_emits_tool_event():
 def test_compute_displays_flags_aligned_with_results():
     """The displayed flags align 1:1 with results; only diffs are entries."""
     node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
-    node._last_state = MiniState(
+    state = MiniState(
         tool_calls=[
             ToolCallSchema(tool="edit_file"),
             ToolCallSchema(tool="run_command"),
         ]
     )
-    node._last_tool_results = [
+    results = [
         CallToolResult(
             content=[],
             structured_content={
@@ -497,7 +496,7 @@ def test_compute_displays_flags_aligned_with_results():
         ),
     ]
 
-    entries, flags = node._compute_displays()
+    entries, flags = node._compute_displays(state, _ctx(results))
 
     assert flags == [True, False]
     assert len(entries) == 1

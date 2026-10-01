@@ -1073,10 +1073,10 @@ class _ValidatingNode(_MinimalLLMNode):
     def _get_human_prompt(self, state):
         return "human"
 
-    def _pre_exec_stream(self):
+    def _pre_exec_stream(self, ctx):
         pass
 
-    def _post_exec_stream(self):
+    def _post_exec_stream(self, state, ctx):
         pass
 
     async def _invoke_llm(self, llm, prompt, config):

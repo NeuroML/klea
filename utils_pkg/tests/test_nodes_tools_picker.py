@@ -12,6 +12,7 @@ import logging
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
+from klea_utils.nodes.context import NodeContext
 from klea_utils.nodes.tools_picker import ToolsPicker
 from mcp.types import TextContent
 from pydantic import BaseModel, Field
@@ -222,13 +223,20 @@ def test_pre_exec_skips_when_access_level_hides_all():
             "d": {"delete": ToolInfo(description="delete tool", destructive=True)}
         }
     )
-    assert picker._pre_exec(AgentLikeState(access_level="read_only")) is False
+    assert (
+        picker._pre_exec(AgentLikeState(access_level="read_only"), NodeContext())
+        is False
+    )
 
 
 def test_pre_exec_skips_when_no_tools_for_domain():
     picker = _make_picker()
-    assert picker._pre_exec(RagLikeState(query_domains=["nope"])) is False
-    assert picker._pre_exec(RagLikeState(query_domains=["NeuroML"])) is True
+    assert (
+        picker._pre_exec(RagLikeState(query_domains=["nope"]), NodeContext()) is False
+    )
+    assert (
+        picker._pre_exec(RagLikeState(query_domains=["NeuroML"]), NodeContext()) is True
+    )
 
 
 def test_update_state_writes_tool_calls():

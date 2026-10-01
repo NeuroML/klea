@@ -18,6 +18,7 @@ import pytest
 from klea_utils.graph.schemas import TokenUsage
 from klea_utils.llm import LLMModel, create_configurable_model, is_output_empty
 from klea_utils.nodes.base import BaseLLMNode, _is_empty_result, _schema_to_example
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompt_values import ChatPromptValue
 from langchain_core.prompts import ChatPromptTemplate
@@ -303,7 +304,7 @@ def test_llm_post_exec_stream_emits_usage_event():
     events: list[dict] = []
     cast(Any, node).write_custom_stream = events.append
 
-    node._post_exec_stream()
+    node._post_exec_stream(MemoryState(), LLMNodeContext())
 
     event_types = [e["type"] for e in events]
     assert event_types == ["usage"]

@@ -21,6 +21,7 @@ from ..llm import (
     split_output_by_section,
 )
 from .base import BaseLLMNode
+from .context import NodeContext
 
 #: Default char budget for the recent verbatim window that is kept out of
 #: the summary.  Must match the base node's ``num_history_chars`` default so
@@ -86,7 +87,7 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         self._window_start = 0
 
     @override
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
         """Skip if not enough old conversation to summarise."""
         recent = get_recent_messages(
             state.messages,  # type: ignore

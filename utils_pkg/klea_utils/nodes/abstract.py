@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from klea_utils.graph.schemas import TokenUsage
 from klea_utils.llm import extract_llm_output_content
-from klea_utils.nodes.context import LLMNodeContext
+from klea_utils.nodes.context import LLMNodeContext, NodeContext
 
 
 class NodeStreamData(BaseModel):
@@ -85,7 +85,11 @@ class NodeStreamEvent(BaseModel):
     data: NodeStreamData = Field(description="Event payload")
 
 
-class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
+class AbstractLangGraphNode[
+    TState: BaseModel,
+    TReturn,
+    TCtx: NodeContext = NodeContext,
+](ABC):
     """Abstract base class for all LangGraph nodes.
 
     Generic over ``TState`` (the graph state the node operates on) and
@@ -162,11 +166,14 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
     # and additionally emits a token-usage event (LLM-specific).
     # ------------------------------------------------------------------
 
-    def _pre_exec(self, state: TState) -> bool:
+    def _pre_exec(self, state: TState, ctx: TCtx) -> bool:
         """Pre-execution check. Override to conditionally skip execution.
 
         Return False to skip execution (``execute`` returns an empty dict).
         Return True (default) to proceed with the standard flow.
+
+        :param state: Current graph state.
+        :param ctx: Per-run node context.
         """
         return True
 
@@ -188,15 +195,17 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
         )
         self.write_custom_stream(event.model_dump())
 
-    def _pre_exec_stream(self) -> None:
+    def _pre_exec_stream(self, ctx: TCtx) -> None:
         """Emit streaming event before node execution.
 
         Default: emits a ``progress`` event with the node label as heading.
         Override to customise pre-execution streaming.
+
+        :param ctx: Per-run node context.
         """
         self._emit_progress()
 
-    def _post_exec_stream(self) -> None:
+    def _post_exec_stream(self, state: TState, ctx: TCtx) -> None:
         """Emit streaming events after node execution.
 
         Default: emits ``inspect`` and ``state`` events from
@@ -204,24 +213,29 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
         ``AbstractLLMNode`` overrides this to also emit the token-usage
         event, which is LLM-specific.
         Override to customise post-execution streaming.
+
+        :param state: Current graph state.
+        :param ctx: Per-run node context.
         """
-        inspect = self._get_inspect()
+        inspect = self._get_inspect(state, ctx)
         if inspect:
             event = NodeStreamEvent(type="inspect", node=self.label, data=inspect)
             self.write_custom_stream(event.model_dump())
-        status = self._get_status()
+        status = self._get_status(state, ctx)
         if status:
             event = NodeStreamEvent(type="state", node=self.label, data=status)
             self.write_custom_stream(event.model_dump())
 
-    def _get_inspect(self) -> NodeStreamData | None:
+    def _get_inspect(self, state: TState, ctx: TCtx) -> NodeStreamData | None:
         """Return structured inspection data for an ``inspect`` event.
 
         Override in subclasses to provide node-specific inspection data: a
         short summary plus a ``details`` dict (rendered as collapsible JSON
         in the inspection pane).  The summary is always shown; the details
-        are the drill-down.  Has access to all ``self._last_*`` values.
+        are the drill-down.  Per-run values come from *ctx*.
 
+        :param state: Current graph state.
+        :param ctx: Per-run node context.
         :returns: NodeStreamData with summary and details, or None to skip
 
         Example::
@@ -233,7 +247,7 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
         """
         return None
 
-    def _get_status(self) -> NodeStreamData | None:
+    def _get_status(self, state: TState, ctx: TCtx) -> NodeStreamData | None:
         """Return status pane content for this node.
 
         Override to populate the status pane with display-ready
@@ -242,13 +256,15 @@ class AbstractLangGraphNode[TState: BaseModel, TReturn](ABC):
         replaces the previous entry for this node label so loops do not
         accumulate.
 
+        :param state: Current graph state.
+        :param ctx: Per-run node context.
         :returns: NodeStreamData with display content, or None to skip
         """
         return None
 
 
 class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
-    AbstractLangGraphNode[TState, dict[str, Any]]
+    AbstractLangGraphNode[TState, dict[str, Any], LLMNodeContext[TOutput]]
 ):
     """Abstract base class for LangGraph nodes that use LLMs.
 
@@ -368,7 +384,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
         self.logger.debug(f"{state =}")
 
-        if not self._pre_exec(state):
+        if not self._pre_exec(state, ctx):
             self.logger.debug("Pre-exec check failed, skipping execution")
             return {}
 
@@ -379,7 +395,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ctx.output_schema = self._output_schema
 
         self._last_state = state
-        self._pre_exec_stream()
+        self._pre_exec_stream(ctx)
 
         self._last_human_prompt = self._get_human_prompt(state)
         ctx.human_prompt = self._last_human_prompt
@@ -451,19 +467,19 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         )
         ctx.final_state = self._final_state
 
-        self._post_exec_stream()
+        self._post_exec_stream(state, ctx)
 
         self.logger.debug(f"{self._final_state =}")
         return self._final_state
 
-    def _post_exec_stream(self) -> None:
+    def _post_exec_stream(self, state: TState, ctx: LLMNodeContext[TOutput]) -> None:
         """Emit streaming events after LLM invocation.
 
         Emits the shared ``info``, ``debug``, and ``state`` events (via the
         base) plus the ``usage`` event, which is LLM-specific: non-LLM
         nodes have no token usage, so this stays in ``AbstractLLMNode``.
         """
-        super()._post_exec_stream()
+        super()._post_exec_stream(state, ctx)
         usage = self._get_usage()
         if usage:
             event = NodeStreamEvent(type="usage", node=self.label, data=usage)
@@ -608,27 +624,30 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             )
         return result
 
-    def _get_inspect(self) -> NodeStreamData | None:
+    def _get_inspect(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> NodeStreamData | None:
         """Return structured inspection data for an ``inspect`` event.
 
         Override in subclasses to provide node-specific inspection data: a
         short summary plus a ``details`` dict.  The summary is always shown;
-        the details are the drill-down.  Has access to all ``self._last_*``
-        values.
+        the details are the drill-down.  Per-run values come from *ctx*.
 
         :returns: NodeStreamData with summary and details, or None to skip
 
         Example::
 
             details = {"classified_domains": ["neuron", "morphology"]}
-            # ``_last_system_prompt`` may be a list when the node keeps a
+            # ``ctx.system_prompt`` may be a list when the node keeps a
             # verbatim memory window; use the formatted prompt instead.
-            details["input_prompt"] = prompt_value_to_messages(self._last_prompt)
+            details["input_prompt"] = prompt_value_to_messages(ctx.prompt)
             return NodeStreamData(summary="Classified", details=details)
         """
         return None
 
-    def _get_status(self) -> NodeStreamData | None:
+    def _get_status(
+        self, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> NodeStreamData | None:
         """Return status pane content for this node.
 
         Override to populate the status pane with display-ready

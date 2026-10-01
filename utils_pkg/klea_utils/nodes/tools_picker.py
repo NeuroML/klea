@@ -22,6 +22,7 @@ from klea_utils.mcp.call_schema import NO_TOOL_TAG, build_tool_call_schema
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import LLMNodeContext, NodeContext
 from klea_utils.tools import last_tool_error_text
 
 #: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).
@@ -158,7 +159,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return build_tool_call_schema(tools)
 
     @override
-    def _pre_exec(self, state: BaseModel) -> bool:
+    def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
         """Skip when no tool description is available for this state."""
         return bool(self._get_tool_descriptions(state))
 
@@ -443,14 +444,15 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return ToolCallsSchema()
 
     @override
-    def _get_inspect(self) -> NodeStreamData:
+    def _get_inspect(
+        self, state: BaseModel, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData:
         """Return the inspection payload: selection, prompt and raw output."""
-        assert self._last_state is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        assert self._last_result is not None
-        assert self._last_state_updates is not None
-        tool_calls = self._last_state_updates.get("tool_calls", [])
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        assert ctx.result is not None
+        assert ctx.state_updates is not None
+        tool_calls = ctx.state_updates.get("tool_calls", [])
         tool_names = [tc.tool for tc in tool_calls]
         if tool_names:
             summary = f"Selected {len(tool_names)} tool(s): {', '.join(tool_names)}"
@@ -459,9 +461,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         details: dict[str, Any] = {
             "tool_names": tool_names,
             "tool_count": len(tool_names),
-            "input_prompt": prompt_value_to_messages(self._last_prompt),
-            "unprocessed_output": extract_llm_output_content(self._last_output),
-            "processed_output": str(self._last_result),
+            "input_prompt": prompt_value_to_messages(ctx.prompt),
+            "unprocessed_output": extract_llm_output_content(ctx.output),
+            "processed_output": str(ctx.result),
         }
         return NodeStreamData(
             heading="Tool Selection", summary=summary, details=details

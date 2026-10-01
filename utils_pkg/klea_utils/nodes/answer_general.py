@@ -23,6 +23,7 @@ from ..llm import (
 )
 from ..nodes.abstract import NodeStreamData
 from .base import EMPTY_RESULT_FALLBACK, BaseLLMNode
+from .context import LLMNodeContext
 
 
 class FallbackConfig(BaseModel):
@@ -116,12 +117,14 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         return AIMessage(content=EMPTY_RESULT_FALLBACK)
 
     @override
-    def _get_inspect(self) -> NodeStreamData | None:
+    def _get_inspect(
+        self, state: BaseModel, ctx: LLMNodeContext[Any]
+    ) -> NodeStreamData | None:
         """Return the answer summary plus input/output prompt data."""
-        assert self._last_state_updates is not None
-        assert self._last_prompt is not None
-        assert self._last_output is not None
-        result = content_to_str(self._last_state_updates.get("message_for_user", ""))
+        assert ctx.state_updates is not None
+        assert ctx.prompt is not None
+        assert ctx.output is not None
+        result = content_to_str(ctx.state_updates.get("message_for_user", ""))
         char_count = len(result)
         return NodeStreamData(
             heading="General Answer",
@@ -130,7 +133,7 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
             else "No answer generated",
             details={
                 "character_count": char_count,
-                "input_prompt": prompt_value_to_messages(self._last_prompt),
-                "unprocessed_output": extract_llm_output_content(self._last_output),
+                "input_prompt": prompt_value_to_messages(ctx.prompt),
+                "unprocessed_output": extract_llm_output_content(ctx.output),
             },
         )

@@ -13,6 +13,7 @@ import logging
 import pytest
 from klea_utils.llm import get_recent_messages
 from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.context import NodeContext
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
@@ -70,14 +71,14 @@ def test_summarise_skips_below_threshold():
         summarisation_threshold_chars=10_000, num_history_chars=10_000
     )
     state = MemoryState(messages=_conversation(2), summarised_till=0)
-    assert node._pre_exec(state) is False
+    assert node._pre_exec(state, NodeContext()) is False
 
 
 def test_summarise_triggers_and_excludes_window():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(5)
     state = MemoryState(messages=msgs, summarised_till=0)
-    assert node._pre_exec(state) is True
+    assert node._pre_exec(state, NodeContext()) is True
 
     expected_start = len(msgs) - len(get_recent_messages(msgs, 50))
     logger.debug(f"{node._window_start = } {expected_start = }")
@@ -89,7 +90,7 @@ def test_summarise_update_state_uses_window_start():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(5)
     state = MemoryState(messages=msgs, summarised_till=0)
-    node._pre_exec(state)
+    node._pre_exec(state, NodeContext())
 
     updates = node._update_state(AIMessage(content="a summary"), state)
     logger.debug(f"{updates = } {node._window_start = } {len(msgs) = }")
@@ -103,7 +104,7 @@ def test_summarise_preserves_state_on_empty_summary():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(5)
     state = MemoryState(messages=msgs, summarised_till=0)
-    node._pre_exec(state)
+    node._pre_exec(state, NodeContext())
 
     for blank in (AIMessage(content=""), AIMessage(content="   ")):
         updates = node._update_state(blank, state)
@@ -132,7 +133,7 @@ def test_summarise_skips_when_nothing_new_old():
     msgs = _conversation(2)
     # Everything already summarised up to the current message count.
     state = MemoryState(messages=msgs, summarised_till=len(msgs))
-    assert node._pre_exec(state) is False
+    assert node._pre_exec(state, NodeContext()) is False
 
 
 def _prompt_dir(tmp_path):
