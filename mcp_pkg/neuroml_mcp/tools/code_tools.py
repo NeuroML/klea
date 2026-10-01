@@ -37,7 +37,7 @@ sbox = nml_mcp_sandbox
     )
 )
 async def list_files(
-    path: Annotated[str, Field(min_length=1)],
+    path: Annotated[str, Field(min_length=1)] = ".",
     max_depth: int | None = None,
     # LLMs are trained on shell style globs, so they insist on using space
     # separated file patterns. So we explicitly support these. Otherwise, this
@@ -65,7 +65,8 @@ async def list_files(
 
     Args:
         path: Directory path to list. Must be relative to the current working
-            directory and cannot contain '..' for security.
+            directory and cannot contain '..' for security. Defaults to the
+            current directory ('.').
         max_depth: Maximum directory depth to traverse. 'None' for unlimited.
         pattern: Space separated file patterns to filter based on file type.
             Correct: '*.py', '*.md', '*.py *.md'.

@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import inspect
 
+from fastmcp.tools import Tool
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.server import bundled_tools
 from klea_utils.mcp.server.bundled import app, bundle_server
@@ -55,6 +56,13 @@ def test_web_fetch_tags():
 def test_list_files_tags_and_checkpaths():
     assert _tags(bundled_tools.list_files) == {BUNDLED, "local", "files"}
     assert _tool_info(bundled_tools.list_files).checkpaths == ["path"]
+
+
+def test_list_files_path_is_optional_with_default():
+    """``path`` defaults to "." so a binding that omits it still validates."""
+    parameters = Tool.from_function(bundled_tools.list_files).parameters
+    assert "path" not in (parameters.get("required") or [])
+    assert parameters["properties"]["path"]["default"] == "."
 
 
 def test_read_file_tags_and_checkpaths():

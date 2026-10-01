@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def list_files(
-    path: str,
+    path: str = ".",
     max_depth: int | None = None,
     pattern: str = "*",
     include_files: bool = True,
@@ -36,7 +36,8 @@ def list_files(
     wrap this in an MCP tool (see klea_utils.mcp.registry).
 
     :param path: Directory path to list.  Must be relative to current working
-        directory and cannot contain '..' for security.
+        directory and cannot contain '..' for security.  Defaults to the
+        current directory (``"."``).
     :param max_depth: Maximum directory depth to traverse.  1 lists the
         immediate entries inside *path*, 2 also descends one directory
         deeper, and so on.  ``None`` for unlimited.

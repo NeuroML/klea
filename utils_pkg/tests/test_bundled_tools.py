@@ -581,6 +581,19 @@ def test_list_files_basic(tmp_path):
     assert result["truncated"] is False
 
 
+def test_list_files_defaults_to_cwd(tmp_path, monkeypatch):
+    """Omitting ``path`` lists the current working directory (sane default)."""
+    (tmp_path / "a.txt").write_text("")
+    monkeypatch.chdir(tmp_path)
+
+    result = list_files()
+
+    logger.debug(f"{result = }")
+    names = {f["path"].split("/")[-1] for f in result["files"]}
+    assert "a.txt" in names
+    assert result["error"] == ""
+
+
 def test_list_files_recursive(tmp_path):
     (tmp_path / "sub").mkdir()
     (tmp_path / "sub" / "c.py").write_text("")

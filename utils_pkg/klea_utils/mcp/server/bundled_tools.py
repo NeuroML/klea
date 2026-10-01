@@ -85,11 +85,11 @@ async def list_files(
         Field(
             description=(
                 "Directory path to list. Must be relative to current working "
-                "directory and cannot contain '..' for security"
+                "directory and cannot contain '..' for security. Defaults to '.'"
             ),
             min_length=1,
         ),
-    ],
+    ] = ".",
     max_depth: Annotated[
         int | None,
         Field(description="Maximum directory depth to traverse. 'None' for unlimited"),
@@ -144,7 +144,8 @@ async def list_files(
 
     Args:
         path: Directory path to list. Must be relative to the current working
-            directory and cannot contain '..' for security.
+            directory and cannot contain '..' for security. Defaults to the
+            current directory ('.').
         max_depth: Maximum directory depth to traverse. 'None' for unlimited.
         pattern: Space separated file patterns to filter files by type.
         include_files: Whether to include files in results.
