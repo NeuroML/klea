@@ -13,6 +13,7 @@ import logging
 from klea_rag.nodes.answer_from_context import AnswerFromContext, AnswerSchema
 from klea_rag.schemas import RAGState
 from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
 
@@ -26,7 +27,7 @@ def _node() -> AnswerFromContext:
 
 def test_default_error_result_is_retry_message():
     """The node's default error result carries the user-facing retry text."""
-    result = _node()._get_default_error_result()
+    result = _node()._get_default_error_result(LLMNodeContext())
     assert result == AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])
 
 
@@ -38,7 +39,9 @@ def test_process_output_empty_returns_retry_message():
         "parsing_error": None,
         "raw": AIMessage(content="{}"),
     }
-    result = node._process_output(output)
+    result = node._process_output(
+        LLMNodeContext(output=output, output_schema=AnswerSchema)
+    )
     assert result == AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])
 
 

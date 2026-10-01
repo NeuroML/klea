@@ -162,6 +162,6 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
         )
 
     @override
-    def _get_default_error_result(self) -> Any:
+    def _get_default_error_result(self, ctx: Any) -> Any:
         """Return the fallback answer when processing produced nothing."""
         return AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])

@@ -177,7 +177,7 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         }
 
     @override
-    def _get_default_error_result(self) -> RetrievalQueryOutput:
+    def _get_default_error_result(self, ctx: Any) -> RetrievalQueryOutput:
         """Return default result when processing fails."""
         self.logger.error("Processing failed")
         return RetrievalQueryOutput()

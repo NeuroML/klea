@@ -82,7 +82,7 @@ class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
         }
 
     @override
-    def _get_default_error_result(self) -> EvaluateAnswerSchema:
+    def _get_default_error_result(self, ctx: Any) -> EvaluateAnswerSchema:
         """Return default result when processing fails."""
         return EvaluateAnswerSchema(next_step="undefined", summary="Evaluation failed")
 
