@@ -571,7 +571,9 @@ async def run_command(
         Field(
             description=(
                 "Shell command string to run. Pipes, '&&' and redirection are "
-                "supported."
+                "supported. Scope the command to the requested target; do not "
+                "run a broader command or suite than asked (for example run the "
+                "one named test file, not the whole suite)."
             ),
             min_length=1,
         ),
