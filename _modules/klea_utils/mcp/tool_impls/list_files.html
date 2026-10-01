@@ -325,7 +325,7 @@
 <div class="viewcode-block" id="list_files">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.list_files.list_files">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">list_files</span><span class="p">(</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
     <span class="n">max_depth</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">pattern</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"*"</span><span class="p">,</span>
     <span class="n">include_files</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
@@ -340,7 +340,8 @@
 <span class="sd">    wrap this in an MCP tool (see klea_utils.mcp.registry).</span>
 
 <span class="sd">    :param path: Directory path to list.  Must be relative to current working</span>
-<span class="sd">        directory and cannot contain '..' for security.</span>
+<span class="sd">        directory and cannot contain '..' for security.  Defaults to the</span>
+<span class="sd">        current directory (``"."``).</span>
 <span class="sd">    :param max_depth: Maximum directory depth to traverse.  1 lists the</span>
 <span class="sd">        immediate entries inside *path*, 2 also descends one directory</span>
 <span class="sd">        deeper, and so on.  ``None`` for unlimited.</span>

@@ -323,7 +323,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">lru_cache</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">json_repair</span><span class="w"> </span><span class="kn">import</span> <span class="n">repair_json</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputParserException</span>
@@ -2058,6 +2058,13 @@
 <span class="sd">    """</span>
 
     <span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="c1">#: Inference kind the role's model must provide.  ``text_generation``</span>
+    <span class="c1">#: covers chat LLMs (chat/plan/tool_picker/guard), resolved through</span>
+    <span class="c1">#: ``create_configurable_model``; ``embedding`` covers vector embedders,</span>
+    <span class="c1">#: resolved through :func:`setup_embedding`.  Reserved future values:</span>
+    <span class="c1">#: ``decision`` (System One / Jev-style typed-decisions), ``reranking``</span>
+    <span class="c1">#: and ``classification``.</span>
+    <span class="n">model_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"text_generation"</span><span class="p">,</span> <span class="s2">"embedding"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"text_generation"</span>
     <span class="n">instance</span><span class="p">:</span> <span class="n">Any</span>
     <span class="n">role_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="n">provider_defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>

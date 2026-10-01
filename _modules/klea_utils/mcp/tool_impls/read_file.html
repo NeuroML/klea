@@ -380,7 +380,7 @@
 <div class="viewcode-block" id="read_file">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.read_file.read_file">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">read_file</span><span class="p">(</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
     <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">,</span>
     <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100_000</span><span class="p">,</span>
@@ -400,7 +400,9 @@
 <span class="sd">    and the returned ``line_end``/``total_lines`` let the caller continue</span>
 <span class="sd">    reading a large document in pages.</span>
 
-<span class="sd">    :param path: File path to read.</span>
+<span class="sd">    :param path: File path to read.  Defaults to the current directory</span>
+<span class="sd">        (``"."``), which is not a file, so a missing path yields the</span>
+<span class="sd">        nearby-entries fallback.</span>
 <span class="sd">    :param offset: 1-indexed line to start reading from.</span>
 <span class="sd">    :param limit: Maximum number of lines to return.  ``None`` reads to the</span>
 <span class="sd">        end of the file.</span>

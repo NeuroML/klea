@@ -598,7 +598,7 @@
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
         <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_invoke_config</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'configurable'</span><span class="p">,</span><span class="w"> </span><span class="p">{}))</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'configurable'</span><span class="p">,</span><span class="w"> </span><span class="p">{}))</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">inst</span><span class="p">,</span> <span class="n">config</span>
 
@@ -619,10 +619,10 @@
         <span class="c1"># (unit tests) get_runtime() raises, so tests drive the merge via</span>
         <span class="c1"># a Runtime-context harness instead of calling this directly.</span>
         <span class="n">ctx_val</span> <span class="o">=</span> <span class="n">model_overrides_from_context</span><span class="p">(</span><span class="n">get_runtime</span><span class="p">()</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
-        <span class="n">role_overrides</span> <span class="o">=</span> <span class="n">ctx_val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">role_overrides</span> <span class="o">=</span> <span class="n">ctx_val</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="p">,</span> <span class="p">{})</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">ctx_val</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">role_overrides</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_defaults</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
         <span class="p">)</span>
@@ -643,8 +643,8 @@
         <span class="c1"># model would otherwise produce.</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">):</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"No model configured for role '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="si">}</span><span class="s2">'. "</span>
-                <span class="sa">f</span><span class="s2">"Set the </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_MODEL environment "</span>
+                <span class="sa">f</span><span class="s2">"No model configured for role '</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="si">}</span><span class="s2">'. "</span>
+                <span class="sa">f</span><span class="s2">"Set the </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span><span class="si">}</span><span class="s2">_MODEL environment "</span>
                 <span class="s2">"variable (e.g. KLEA_AGENT_CHAT_MODEL) or set a model for "</span>
                 <span class="s2">"this chat from the web UI (Choose models)."</span>
             <span class="p">)</span>
@@ -663,7 +663,7 @@
         <span class="n">resolve_output_token_limit</span><span class="p">(</span>
             <span class="n">overrides</span><span class="p">,</span>
             <span class="n">provider</span><span class="o">=</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span><span class="p">,</span>
-            <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="p">,</span>
+            <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="p">,</span>
             <span class="n">input_chars</span><span class="o">=</span><span class="n">input_chars</span><span class="p">,</span>
         <span class="p">)</span>
 
@@ -891,7 +891,7 @@
         <span class="n">resolve_output_token_limit</span><span class="p">(</span>
             <span class="n">overrides</span><span class="p">,</span>
             <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
-            <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_type</span><span class="p">,</span>
+            <span class="n">role</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="p">,</span>
             <span class="n">input_chars</span><span class="o">=</span><span class="n">input_chars</span><span class="p">,</span>
             <span class="n">use_endpoint</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="p">)</span>

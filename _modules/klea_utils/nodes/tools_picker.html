@@ -337,12 +337,13 @@
 <span class="w">    </span><span class="sd">"""Node that selects MCP tools for the current step or query.</span>
 
 <span class="sd">    Shared by Klea Agent and Klea RAG.  The two applications differ only in</span>
-<span class="sd">    the prompt file, the model role, and which context fields exist in the</span>
+<span class="sd">    the prompt files, the model role, and which context fields exist in the</span>
 <span class="sd">    state, so all of that is configuration:</span>
 
 <span class="sd">    - *prompt_registry_location* points at the application's ``prompts/``</span>
-<span class="sd">      directory (both apps name their picker prompt ``ToolsPicker_system.md``).</span>
-<span class="sd">    - *model_type* selects the ``llm_models`` role (``"plan"`` for the agent,</span>
+<span class="sd">      directory (both apps name their picker prompts ``ToolsPicker_system.md``</span>
+<span class="sd">      and ``ToolsPicker_user.md``).</span>
+<span class="sd">    - *model_role* selects the ``llm_models`` role (``"plan"`` for the agent,</span>
 <span class="sd">      ``"chat"`` for RAG).</span>
 <span class="sd">    - *tools_info* is the per-domain ``BaseLangGraph.tools_info``; when the</span>
 <span class="sd">      state carries ``query_domains`` the descriptions are filtered to those</span>
@@ -353,7 +354,7 @@
 <span class="sd">    rest), so one class serves both prompts.</span>
 <span class="sd">    """</span>
 
-    <span class="n">model_type</span> <span class="o">=</span> <span class="s2">"chat"</span>
+    <span class="n">model_role</span> <span class="o">=</span> <span class="s2">"chat"</span>
     <span class="n">model_defaults</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
         <span class="s2">"temperature"</span><span class="p">:</span> <span class="mf">0.01</span><span class="p">,</span>
     <span class="p">}</span>
@@ -364,7 +365,7 @@
         <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
         <span class="n">llm_models</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
         <span class="n">tools_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">model_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"chat"</span><span class="p">,</span>
+        <span class="n">model_role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"chat"</span><span class="p">,</span>
         <span class="n">prompt_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"ToolsPicker"</span><span class="p">,</span>
         <span class="n">prompt_registry_location</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">on_unusable</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -375,7 +376,7 @@
 <span class="sd">        :param label: Human-readable label for UI progress display</span>
 <span class="sd">        :param llm_models: ``{role: LLMModel}`` dict (from ``BaseLangGraph.llm_models``)</span>
 <span class="sd">        :param tools_info: Per-domain tool metadata (``BaseLangGraph.tools_info``).</span>
-<span class="sd">        :param model_type: Model role key into ``llm_models`` (``"plan"`` for</span>
+<span class="sd">        :param model_role: Model role key into ``llm_models`` (``"plan"`` for</span>
 <span class="sd">            the agent, ``"chat"`` for RAG).</span>
 <span class="sd">        :param prompt_prefix: Prompt file prefix (default ``ToolsPicker``).</span>
 <span class="sd">        :param prompt_registry_location: Directory holding the prompt files.</span>
@@ -390,7 +391,7 @@
 <span class="sd">        """</span>
         <span class="c1"># Must be set before AbstractLLMNode.__init__ reads it to pick the</span>
         <span class="c1"># right entry from llm_models.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">model_type</span> <span class="o">=</span> <span class="n">model_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model_role</span> <span class="o">=</span> <span class="n">model_role</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
             <span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span>
             <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span>
@@ -444,11 +445,6 @@
         <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_tool_descriptions</span><span class="p">(</span><span class="n">state</span><span class="p">))</span>
 
     <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return empty string -- this node only uses a system prompt."""</span>
-        <span class="k">return</span> <span class="s2">""</span>
-
-    <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_prompt_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Format prompt with state-specific variables.</span>
 
@@ -486,10 +482,11 @@
                 <span class="k">if</span> <span class="n">batch</span>
                 <span class="k">else</span> <span class="s2">"(no plan)"</span>
             <span class="p">)</span>
-        <span class="c1"># Appended last (its own prompt section) so the stable prefix above</span>
-        <span class="c1"># stays cache-friendly; omitted entirely on a normal pick (prompt</span>
-        <span class="c1"># conventions).  Derived from the incoming state (thread-isolated), not</span>
-        <span class="c1"># instance fields (ADR-0033).</span>
+        <span class="c1"># A conditional user-prompt section, composed whole and omitted</span>
+        <span class="c1"># entirely on a normal pick (prompt conventions).  The volatile</span>
+        <span class="c1"># content belongs in the user prompt, not the cacheable system prefix.</span>
+        <span class="c1"># Derived from the incoming state (thread-isolated), not instance</span>
+        <span class="c1"># fields (ADR-0033).</span>
         <span class="n">attempts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">last_error</span> <span class="o">=</span> <span class="n">last_tool_error_text</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">last_error</span><span class="p">:</span>

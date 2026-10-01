@@ -392,11 +392,11 @@
         <span class="n">Field</span><span class="p">(</span>
             <span class="n">description</span><span class="o">=</span><span class="p">(</span>
                 <span class="s2">"Directory path to list. Must be relative to current working "</span>
-                <span class="s2">"directory and cannot contain '..' for security"</span>
+                <span class="s2">"directory and cannot contain '..' for security. Defaults to '.'"</span>
             <span class="p">),</span>
             <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="p">),</span>
-    <span class="p">],</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
     <span class="n">max_depth</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum directory depth to traverse. 'None' for unlimited"</span><span class="p">),</span>
@@ -451,7 +451,8 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        path: Directory path to list. Must be relative to the current working</span>
-<span class="sd">            directory and cannot contain '..' for security.</span>
+<span class="sd">            directory and cannot contain '..' for security. Defaults to the</span>
+<span class="sd">            current directory ('.').</span>
 <span class="sd">        max_depth: Maximum directory depth to traverse. 'None' for unlimited.</span>
 <span class="sd">        pattern: Space separated file patterns to filter files by type.</span>
 <span class="sd">        include_files: Whether to include files in results.</span>
@@ -567,11 +568,11 @@
         <span class="n">Field</span><span class="p">(</span>
             <span class="n">description</span><span class="o">=</span><span class="p">(</span>
                 <span class="s2">"File path to read. Must be relative to current working "</span>
-                <span class="s2">"directory and cannot contain '..' for security"</span>
+                <span class="s2">"directory and cannot contain '..' for security. Defaults to '.'"</span>
             <span class="p">),</span>
             <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="p">),</span>
-    <span class="p">],</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
     <span class="n">offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span><span class="p">,</span>
         <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"1-indexed line to start reading from"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
@@ -611,7 +612,9 @@
 
 <span class="sd">    Args:</span>
 <span class="sd">        path: File path to read. Must be relative to the current working</span>
-<span class="sd">            directory and cannot contain '..' for security.</span>
+<span class="sd">            directory and cannot contain '..' for security. Defaults to the</span>
+<span class="sd">            current directory ('.'), which is not a file, so an omitted path</span>
+<span class="sd">            yields the nearby-entries fallback instead of a validation error.</span>
 <span class="sd">        offset: 1-indexed line to start reading from.</span>
 <span class="sd">        limit: Maximum number of lines to return. None reads to the end.</span>
 <span class="sd">        max_chars: Hard cap on characters of content to return.</span>

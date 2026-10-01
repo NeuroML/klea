@@ -546,9 +546,9 @@ role <code class="docutils literal notranslate"><span class="pre">&lt;ROLE&gt;</
 (<code class="docutils literal notranslate"><span class="pre">&lt;APP&gt;</span></code> is <code class="docutils literal notranslate"><span class="pre">AGENT</span></code> or <code class="docutils literal notranslate"><span class="pre">RAG</span></code>).  For example:</p>
 <ul class="simple">
 <li><p>Agent: <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_CHAT_MODEL</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_PLAN_MODEL</span></code>,
-<code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_GUARD_MODEL</span></code></p></li>
-<li><p>RAG: <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_CHAT_MODEL</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code>,
-<code class="docutils literal notranslate"><span class="pre">KLEA_RAG_GUARD_MODEL</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_TOOL_PICKER_MODEL</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_GUARD_MODEL</span></code></p></li>
+<li><p>RAG: <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_CHAT_MODEL</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_TOOL_PICKER_MODEL</span></code>,
+<code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_GUARD_MODEL</span></code></p></li>
 </ul>
 <p>Example env file:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">KLEA_RAG_CHAT_MODEL</span><span class="o">=</span><span class="n">ollama</span><span class="p">:</span><span class="n">qwen3</span><span class="p">:</span><span class="mf">0.6</span><span class="n">b</span>

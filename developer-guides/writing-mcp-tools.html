@@ -451,6 +451,36 @@ a tool named after the function.  Helper functions without the decoration
 are ignored.  Validation constraints (e.g. <code class="docutils literal notranslate"><span class="pre">Field(min_length=1)</span></code>) may be
 added to parameter annotations and are preserved in the schema.</p>
 </section>
+<section id="sane-defaults">
+<h2>Sane defaults<a class="headerlink" href="#sane-defaults" title="Link to this heading">¶</a></h2>
+<p>Give every parameter a sensible default whenever one exists, and make a
+parameter required only when it is genuinely irreducible (the target of a
+write or edit, a search pattern, a command, a URL).  A required parameter
+with an obvious value is a trap for smaller models: they either omit it
+assuming a default, or pass the obvious value, and a missing required
+argument fails schema validation <em>before</em> the tool runs - so the picker
+retry or replan budget is spent on an argument it could have defaulted.
+Prefer:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">path:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&quot;.&quot;</span></code> for “the current/project directory” (as
+<code class="docutils literal notranslate"><span class="pre">find_files</span></code>, <code class="docutils literal notranslate"><span class="pre">grep</span></code>, <code class="docutils literal notranslate"><span class="pre">list_files</span></code> and <code class="docutils literal notranslate"><span class="pre">read_file</span></code> do).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pattern:</span> <span class="pre">str</span> <span class="pre">=</span> <span class="pre">&quot;*&quot;</span></code> for “no filter”.</p></li>
+<li><p>a documented default for flags and limits.</p></li>
+</ul>
+<p>Read-only path tools should default the path rather than demand it.  An
+omitted <code class="docutils literal notranslate"><span class="pre">path</span></code> then resolves to the project root, and because the root
+is not a file, a read target-missing path returns the nearest existing
+directory’s entries (<code class="docutils literal notranslate"><span class="pre">nearby</span></code>/<code class="docutils literal notranslate"><span class="pre">note</span></code>) - a useful observation the
+picker can act on.  A hard validation error carries no such information,
+so the model only learns that an argument was missing, not what exists
+instead.  Mutating tools (<code class="docutils literal notranslate"><span class="pre">write_file</span></code>/<code class="docutils literal notranslate"><span class="pre">edit_file</span></code>), command runners
+and network fetchers keep their target arguments required: faking a
+default there is wrong or dangerous.</p>
+<p>If a default would be wrong, keep the parameter required and say why in its
+<code class="docutils literal notranslate"><span class="pre">Args:</span></code> entry.  Whatever the choice, state the default in <code class="docutils literal notranslate"><span class="pre">Args:</span></code> so the
+picker’s compact parameter line shows it (see “Parameters” above) and the
+model can rely on it.</p>
+</section>
 <section id="error-handling-iserror">
 <h2>Error handling (isError)<a class="headerlink" href="#error-handling-iserror" title="Link to this heading">¶</a></h2>
 <p>The <a class="reference external" href="https://modelcontextprotocol.io/specification/2025-06-18/server/tools#Error%20Handling">MCP specification</a>
@@ -547,7 +577,9 @@ return <code class="docutils literal notranslate"><span class="pre">ToolResult</
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
 
 <span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">title</span><span class="o">=</span><span class="s2">"&lt;Human title&gt;"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="s2">"&lt;domain&gt;"</span><span class="p">}))</span>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tool_name</span><span class="o">&gt;</span><span class="p">(</span><span class="o">&lt;</span><span class="n">param</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">type</span><span class="o">&gt;</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="o">&lt;</span><span class="n">tool_name</span><span class="o">&gt;</span><span class="p">(</span>
+    <span class="o">&lt;</span><span class="n">param</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">type</span><span class="o">&gt;</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">optional_param</span><span class="o">&gt;</span><span class="p">:</span> <span class="o">&lt;</span><span class="nb">type</span><span class="o">&gt;</span> <span class="o">=</span> <span class="o">&lt;</span><span class="n">sane</span><span class="o">-</span><span class="n">default</span><span class="o">&gt;</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""&lt;One-sentence summary of what the tool does&gt;.</span>
 
 <span class="sd">    Use this tool to &lt;primary purpose&gt;.</span>
@@ -562,8 +594,9 @@ return <code class="docutils literal notranslate"><span class="pre">ToolResult</
 <span class="sd">    Example: &lt;tool_name&gt;(&lt;param&gt;=&lt;value&gt;)</span>
 
 <span class="sd">    Args:</span>
-<span class="sd">        &lt;param&gt;: &lt;what the parameter means and how it affects behaviour&gt;.</span>
-<span class="sd">        &lt;param2&gt;: &lt;description&gt;. Defaults to &lt;default&gt; if not specified.</span>
+<span class="sd">        &lt;param&gt;: &lt;what the parameter means and how it affects behaviour</span>
+<span class="sd">            (required; no sane default)&gt;.</span>
+<span class="sd">        &lt;optional_param&gt;: &lt;description&gt;. Defaults to &lt;sane-default&gt;.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        ToolResult with structured_content dict and error field; isError</span>
@@ -645,6 +678,7 @@ tool access levels in a deployment</p></li>
             <ul>
 <li><a class="reference internal" href="#">Writing MCP tools</a><ul>
 <li><a class="reference internal" href="#docstring-first-convention">Docstring-first convention</a></li>
+<li><a class="reference internal" href="#sane-defaults">Sane defaults</a></li>
 <li><a class="reference internal" href="#error-handling-iserror">Error handling (isError)</a></li>
 <li><a class="reference internal" href="#tool-description-length-and-style">Tool description length and style</a><ul>
 <li><a class="reference internal" href="#reusable-template">Reusable template</a></li>

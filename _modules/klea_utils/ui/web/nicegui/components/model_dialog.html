@@ -592,6 +592,18 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_on_change</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_role_label</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the human-facing tab label for a model role key.</span>
+
+<span class="sd">    ``tool_picker`` -&gt; ``"Tool picker"`` (``str.capitalize()`` alone would</span>
+<span class="sd">    give ``"Tool_picker"``).</span>
+
+<span class="sd">    :param role: Model role key (``chat``, ``tool_picker``, ...).</span>
+<span class="sd">    :returns: Display label.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">role</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"_"</span><span class="p">,</span> <span class="s2">" "</span><span class="p">)</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span>
+
+
 <div class="viewcode-block" id="attach_model_info">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.model_dialog.attach_model_info">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">attach_model_info</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -929,7 +941,7 @@
         <span class="c1"># Keep the selected tab across body refreshes: a credential change</span>
         <span class="c1"># rebuilds the tabs, and without this the user is bounced back to</span>
         <span class="c1"># the first role.</span>
-        <span class="n">selected_tab</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"value"</span><span class="p">:</span> <span class="n">roles</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()}</span>
+        <span class="n">selected_tab</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"value"</span><span class="p">:</span> <span class="n">_role_label</span><span class="p">(</span><span class="n">roles</span><span class="p">[</span><span class="mi">0</span><span class="p">])}</span>
         <span class="c1"># Current input values and per-role credential labels, so unsaved</span>
         <span class="c1"># model edits survive a body refresh and their labels update live.</span>
         <span class="n">role_values</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
@@ -1048,6 +1060,38 @@
 
             <span class="k">return</span> <span class="n">_handler</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">_use_for_all</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Copy this role's model to every modifiable role of its kind.</span>
+
+<span class="sd">            Scoped by ``model_type`` so a chat model is never copied onto the</span>
+<span class="sd">            embedding role.  Autofills only; the user still saves.</span>
+<span class="sd">            """</span>
+            <span class="n">source</span> <span class="o">=</span> <span class="n">role_inputs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">source</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">_current_info</span><span class="p">()</span>
+            <span class="n">source_type</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_type"</span><span class="p">,</span> <span class="s2">"text_generation"</span><span class="p">)</span>
+            <span class="n">applied</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">target</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">target</span> <span class="o">==</span> <span class="n">role</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_type"</span><span class="p">,</span> <span class="s2">"text_generation"</span><span class="p">)</span> <span class="o">!=</span> <span class="n">source_type</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">role_values</span><span class="p">[</span><span class="n">target</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="n">applied</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"model config dialog: use for all</span><span class="se">\n</span><span class="si">{</span><span class="n">source</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">value</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">applied</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">source_type</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">_render_body</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_on_use_for_all</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">_handler</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">_use_for_all</span><span class="p">(</span><span class="n">role</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">_handler</span>
+
         <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_refresh_after_credentials</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Re-read stored credentials and rebuild the model dialog."""</span>
             <span class="n">stored</span> <span class="o">=</span> <span class="k">await</span> <span class="n">fetch_credentials</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">)</span>
@@ -1078,7 +1122,7 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">roles</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"model config dialog: refresh found no roles"</span><span class="p">)</span>
                 <span class="k">return</span>
-            <span class="n">role_tabs</span> <span class="o">=</span> <span class="p">[</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">]</span>
+            <span class="n">role_tabs</span> <span class="o">=</span> <span class="p">[</span><span class="n">_role_label</span><span class="p">(</span><span class="n">role</span><span class="p">)</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">roles</span><span class="p">]</span>
             <span class="n">value</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">selected_tab</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
                 <span class="k">if</span> <span class="n">selected_tab</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span> <span class="ow">in</span> <span class="n">role_tabs</span>
@@ -1102,8 +1146,8 @@
                         <span class="n">cfg</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="p">{})</span>
                         <span class="n">modifiable</span> <span class="o">=</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
                         <span class="n">tab_map</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">tab</span><span class="p">(</span>
-                            <span class="n">name</span><span class="o">=</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span>
-                            <span class="n">label</span><span class="o">=</span><span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">(),</span>
+                            <span class="n">name</span><span class="o">=</span><span class="n">_role_label</span><span class="p">(</span><span class="n">role</span><span class="p">),</span>
+                            <span class="n">label</span><span class="o">=</span><span class="n">_role_label</span><span class="p">(</span><span class="n">role</span><span class="p">),</span>
                             <span class="n">icon</span><span class="o">=</span><span class="s2">"lock"</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">modifiable</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
                         <span class="p">)</span>
                 <span class="n">tabs</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
@@ -1135,7 +1179,22 @@
                                     <span class="s2">"text-xs text-grey-5 italic"</span>
                                 <span class="p">)</span>
                             <span class="k">else</span><span class="p">:</span>
+                                <span class="n">same_kind</span> <span class="o">=</span> <span class="p">[</span>
+                                    <span class="n">other</span>
+                                    <span class="k">for</span> <span class="n">other</span><span class="p">,</span> <span class="n">other_cfg</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                                    <span class="k">if</span> <span class="n">other_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"modifiable"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+                                    <span class="ow">and</span> <span class="n">other_cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_type"</span><span class="p">,</span> <span class="s2">"text_generation"</span><span class="p">)</span>
+                                    <span class="o">==</span> <span class="n">cfg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_type"</span><span class="p">,</span> <span class="s2">"text_generation"</span><span class="p">)</span>
+                                <span class="p">]</span>
                                 <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end"</span><span class="p">):</span>
+                                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">same_kind</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                                        <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                                            <span class="s2">"Use for all roles"</span><span class="p">,</span>
+                                            <span class="n">on_click</span><span class="o">=</span><span class="n">_on_use_for_all</span><span class="p">(</span><span class="n">role</span><span class="p">),</span>
+                                        <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat"</span><span class="p">)</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
+                                            <span class="s2">"Apply this model to every modifiable "</span>
+                                            <span class="s2">"role of the same kind (all chat roles)."</span>
+                                        <span class="p">)</span>
                                     <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                                         <span class="s2">"Reset"</span><span class="p">,</span>
                                         <span class="n">on_click</span><span class="o">=</span><span class="n">_on_clear_role</span><span class="p">(</span><span class="n">role</span><span class="p">),</span>
