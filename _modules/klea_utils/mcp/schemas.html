@@ -335,6 +335,9 @@
     <span class="c1"># Docstring-only form (no parameter list), for planner-style nodes that</span>
     <span class="c1"># reason about available tools without argument detail.</span>
     <span class="n">short_description</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># The tool's input parameter schema (MCP ``inputSchema``).  Used by the</span>
+    <span class="c1"># tools picker to build a strict-safe per-tool call schema.</span>
+    <span class="n">input_schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1"># Short human-facing label for UI and MCP clients.</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1"># Categories used to group and filter tools.</span>

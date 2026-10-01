@@ -646,6 +646,18 @@
         <span class="c1">#: exposed to the prompt as ``validation_feedback`` on a retry.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validation_feedback</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_output_schema</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">type</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the structured-output schema for this invocation.</span>
+
+<span class="sd">        Defaults to the node's static :attr:`output_schema`.  Override to</span>
+<span class="sd">        build one per run - for example the tools picker, whose schema is a</span>
+<span class="sd">        per-tool discriminated union derived from the run's disclosed tools.</span>
+
+<span class="sd">        :param state: Current graph state.</span>
+<span class="sd">        :returns: The pydantic output schema, or ``None`` for a plain node.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_output_schema</span>
+
 <div class="viewcode-block" id="AbstractLLMNode.execute">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.abstract.AbstractLLMNode.execute">[docs]</a>
     <span class="nd">@final</span>
@@ -675,6 +687,11 @@
         <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Pre-exec check failed, skipping execution"</span><span class="p">)</span>
             <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="c1"># Resolve the output schema for this run before the prompt is built</span>
+        <span class="c1"># (the prompt embeds it): the static schema by default, or a per-run</span>
+        <span class="c1"># one from a node that overrides ``_get_output_schema``.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_output_schema</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_output_schema</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_state</span> <span class="o">=</span> <span class="n">state</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">()</span>

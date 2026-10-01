@@ -1776,8 +1776,11 @@
 <span class="n">_PROVIDER_EXTRA_FIELDS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="c1"># ChatHuggingFace.from_model_id() accepts backend, provider, etc.</span>
     <span class="c1"># which flow through to HuggingFaceEndpoint but are not fields on</span>
-    <span class="c1"># ChatHuggingFace itself.</span>
-    <span class="s2">"huggingface"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"provider"</span><span class="p">},</span>
+    <span class="c1"># ChatHuggingFace itself.  The hosted endpoint authenticates with</span>
+    <span class="c1"># ``huggingfacehub_api_token`` (mapped from the generic ``api_key``),</span>
+    <span class="c1"># so it must survive provider field filtering too - otherwise the</span>
+    <span class="c1"># token is stripped and the ``auto``/provider backend rejects the call.</span>
+    <span class="s2">"huggingface"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"backend"</span><span class="p">,</span> <span class="s2">"provider"</span><span class="p">,</span> <span class="s2">"huggingfacehub_api_token"</span><span class="p">},</span>
 <span class="p">}</span>
 
 

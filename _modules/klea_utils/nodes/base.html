@@ -436,7 +436,26 @@
 <span class="n">MIN_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">64</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_schema_to_example</span><span class="p">(</span><span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_ref</span><span class="p">(</span><span class="n">ref</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve a JSON-schema ``$ref`` (``#/defs/...``) against *root*.</span>
+
+<span class="sd">    :param ref: The ``$ref`` string (only local ``#/...`` pointers).</span>
+<span class="sd">    :param root: The root schema carrying ``$defs``.</span>
+<span class="sd">    :returns: The referenced schema fragment, or ``None`` when unresolvable.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ref</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"#/"</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">node</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="n">root</span>
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">ref</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="n">part</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">node</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="p">[</span><span class="n">part</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">node</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_schema_to_example</span><span class="p">(</span>
+    <span class="n">schema</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">root</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Generate a placeholder example value from a JSON schema fragment.</span>
 
 <span class="sd">    Walks a JSON Schema fragment (as produced by</span>
@@ -445,9 +464,34 @@
 <span class="sd">    instead of the abstract schema definition (which invites the model to</span>
 <span class="sd">    echo the schema back verbatim instead of producing an instance).</span>
 
+<span class="sd">    A concrete ``examples`` entry is preferred when present (e.g. from</span>
+<span class="sd">    ``json_schema_extra``); ``$ref`` is resolved against *root*; and</span>
+<span class="sd">    ``anyOf``/``oneOf`` pick the first non-null branch.</span>
+
 <span class="sd">    :param schema: JSON Schema fragment (a ``{"type": ...}`` dict)</span>
+<span class="sd">    :param root: The root schema, for resolving ``$ref`` pointers.</span>
 <span class="sd">    :returns: A placeholder value matching the schema's type</span>
 <span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">schema</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">examples</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"examples"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">examples</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="n">examples</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">examples</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">ref</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"$ref"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">root</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">_resolve_ref</span><span class="p">(</span><span class="n">ref</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="n">resolved</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"anyOf"</span><span class="p">,</span> <span class="s2">"oneOf"</span><span class="p">):</span>
+        <span class="n">branches</span> <span class="o">=</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">branches</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="n">branches</span><span class="p">:</span>
+            <span class="n">non_null</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">branch</span>
+                <span class="k">for</span> <span class="n">branch</span> <span class="ow">in</span> <span class="n">branches</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">branch</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="n">branch</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"null"</span><span class="p">)</span>
+            <span class="p">]</span>
+            <span class="n">chosen</span> <span class="o">=</span> <span class="n">non_null</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">non_null</span> <span class="k">else</span> <span class="n">branches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="n">chosen</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"enum"</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">schema</span><span class="p">[</span><span class="s2">"enum"</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
     <span class="k">match</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">):</span>
@@ -457,11 +501,13 @@
             <span class="k">return</span> <span class="mi">0</span>
         <span class="k">case</span> <span class="s2">"boolean"</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">case</span> <span class="s2">"null"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
         <span class="k">case</span> <span class="s2">"array"</span><span class="p">:</span>
-            <span class="k">return</span> <span class="p">[</span><span class="n">_schema_to_example</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"items"</span><span class="p">,</span> <span class="p">{}))]</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">_schema_to_example</span><span class="p">(</span><span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"items"</span><span class="p">,</span> <span class="p">{}),</span> <span class="n">root</span><span class="p">)]</span>
         <span class="k">case</span> <span class="s2">"object"</span><span class="p">:</span>
             <span class="k">return</span> <span class="p">{</span>
-                <span class="n">key</span><span class="p">:</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">key</span><span class="p">:</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
                 <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"properties"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="p">}</span>
         <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
@@ -1314,12 +1360,13 @@
 
 <span class="sd">        :returns: Prompt text describing the required JSON output</span>
 <span class="sd">        """</span>
+        <span class="n">schema_json</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema_json</span>
         <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
             <span class="n">key</span><span class="p">:</span> <span class="n">value</span>
-            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema_json</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema_json</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"description"</span><span class="p">)</span>
         <span class="p">}</span>
-        <span class="n">example</span> <span class="o">=</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema_json</span><span class="p">)</span>
+        <span class="n">example</span> <span class="o">=</span> <span class="n">_schema_to_example</span><span class="p">(</span><span class="n">schema_json</span><span class="p">,</span> <span class="n">schema_json</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">dedent</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"""</span>
 <span class="s2">            ## Output schema (strict)</span>

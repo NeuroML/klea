@@ -481,6 +481,30 @@ default there is wrong or dangerous.</p>
 picker’s compact parameter line shows it (see “Parameters” above) and the
 model can rely on it.</p>
 </section>
+<section id="how-the-picker-binds-arguments">
+<h2>How the picker binds arguments<a class="headerlink" href="#how-the-picker-binds-arguments" title="Link to this heading">¶</a></h2>
+<p>The tools picker does not hand the model a single free-form <code class="docutils literal notranslate"><span class="pre">args</span></code>
+object; it generates a <strong>strict-safe</strong> output schema per run from the
+disclosed tools - a discriminated union of per-tool call models, so each
+tool’s parameters are typed fields on its call.  A provider’s strict
+structured-output mode closes a free-form object to <code class="docutils literal notranslate"><span class="pre">additionalProperties:</span>
+<span class="pre">false</span></code> (an object that must be empty), which is why the generic <code class="docutils literal notranslate"><span class="pre">args</span></code>
+approach silently produced empty calls.</p>
+<p>The picker maps each parameter from the tool’s <code class="docutils literal notranslate"><span class="pre">inputSchema</span></code> as:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">string</span></code> / <code class="docutils literal notranslate"><span class="pre">integer</span></code> / <code class="docutils literal notranslate"><span class="pre">number</span></code> / <code class="docutils literal notranslate"><span class="pre">boolean</span></code> -&gt; the matching type;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">anyOf</span></code> (including <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">|</span> <span class="pre">null</span></code>) -&gt; a union (used for optional
+parameters);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">array</span></code> of a supported type -&gt; <code class="docutils literal notranslate"><span class="pre">list[...]</span></code>;</p></li>
+<li><p>anything else (an <code class="docutils literal notranslate"><span class="pre">object</span></code>, or an unknown type) -&gt; a JSON-encoded
+<code class="docutils literal notranslate"><span class="pre">str</span></code>, noted in the parameter’s description.</p></li>
+</ul>
+<p>Keep parameters to scalars (or arrays of scalars) where possible; a
+parameter typed as a nested object is passed to the tool as a JSON-encoded
+string.  Required versus optional follows the schema’s <code class="docutils literal notranslate"><span class="pre">required</span></code> list
+and each property’s <code class="docutils literal notranslate"><span class="pre">default</span></code>: an optional parameter with no default
+becomes <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">|</span> <span class="pre">None</span></code>.</p>
+</section>
 <section id="error-handling-iserror">
 <h2>Error handling (isError)<a class="headerlink" href="#error-handling-iserror" title="Link to this heading">¶</a></h2>
 <p>The <a class="reference external" href="https://modelcontextprotocol.io/specification/2025-06-18/server/tools#Error%20Handling">MCP specification</a>
@@ -679,6 +703,7 @@ tool access levels in a deployment</p></li>
 <li><a class="reference internal" href="#">Writing MCP tools</a><ul>
 <li><a class="reference internal" href="#docstring-first-convention">Docstring-first convention</a></li>
 <li><a class="reference internal" href="#sane-defaults">Sane defaults</a></li>
+<li><a class="reference internal" href="#how-the-picker-binds-arguments">How the picker binds arguments</a></li>
 <li><a class="reference internal" href="#error-handling-iserror">Error handling (isError)</a></li>
 <li><a class="reference internal" href="#tool-description-length-and-style">Tool description length and style</a><ul>
 <li><a class="reference internal" href="#reusable-template">Reusable template</a></li>

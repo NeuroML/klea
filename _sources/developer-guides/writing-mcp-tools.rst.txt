@@ -183,6 +183,32 @@ If a default would be wrong, keep the parameter required and say why in its
 picker's compact parameter line shows it (see "Parameters" above) and the
 model can rely on it.
 
+How the picker binds arguments
+------------------------------
+
+The tools picker does not hand the model a single free-form ``args``
+object; it generates a **strict-safe** output schema per run from the
+disclosed tools - a discriminated union of per-tool call models, so each
+tool's parameters are typed fields on its call.  A provider's strict
+structured-output mode closes a free-form object to ``additionalProperties:
+false`` (an object that must be empty), which is why the generic ``args``
+approach silently produced empty calls.
+
+The picker maps each parameter from the tool's ``inputSchema`` as:
+
+* ``string`` / ``integer`` / ``number`` / ``boolean`` -> the matching type;
+* ``anyOf`` (including ``T | null``) -> a union (used for optional
+  parameters);
+* ``array`` of a supported type -> ``list[...]``;
+* anything else (an ``object``, or an unknown type) -> a JSON-encoded
+  ``str``, noted in the parameter's description.
+
+Keep parameters to scalars (or arrays of scalars) where possible; a
+parameter typed as a nested object is passed to the tool as a JSON-encoded
+string.  Required versus optional follows the schema's ``required`` list
+and each property's ``default``: an optional parameter with no default
+becomes ``T | None``.
+
 Error handling (isError)
 ------------------------
 
