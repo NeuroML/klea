@@ -155,8 +155,8 @@ Sane defaults
 -------------
 
 Give every parameter a sensible default whenever one exists, and make a
-parameter required only when it is genuinely irreducible (the file a tool
-must read or edit, the query it must search for).  A required parameter
+parameter required only when it is genuinely irreducible (the target of a
+write or edit, a search pattern, a command, a URL).  A required parameter
 with an obvious value is a trap for smaller models: they either omit it
 assuming a default, or pass the obvious value, and a missing required
 argument fails schema validation *before* the tool runs - so the picker
@@ -164,9 +164,19 @@ retry or replan budget is spent on an argument it could have defaulted.
 Prefer:
 
 * ``path: str = "."`` for "the current/project directory" (as
-  ``find_files`` and ``grep`` do).
+  ``find_files``, ``grep``, ``list_files`` and ``read_file`` do).
 * ``pattern: str = "*"`` for "no filter".
 * a documented default for flags and limits.
+
+Read-only path tools should default the path rather than demand it.  An
+omitted ``path`` then resolves to the project root, and because the root
+is not a file, a read target-missing path returns the nearest existing
+directory's entries (``nearby``/``note``) - a useful observation the
+picker can act on.  A hard validation error carries no such information,
+so the model only learns that an argument was missing, not what exists
+instead.  Mutating tools (``write_file``/``edit_file``), command runners
+and network fetchers keep their target arguments required: faking a
+default there is wrong or dangerous.
 
 If a default would be wrong, keep the parameter required and say why in its
 ``Args:`` entry.  Whatever the choice, state the default in ``Args:`` so the
