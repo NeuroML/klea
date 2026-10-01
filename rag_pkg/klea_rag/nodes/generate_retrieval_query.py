@@ -37,7 +37,7 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
     ``filters`` operands into canonical DSL clauses.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
     }

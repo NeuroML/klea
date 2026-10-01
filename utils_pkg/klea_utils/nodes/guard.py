@@ -19,7 +19,7 @@ from .base import BaseLLMNode
 
 
 class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
-    model_type = "guard"
+    model_role = "guard"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
         "max_output_tokens": 2048,

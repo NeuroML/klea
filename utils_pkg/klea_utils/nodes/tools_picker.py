@@ -39,7 +39,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     - *prompt_registry_location* points at the application's ``prompts/``
       directory (both apps name their picker prompts ``ToolsPicker_system.md``
       and ``ToolsPicker_user.md``).
-    - *model_type* selects the ``llm_models`` role (``"plan"`` for the agent,
+    - *model_role* selects the ``llm_models`` role (``"plan"`` for the agent,
       ``"chat"`` for RAG).
     - *tools_info* is the per-domain ``BaseLangGraph.tools_info``; when the
       state carries ``query_domains`` the descriptions are filtered to those
@@ -50,7 +50,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     rest), so one class serves both prompts.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
     }
@@ -61,7 +61,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         label: str,
         llm_models: dict[str, Any],
         tools_info: dict[str, dict[str, ToolInfo]] | None = None,
-        model_type: str = "chat",
+        model_role: str = "chat",
         prompt_prefix: str = "ToolsPicker",
         prompt_registry_location: str | Path | None = None,
         on_unusable: Callable[[Any, str], dict[str, Any]] | None = None,
@@ -72,7 +72,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         :param label: Human-readable label for UI progress display
         :param llm_models: ``{role: LLMModel}`` dict (from ``BaseLangGraph.llm_models``)
         :param tools_info: Per-domain tool metadata (``BaseLangGraph.tools_info``).
-        :param model_type: Model role key into ``llm_models`` (``"plan"`` for
+        :param model_role: Model role key into ``llm_models`` (``"plan"`` for
             the agent, ``"chat"`` for RAG).
         :param prompt_prefix: Prompt file prefix (default ``ToolsPicker``).
         :param prompt_registry_location: Directory holding the prompt files.
@@ -87,7 +87,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         """
         # Must be set before AbstractLLMNode.__init__ reads it to pick the
         # right entry from llm_models.
-        self.model_type = model_type
+        self.model_role = model_role
         super().__init__(
             logger=logger,
             label=label,

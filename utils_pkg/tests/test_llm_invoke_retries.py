@@ -68,7 +68,7 @@ class _OutputSchema(BaseModel):
 class _MinimalLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     """Concrete LLM node implementing the remaining abstract methods."""
 
-    model_type = "chat"
+    model_role = "chat"
 
     def _get_prompt_variables(self, state):
         return {}
@@ -1018,7 +1018,7 @@ class TestStructuredOutputCapabilityCache:
 class _ValidatingNode(_MinimalLLMNode):
     """Node that rejects the first result then accepts (validation-retry test)."""
 
-    model_type = "chat"
+    model_role = "chat"
     max_validation_retries = 2
 
     def __init__(self, *args, **kwargs):

@@ -29,7 +29,7 @@ _DEFAULT_NUM_HISTORY_CHARS = 10_000
 
 
 class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
     }

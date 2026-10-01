@@ -33,7 +33,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     conversation history (memory) for follow-ups and continuity.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }

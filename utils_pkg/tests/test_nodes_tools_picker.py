@@ -83,7 +83,7 @@ class AgentLikeState(BaseModel):
 
 def _make_picker(**kwargs) -> ToolsPicker:
     kwargs.setdefault("tools_info", TOOLS_INFO)
-    kwargs.setdefault("model_type", "chat")
+    kwargs.setdefault("model_role", "chat")
     return ToolsPicker(
         logger=logging.getLogger("test"),
         label="Selecting tools",
@@ -112,17 +112,17 @@ def test_get_tool_descriptions_unknown_domain_is_empty():
     assert picker._get_tool_descriptions(RagLikeState(query_domains=["nope"])) == ""
 
 
-def test_model_type_selects_role_entry():
-    """The picker resolves its model via ``model_type`` (e.g. ``tool_picker``)."""
+def test_model_role_selects_entry():
+    """The picker resolves its model via ``model_role`` (e.g. ``tool_picker``)."""
     entry = object()
     picker = ToolsPicker(
         logger=logging.getLogger("test"),
         label="Selecting tools",
         llm_models={"chat": object(), "tool_picker": entry},
         tools_info=TOOLS_INFO,
-        model_type="tool_picker",
+        model_role="tool_picker",
     )
-    assert picker.model_type == "tool_picker"
+    assert picker.model_role == "tool_picker"
     assert picker._llm_entry is entry
 
 
@@ -181,7 +181,7 @@ def test_default_error_result_is_empty_tool_calls():
 
 
 def test_prompt_variables_superset_for_agent_state():
-    picker = _make_picker(model_type="plan")
+    picker = _make_picker(model_role="plan")
     variables = picker._get_prompt_variables(
         AgentLikeState(plan=PlanLike(step_list=[Step()]))
     )

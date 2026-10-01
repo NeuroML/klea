@@ -36,7 +36,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     independent, epistemic verifier instead of this node.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }

@@ -51,7 +51,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     stays the same.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
     }

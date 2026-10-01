@@ -843,7 +843,7 @@ class _IntegrationLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     ``execute`` template is not exercised).
     """
 
-    model_type = "chat"
+    model_role = "chat"
 
     def _get_prompt_variables(self, state):
         return {}

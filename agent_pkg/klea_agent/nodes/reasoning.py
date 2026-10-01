@@ -44,7 +44,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     other step.
     """
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
     }

@@ -22,7 +22,7 @@ from klea_rag.schemas import EvaluateAnswerSchema, RAGState
 class Evaluator(BaseLLMNode[RAGState, EvaluateAnswerSchema]):
     """Node that evaluates a RAG-generated answer against retrieved context."""
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }

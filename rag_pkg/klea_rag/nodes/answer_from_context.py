@@ -34,7 +34,7 @@ class AnswerSchema(BaseModel):
 class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
     """Generate an answer from the provided context"""
 
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
     }

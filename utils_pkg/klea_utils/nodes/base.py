@@ -294,7 +294,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         inst = self._llm_entry.instance
         config = self._build_invoke_config()
         self.logger.debug(
-            f"{self.model_type = }\n{mask_sensitive(config.get('configurable', {})) = }"
+            f"{self.model_role = }\n{mask_sensitive(config.get('configurable', {})) = }"
         )
         return inst, config
 
@@ -315,10 +315,10 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         # (unit tests) get_runtime() raises, so tests drive the merge via
         # a Runtime-context harness instead of calling this directly.
         ctx_val = model_overrides_from_context(get_runtime().context)
-        role_overrides = ctx_val.get(self.model_type, {})
+        role_overrides = ctx_val.get(self.model_role, {})
         self.logger.debug(
             f"{mask_sensitive(ctx_val) = }\n"
-            f"{self.model_type = }\n"
+            f"{self.model_role = }\n"
             f"{mask_sensitive(role_overrides) = }\n"
             f"{self.model_defaults = }"
         )
@@ -339,8 +339,8 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         # model would otherwise produce.
         if not overrides.get("model"):
             raise RuntimeError(
-                f"No model configured for role '{self.model_type}'. "
-                f"Set the {self.model_type.upper()}_MODEL environment "
+                f"No model configured for role '{self.model_role}'. "
+                f"Set the {self.model_role.upper()}_MODEL environment "
                 "variable (e.g. KLEA_AGENT_CHAT_MODEL) or set a model for "
                 "this chat from the web UI (Choose models)."
             )
@@ -359,7 +359,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         resolve_output_token_limit(
             overrides,
             provider=overrides.get("model_provider") or "openai",
-            role=self.model_type,
+            role=self.model_role,
             input_chars=input_chars,
         )
 
@@ -587,7 +587,7 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         resolve_output_token_limit(
             overrides,
             provider=provider,
-            role=self.model_type,
+            role=self.model_role,
             input_chars=input_chars,
             use_endpoint=True,
         )

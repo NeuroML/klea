@@ -55,7 +55,7 @@ class MemoryState(BaseModel):
 class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     """Concrete BaseLLMNode for testing the prompt block."""
 
-    model_type = "chat"
+    model_role = "chat"
 
     def _get_prompt_variables(self, state: BaseModel) -> dict:
         return {}

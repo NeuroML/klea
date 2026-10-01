@@ -287,7 +287,7 @@ class RAG(BaseLangGraph):
             label="Selecting tools",
             llm_models=self.llm_models,
             tools_info=self.tools_info,
-            model_type="tool_picker",
+            model_role="tool_picker",
             prompt_registry_location=Path(__file__).parent / "nodes" / "prompts",
         )
         self.workflow.add_node(

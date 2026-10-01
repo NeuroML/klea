@@ -159,7 +159,7 @@ Both Klea Agent and Klea RAG use the shared `ToolCallSchema` /
   `ToolsCallerNode`).
 
 The shared picker/caller nodes are configured per app (prompt directory,
-`model_type`); the agent additionally passes a `post_dispatch` callback to
+`model_role`); the agent additionally passes a `post_dispatch` callback to
 mark its per-plan-step status.
 
 ## Network safety (SSRF) for outbound tools

@@ -254,7 +254,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     Generic over ``TState`` (the graph state) and ``TOutput`` (the structured
     output schema; use ``BaseModel`` for nodes without one).
 
-    Subclasses **must** set :attr:`model_type` to a key present in the
+    Subclasses **must** set :attr:`model_role` to a key present in the
     ``llm_models`` dict (e.g. ``"chat"``, ``"plan"``, ``"guard"``).
 
     Implements a template execution flow:
@@ -265,7 +265,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     5. Update state
     """
 
-    model_type: str = ""
+    model_role: str = ""
     """Key into ``llm_models`` dict (e.g. ``\"chat\"``, ``\"plan\"``, ``\"guard\"``).
 
     Determines which ``LLMModel`` entry from the graph's ``llm_models``
@@ -316,10 +316,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         super().__init__(logger, label)
         self.llm_models = llm_models
         try:
-            self._llm_entry = self.llm_models[self.model_type]
+            self._llm_entry = self.llm_models[self.model_role]
         except KeyError:
             raise KeyError(
-                f"Node '{type(self).__name__}' has model_type='{self.model_type}', "
+                f"Node '{type(self).__name__}' has model_role='{self.model_role}', "
                 f"but llm_models only has keys: {list(self.llm_models)}"
             ) from None
         self._output_schema = output_schema
@@ -466,7 +466,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             total_tokens=input_tokens + output_tokens,
             reasoning_tokens=usage["reasoning_tokens"],
             cached_tokens=usage["cached_tokens"],
-            role=self.model_type,
+            role=self.model_role,
         )
         self.logger.debug(
             f"Node token usage ({source}): {token_usage} "

@@ -25,7 +25,7 @@ from klea_rag.schemas import RAGState
 
 # Type is calculated at runtime in orchestrator
 class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
-    model_type = "chat"
+    model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.3,
     }

@@ -36,7 +36,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     available-tools list consistent with ``ToolsPicker`` and the MCP registry.
     """
 
-    model_type = "plan"
+    model_role = "plan"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
     }
