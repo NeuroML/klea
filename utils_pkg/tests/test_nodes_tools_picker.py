@@ -112,6 +112,20 @@ def test_get_tool_descriptions_unknown_domain_is_empty():
     assert picker._get_tool_descriptions(RagLikeState(query_domains=["nope"])) == ""
 
 
+def test_model_type_selects_role_entry():
+    """The picker resolves its model via ``model_type`` (e.g. ``tool_picker``)."""
+    entry = object()
+    picker = ToolsPicker(
+        logger=logging.getLogger("test"),
+        label="Selecting tools",
+        llm_models={"chat": object(), "tool_picker": entry},
+        tools_info=TOOLS_INFO,
+        model_type="tool_picker",
+    )
+    assert picker.model_type == "tool_picker"
+    assert picker._llm_entry is entry
+
+
 ACCESS_TOOLS = {
     "d": {
         "read": ToolInfo(description="read tool", read_only=True),

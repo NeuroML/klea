@@ -31,6 +31,7 @@ async def _compile(monkeypatch):
     agent.llm_models = {
         "chat": LLMModel(instance=None, model_name=""),
         "plan": LLMModel(instance=None, model_name=""),
+        "tool_picker": LLMModel(instance=None, model_name=""),
         "guard": LLMModel(instance=None, model_name=""),
     }
     agent.mcp_client = None

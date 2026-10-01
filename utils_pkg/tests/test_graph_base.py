@@ -305,6 +305,73 @@ class TestCheckRequiredModels:
         assert "have not been set" not in caplog.text
 
 
+class TestModelRoleFallback:
+    """An unset role resolves to its ``fallback_role``'s model."""
+
+    def _graph_with_roles(self):
+        graph = ToyGraph()
+        graph._setup_models()
+        instance = graph.llm_models["chat"].instance
+        graph.llm_models = {
+            "chat": LLMModel(instance=instance),
+            "plan": LLMModel(instance=instance, fallback_role="chat"),
+            "tool_picker": LLMModel(
+                instance=instance, required=False, fallback_role="chat"
+            ),
+            "guard": LLMModel(instance=instance, required=False),
+        }
+        return graph
+
+    @staticmethod
+    def _env(**models) -> BaseModel:
+        return cast(BaseModel, SimpleNamespace(**models))
+
+    def test_unset_role_inherits_fallback_model(self):
+        graph = self._graph_with_roles()
+        graph.app_env = self._env(
+            chat_model="anthropic:claude-haiku-4-5",
+            plan_model="",
+            tool_picker_model="",
+            guard_model="",
+        )
+
+        graph._apply_model_names()
+
+        assert graph.llm_models["chat"].model_name == "anthropic:claude-haiku-4-5"
+        assert graph.llm_models["plan"].model_name == "anthropic:claude-haiku-4-5"
+        assert (
+            graph.llm_models["tool_picker"].model_name == "anthropic:claude-haiku-4-5"
+        )
+
+    def test_explicit_role_model_wins_over_fallback(self):
+        graph = self._graph_with_roles()
+        graph.app_env = self._env(
+            chat_model="anthropic:claude-haiku-4-5",
+            plan_model="",
+            tool_picker_model="anthropic:claude-sonnet-4-5",
+            guard_model="",
+        )
+
+        graph._apply_model_names()
+
+        assert (
+            graph.llm_models["tool_picker"].model_name == "anthropic:claude-sonnet-4-5"
+        )
+
+    def test_role_without_fallback_stays_empty(self):
+        graph = self._graph_with_roles()
+        graph.app_env = self._env(
+            chat_model="anthropic:claude-haiku-4-5",
+            plan_model="",
+            tool_picker_model="",
+            guard_model="",
+        )
+
+        graph._apply_model_names()
+
+        assert graph.llm_models["guard"].model_name == ""
+
+
 class TestGraphLoggingLevel:
     """BaseLangGraph resolves its console logging level from env/flag > arg."""
 

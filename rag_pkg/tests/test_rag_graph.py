@@ -33,6 +33,7 @@ async def test_rag_graph_registers_context_schema(monkeypatch):
     # setup or LLM; compile is stubbed so the schema check needs no checkpointer.
     rag.llm_models = {
         "chat": LLMModel(instance=None, model_name=""),
+        "tool_picker": LLMModel(instance=None, model_name=""),
         "guard": LLMModel(instance=None, model_name=""),
         "embedding": LLMModel(instance=None, model_name=""),
     }

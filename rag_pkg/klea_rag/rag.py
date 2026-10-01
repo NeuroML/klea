@@ -106,6 +106,13 @@ class RAG(BaseLangGraph):
                 instance=model,
                 required=True,
             ),
+            # Argument binding is its own role so a stronger model can be used
+            # for the picker without changing chat; defaults to chat.
+            "tool_picker": LLMModel(
+                instance=model,
+                required=False,
+                fallback_role="chat",
+            ),
             "guard": LLMModel(
                 instance=model,
                 required=False,
@@ -280,7 +287,7 @@ class RAG(BaseLangGraph):
             label="Selecting tools",
             llm_models=self.llm_models,
             tools_info=self.tools_info,
-            model_type="chat",
+            model_type="tool_picker",
             prompt_registry_location=Path(__file__).parent / "nodes" / "prompts",
         )
         self.workflow.add_node(
