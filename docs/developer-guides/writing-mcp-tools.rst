@@ -151,6 +151,28 @@ a tool named after the function.  Helper functions without the decoration
 are ignored.  Validation constraints (e.g. ``Field(min_length=1)``) may be
 added to parameter annotations and are preserved in the schema.
 
+Sane defaults
+-------------
+
+Give every parameter a sensible default whenever one exists, and make a
+parameter required only when it is genuinely irreducible (the file a tool
+must read or edit, the query it must search for).  A required parameter
+with an obvious value is a trap for smaller models: they either omit it
+assuming a default, or pass the obvious value, and a missing required
+argument fails schema validation *before* the tool runs - so the picker
+retry or replan budget is spent on an argument it could have defaulted.
+Prefer:
+
+* ``path: str = "."`` for "the current/project directory" (as
+  ``find_files`` and ``grep`` do).
+* ``pattern: str = "*"`` for "no filter".
+* a documented default for flags and limits.
+
+If a default would be wrong, keep the parameter required and say why in its
+``Args:`` entry.  Whatever the choice, state the default in ``Args:`` so the
+picker's compact parameter line shows it (see "Parameters" above) and the
+model can rely on it.
+
 Error handling (isError)
 ------------------------
 
@@ -257,7 +279,9 @@ return ``ToolResult`` via ``to_result`` (see above) -- never a bare
    from klea_utils.mcp.tool_result import to_result
 
    @tool_meta(ToolInfo(title="<Human title>", tags={"<domain>"}))
-   async def <tool_name>(<param>: <type>) -> ToolResult:
+   async def <tool_name>(
+       <param>: <type>, <optional_param>: <type> = <sane-default>
+   ) -> ToolResult:
        """<One-sentence summary of what the tool does>.
 
        Use this tool to <primary purpose>.
@@ -272,8 +296,9 @@ return ``ToolResult`` via ``to_result`` (see above) -- never a bare
        Example: <tool_name>(<param>=<value>)
 
        Args:
-           <param>: <what the parameter means and how it affects behaviour>.
-           <param2>: <description>. Defaults to <default> if not specified.
+           <param>: <what the parameter means and how it affects behaviour
+               (required; no sane default)>.
+           <optional_param>: <description>. Defaults to <sane-default>.
 
        Returns:
            ToolResult with structured_content dict and error field; isError
