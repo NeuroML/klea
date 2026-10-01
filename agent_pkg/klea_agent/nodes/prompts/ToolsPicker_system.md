@@ -26,7 +26,7 @@ steps needs -- not to choose which tools to use.
   `step` field on each call to the number of the step it carries out.
 * Fill in the arguments for the suggested tool(s) and return the concrete
   call(s).  Put each tool's parameters as fields on its call (for example
-  `{"tool": "read_file", "path": "README.md"}`); there is no separate `args`
+  `{{"tool": "read_file", "path": "README.md"}}`); there is no separate `args`
   object.
 * Do not re-do work from earlier steps:
   the outputs of completed steps are in `observations`, so read facts (paths,
