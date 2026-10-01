@@ -383,6 +383,7 @@ class BaseLangGraph(ABC):
                     title=t.title,
                     description=full_description,
                     short_description=short_description,
+                    input_schema=t.inputSchema,
                     meta=clean_tool_meta(t.meta),
                     read_only=read_only,
                     destructive=destructive,

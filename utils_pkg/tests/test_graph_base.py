@@ -126,6 +126,7 @@ class TestBuildToolsInfoAnnotations:
         *,
         read_only: bool | None = None,
         destructive: bool | None = None,
+        input_schema: dict | None = None,
     ) -> Tool:
         annotations = None
         if read_only is not None or destructive is not None:
@@ -135,7 +136,7 @@ class TestBuildToolsInfoAnnotations:
         return Tool(
             name=name,
             description=f"{name} tool",
-            inputSchema={},
+            inputSchema=input_schema or {},
             annotations=annotations,
         )
 
@@ -160,6 +161,23 @@ class TestBuildToolsInfoAnnotations:
         # An unannotated tool carries no capability signal.
         assert info["plain"].read_only is None
         assert info["plain"].destructive is None
+
+    def test_input_schema_propagation(self):
+        """The tool's inputSchema is carried onto ToolInfo for the picker."""
+        graph = ToyGraph()
+        schema = {
+            "type": "object",
+            "properties": {"path": {"type": "string"}},
+            "required": ["path"],
+        }
+        graph.mcp_tools = [self._tool("read", input_schema=schema)]
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(mcpServers={"srv": {"url": "http://example.invalid/mcp"}})
+        }
+
+        graph._build_tools_info()
+
+        assert graph.tools_info["code"]["read"].input_schema == schema
 
     def test_tools_by_name_flattened(self):
         graph = ToyGraph()

@@ -31,6 +31,9 @@ class ToolInfo(BaseModel):
     # Docstring-only form (no parameter list), for planner-style nodes that
     # reason about available tools without argument detail.
     short_description: str | None = None
+    # The tool's input parameter schema (MCP ``inputSchema``).  Used by the
+    # tools picker to build a strict-safe per-tool call schema.
+    input_schema: dict[str, Any] | None = None
     # Short human-facing label for UI and MCP clients.
     title: str | None = None
     # Categories used to group and filter tools.
