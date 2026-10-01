@@ -159,6 +159,43 @@ class TestBuildInvokeConfigNoModel:
         assert config["configurable"]["temperature"] == 0.5
 
 
+class TestHuggingFaceHostedToken:
+    """The HF token survives provider field filtering for hosted backends."""
+
+    def setup_method(self):
+        self._catalog_patcher = mock.patch(
+            "klea_utils.llm.get_catalog_model_limits", return_value=None
+        )
+        self._catalog_patcher.start()
+
+    def teardown_method(self):
+        self._catalog_patcher.stop()
+
+    def test_hosted_hf_keeps_api_token(self):
+        """A hosted HF model keeps its token after provider filtering."""
+        node = _MinimalLLMNode(
+            logger=logger,
+            label="test",
+            llm_models={
+                "chat": LLMModel(
+                    instance=mock.Mock(),
+                    model_name="huggingface:openai/gpt-oss-20b:auto",
+                    required=True,
+                )
+            },
+            output_schema=None,
+        )
+        node._last_prompt = StringPromptValue(text="hi")
+
+        with _runtime_context({"chat": {"api_key": "hf_test_token"}}):
+            config = node._build_invoke_config()
+
+        cfg = config["configurable"]
+        assert cfg.get("huggingfacehub_api_token") == "hf_test_token"
+        assert cfg.get("backend") == "endpoint"
+        assert cfg.get("provider") == "auto"
+
+
 class TestInvokeWithRetries:
     """Tests for _invoke_with_retries via the plain (non-structured) path."""
 

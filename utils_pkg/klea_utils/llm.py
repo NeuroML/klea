@@ -1378,8 +1378,11 @@ def is_structured_capability_rejection(exc: BaseException) -> bool:
 _PROVIDER_EXTRA_FIELDS: dict[str, set[str]] = {
     # ChatHuggingFace.from_model_id() accepts backend, provider, etc.
     # which flow through to HuggingFaceEndpoint but are not fields on
-    # ChatHuggingFace itself.
-    "huggingface": {"backend", "provider"},
+    # ChatHuggingFace itself.  The hosted endpoint authenticates with
+    # ``huggingfacehub_api_token`` (mapped from the generic ``api_key``),
+    # so it must survive provider field filtering too - otherwise the
+    # token is stripped and the ``auto``/provider backend rejects the call.
+    "huggingface": {"backend", "provider", "huggingfacehub_api_token"},
 }
 
 
