@@ -74,7 +74,7 @@ class _MinimalLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     def _get_prompt_variables(self, state, ctx):
         return {}
 
-    def _update_state(self, result, state):
+    def _update_state(self, result, state, ctx):
         return {}
 
     def _get_default_error_result(self, ctx):
@@ -1169,11 +1169,11 @@ class _ValidatingNode(_MinimalLLMNode):
     def _process_output(self, ctx):
         return self.calls
 
-    def _validate_result(self, result, state):
+    def _validate_result(self, result, state, ctx):
         # Reject the first result, accept the second.
         return "bad plan" if result == 1 else None
 
-    def _update_state(self, result, state):
+    def _update_state(self, result, state, ctx):
         return {"accepted": result}
 
     def _get_default_error_result(self, ctx):
@@ -1217,7 +1217,7 @@ class TestValidationRetryLoop:
 
     async def test_gives_up_after_max_retries(self):
         class _AlwaysInvalid(_ValidatingNode):
-            def _validate_result(self, result, state):
+            def _validate_result(self, result, state, ctx):
                 return "still bad"
 
         node = _AlwaysInvalid(

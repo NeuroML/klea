@@ -129,7 +129,7 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         }
 
     @override
-    def _update_state(self, result: Any, state: BaseModel) -> dict[str, Any]:
+    def _update_state(self, result: Any, state: BaseModel, ctx: Any) -> dict[str, Any]:
         """Extract summary from raw AIMessage output.
 
         A blank response is not a usable summary.  Advancing

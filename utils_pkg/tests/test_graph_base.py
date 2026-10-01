@@ -800,7 +800,7 @@ class _IntegrationLLMNode(BaseLLMNode[BaseModel, BaseModel]):
     def _get_prompt_variables(self, state, ctx):
         return {}
 
-    def _update_state(self, result, state):
+    def _update_state(self, result, state, ctx):
         return {}
 
     def _get_default_error_result(self, ctx):

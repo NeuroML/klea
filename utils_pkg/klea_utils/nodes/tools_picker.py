@@ -315,7 +315,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
 
     @override
     def _update_state(
-        self, result: ToolCallsSchema, state: BaseModel
+        self, result: ToolCallsSchema, state: BaseModel, ctx: Any
     ) -> dict[str, Any]:
         """Write the selected calls, the failure callback and the retry counter.
 

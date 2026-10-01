@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 from klea_utils.nodes.answer_general import AnswerGeneral, FallbackConfig
 from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK
+from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
 WARNING = "Answer from training data; sources could not be verified."
@@ -41,7 +42,7 @@ def _state(query_domains=None, messages=None, **extra):
 
 def _update(node: AnswerGeneral, state) -> str:
     result = AIMessage(content="<think>thinking</think>\nThe answer text.")
-    updates = node._update_state(result, state)
+    updates = node._update_state(result, state, LLMNodeContext())
     return updates["message_for_user"]
 
 
@@ -84,5 +85,5 @@ def test_blank_answer_uses_fallback_message():
     """A blank generation surfaces the retry message, not an empty reply."""
     node = _node(None)
     result = AIMessage(content="<think>thinking</think>\n   ")
-    updates = node._update_state(result, _state())
+    updates = node._update_state(result, _state(), LLMNodeContext())
     assert updates["message_for_user"] == EMPTY_RESULT_FALLBACK

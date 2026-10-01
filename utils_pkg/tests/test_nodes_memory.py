@@ -38,7 +38,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     def _get_prompt_variables(self, state: BaseModel, ctx) -> dict:
         return {"query": getattr(state, "query", "")}
 
-    def _update_state(self, result, state: BaseModel) -> dict:
+    def _update_state(self, result, state: BaseModel, ctx) -> dict:
         return {}
 
     def _get_default_error_result(self, ctx) -> AIMessage:
@@ -92,7 +92,9 @@ def test_summarise_update_state_uses_window_start():
     state = MemoryState(messages=msgs, summarised_till=0)
     node._pre_exec(state, NodeContext())
 
-    updates = node._update_state(AIMessage(content="a summary"), state)
+    updates = node._update_state(
+        AIMessage(content="a summary"), state, LLMNodeContext()
+    )
     logger.debug(f"{updates = } {node._window_start = } {len(msgs) = }")
     assert "a summary" in updates["context_summary"]
     assert updates["summarised_till"] == node._window_start
@@ -107,7 +109,7 @@ def test_summarise_preserves_state_on_empty_summary():
     node._pre_exec(state, NodeContext())
 
     for blank in (AIMessage(content=""), AIMessage(content="   ")):
-        updates = node._update_state(blank, state)
+        updates = node._update_state(blank, state, LLMNodeContext())
         assert updates == {}
 
 

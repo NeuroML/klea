@@ -242,7 +242,9 @@ def test_pre_exec_skips_when_no_tools_for_domain():
 def test_update_state_writes_tool_calls():
     picker = _make_picker()
     calls = [ToolCallSchema(tool="get_models", args={"num": 3})]
-    update = picker._update_state(ToolCallsSchema(tool_calls=calls), RagLikeState())
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=calls), RagLikeState(), LLMNodeContext()
+    )
     assert update["tool_calls"] == calls
     # RAG-like state has no picker counter fields; they are simply absent.
     assert "picker_attempts" not in update
@@ -290,7 +292,9 @@ def test_empty_selection_counts_up_and_adds_feedback():
     picker = _make_picker()
     state = AgentLikeState(plan=PlanLike(step_list=[Step()]))
 
-    update = picker._update_state(ToolCallsSchema(tool_calls=[]), state)
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[]), state, LLMNodeContext()
+    )
     assert update["picker_attempts"] == 1
     assert update["picker_step"] == 1
 
@@ -310,6 +314,7 @@ def test_empty_selection_counts_up_and_adds_feedback():
         AgentLikeState(
             plan=PlanLike(step_list=[Step()]), picker_attempts=1, picker_step=1
         ),
+        LLMNodeContext(),
     )
     assert update2["picker_attempts"] == 2
 
@@ -356,7 +361,9 @@ def test_non_empty_selection_resets_attempts_and_feedback():
     )
 
     update = picker._update_state(
-        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), state
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]),
+        state,
+        LLMNodeContext(),
     )
     assert update["picker_attempts"] == 0
     # The feedback is derived from the state that carried the reset.
@@ -375,6 +382,7 @@ def test_attempts_reset_when_step_changes():
         AgentLikeState(
             plan=PlanLike(step_list=[Step()]), picker_attempts=3, picker_step=1
         ),
+        LLMNodeContext(),
     )
     assert update["picker_attempts"] == 4
     assert update["picker_step"] == 1
@@ -390,6 +398,7 @@ def test_attempts_reset_when_step_changes():
             picker_attempts=3,
             picker_step=1,
         ),
+        LLMNodeContext(),
     )
     assert update2["picker_attempts"] == 1
     assert update2["picker_step"] == 2
@@ -404,6 +413,7 @@ def test_empty_name_list_counts_as_no_usable_call():
             tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="  ")]
         ),
         state,
+        LLMNodeContext(),
     )
     assert update["picker_attempts"] == 1
 
@@ -419,6 +429,7 @@ def test_one_usable_name_resets_attempts():
             tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="get_models")]
         ),
         state,
+        LLMNodeContext(),
     )
     assert update["picker_attempts"] == 0
 
@@ -449,6 +460,7 @@ def test_deliberate_failure_invokes_on_unusable():
     update = picker._update_state(
         ToolCallsSchema(tool_calls=[ToolCallSchema(tool="", reason="cannot do it")]),
         AgentLikeState(plan=PlanLike(step_list=[Step()])),
+        LLMNodeContext(),
     )
     assert seen["reason"] == "cannot do it"
     assert update["replan_reason"] == "cannot do it"
@@ -461,6 +473,7 @@ def test_empty_list_does_not_invoke_on_unusable():
     update = picker._update_state(
         ToolCallsSchema(tool_calls=[]),
         AgentLikeState(plan=PlanLike(step_list=[Step()])),
+        LLMNodeContext(),
     )
     assert calls == []
     assert "replan_reason" not in update
@@ -496,6 +509,7 @@ def test_identical_failed_retry_is_escalated():
     update = picker._update_state(
         ToolCallsSchema(tool_calls=[ToolCallSchema(tool=call.tool, args=call.args)]),
         state,
+        LLMNodeContext(),
     )
 
     assert "identical" in seen["reason"]
@@ -515,7 +529,9 @@ def test_corrected_args_after_failure_are_dispatched():
     )
     new = [ToolCallSchema(tool="read_file", args={"path": "b.txt"})]
 
-    update = picker._update_state(ToolCallsSchema(tool_calls=new), state)
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=new), state, LLMNodeContext()
+    )
 
     assert calls == []
     assert update["tool_calls"] == new
@@ -541,7 +557,9 @@ def test_identical_repeat_after_success_is_allowed():
         ],
     )
 
-    update = picker._update_state(ToolCallsSchema(tool_calls=[call]), state)
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[call]), state, LLMNodeContext()
+    )
 
     assert calls == []
     assert update["tool_calls"] == [call]
@@ -553,7 +571,9 @@ def test_identical_repeat_without_on_unusable_is_allowed():
     call = ToolCallSchema(tool="read_file", args={"path": "a.txt"})
     state = RagLikeState(tool_results=[_error_result("boom")])
 
-    update = picker._update_state(ToolCallsSchema(tool_calls=[call]), state)
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[call]), state, LLMNodeContext()
+    )
 
     assert update["tool_calls"] == [call]
 
@@ -564,7 +584,9 @@ def test_usable_calls_are_stamped_with_the_current_step():
     state = AgentLikeState(plan=PlanLike(step_list=[Step(step_number=3)]))
 
     update = picker._update_state(
-        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), state
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]),
+        state,
+        LLMNodeContext(),
     )
 
     assert update["tool_calls"][0].step == 3
@@ -574,7 +596,9 @@ def test_rag_calls_keep_step_zero():
     """RAG has no plan, so its calls are not stamped."""
     picker = _make_picker()
     update = picker._update_state(
-        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]), RagLikeState()
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models")]),
+        RagLikeState(),
+        LLMNodeContext(),
     )
     assert update["tool_calls"][0].step == 0
 
@@ -600,6 +624,7 @@ def test_calls_are_attributed_to_batch_steps_with_fallback():
             ]
         ),
         state,
+        LLMNodeContext(),
     )
 
     assert [call.step for call in update["tool_calls"]] == [2, 1, 1]

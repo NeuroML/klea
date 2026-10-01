@@ -80,7 +80,7 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         return {"query": state.query}  # type: ignore
 
     @override
-    def _update_state(self, result: Any, state: BaseModel) -> dict[str, Any]:
+    def _update_state(self, result: Any, state: BaseModel, ctx: Any) -> dict[str, Any]:
         """Extract answer, append fallback warning if configured, update messages."""
         answer = ""
 
@@ -102,9 +102,7 @@ class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
         # An empty generation (the base retry budget was exhausted) must not
         # surface as a blank reply to the user; fall back to a clear message.
         if not answer_text.strip():
-            answer_text = content_to_str(
-                self._get_default_error_result(LLMNodeContext()).content
-            )
+            answer_text = content_to_str(self._get_default_error_result(ctx).content)
         answer += answer_text
 
         messages = list(state.messages)  # type: ignore

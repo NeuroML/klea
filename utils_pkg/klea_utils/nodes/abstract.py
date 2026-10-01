@@ -438,7 +438,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             self.logger.debug(f"{chars_received = } characters received from LLM")
             self._last_result = self._process_output(ctx)
             ctx.result = self._last_result
-            error = self._validate_result(self._last_result, state)
+            error = self._validate_result(self._last_result, state, ctx)
             if not error or attempt >= self.max_validation_retries:
                 if error:
                     self.logger.warning(
@@ -457,7 +457,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                 error,
             )
 
-        self._last_state_updates = self._update_state(self._last_result, state)
+        self._last_state_updates = self._update_state(self._last_result, state, ctx)
         ctx.state_updates = self._last_state_updates
 
         # token calculations
@@ -760,11 +760,18 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ...
 
     @abstractmethod
-    def _update_state(self, result: Any, state: TState) -> dict[str, Any]:
-        """Update and return state dictionary"""
+    def _update_state(
+        self, result: Any, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> dict[str, Any]:
+        """Update and return state dictionary.
+
+        :param ctx: Per-run node context.
+        """
         ...
 
-    def _validate_result(self, result: Any, state: TState) -> str | None:
+    def _validate_result(
+        self, result: Any, state: TState, ctx: LLMNodeContext[TOutput]
+    ) -> str | None:
         """Return a reason string when *result* is structurally invalid.
 
         Called by :meth:`execute` after :meth:`_process_output`.  Returning a
@@ -778,6 +785,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
         :param result: The processed node result.
         :param state: Current graph state.
+        :param ctx: Per-run node context.
         :returns: An error description, or ``None`` when valid.
         """
         return None

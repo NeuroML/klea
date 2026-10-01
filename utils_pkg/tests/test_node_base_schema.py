@@ -61,7 +61,7 @@ class DummyNode(BaseLLMNode[MemoryState, BaseModel]):
     def _get_prompt_variables(self, state: BaseModel, ctx) -> dict:
         return {}
 
-    def _update_state(self, result, state: BaseModel) -> dict:
+    def _update_state(self, result, state: BaseModel, ctx) -> dict:
         return {}
 
     def _get_default_error_result(self, ctx):

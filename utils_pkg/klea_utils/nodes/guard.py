@@ -72,7 +72,9 @@ class GuardNode(BaseLLMNode[BaseModel, BaseModel]):
         return ""
 
     @override
-    def _update_state(self, result: AIMessage, state: BaseModel) -> dict[str, Any]:
+    def _update_state(
+        self, result: AIMessage, state: BaseModel, ctx: Any
+    ) -> dict[str, Any]:
         """Check result for safety and return routing decision."""
         self.logger.debug(f"{result = }")
 
