@@ -134,7 +134,26 @@ MAX_OUTPUT_TOKENS_CEILING = 32768
 MIN_OUTPUT_TOKENS = 64
 
 
-def _schema_to_example(schema: dict[str, Any]) -> Any:
+def _resolve_ref(ref: str, root: dict[str, Any]) -> dict[str, Any] | None:
+    """Resolve a JSON-schema ``$ref`` (``#/defs/...``) against *root*.
+
+    :param ref: The ``$ref`` string (only local ``#/...`` pointers).
+    :param root: The root schema carrying ``$defs``.
+    :returns: The referenced schema fragment, or ``None`` when unresolvable.
+    """
+    if not ref.startswith("#/"):
+        return None
+    node: Any = root
+    for part in ref[2:].split("/"):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node if isinstance(node, dict) else None
+
+
+def _schema_to_example(
+    schema: dict[str, Any], root: dict[str, Any] | None = None
+) -> Any:
     """Generate a placeholder example value from a JSON schema fragment.
 
     Walks a JSON Schema fragment (as produced by
@@ -143,9 +162,34 @@ def _schema_to_example(schema: dict[str, Any]) -> Any:
     instead of the abstract schema definition (which invites the model to
     echo the schema back verbatim instead of producing an instance).
 
+    A concrete ``examples`` entry is preferred when present (e.g. from
+    ``json_schema_extra``); ``$ref`` is resolved against *root*; and
+    ``anyOf``/``oneOf`` pick the first non-null branch.
+
     :param schema: JSON Schema fragment (a ``{"type": ...}`` dict)
+    :param root: The root schema, for resolving ``$ref`` pointers.
     :returns: A placeholder value matching the schema's type
     """
+    if not isinstance(schema, dict):
+        return None
+    examples = schema.get("examples")
+    if isinstance(examples, list) and examples:
+        return examples[0]
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and root is not None:
+        resolved = _resolve_ref(ref, root)
+        if resolved is not None:
+            return _schema_to_example(resolved, root)
+    for keyword in ("anyOf", "oneOf"):
+        branches = schema.get(keyword)
+        if isinstance(branches, list) and branches:
+            non_null = [
+                branch
+                for branch in branches
+                if not (isinstance(branch, dict) and branch.get("type") == "null")
+            ]
+            chosen = non_null[0] if non_null else branches[0]
+            return _schema_to_example(chosen, root)
     if schema.get("enum"):
         return schema["enum"][0]
     match schema.get("type"):
@@ -155,11 +199,13 @@ def _schema_to_example(schema: dict[str, Any]) -> Any:
             return 0
         case "boolean":
             return True
+        case "null":
+            return None
         case "array":
-            return [_schema_to_example(schema.get("items", {}))]
+            return [_schema_to_example(schema.get("items", {}), root)]
         case "object":
             return {
-                key: _schema_to_example(value)
+                key: _schema_to_example(value, root)
                 for key, value in schema.get("properties", {}).items()
             }
         case _:
@@ -1010,12 +1056,13 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
 
         :returns: Prompt text describing the required JSON output
         """
+        schema_json = self.output_schema_json
         schema = {
             key: value
-            for key, value in self.output_schema_json.items()
+            for key, value in schema_json.items()
             if key not in ("title", "description")
         }
-        example = _schema_to_example(self.output_schema_json)
+        example = _schema_to_example(schema_json, schema_json)
         return dedent(
             f"""
             ## Output schema (strict)

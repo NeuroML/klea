@@ -115,6 +115,27 @@ def test_schema_to_example_unknown_type_is_none():
     assert _schema_to_example({"type": "unknown"}) is None
 
 
+def test_schema_to_example_prefers_examples():
+    assert (
+        _schema_to_example({"type": "string", "examples": ["concrete"]}) == "concrete"
+    )
+
+
+def test_schema_to_example_union_picks_first_non_null_branch():
+    schema = {"anyOf": [{"type": "null"}, {"type": "integer"}]}
+    assert _schema_to_example(schema) == 0
+    assert _schema_to_example({"oneOf": [{"type": "boolean"}]}) is True
+    assert _schema_to_example({"anyOf": [{"type": "null"}]}) is None
+
+
+def test_schema_to_example_resolves_ref():
+    root = {
+        "$defs": {"Name": {"type": "object", "properties": {"id": {"type": "integer"}}}}
+    }
+    assert _schema_to_example({"$ref": "#/$defs/Name"}, root) == {"id": 0}
+    assert _schema_to_example({"$ref": "#/$defs/Missing"}, root) is None
+
+
 def test_prompt_block_strips_title_and_description():
     """The prompt block drops top-level title/description metadata."""
     rendered = _render(_node(AnswerSchema)._format_output_schema_prompt())
