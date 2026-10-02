@@ -72,6 +72,13 @@ Metadata filters
    :members:
    :show-inheritance:
 
+Retrieval query schema
+----------------------
+
+.. automodule:: klea_utils.stores.query_schema
+   :members:
+   :show-inheritance:
+
 BM25 index
 ----------
 

@@ -1646,6 +1646,73 @@ unknown operator, malformed operand)</p>
 </dd></dl>
 
 </section>
+<section id="module-klea_utils.stores.query_schema">
+<span id="retrieval-query-schema"></span><h2>Retrieval query schema<a class="headerlink" href="#module-klea_utils.stores.query_schema" title="Link to this heading">¶</a></h2>
+<p>Strict-safe retrieval-query schema builder.</p>
+<p>Builds the RAG query generator’s structured-output schema from the domain’s
+configured filter fields, so each allowed filter is a real, typed, optional
+field instead of a dynamic-key <code class="docutils literal notranslate"><span class="pre">filters</span></code> object.  A dynamic-key object
+becomes a JSON object with <code class="docutils literal notranslate"><span class="pre">additionalProperties</span></code>, which providers’ strict
+structured-output modes close to <code class="docutils literal notranslate"><span class="pre">{}</span></code> (ADR-0044) - the model then cannot
+express any constraint at all.  One typed field per configured filter avoids
+that and restricts the model to the deployment’s declared field names.</p>
+<p>Field type follows <code class="xref py py-attr docutils literal notranslate"><span class="pre">FilterFieldInfo.value_type</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">string</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">str</span></code> or <code class="docutils literal notranslate"><span class="pre">list[str]</span></code> (a list is an <code class="docutils literal notranslate"><span class="pre">$in</span></code> constraint);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">int</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">int</span></code>, <code class="docutils literal notranslate"><span class="pre">list[int]</span></code>, or an <a class="reference internal" href="#klea_utils.stores.query_schema.IntRange" title="klea_utils.stores.query_schema.IntRange"><code class="xref py py-class docutils literal notranslate"><span class="pre">IntRange</span></code></a>
+(<code class="docutils literal notranslate"><span class="pre">{&quot;gte&quot;:</span> <span class="pre">...,</span> <span class="pre">&quot;lte&quot;:</span> <span class="pre">...}</span></code>; equality is a bare value);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">float</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">float</span></code>, <code class="docutils literal notranslate"><span class="pre">list[float]</span></code>, or a <a class="reference internal" href="#klea_utils.stores.query_schema.FloatRange" title="klea_utils.stores.query_schema.FloatRange"><code class="xref py py-class docutils literal notranslate"><span class="pre">FloatRange</span></code></a>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">list</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">list[str]</span></code> (element membership).</p></li>
+</ul>
+<p>Every filter field is optional (omitted when the question states no
+constraint).  A bare value is equality; a <code class="docutils literal notranslate"><span class="pre">*Range</span></code> value carries
+<code class="docutils literal notranslate"><span class="pre">eq</span></code>/<code class="docutils literal notranslate"><span class="pre">gte</span></code>/<code class="docutils literal notranslate"><span class="pre">lte</span></code> bounds.</p>
+<p>The built schema is:
+<code class="docutils literal notranslate"><span class="pre">{search_query:</span> <span class="pre">str,</span> <span class="pre">&lt;filter</span> <span class="pre">field&gt;:</span> <span class="pre">&lt;type&gt;</span> <span class="pre">|</span> <span class="pre">None,</span> <span class="pre">...}</span></code>.</p>
+<p>File: klea_utils/stores/query_schema.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.query_schema.FloatRange">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.query_schema.</span></span><span class="sig-name descname"><span class="pre">FloatRange</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">eq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gte</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lte</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/query_schema.html#FloatRange"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.query_schema.FloatRange" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.stores.query_schema.FloatRange.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.stores.query_schema.FloatRange.model_config" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.stores.query_schema.IntRange">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.stores.query_schema.</span></span><span class="sig-name descname"><span class="pre">IntRange</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">eq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gte</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lte</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/stores/query_schema.html#IntRange"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.query_schema.IntRange" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.stores.query_schema.IntRange.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.stores.query_schema.IntRange.model_config" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.stores.query_schema.build_retrieval_query_schema">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.stores.query_schema.</span></span><span class="sig-name descname"><span class="pre">build_retrieval_query_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">fields</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#klea_utils.stores.config.FilterFieldInfo" title="klea_utils.stores.config.FilterFieldInfo"><span class="pre">FilterFieldInfo</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><span class="pre">type</span></a><span class="p"><span class="pre">[</span></span><span class="pre">BaseModel</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/stores/query_schema.html#build_retrieval_query_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.stores.query_schema.build_retrieval_query_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Build the query generator’s strict-safe structured-output schema.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>fields</strong> – The allowed filter fields for the run’s domains (already
+resolved by the node).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A pydantic model with <code class="docutils literal notranslate"><span class="pre">search_query</span></code> and one optional typed
+field per valid, uniquely-named configured filter.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 <section id="bm25-index">
 <h2>BM25 index<a class="headerlink" href="#bm25-index" title="Link to this heading">¶</a></h2>
 <dl class="py class">
@@ -2396,6 +2463,18 @@ budget</p>
 <li><a class="reference internal" href="#klea_utils.stores.filters.to_qdrant_filter"><code class="docutils literal notranslate"><span class="pre">to_qdrant_filter()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.filters.translate_metadata_filter"><code class="docutils literal notranslate"><span class="pre">translate_metadata_filter()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.stores.filters.validate_metadata_filter"><code class="docutils literal notranslate"><span class="pre">validate_metadata_filter()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.stores.query_schema">Retrieval query schema</a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.query_schema.FloatRange"><code class="docutils literal notranslate"><span class="pre">FloatRange</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.query_schema.FloatRange.model_config"><code class="docutils literal notranslate"><span class="pre">FloatRange.model_config</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.stores.query_schema.IntRange"><code class="docutils literal notranslate"><span class="pre">IntRange</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.stores.query_schema.IntRange.model_config"><code class="docutils literal notranslate"><span class="pre">IntRange.model_config</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.stores.query_schema.build_retrieval_query_schema"><code class="docutils literal notranslate"><span class="pre">build_retrieval_query_schema()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#bm25-index">BM25 index</a><ul>

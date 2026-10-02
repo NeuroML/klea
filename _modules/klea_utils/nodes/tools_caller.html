@@ -534,6 +534,9 @@
             <span class="p">)</span>
         <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">destructive</span><span class="p">:</span>
             <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_destructive_call</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Carried to the frontend so it can style an errored block.</span>
+            <span class="n">entry</span><span class="p">[</span><span class="s2">"is_error"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">is_error</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">entry</span>
 
     <span class="nd">@staticmethod</span>

@@ -328,7 +328,8 @@
 
 <span class="sd">    ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an</span>
 <span class="sd">    optional small title (used by tool blocks).  Tool messages add the</span>
-<span class="sd">    mime/display/data/meta fields used by the chat-bubble renderer.</span>
+<span class="sd">    mime/display/data/meta fields used by the chat-bubble renderer, plus</span>
+<span class="sd">    ``is_error`` for an errored tool result (styled by the renderer).</span>
 <span class="sd">    """</span>
 
     <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
@@ -337,7 +338,8 @@
     <span class="n">header</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">mime</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
-    <span class="n">meta</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span></div>
+    <span class="n">meta</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="n">is_error</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span></div>
 
 
 

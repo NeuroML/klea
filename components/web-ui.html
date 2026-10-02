@@ -326,10 +326,13 @@ disclaimer and the “Powered by” note.</p>
 generated, and each answer is grounded in the retrieved sources rather
 than the model’s memory alone.  Messages render as full-width blocks: the
 user’s prompt is tinted, the agent’s reply is plain text, and file changes
-the agent makes appear as their own diff blocks before the reply.  Long
-lines wrap, and the input box sits at the bottom (drag its corner to
-resize it).  Use the left drawer to start a new chat or switch between
-existing ones, and the status pane to choose the model for the chat.</p>
+the agent makes appear as their own diff blocks before the reply.  Tool
+results (file-edit diffs, command output) render as compact blocks
+collapsed to a one-line preview that expands on click; an errored tool
+block’s title is shown in red.  Long lines wrap, and the input box sits at
+the bottom (drag its corner to resize it).  Use the left drawer to start a
+new chat or switch between existing ones, and the status pane to choose
+the model for the chat.</p>
 <p>Send stays disabled until the models a run needs (and any required API
 keys) are configured; the first run opens a <strong>Choose models</strong> prompt to set
 them.  If a run fails with a recoverable error, an inline <strong>Retry</strong> action
@@ -371,8 +374,9 @@ pipeline arrived at its response.</p>
 <p>The right drawer summarises the current chat: its name, the model used
 for each role (with a settings button to change them), running token
 totals, and the per-step state sections that stream while the graph runs.
-In the agent, the operating mode and tool access level selectors appear
-here as well.</p>
+Tool calls appear here as they run, marked <code class="docutils literal notranslate"><span class="pre">running</span></code> and replaced by
+<code class="docutils literal notranslate"><span class="pre">ok</span></code>/<code class="docutils literal notranslate"><span class="pre">error</span></code> when the round ends.  In the agent, the operating mode and
+tool access level selectors appear here as well.</p>
 <p>The settings button opens the model dialog.  Each role’s model is chosen
 with three fields – a <strong>provider</strong> dropdown, a <strong>model</strong> dropdown, and an
 optional <strong>custom URL</strong> – filled from the <a class="reference external" href="https://models.dev">models.dev</a>

@@ -380,6 +380,7 @@
         <span class="n">mime</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
         <span class="n">data</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
         <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_error</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">on_expand</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="n">on_copy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -398,6 +399,8 @@
 <span class="sd">        :param data: The renderable payload (text or base64).</span>
 <span class="sd">        :param meta: Extra entry metadata (path, language, ...); reserved for</span>
 <span class="sd">            renderers that need it.</span>
+<span class="sd">        :param is_error: Whether a ``tool`` block's result is an error; the</span>
+<span class="sd">            header is rendered in the theme's negative colour.</span>
 <span class="sd">        :param on_expand: Callable with no args, fired on expand/collapse click.</span>
 <span class="sd">        :param on_copy: Callable with no args, fired on copy click.</span>
 <span class="sd">        """</span>
@@ -416,9 +419,20 @@
             <span class="p">),</span>
         <span class="p">):</span>
             <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">header</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold text-grey-6"</span><span class="p">)</span>
+                <span class="n">header_classes</span> <span class="o">=</span> <span class="s2">"text-xs font-bold"</span>
+                <span class="n">header_classes</span> <span class="o">+=</span> <span class="p">(</span>
+                    <span class="s2">" tool-header--error"</span>
+                    <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"tool"</span> <span class="ow">and</span> <span class="n">is_error</span>
+                    <span class="k">else</span> <span class="s2">" text-grey-6"</span>
+                <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">header</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">header_classes</span><span class="p">)</span>
 
-            <span class="n">text_cls</span> <span class="o">=</span> <span class="s2">"msg-collapsed"</span> <span class="k">if</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"msg-expanded"</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
+                <span class="c1"># A tool block collapses to a one-line preview (the header is</span>
+                <span class="c1"># the title), expandable; long diffs/command output stay hidden.</span>
+                <span class="n">text_cls</span> <span class="o">=</span> <span class="s2">"tool-block-collapsed"</span> <span class="k">if</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"msg-expanded"</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">text_cls</span> <span class="o">=</span> <span class="s2">"msg-collapsed"</span> <span class="k">if</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"msg-expanded"</span>
             <span class="c1"># ``ui.markdown`` bodies get the chat markdown styling; ``ui.code``</span>
             <span class="c1"># bodies render their own box, so adding ``chat-markdown`` there</span>
             <span class="c1"># would stack our ``pre``/``code`` rules on top of it.</span>

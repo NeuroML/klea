@@ -72,7 +72,15 @@ Shared components
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.ui.web.nicegui.components.footer
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.ui.web.nicegui.components.inspector
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.web.nicegui.components.inspector_code
    :members:
    :show-inheritance:
 
@@ -94,6 +102,10 @@ Shared components
 
 Text helpers
 ------------
+
+.. automodule:: klea_utils.ui.inspect_format
+   :members:
+   :show-inheritance:
 
 .. automodule:: klea_utils.ui.linkify
    :members:

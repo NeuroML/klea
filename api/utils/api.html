@@ -1059,6 +1059,73 @@ unless <code class="docutils literal notranslate"><span class="pre">promote_defa
 </dd></dl>
 
 </section>
+<section id="module-klea_utils.api.credentials">
+<span id="provider-credentials"></span><h2>Provider credentials<a class="headerlink" href="#module-klea_utils.api.credentials" title="Link to this heading">¶</a></h2>
+<p>Per-user provider credential endpoints.</p>
+<p>Credentials are stored per user, keyed by provider (plus the endpoint for
+custom / explicit-URL models), and are never returned raw: the API only
+reports a masked suffix and, when no credential is stored, whether the
+provider’s environment variable is set.</p>
+<p>File: klea_utils/api/credentials.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.api.credentials.CredentialPayload">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.api.credentials.</span></span><span class="sig-name descname"><span class="pre">CredentialPayload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">endpoint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">secret</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/api/credentials.html#CredentialPayload"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.credentials.CredentialPayload" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<p>Request body for storing a provider credential.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.api.credentials.CredentialPayload.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.api.credentials.CredentialPayload.model_config" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.credentials.create_credentials_router">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.credentials.</span></span><span class="sig-name descname"><span class="pre">create_credentials_router</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">APIRouter</span></span></span><a class="reference internal" href="../../_modules/klea_utils/api/credentials.html#create_credentials_router"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.credentials.create_credentials_router" title="Link to this definition">¶</a></dt>
+<dd><p>Create an APIRouter for per-user provider credentials.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/credentials/{user_id}</span></code></dt><dd><p>List stored credentials (masked, with timestamps).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">PUT</span> <span class="pre">/credentials/{user_id}</span></code></dt><dd><p>Store/replace a credential (<code class="docutils literal notranslate"><span class="pre">provider</span></code>, <code class="docutils literal notranslate"><span class="pre">endpoint</span></code>, <code class="docutils literal notranslate"><span class="pre">secret</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">DELETE</span> <span class="pre">/credentials/{user_id}/{provider}</span></code></dt><dd><p>Remove a provider’s credential (optional <code class="docutils literal notranslate"><span class="pre">endpoint</span></code> query).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.credentials.credential_status">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.credentials.</span></span><span class="sig-name descname"><span class="pre">credential_status</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">store</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.api.sessions_db.SessionStore" title="klea_utils.api.sessions_db.SessionStore"><span class="pre">SessionStore</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/api/credentials.html#credential_status"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.credentials.credential_status" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve how <em>model_name</em>’s credential is supplied.</p>
+<p>Checks, in order: a stored per-user credential for the model’s
+provider(+endpoint), then the provider’s API-key environment variable.
+Providers that need no key (e.g. Ollama) report <code class="docutils literal notranslate"><span class="pre">source=&quot;none&quot;</span></code> with
+<code class="docutils literal notranslate"><span class="pre">requires_key=False</span></code> so callers do not treat them as unconfigured.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>store</strong> – The session store holding per-user credentials.</p></li>
+<li><p><strong>user_id</strong> – Persistent user identifier.</p></li>
+<li><p><strong>model_name</strong> – Provider-prefixed model string.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">{provider,</span> <span class="pre">endpoint,</span> <span class="pre">requires_key,</span> <span class="pre">source,</span> <span class="pre">masked}</span></code> where
+<em>source</em> is <code class="docutils literal notranslate"><span class="pre">&quot;user&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;env&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.credentials.mask_secret">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.credentials.</span></span><span class="sig-name descname"><span class="pre">mask_secret</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">secret</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/api/credentials.html#mask_secret"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.credentials.mask_secret" title="Link to this definition">¶</a></dt>
+<dd><p>Return a masked representation of <em>secret</em> (last 4 characters).</p>
+</dd></dl>
+
+</section>
 <section id="module-klea_utils.api.sse">
 <span id="sse-streaming"></span><h2>SSE streaming<a class="headerlink" href="#module-klea_utils.api.sse" title="Link to this heading">¶</a></h2>
 <p>Shared SSE streaming client for Klea frontends.</p>
@@ -1447,6 +1514,16 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.api.models.create_models_router"><code class="docutils literal notranslate"><span class="pre">create_models_router()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.api.credentials">Provider credentials</a><ul>
+<li><a class="reference internal" href="#klea_utils.api.credentials.CredentialPayload"><code class="docutils literal notranslate"><span class="pre">CredentialPayload</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.api.credentials.CredentialPayload.model_config"><code class="docutils literal notranslate"><span class="pre">CredentialPayload.model_config</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.api.credentials.create_credentials_router"><code class="docutils literal notranslate"><span class="pre">create_credentials_router()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.credentials.credential_status"><code class="docutils literal notranslate"><span class="pre">credential_status()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.credentials.mask_secret"><code class="docutils literal notranslate"><span class="pre">mask_secret()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.api.sse">SSE streaming</a><ul>

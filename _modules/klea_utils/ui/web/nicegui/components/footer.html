@@ -6,7 +6,7 @@
         <link rel="prefetch" href="../../../../../../_static/klea-logo.png" as="image">
 
     <link rel="shortcut icon" href="../../../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
-        <title>klea_utils.ui.web.nicegui.components.chat_area - Klea</title>
+        <title>klea_utils.ui.web.nicegui.components.footer - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=7bdb33bb" />
     <link rel="stylesheet" type="text/css" href="../../../../../../_static/sphinxcontrib_typer.css" />
@@ -299,166 +299,46 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for klea_utils.ui.web.nicegui.components.chat_area</h1><div class="highlight"><pre>
-<span></span><span class="ch">#!/usr/bin/env python3</span>
-<span class="sd">"""</span>
-<span class="sd">Chat area component: message list, scroll, and empty-state.</span>
+          <h1>Source code for klea_utils.ui.web.nicegui.components.footer</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""</span>
+<span class="sd">Footer component: disclaimer and footer text on the footer band.</span>
 
-<span class="sd">Builds the scroll area that holds the message bubbles and the stream</span>
-<span class="sd">progress container, and registers the render/scroll callbacks on the</span>
-<span class="sd">page context.</span>
-
-<span class="sd">File: klea_utils/ui/web/nicegui/components/chat_area.py</span>
+<span class="sd">File: klea_utils/ui/web/nicegui/components/footer.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Rebuild the scroll-area content (welcome or messages) for the page.</span>
+<div class="viewcode-block" id="attach_footer">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.footer.attach_footer">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">attach_footer</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the page footer: disclaimer and footer text on one row.</span>
 
-<span class="sd">    Uses explicit clear+rebuild instead of ``@ui.refreshable``</span>
-<span class="sd">    to avoid issues with the welcome-to-empty-chat transition.</span>
+<span class="sd">    Both share the footer band's single line, centred as</span>
+<span class="sd">    ``disclaimer | footer_text``, so the disclaimer no longer needs a line</span>
+<span class="sd">    below the chat input and the input can sit flush at the bottom of the</span>
+<span class="sd">    scroll area.  The row wraps on narrow screens.</span>
+
+<span class="sd">    :param ctx: The shared page context (supplies ``disclaimer`` and</span>
+<span class="sd">        ``footer_text``).</span>
 <span class="sd">    """</span>
-    <span class="n">current</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-        <span class="s2">"current=</span><span class="si">%s</span><span class="s2"> msgs=</span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span>
-        <span class="n">current</span><span class="p">,</span>
-        <span class="nb">len</span><span class="p">(</span><span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[]))</span>
-        <span class="k">if</span> <span class="n">current</span>
-        <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
-    <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="p">:</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">current</span><span class="p">:</span>
-            <span class="k">with</span> <span class="p">(</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span>
-                <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full h-full items-center justify-center gap-4"</span><span class="p">)</span>
-                <span class="o">.</span><span class="n">style</span><span class="p">(</span><span class="s2">"flex: 1; display: flex;"</span><span class="p">)</span>
-            <span class="p">):</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Start a conversation"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xl text-grey-5"</span><span class="p">)</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Type your message below to begin"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                    <span class="s2">"text-sm text-grey-5"</span>
-                <span class="p">)</span>
-                <span class="c1"># First-run setup call-to-action: point the user straight</span>
-                <span class="c1"># at the model dialog when anything required is missing.</span>
-                <span class="n">missing_models</span> <span class="o">=</span> <span class="n">missing_required_roles</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-                <span class="n">missing_keys</span> <span class="o">=</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">missing_models</span> <span class="ow">or</span> <span class="n">missing_keys</span><span class="p">:</span>
-                    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center gap-1 mt-2 p-4"</span><span class="p">):</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Models are not configured"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                            <span class="s2">"text-sm font-bold"</span>
-                        <span class="p">)</span>
-                        <span class="k">if</span> <span class="n">missing_models</span><span class="p">:</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                                <span class="s2">"Set the required models to start: "</span>
-                                <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
-                                    <span class="n">role</span><span class="o">.</span><span class="n">capitalize</span><span class="p">()</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_models</span>
-                                <span class="p">)</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
-                        <span class="k">elif</span> <span class="n">missing_keys</span><span class="p">:</span>
-                            <span class="n">providers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
-                                <span class="p">{</span>
-                                    <span class="p">(</span>
-                                        <span class="n">ctx</span><span class="o">.</span><span class="n">session_model_info</span><span class="p">[</span><span class="n">role</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"credential"</span><span class="p">)</span>
-                                        <span class="ow">or</span> <span class="p">{}</span>
-                                    <span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                                    <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing_keys</span>
-                                <span class="p">}</span>
-                                <span class="o">-</span> <span class="p">{</span><span class="s2">""</span><span class="p">}</span>
-                            <span class="p">)</span>
-                            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                                <span class="s2">"Add an API key for: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">providers</span><span class="p">)</span>
-                            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
-                        <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
-                            <span class="s2">"Choose models"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">model_config_dialog</span>
-                        <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-            <span class="n">msgs</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"messages"</span><span class="p">]</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="p">[]</span>
-            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">msg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">msgs</span><span class="p">):</span>
-                <span class="n">collapsed</span> <span class="o">=</span> <span class="n">idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span>
-                <span class="n">text</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                <span class="n">ChatBubble</span><span class="p">(</span>
-                    <span class="n">text</span><span class="o">=</span><span class="n">linkify_md</span><span class="p">(</span><span class="n">text</span><span class="p">),</span>
-                    <span class="n">stamp</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"stamp"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">role</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">),</span>
-                    <span class="n">header</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">mime</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">data</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="n">meta</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
-                    <span class="n">is_error</span><span class="o">=</span><span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
-                    <span class="n">collapsed</span><span class="o">=</span><span class="n">collapsed</span><span class="p">,</span>
-                    <span class="n">idx</span><span class="o">=</span><span class="n">idx</span><span class="p">,</span>
-                    <span class="n">on_copy</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="o">=</span><span class="n">text</span><span class="p">:</span> <span class="n">ui</span><span class="o">.</span><span class="n">run_javascript</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"navigator.clipboard.writeText(</span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
-                    <span class="p">),</span>
-                    <span class="n">on_expand</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">idx</span><span class="p">:</span> <span class="p">(</span>
-                        <span class="p">(</span>
-                            <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-                            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span>
-                            <span class="k">else</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-                        <span class="p">)</span>
-                        <span class="ow">or</span> <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
-                    <span class="p">),</span>
-                <span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_chat_bottom</span><span class="p">()</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_scroll_to_bottom</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Scroll chat area to the bottom.</span>
-
-<span class="sd">    Uses Quasar's ``setScrollPosition`` (via NiceGUI's</span>
-<span class="sd">    ``scroll_to(pixels=99999)``) instead of raw JavaScript because</span>
-<span class="sd">    NiceGUI batches UI updates and JS into the same WebSocket packet</span>
-<span class="sd">     ---  by the time a ``setTimeout`` or ``requestAnimationFrame``</span>
-<span class="sd">    callback fires the new DOM may not be laid out yet, so</span>
-<span class="sd">    ``scrollTop = scrollHeight`` or ``scrollIntoView`` land at the</span>
-<span class="sd">    wrong position.</span>
-
-<span class="sd">    ``setScrollPosition`` is Quasar's own scroll API on</span>
-<span class="sd">    ``QScrollArea``; it coordinates with its internal layout cycle</span>
-<span class="sd">    so the scroll lands correctly after the content updates are</span>
-<span class="sd">    painted.  The large pixel value is safe  ---  Quasar clamps it to</span>
-<span class="sd">    the actual scrollable extent.</span>
-<span class="sd">    """</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"attempting scroll for chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_area</span><span class="o">.</span><span class="n">scroll_to</span><span class="p">(</span><span class="n">pixels</span><span class="o">=</span><span class="mi">99999</span><span class="p">)</span>
-
-
-<div class="viewcode-block" id="attach_chat_area">
-<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.chat_area.attach_chat_area">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">attach_chat_area</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Build the chat scroll area and register its render callbacks.</span>
-
-<span class="sd">    Must be called with the chat tab panel as the ambient NiceGUI</span>
-<span class="sd">    context (the surrounding layout decides where the tab panels go).</span>
-
-<span class="sd">    :param ctx: The shared page context; ``chat_area``,</span>
-<span class="sd">        ``scroll_area`` and ``stream_container`` are filled in here.</span>
-<span class="sd">    """</span>
-    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">scroll_area</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full grow chat-scroll-area"</span><span class="p">)</span> <span class="k">as</span> <span class="n">scroll_area</span><span class="p">:</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_area</span> <span class="o">=</span> <span class="n">scroll_area</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
-
-    <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_chat_bottom</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_scroll_to_bottom</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
-    <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>
+    <span class="k">with</span> <span class="p">(</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">footer</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"footer-bar text-xs py-1"</span><span class="p">),</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center justify-center gap-x-2 text-grey-6"</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">disclaimer</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">disclaimer</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"|"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-grey-5"</span><span class="p">)</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">html</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">footer_text</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

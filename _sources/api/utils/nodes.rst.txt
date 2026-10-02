@@ -15,6 +15,13 @@ Concrete base class
    :members:
    :show-inheritance:
 
+Per-run node context
+--------------------
+
+.. automodule:: klea_utils.nodes.context
+   :members:
+   :show-inheritance:
+
 Guard / safety nodes
 --------------------
 

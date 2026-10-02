@@ -722,6 +722,130 @@ is explicitly read-only and not destructive; an unannotated tool
 </dd></dl>
 
 </section>
+<section id="module-klea_utils.mcp.call_schema">
+<span id="strict-safe-call-schema"></span><h2>Strict-safe call schema<a class="headerlink" href="#module-klea_utils.mcp.call_schema" title="Link to this heading">¶</a></h2>
+<p>Strict-safe tool-call schema builder for the tools picker.</p>
+<p>Builds the picker’s structured-output schema dynamically from the disclosed
+tools, so each tool’s parameters become real, typed fields instead of a
+free-form <code class="docutils literal notranslate"><span class="pre">args</span></code> object.  A free-form object is <em>closed</em> by every
+provider’s strict structured-output mode (<code class="docutils literal notranslate"><span class="pre">additionalProperties:</span> <span class="pre">false</span></code>),
+which silently forces <code class="docutils literal notranslate"><span class="pre">args</span></code> to <code class="docutils literal notranslate"><span class="pre">{}</span></code>; a discriminated union of per-tool
+call models avoids that and enforces each tool’s required parameters.</p>
+<p>The generated schema is:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ToolPickerOutput</span></code> - <code class="docutils literal notranslate"><span class="pre">{tool_calls:</span> <span class="pre">list[ToolCall]}</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ToolCall</span></code> - <code class="docutils literal notranslate"><span class="pre">{step,</span> <span class="pre">reason,</span> <span class="pre">call:</span> <span class="pre">&lt;union&gt;}</span></code> (nested)</p></li>
+<li><p>one <code class="docutils literal notranslate"><span class="pre">&lt;tool&gt;_call</span></code> model per tool - <code class="docutils literal notranslate"><span class="pre">{tool:</span> <span class="pre">Literal[&quot;&lt;name&gt;&quot;],</span> <span class="pre">&lt;params&gt;}</span></code></p></li>
+<li><p>a <code class="docutils literal notranslate"><span class="pre">NoTool</span></code> branch - <code class="docutils literal notranslate"><span class="pre">{tool:</span> <span class="pre">Literal[&quot;no_tool&quot;],</span> <span class="pre">reason}</span></code> for the
+“no suggested tool can carry out this step” signal.</p></li>
+</ul>
+<p>Type mapping (strict-safe): <code class="docutils literal notranslate"><span class="pre">string</span></code>/<code class="docutils literal notranslate"><span class="pre">integer</span></code>/<code class="docutils literal notranslate"><span class="pre">number</span></code>/<code class="docutils literal notranslate"><span class="pre">boolean</span></code>
+map directly; <code class="docutils literal notranslate"><span class="pre">anyOf</span></code> (including <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">|</span> <span class="pre">null</span></code>) maps to a union; arrays of
+supported types map to <code class="docutils literal notranslate"><span class="pre">list[...]</span></code>; object/unknown parameters fall back to
+a JSON-encoded <code class="docutils literal notranslate"><span class="pre">str</span></code> (documented).  No generated field is an open object.</p>
+<p>File: klea_utils/mcp/call_schema.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.call_schema.NO_TOOL_TAG">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.call_schema.</span></span><span class="sig-name descname"><span class="pre">NO_TOOL_TAG</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'no_tool'</span></span><a class="headerlink" href="#klea_utils.mcp.call_schema.NO_TOOL_TAG" title="Link to this definition">¶</a></dt>
+<dd><p>Discriminator tag for the “no suggested tool fits” branch.  <code class="docutils literal notranslate"><span class="pre">_update_state</span></code>
+maps it to the picker’s empty-tool failure signal.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.call_schema.build_tool_call_schema">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.call_schema.</span></span><span class="sig-name descname"><span class="pre">build_tool_call_schema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tools</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.14)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.mcp.schemas.ToolInfo" title="klea_utils.mcp.schemas.ToolInfo"><span class="pre">ToolInfo</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#type" title="(in Python v3.14)"><span class="pre">type</span></a><span class="p"><span class="pre">[</span></span><span class="pre">BaseModel</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/call_schema.html#build_tool_call_schema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.call_schema.build_tool_call_schema" title="Link to this definition">¶</a></dt>
+<dd><p>Build the picker’s structured-output schema for a tool set.</p>
+<p>The schema is a nested discriminated union over the given tools plus a
+<code class="docutils literal notranslate"><span class="pre">NoTool</span></code> branch.  Tool order is deterministic (sorted by name) so the
+serialized schema - and therefore the prompt’s <code class="docutils literal notranslate"><span class="pre">Output</span> <span class="pre">schema</span></code> block -
+is stable for a given tool set (prompt caching).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>tools</strong> – The disclosed tools (<code class="docutils literal notranslate"><span class="pre">{name:</span> <span class="pre">ToolInfo}</span></code>), already filtered
+by access level and, for RAG, by the run’s domains.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A pydantic model class with a <code class="docutils literal notranslate"><span class="pre">tool_calls</span></code> field.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.mcp.privilege">
+<span id="privilege-guard"></span><h2>Privilege guard<a class="headerlink" href="#module-klea_utils.mcp.privilege" title="Link to this heading">¶</a></h2>
+<p>Privilege guard for Klea-authored MCP tools.</p>
+<p>Klea-authored tools (the bundled server and the NeuroML server) refuse to run
+when the server process has root privileges, unless the operator explicitly
+opts in via an environment variable.  This is defense-in-depth for deployments
+that accidentally run the server as uid 0 (including containers, which default
+to root): a tool running as root can read/write/execute far beyond the
+project.  Third-party MCP servers do not use this guard; their privileges are
+the operator’s choice (ADR-0007 trust model).  See ADR-0038.</p>
+<p>File: klea_utils/mcp/privilege.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.mcp.privilege.ALLOW_ROOT_ENV_VAR">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.privilege.</span></span><span class="sig-name descname"><span class="pre">ALLOW_ROOT_ENV_VAR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'KLEA_ALLOW_ROOT_TOOLS'</span></span><a class="headerlink" href="#klea_utils.mcp.privilege.ALLOW_ROOT_ENV_VAR" title="Link to this definition">¶</a></dt>
+<dd><p>Process environment variable that allows Klea-authored tools to run as
+root.  Must be truthy (<code class="docutils literal notranslate"><span class="pre">1</span></code>/<code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">yes</span></code>/<code class="docutils literal notranslate"><span class="pre">on</span></code>); anything else (or
+unset) refuses root execution.  A process env var, so it must reach the
+MCP server subprocess (it is inherited from the app’s environment).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.privilege.allow_root_tools">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.privilege.</span></span><span class="sig-name descname"><span class="pre">allow_root_tools</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/privilege.html#allow_root_tools"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.privilege.allow_root_tools" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether root execution is explicitly allowed.</p>
+<p>Reads <a class="reference internal" href="#klea_utils.mcp.privilege.ALLOW_ROOT_ENV_VAR" title="klea_utils.mcp.privilege.ALLOW_ROOT_ENV_VAR"><code class="xref py py-data docutils literal notranslate"><span class="pre">ALLOW_ROOT_ENV_VAR</span></code></a>; only a truthy value
+(<code class="docutils literal notranslate"><span class="pre">1</span></code>/<code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">yes</span></code>/<code class="docutils literal notranslate"><span class="pre">on</span></code>, case-insensitive) opts in.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True when the override is set to a truthy value.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.privilege.root_denial_message">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.privilege.</span></span><span class="sig-name descname"><span class="pre">root_denial_message</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/privilege.html#root_denial_message"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.privilege.root_denial_message" title="Link to this definition">¶</a></dt>
+<dd><p>Return the non-halting denial message for a root-refused tool call.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A message naming the override variable.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.privilege.running_as_root">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.privilege.</span></span><span class="sig-name descname"><span class="pre">running_as_root</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/privilege.html#running_as_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.privilege.running_as_root" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether the current process has root (effective uid 0).</p>
+<p>Windows-safe: non-POSIX systems have no <code class="docutils literal notranslate"><span class="pre">geteuid</span></code> and are treated as
+non-root.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>True when <code class="docutils literal notranslate"><span class="pre">os.geteuid()</span> <span class="pre">==</span> <span class="pre">0</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.privilege.warn_if_root">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.privilege.</span></span><span class="sig-name descname"><span class="pre">warn_if_root</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">logger</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Logger" title="(in Python v3.14)"><span class="pre">Logger</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/privilege.html#warn_if_root"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.privilege.warn_if_root" title="Link to this definition">¶</a></dt>
+<dd><p>Log a warning when the current process runs as root.</p>
+<p>Called once at app/server startup so operators are aware that tools will
+either be refused or execute with full root privileges.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>logger</strong> – Logger to emit the warning on.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
 <section id="module-klea_utils.mcp.tool_result">
 <span id="tool-results"></span><h2>Tool results<a class="headerlink" href="#module-klea_utils.mcp.tool_result" title="Link to this heading">¶</a></h2>
 <p>Helper to map Klea dict results with an <code class="docutils literal notranslate"><span class="pre">error</span></code> field to MCP <code class="docutils literal notranslate"><span class="pre">isError</span></code>.</p>
@@ -3091,6 +3215,19 @@ diff, error.</p>
 <li><a class="reference internal" href="#klea_utils.mcp.access.resolve_access_level"><code class="docutils literal notranslate"><span class="pre">resolve_access_level()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.access.resolve_capability"><code class="docutils literal notranslate"><span class="pre">resolve_capability()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.access.tool_permits"><code class="docutils literal notranslate"><span class="pre">tool_permits()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.mcp.call_schema">Strict-safe call schema</a><ul>
+<li><a class="reference internal" href="#klea_utils.mcp.call_schema.NO_TOOL_TAG"><code class="docutils literal notranslate"><span class="pre">NO_TOOL_TAG</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.call_schema.build_tool_call_schema"><code class="docutils literal notranslate"><span class="pre">build_tool_call_schema()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.mcp.privilege">Privilege guard</a><ul>
+<li><a class="reference internal" href="#klea_utils.mcp.privilege.ALLOW_ROOT_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">ALLOW_ROOT_ENV_VAR</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.privilege.allow_root_tools"><code class="docutils literal notranslate"><span class="pre">allow_root_tools()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.privilege.root_denial_message"><code class="docutils literal notranslate"><span class="pre">root_denial_message()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.privilege.running_as_root"><code class="docutils literal notranslate"><span class="pre">running_as_root()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.privilege.warn_if_root"><code class="docutils literal notranslate"><span class="pre">warn_if_root()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.mcp.tool_result">Tool results</a><ul>

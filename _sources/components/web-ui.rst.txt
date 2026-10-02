@@ -18,10 +18,13 @@ The chat tab is where questions are asked.  Answers stream in as they are
 generated, and each answer is grounded in the retrieved sources rather
 than the model's memory alone.  Messages render as full-width blocks: the
 user's prompt is tinted, the agent's reply is plain text, and file changes
-the agent makes appear as their own diff blocks before the reply.  Long
-lines wrap, and the input box sits at the bottom (drag its corner to
-resize it).  Use the left drawer to start a new chat or switch between
-existing ones, and the status pane to choose the model for the chat.
+the agent makes appear as their own diff blocks before the reply.  Tool
+results (file-edit diffs, command output) render as compact blocks
+collapsed to a one-line preview that expands on click; an errored tool
+block's title is shown in red.  Long lines wrap, and the input box sits at
+the bottom (drag its corner to resize it).  Use the left drawer to start a
+new chat or switch between existing ones, and the status pane to choose
+the model for the chat.
 
 Send stays disabled until the models a run needs (and any required API
 keys) are configured; the first run opens a **Choose models** prompt to set
@@ -66,8 +69,9 @@ Status pane
 The right drawer summarises the current chat: its name, the model used
 for each role (with a settings button to change them), running token
 totals, and the per-step state sections that stream while the graph runs.
-In the agent, the operating mode and tool access level selectors appear
-here as well.
+Tool calls appear here as they run, marked ``running`` and replaced by
+``ok``/``error`` when the round ends.  In the agent, the operating mode and
+tool access level selectors appear here as well.
 
 The settings button opens the model dialog.  Each role's model is chosen
 with three fields -- a **provider** dropdown, a **model** dropdown, and an
