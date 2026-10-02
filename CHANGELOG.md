@@ -33,6 +33,8 @@
 ### Changed
 
 - Destructive tool results are now surfaced in the chat: `run_command` renders one shell block with the command, its full stdout/stderr and exit status (shown when there is output or a non-zero exit; the UI collapses long blocks), and `download_file` shows the saved path or failure. A destructive third-party MCP tool that declares no display convention gets a minimal `tool(arg=...)` shell block, so a risky call is never silently invisible.
+- Web UI: tool result blocks collapse to a one-line preview (the block title plus the first line) and expand on demand; an errored tool block's title is shown in the theme's negative colour.
+- Web UI: the status pane lists the tools in a round as they run, marking each `running` and replacing it with `ok`/`error` when the round ends.
 - Web UI: the model dialog can copy one role's model configuration to all roles.
 - RAG retrieval runs each retriever call and the cross-encoder inference in worker threads, so a slow store or model no longer blocks the server event loop for other sessions.
 - A streaming run records the user turn when it starts (not only on completion), so a turn that fails mid-run is visible and retryable; the assistant reply is recorded on completion.
@@ -58,6 +60,7 @@
 
 ### Fixed
 
+- RAG retrieval filters work again: the query generator builds its structured-output schema per run from the domain's configured filter fields, so strict structured-output modes no longer close the `filters` object to `{}`; scalar, list and numeric-range constraints are all supported.
 - Tool picker calls bind their arguments again under strict structured output: a free-form `args` object was closed to `{}` by every provider's strict mode, so calls ran with empty parameters. The picker now builds a per-run, strict-safe schema from the disclosed tools (each tool's parameters as typed fields), so calls bind correctly.
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
 - A transient LLM timeout (including a stream that stalls after its response starts) is retried with bounded backoff instead of aborting the run; timeouts are also matched by exception type, not only message text.

@@ -40,6 +40,20 @@ Tool access levels
    :members:
    :show-inheritance:
 
+Strict-safe call schema
+-----------------------
+
+.. automodule:: klea_utils.mcp.call_schema
+   :members:
+   :show-inheritance:
+
+Privilege guard
+---------------
+
+.. automodule:: klea_utils.mcp.privilege
+   :members:
+   :show-inheritance:
+
 Tool results
 ------------
 
