@@ -174,8 +174,9 @@ class ToolsCallerNode(
         ``display`` dict (``{"mime", "data", "meta"}``); then, for a
         destructive tool with none of the above, a minimal ``text/x-shell``
         call line so a third-party destructive call is still visible.  Plain
-        ``TextContent`` is not surfaced (ours is the JSON dump).  Errors and
-        results with nothing to show are skipped.
+        ``TextContent`` is not surfaced (ours is the JSON dump).  An errored
+        destructive result is still surfaced; other results with nothing to
+        show (and non-destructive errors) are skipped.
         """
         per_result = [
             self._display_entry_for(tc, result)
@@ -192,19 +193,25 @@ class ToolsCallerNode(
         display convention (``display``/``diff``/``code``).  Failing both, a
         destructive tool (ADR-0037) gets a minimal ``text/x-shell`` fallback
         showing the call, so a third-party destructive tool that declares no
-        display convention is never silently invisible.  Non-destructive
-        results with nothing renderable are skipped.
+        display convention is never silently invisible.
+
+        Errored results are shown for destructive tools (a failed
+        ``run_command`` is exactly what the user must see) but skipped for
+        non-destructive ones: their failure is already in the inspect pane
+        and drives Triage, so rendering every read-only error would only add
+        chat noise.
         """
-        if result.is_error:
-            return None
         info = self._tool_infos.get(tc.tool) if self._tool_infos else None
+        destructive = info is not None and info.destructive
+        if result.is_error and not destructive:
+            return None
         title = info.title if info and info.title else tc.tool
         entry = self._display_from_content(result, tc.tool, title)
         if entry is None and isinstance(result.structured_content, dict):
             entry = self._display_from_structured(
                 result.structured_content, tc.tool, title
             )
-        if entry is None and info is not None and info.destructive:
+        if entry is None and destructive:
             entry = self._display_from_destructive_call(tc, title)
         return entry
 

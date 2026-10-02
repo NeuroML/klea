@@ -503,6 +503,64 @@ def test_destructive_declared_display_takes_precedence():
     assert entries[0]["data"] == "-gone"
 
 
+def test_errored_destructive_result_is_displayed():
+    """A failed destructive tool is shown with its declared display."""
+    node = _make_node(
+        tool_infos={"run_command": ToolInfo(title="Run command", destructive=True)}
+    )
+    tool_calls = [ToolCallSchema(tool="run_command", args={"command": "pytest"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={
+                "display": {
+                    "mime": "text/x-shell",
+                    "data": "$ pytest\n--- error ---\ntimed out",
+                }
+            },
+            meta=None,
+            is_error=True,
+        )
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["data"] == "$ pytest\n--- error ---\ntimed out"
+
+
+def test_errored_destructive_without_display_shows_fallback():
+    """A failed destructive tool with no display still shows its call."""
+    node = _make_node(
+        tool_infos={"delete_object": ToolInfo(title="Delete object", destructive=True)}
+    )
+    tool_calls = [ToolCallSchema(tool="delete_object", args={"key": "data.csv"})]
+    results = [
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=True)
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["data"] == 'delete_object(key="data.csv")'
+
+
+def test_errored_non_destructive_result_is_skipped():
+    """A non-destructive error stays out of the chat (inspect only)."""
+    node = _make_node(tool_infos={"read_file": ToolInfo(title="Read file")})
+    tool_calls = [ToolCallSchema(tool="read_file", args={"path": "x"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={"error": "not found"},
+            meta=None,
+            is_error=True,
+        )
+    ]
+
+    assert node._tool_display_entries(tool_calls, results) == []
+
+
 def test_post_exec_stream_emits_tool_event():
     """A renderable result produces one ``tool`` event carrying the entries."""
     node = _make_node(tool_infos={"write_file": ToolInfo(title="Write file")})
