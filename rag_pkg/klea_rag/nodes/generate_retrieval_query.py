@@ -179,6 +179,19 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         allowed = self._configured_filter_fields(state)
         data = result.model_dump(exclude_none=True)
         search_query = data.pop("search_query", "")
+        # Numeric filter fields may carry a typed range (``IntRange``/
+        # ``FloatRange``), which dumps as ``{"gte": ..., "lte": ...}``; map
+        # those keys to the ``$``-prefixed DSL operators the normalizer (and
+        # the backends) expect.  An all-None range dumps to ``{}`` and is
+        # dropped.
+        for field, value in list(data.items()):
+            if not isinstance(value, dict):
+                continue
+            operator = {f"${key}": operand for key, operand in value.items()}
+            if operator:
+                data[field] = operator
+            else:
+                data.pop(field)
         config_filters = normalize_config_filters(data, allowed)
         stored = RetrievalQueryOutput(
             search_query=search_query,

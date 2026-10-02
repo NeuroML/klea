@@ -10,9 +10,17 @@ structured-output modes close to ``{}`` (ADR-0044) - the model then cannot
 express any constraint at all.  One typed field per configured filter avoids
 that and restricts the model to the deployment's declared field names.
 
-Field type follows :attr:`FilterFieldInfo.value_type`: ``string`` -> ``str``,
-``int`` -> ``int``, ``float`` -> ``float``, ``list`` -> ``list[str]``; every
-filter field is optional (omitted when the question states no constraint).
+Field type follows :attr:`FilterFieldInfo.value_type`:
+
+* ``string`` -> ``str`` or ``list[str]`` (a list is an ``$in`` constraint);
+* ``int`` -> ``int``, ``list[int]``, or an :class:`IntRange`
+  (``{"gte": ..., "lte": ...}``; equality is a bare value);
+* ``float`` -> ``float``, ``list[float]``, or a :class:`FloatRange`;
+* ``list`` -> ``list[str]`` (element membership).
+
+Every filter field is optional (omitted when the question states no
+constraint).  A bare value is equality; a ``*Range`` value carries
+``eq``/``gte``/``lte`` bounds.
 
 The built schema is:
 ``{search_query: str, <filter field>: <type> | None, ...}``.
@@ -32,11 +40,27 @@ from klea_utils.stores.config import FilterFieldInfo
 
 logger = logging.getLogger(__name__)
 
-#: Python type per configured ``value_type``.
+
+class IntRange(BaseModel):
+    # Range/equality bounds for an integer filter field, translated to the
+    # ``$eq``/``$gte``/``$lte`` DSL operators by the node.
+    eq: int | None = None
+    gte: int | None = None
+    lte: int | None = None
+
+
+class FloatRange(BaseModel):
+    # Range/equality bounds for a float filter field.
+    eq: float | None = None
+    gte: float | None = None
+    lte: float | None = None
+
+
+#: Python type per configured ``value_type`` (scalars, lists, and ranges).
 _FIELD_TYPES: dict[str, Any] = {
-    "string": str,
-    "int": int,
-    "float": float,
+    "string": str | list[str],
+    "int": int | list[int] | IntRange,
+    "float": float | list[float] | FloatRange,
     "list": list[str],
 }
 

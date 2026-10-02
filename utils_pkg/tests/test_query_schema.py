@@ -41,6 +41,17 @@ def test_builds_typed_optional_fields_and_is_strict_safe():
     assert instance["tags"] is None
 
 
+def test_numeric_fields_accept_ranges_and_stay_strict_safe():
+    schema = build_retrieval_query_schema(_fields())
+    instance = schema.model_validate(
+        {"search_query": "q", "year": {"gte": 2020, "lte": 2025}}
+    ).model_dump(exclude_none=True)
+
+    assert instance["year"] == {"gte": 2020, "lte": 2025}
+    # A range is a closed object (declared gte/lte/eq), not an open one.
+    assert "additionalProperties" not in json.dumps(schema.model_json_schema())
+
+
 def test_schema_is_cached_by_signature():
     fields = _fields()
     assert build_retrieval_query_schema(fields) is build_retrieval_query_schema(fields)

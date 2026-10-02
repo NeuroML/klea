@@ -32,6 +32,7 @@ def _repos_fields() -> list[FilterFieldInfo]:
             value_type="string",
         ),
         FilterFieldInfo(name="tags", description="repository tags", value_type="list"),
+        FilterFieldInfo(name="year", description="publication year", value_type="int"),
     ]
 
 
@@ -128,6 +129,19 @@ def test_update_state_without_filters_yields_no_clauses():
     assert stored.filters == {}
 
 
+def test_update_state_maps_numeric_range():
+    node = _node({"repos": _repos_fields()})
+    state = RAGState(query_domains=["repos"])
+    result = _result(node, state, search_query="repos", year={"gte": 2020, "lte": 2025})
+
+    stored = node._update_state(result, state, LLMNodeContext())["retrieval_query"]
+
+    assert stored.config_filters == [
+        {"$and": [{"year": {"$gte": 2020}}, {"year": {"$lte": 2025}}]}
+    ]
+    assert stored.filters == {"year": {"$gte": 2020, "$lte": 2025}}
+
+
 def test_output_schema_is_typed_and_strict_safe():
     node = _node({"repos": _repos_fields()})
     schema = node._get_output_schema(
@@ -135,7 +149,7 @@ def test_output_schema_is_typed_and_strict_safe():
     )
     fields = schema.model_fields
 
-    assert set(fields) == {"search_query", "repository_type", "tags"}
+    assert set(fields) == {"search_query", "repository_type", "tags", "year"}
     assert fields["search_query"].annotation is str
     # A dynamic-key ``filters`` object would emit ``additionalProperties`` and
     # be closed to ``{}`` by strict providers (ADR-0044).
