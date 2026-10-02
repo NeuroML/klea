@@ -531,6 +531,7 @@ class BaseLangGraph(ABC):
         try:
             assert self.graph
             self.graph.get_graph().draw_mermaid_png(output_file_path=filename)
+        # cancellation-contract: exempt (dev-only graph diagram export)
         except BaseException as e:  # noqa: BLE001
             self.logger.error("Something went wrong generating lang graph png")
             self.logger.error(e)
@@ -549,6 +550,7 @@ class BaseLangGraph(ABC):
                 mermaid_path = Path(str(mermaid_path) + ".mmd")
             mermaid_path.write_text(mermaid)
             self.logger.debug(f"Wrote Mermaid source to {mermaid_path}")
+        # cancellation-contract: exempt (dev-only graph diagram export)
         except BaseException as e:  # noqa: BLE001
             self.logger.error("Something went wrong generating lang graph mermaid")
             self.logger.error(e)

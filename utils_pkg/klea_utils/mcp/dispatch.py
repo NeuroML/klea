@@ -271,7 +271,7 @@ async def dispatch_tool_calls(
             async def _await_one(idx: int, coro: Any) -> tuple[int, Any]:
                 try:
                     return idx, await coro
-                except BaseException as exc:  # noqa: BLE001 - surfaced as a result
+                except Exception as exc:  # noqa: BLE001 - surfaced as a result
                     return idx, exc
 
             async def _run_sequential(
