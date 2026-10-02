@@ -13,6 +13,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -20,7 +21,7 @@ from typing import Any
 import httpx
 from nicegui import background_tasks, ui
 
-from klea_utils.api.sse import stream_events
+from klea_utils.api.sse import request_cancel, stream_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.state import ChatData, InspectorMarker, ensure_chat
 
@@ -149,6 +150,23 @@ def _retry_stream(ctx: PageContext, query: str, chat_id: str, error_row: Any) ->
     background_tasks.create(run_stream(ctx, query, chat_id, resume=True))
 
 
+def stop_stream(ctx: PageContext) -> None:
+    """Stop the active run: cancel locally and ask the server to cancel.
+
+    Cancels the local ``run_stream`` task (closing the SSE connection) and
+    fires a best-effort ``/query/cancel`` so the server stops the graph run
+    even if the disconnect alone would not.  Idempotent and safe to call
+    when nothing is streaming.
+    """
+    chat_id = ctx.streaming_chat_id
+    task = ctx.stream_task
+    logger.debug("stop_stream(chat=%s, task=%s)", chat_id, task)
+    if task is not None and not task.is_done():
+        task.cancel()
+    if chat_id:
+        background_tasks.create(request_cancel(ctx.server_url, chat_id, ctx.user_id))
+
+
 async def run_stream(
     ctx: PageContext, query: str, chat_id: str, resume: bool = False
 ) -> None:
@@ -168,6 +186,11 @@ async def run_stream(
     logger.debug("Streaming query for chat %s (resume=%s)", chat_id, resume)
     ctx.is_streaming = True
     ctx.streaming_chat_id = chat_id
+    ctx.stream_task = asyncio.current_task()
+    # The Stop control calls back into this context; register it here so the
+    # component needs no import of this module, and flip the button to Stop.
+    ctx.stop_streaming = lambda: stop_stream(ctx)
+    ctx.refresh_stream_button()
     current_chat["state_sections"] = {}
     if resume:
         # Continuing the same turn: keep the existing inspector section and
@@ -193,6 +216,14 @@ async def run_stream(
         with pg_row:
             ui.spinner(type="dots").classes("w-4 h-4")
             pg_label = ui.label("").classes("text-xs text-grey-5 italic")
+
+    def _reset_streaming_state() -> None:
+        """Clear the streaming flags and refresh the status pane."""
+        ctx.is_streaming = False
+        ctx.streaming_chat_id = ""
+        ctx.stream_task = None
+        ctx.refresh_stream_button()
+        ctx.refresh_status_pane()
 
     try:
         async for event in stream_events(
@@ -223,9 +254,7 @@ async def run_stream(
                 pg_row.delete()
                 logger.debug("chat=%s stream complete", chat_id)
                 ctx.render_chat_area()
-                ctx.is_streaming = False
-                ctx.streaming_chat_id = ""
-                ctx.refresh_status_pane()
+                _reset_streaming_state()
                 ctx.refresh_inspector()
                 break
             elif action == "error":
@@ -259,10 +288,19 @@ async def run_stream(
                                     ctx, query, chat_id, row
                                 ),
                             ).props("flat dense color=primary")
-                ctx.is_streaming = False
-                ctx.streaming_chat_id = ""
-                ctx.refresh_status_pane()
+                _reset_streaming_state()
                 break
+    except asyncio.CancelledError:
+        # The user pressed Stop: drop the progress row, show a plain
+        # (non-error) marker and clear the streaming state.  Re-raise so the
+        # task ends cancelled -- NiceGUI's exception handler ignores it.
+        logger.debug("chat=%s stream cancelled by user", chat_id)
+        pg_row.delete()
+        with ctx.stream_container:
+            ui.label("Stopped").classes("text-xs text-grey-5 italic p-2")
+        _reset_streaming_state()
+        ctx.render_chat_area()
+        raise
     except httpx.RequestError as e:
         pg_row.delete()
         logger.debug("chat=%s request error: %s", chat_id, e)
@@ -273,6 +311,4 @@ async def run_stream(
                 timeout=10000,
                 close_button=True,
             )
-        ctx.is_streaming = False
-        ctx.streaming_chat_id = ""
-        ctx.refresh_status_pane()
+        _reset_streaming_state()

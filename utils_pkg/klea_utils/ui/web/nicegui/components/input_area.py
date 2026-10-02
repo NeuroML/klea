@@ -73,6 +73,11 @@ def attach_input(ctx: PageContext) -> None:
                     close_button=True,
                 )
                 return
+            if ctx.is_streaming:
+                # A run is already active for this chat; the send control is
+                # a Stop button in that state, so ignore a stray Enter.
+                logger.debug("send ignored: a run is already streaming")
+                return
             stamp = datetime.now().astimezone().strftime("%X")
             query = text.value
             text.value = ""
@@ -105,11 +110,10 @@ def attach_input(ctx: PageContext) -> None:
 
         # Send button inside the field, anchored to the bottom-right: the
         # textarea autogrows upward as the message gets longer while the
-        # button stays on its last line (the Gemini pattern).
+        # button stays on its last line (the Gemini pattern).  While a run
+        # streams the same button becomes Stop.
         with text.add_slot("append"):
-            send_button = ui.button(icon="send", on_click=send).props(
-                "flat dense round color=primary"
-            )
+            send_button = ui.button(icon="send").props("flat dense round color=primary")
             with send_button:
                 ui.tooltip("Enter to send, Shift+Enter for newline")
 
@@ -124,9 +128,33 @@ def attach_input(ctx: PageContext) -> None:
                     send_button.enable()
             except Exception as e:  # noqa: BLE001
                 logger.debug("send button state update failed: %s", e)
-            logger.debug(f"send state updated: {incomplete = }\n{list(info) = }")
+            logger.debug(f"send state updated: {incomplete = }\n{list(info) =}")
 
         ctx.refresh_send_state = refresh_send_state
+
+        def refresh_stream_button() -> None:
+            """Flip the send control to Stop while a run is streaming."""
+            try:
+                if ctx.is_streaming:
+                    send_button.props("icon=stop")
+                    send_button.enable()
+                else:
+                    send_button.props("icon=send")
+                    refresh_send_state()
+            except Exception as e:  # noqa: BLE001
+                logger.debug("stream button state update failed: %s", e)
+
+        ctx.refresh_stream_button = refresh_stream_button
+
+        def on_button_click() -> None:
+            """Route the button: send normally, stop while streaming."""
+            if ctx.is_streaming:
+                logger.debug("stop requested from the send/stop button")
+                ctx.stop_streaming()
+            else:
+                send()
+
+        send_button.on_click(on_button_click)
 
         # Plain Enter sends the message and prevents the default newline
         def handle_enter(e: GenericEventArguments):
@@ -137,8 +165,8 @@ def attach_input(ctx: PageContext) -> None:
                 send()
 
         text.on("keydown.enter.exact.prevent", handle_enter)
-        # Clicking the send icon inside the textarea also sends.
-        text.on("click:append", send)
+        # Clicking the send icon inside the textarea also sends (or stops).
+        text.on("click:append", on_button_click)
 
     # Disable chat input (and send) until backend is ready.  initial_load's
     # model fetch calls refresh_send_state() to re-enable when configured.

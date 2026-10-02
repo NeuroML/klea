@@ -84,6 +84,10 @@ class PageContext:
     #: Chat currently being streamed, so the inspector can tell if it is
     #: appending to the active chat.
     streaming_chat_id: str = ""
+    #: The background task driving the current NiceGUI stream, so the Stop
+    #: control can cancel it locally (belt-and-braces alongside the server
+    #: ``/query/cancel`` call).
+    stream_task: Any = None
     mini_state: bool = True
 
     # Extra request fields merged into the ``/query/stream`` POST body
@@ -122,6 +126,12 @@ class PageContext:
     append_inspector: Callable[..., None] = field(default=_noop_args)
     reset_center_tab: Callable[[], None] = field(default=_noop)
     refresh_send_state: Callable[[], None] = field(default=_noop)
+    #: Flip the send control between Send and Stop based on ``is_streaming``
+    #: (registered by the input area; called by the stream component).
+    refresh_stream_button: Callable[[], None] = field(default=_noop)
+    #: Stop the active run for the given chat (registered by the stream
+    #: component; the input area's Stop control calls it).
+    stop_streaming: Callable[..., Any] = field(default=_noop_args)
     fetch_model_info: Callable[[], Any] | None = None
     fetch_session_model_info: Callable[[], Any] | None = None
     fetch_credentials: Callable[[], Any] | None = None

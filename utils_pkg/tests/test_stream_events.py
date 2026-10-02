@@ -20,6 +20,7 @@ from klea_utils.api.sse import (
     fetch_catalogue_models,
     fetch_catalogue_models_sync,
     fetch_catalogue_providers,
+    request_cancel,
     stream_events,
     stream_events_sync,
 )
@@ -413,3 +414,40 @@ class TestCatalogueFetch:
         catalogue_transport["status"] = 500
         assert await fetch_catalogue_providers("http://backend", "u1") == []
         assert await fetch_catalogue_models("http://backend", "u1", "openai") == []
+
+
+class TestRequestCancel:
+    """Unit tests for the cancel client (:func:`request_cancel`)."""
+
+    async def test_posts_identity_to_cancel_endpoint(self, sse_transport):
+        """request_cancel POSTs the chat identity and returns True on <400."""
+        ok = await request_cancel("http://backend", "c1", "u1")
+        assert ok is True
+        request = sse_transport[0]
+        assert str(request.url) == "http://backend/query/cancel"
+        assert json.loads(request.content) == {"chat_id": "c1", "user_id": "u1"}
+
+    async def test_error_status_returns_false(self, monkeypatch):
+        """A 4xx/5xx response yields False so the caller can stop locally."""
+
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(
+                lambda request: httpx.Response(500)
+            )
+            return httpx.AsyncClient(*args, **kwargs)
+
+        monkeypatch.setattr("klea_utils.api.sse.httpx.AsyncClient", _factory)
+        assert await request_cancel("http://backend", "c1", "u1") is False
+
+    async def test_network_error_returns_false(self, monkeypatch):
+        """A transport error is swallowed and reported as False."""
+
+        def _raise(request):
+            raise httpx.ConnectError("no route")
+
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(_raise)
+            return httpx.AsyncClient(*args, **kwargs)
+
+        monkeypatch.setattr("klea_utils.api.sse.httpx.AsyncClient", _factory)
+        assert await request_cancel("http://backend", "c1", "u1") is False

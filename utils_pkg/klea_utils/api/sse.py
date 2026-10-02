@@ -106,6 +106,41 @@ async def stream_events(
                 continue
 
 
+async def request_cancel(
+    server_url: str,
+    chat_id: str,
+    user_id: str = "",
+    timeout: float = 10.0,
+) -> bool:
+    """Ask the server to cancel the chat's active run (idempotent).
+
+    Best-effort: a 204 (or any non-error response) means the request
+    reached the server; network failures are logged and return ``False``
+    so the frontend can still stop locally.
+
+    :param server_url: Base URL of the backend API server.
+    :param chat_id: Chat conversation identifier.
+    :param user_id: Opaque persistent user identifier.
+    :param timeout: Request timeout in seconds.
+    :returns: True when the server accepted the cancel request.
+    """
+    url = f"{server_url}/query/cancel"
+    payload = {"chat_id": chat_id, "user_id": user_id}
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            resp = await client.post(url, json=payload)
+        logger.info(
+            "request_cancel(chat=%s, user=%s): HTTP %s",
+            chat_id,
+            user_id,
+            resp.status_code,
+        )
+        return resp.status_code < 400
+    except Exception as e:  # noqa: BLE001
+        logger.warning("request_cancel failed for chat=%s: %s", chat_id, e)
+        return False
+
+
 async def _fetch_json(url: str, timeout: float = 5) -> Any:
     """GET *url* and return the parsed JSON body, or ``None`` on failure."""
     async with httpx.AsyncClient(timeout=timeout) as client:
