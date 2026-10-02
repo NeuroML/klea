@@ -62,9 +62,12 @@ class TestEvaluationSchema:
 
     def test_per_step_verdicts_map(self):
         evaluation = EvaluationSchema(
-            evaluations={1: StepEvaluation(verdict="step_done", reason="ok")}
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done", reason="ok")
+            ]
         )
-        assert evaluation.evaluations[1].verdict == "step_done"
+        assert evaluation.evaluations[0].step_number == 1
+        assert evaluation.evaluations[0].verdict == "step_done"
 
 
 class TestStateDefaults:

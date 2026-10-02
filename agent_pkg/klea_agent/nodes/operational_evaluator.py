@@ -136,12 +136,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         if not result.evaluations and result.overall == "":
             current = plan.current_step()
             if current is not None:
-                result.evaluations = {
-                    current.step_number: StepEvaluation(
+                result.evaluations = [
+                    StepEvaluation(
+                        step_number=current.step_number,
                         verdict="need_replan",
                         reason="evaluation produced no verdict; replanning",
                     )
-                }
+                ]
             else:
                 result.overall = "abort"
                 result.reason = "evaluation produced no verdict"
@@ -152,7 +153,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         attempts = dict(state.step_attempt_counts or {})
         by_number = {s.step_number: s for s in plan.step_list}
         replan_reasons: list[str] = []
-        for number, verdict in result.evaluations.items():
+        for verdict in result.evaluations:
+            number = verdict.step_number
             if verdict.verdict == "step_incomplete":
                 attempts[number] = attempts.get(number, 0) + 1
                 if attempts[number] >= self.max_step_attempts:
@@ -176,7 +178,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         update["step_attempt_counts"] = attempts
         self.logger.debug(
             f"evaluator verdicts\n"
-            f"{ {n: v.verdict for n, v in result.evaluations.items()} = }\n"
+            f"{ {v.step_number: v.verdict for v in result.evaluations} = }\n"
             f"{replan_reasons = }"
         )
 
@@ -228,8 +230,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         # Record the verdict in run history so a replan (and summarisation) can
         # see why the plan was sent back.
         summary = "; ".join(
-            f"step {number} {verdict.verdict} -- {verdict.reason}"
-            for number, verdict in result.evaluations.items()
+            f"step {verdict.step_number} {verdict.verdict} -- {verdict.reason}"
+            for verdict in result.evaluations
         )
         if result.overall:
             summary = f"{summary}; overall {result.overall}".strip("; ")
@@ -251,14 +253,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         result = ctx.result
         details: dict[str, Any]
         if isinstance(result, EvaluationSchema):
-            parts = [f"step {n}: {v.verdict}" for n, v in result.evaluations.items()]
+            parts = [f"step {v.step_number}: {v.verdict}" for v in result.evaluations]
             if result.overall:
                 parts.append(f"overall: {result.overall}")
             summary = "Verdict: " + (", ".join(parts) or "(none)")
             details = {
                 "evaluations": {
-                    str(number): verdict.model_dump()
-                    for number, verdict in result.evaluations.items()
+                    str(v.step_number): v.model_dump() for v in result.evaluations
                 },
                 "overall": result.overall,
                 "reason": result.reason,

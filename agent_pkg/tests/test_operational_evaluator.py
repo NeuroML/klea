@@ -30,9 +30,9 @@ def _verdict(
     verdict: Literal["step_done", "step_incomplete", "need_replan"],
     reason: str = "",
 ) -> EvaluationSchema:
-    """Build a single-step evaluation map."""
+    """Build a single-step evaluation."""
     return EvaluationSchema(
-        evaluations={step: StepEvaluation(verdict=verdict, reason=reason)}
+        evaluations=[StepEvaluation(step_number=step, verdict=verdict, reason=reason)]
     )
 
 
@@ -107,7 +107,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = self._evaluator()._update_state(
             _verdict(1, "step_incomplete"), self._state(), LLMNodeContext()
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "step_incomplete")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "step_incomplete")
         self.assertEqual(update["plan"].step_list[0].status, "pending")
 
     def test_plan_done_without_plan(self):
@@ -139,7 +139,7 @@ class TestOperationalEvaluator(unittest.TestCase):
             self._state(),
             LLMNodeContext(),
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertTrue(update["replan_reason"])
 
     def test_verdict_recorded_in_messages(self):
@@ -157,7 +157,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = evaluator._update_state(
             _verdict(1, "step_incomplete", "still going"), state, LLMNodeContext()
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
         self.assertEqual(update["step_attempt_counts"][1], 3)
 

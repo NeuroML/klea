@@ -475,7 +475,10 @@ class ReasoningSchema(BaseModel):
 
 class StepEvaluation(BaseModel):
     # One judged step's verdict.  Verdict meanings live in
-    # OperationalEvaluator_system.md.
+    # OperationalEvaluator_system.md.  A typed list (not a step_number-keyed
+    # dict) is required: a dynamic-key object is closed to ``{}`` by strict
+    # structured-output modes (ADR-0044).
+    step_number: int = 0
     verdict: Literal["step_done", "step_incomplete", "need_replan"] = "step_done"
     reason: str = ""
 
@@ -483,7 +486,7 @@ class StepEvaluation(BaseModel):
 class EvaluationSchema(BaseModel):
     # The Evaluator's per-step verdicts and optional whole-plan outcome.
     # Verdict and outcome semantics live in OperationalEvaluator_system.md.
-    evaluations: dict[int, StepEvaluation] = Field(default_factory=dict)
+    evaluations: list[StepEvaluation] = Field(default_factory=list)
     overall: Literal["", "plan_done", "abort"] = ""
     reason: str = ""
 

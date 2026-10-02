@@ -19,6 +19,8 @@
 
 ## Per-step verdicts (return exactly one for each step you are judging)
 
+Return one entry per judged step, each carrying that step's `step_number`.
+
 * `step_done`: the step's success criteria are met.
 * `step_incomplete`: the step is not yet done, but a concrete further call can complete it.
 * `need_replan`: the step cannot achieve the goal and the plan must be revised.
