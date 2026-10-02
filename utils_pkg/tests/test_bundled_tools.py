@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import time
+from types import SimpleNamespace
 
 import httpx
 import klea_utils.api.utils as api_utils
@@ -1192,3 +1193,53 @@ class TestDownloadFiles:
         assert result["error"] == ""
         assert all("saved_to" in r for r in result["results"])
         assert all((target / f"f{i}.txt").exists() for i in range(6))
+
+
+class TestBundledWrapperDisplays:
+    """Destructive bundled wrappers (ADR-0040) expose a chat display."""
+
+    async def test_run_command_wrapper_embeds_shell_display(
+        self, tmp_path, monkeypatch
+    ):
+        from klea_utils.mcp.server import bundled_tools
+
+        monkeypatch.chdir(tmp_path)
+        result = await bundled_tools.run_command(command="echo hi")
+
+        display = result.structured_content["display"]
+        assert display["mime"] == "text/x-shell"
+        assert display["data"].splitlines()[0] == "$ echo hi"
+        assert display["meta"]["returncode"] == 0
+
+    async def test_download_file_wrapper_embeds_display(self, tmp_path, monkeypatch):
+        from klea_utils.mcp.server import bundled_tools
+
+        monkeypatch.chdir(tmp_path)
+        fake = _FakeResponse("file body", status=200, content_type="text/plain")
+        ctx = SimpleNamespace(lifespan_context={"http_session": _FakeSession(fake)})
+
+        result = await bundled_tools.download_file(
+            ctx=ctx, url="https://example.com/f.txt", file_path="out.txt"
+        )
+
+        display = result.structured_content["display"]
+        assert display["mime"] == "text/plain"
+        assert display["data"] == "downloaded https://example.com/f.txt -> out.txt"
+        assert result.is_error is False
+
+    async def test_download_file_wrapper_error_embeds_display(
+        self, tmp_path, monkeypatch
+    ):
+        from klea_utils.mcp.server import bundled_tools
+
+        monkeypatch.chdir(tmp_path)
+        ctx = SimpleNamespace(lifespan_context={})  # no session -> failure
+
+        result = await bundled_tools.download_file(
+            ctx=ctx, url="https://example.com/f.txt", file_path="out.txt"
+        )
+
+        display = result.structured_content["display"]
+        assert display["mime"] == "text/plain"
+        assert "failed" in display["data"]
+        assert result.is_error is True
