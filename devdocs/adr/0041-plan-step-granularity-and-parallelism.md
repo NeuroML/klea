@@ -252,3 +252,11 @@ Related decisions and references:
 * ADR-0028 prompt cache (stable prefix).
 * Session log `.agents/2026-09-18-2359.md:111` ("dependency-frontier batching
   ADR"), which recorded this as carry-over work.
+
+## Update (2026-10-02): skipped steps and the frontier
+
+A step can now be resolved as ``skipped`` (not needed to meet the goal), a
+distinct status alongside ``done``/``failed`` (see ADR-0035 update
+2026-10-02).  The frontier treats a skipped dependency as satisfied: a step is
+unblocked when every ``depends_on`` entry is ``done`` or ``skipped``.  The
+batch selection and resource grouping are otherwise unchanged.
