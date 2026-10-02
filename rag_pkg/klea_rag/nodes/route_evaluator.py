@@ -37,8 +37,9 @@ class RouteEvaluator(AbstractRouterNode):
 
         :param logger: Logger instance
         :param label: Human-readable label for UI progress display
-        :param retrievers: Retrievers whose k is incremented/reset when
-            routing between retrieval attempts
+        :param retrievers: Retrievers consulted (via ``can_inc_k``) to
+            decide whether k can still grow.  The router is read-only; the
+            actual increment is applied once by ``RetrieveInfoNode``
         :param max_retrieval_attempts: Combined budget for retrieval passes
             in the evaluator loop (the initial query retrieval, retrieve_more_info
             k-increases, and modify_query re-retrievals)

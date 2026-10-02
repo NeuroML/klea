@@ -99,7 +99,12 @@ class BaseKleaRetriever(ABC):
         return store.k_inc if store.k_inc is not None else self.k_inc
 
     def _current_k(self, k_values: KValues, domain_name: str, store: Any) -> int:
-        """Return the current k for a store, or its default if not set yet."""
+        """Return the current k for a store, falling back to its default.
+
+        A store absent from *k_values* (or a domain absent from it) uses
+        its per-store configured default, so callers only need to record
+        the k values that deviate from the defaults.
+        """
         return k_values.get(domain_name, {}).get(store.name, self._default_k_for(store))
 
     def _loaded_stores(self) -> list[tuple[str, Any]]:
@@ -208,8 +213,8 @@ class BaseKleaRetriever(ABC):
             :func:`klea_utils.stores.filters.validate_metadata_filter`).
             Applied natively by stores that support a backend filter and
             post-filtered for stores that do not (BM25)
-        :param k_values: Current k for each store; stores not listed use
-            their default k
+        :param k_values: Current k for each store; stores not listed fall
+            back to their per-store configured default
         :returns: List of (document, relevance_score) tuples
         """
         self.load(domain_name)
