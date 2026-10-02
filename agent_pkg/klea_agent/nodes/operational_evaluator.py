@@ -32,15 +32,20 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     generation apart lets the same judge contract serve as the independent
     scientific verifier (ADR-0029 invariant 7).
 
-    It advances the plan on ``step_done`` / ``plan_done`` and marks the current
-    step ``failed`` on ``need_replan``.  Scientific mode uses a separate,
-    independent, epistemic verifier instead of this node.
+    It resolves each judged step (``step_done`` / ``step_skipped`` /
+    ``step_incomplete`` / ``need_replan``) and completes the plan only on
+    ``plan_done`` with no pending step left (goal-authoritative, ADR-0035).
+    Scientific mode uses a separate, independent, epistemic verifier instead
+    of this node.
     """
 
     model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }
+    #: One retry to correct an evaluation that conflicts with the plan's step
+    #: statuses (see :meth:`_validate_result`) before failing closed.
+    max_validation_retries: ClassVar[int] = 1
 
     def __init__(
         self,
@@ -91,6 +96,9 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             "plan": plan.render(current_numbers=batch_numbers),
             "executed_tools": self._executed_tools_text(state),
             "observations": self._observations_text(state),
+            "validation_feedback_block": self._optional_section(
+                "Validation feedback", ctx.validation_feedback
+            ),
         }
         self.logger.debug(f"{variables = }")
         return variables
@@ -116,16 +124,70 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
 
     @override
+    def _validate_result(
+        self, result: EvaluationSchema, state: KleaAgentState, ctx: Any
+    ) -> str | None:
+        """Reject an evaluation that conflicts with the plan's step statuses.
+
+        Completion is goal-authoritative (ADR-0035): ``plan_done`` asserts the
+        goal is met and therefore requires every step to be resolved (done or
+        skipped); an all-resolved plan with no ``overall`` means the goal was
+        never judged.  Either inconsistency is retried once with the reason
+        exposed to the prompt as ``validation_feedback``; if the model insists,
+        :meth:`_update_state` fails closed.
+
+        :returns: An error description, or ``None`` when consistent.
+        """
+        if not isinstance(result, EvaluationSchema):
+            return None
+        plan = state.plan
+        by_number = {s.step_number: s for s in plan.step_list}
+
+        errors: list[str] = []
+        seen: set[int] = set()
+        for verdict in result.evaluations:
+            if verdict.step_number not in by_number:
+                errors.append(f"step {verdict.step_number} is not in the plan")
+            elif verdict.step_number in seen:
+                errors.append(f"step {verdict.step_number} was judged twice")
+            seen.add(verdict.step_number)
+
+        verdicts = {v.step_number: v.verdict for v in result.evaluations}
+        pending_after = [
+            s.step_number
+            for s in plan.step_list
+            if s.status == "pending"
+            and verdicts.get(s.step_number) not in ("step_done", "step_skipped")
+        ]
+
+        if result.overall == "plan_done":
+            if pending_after:
+                errors.append(
+                    "plan_done requires every step to be done or skipped; "
+                    f"still pending: {pending_after} - mark unneeded steps "
+                    "step_skipped, or drop plan_done"
+                )
+            if any(v == "need_replan" for v in verdicts.values()):
+                errors.append("plan_done contradicts a need_replan verdict")
+        elif result.overall == "" and plan.step_list and not pending_after:
+            errors.append(
+                "all steps are resolved but no overall was set; judge the goal "
+                "and set plan_done or abort"
+            )
+        return "; ".join(errors) if errors else None
+
+    @override
     def _update_state(
         self, result: EvaluationSchema, state: KleaAgentState, ctx: Any
     ) -> dict[str, Any]:
         """Store the verdict and advance the plan (judge only).
 
         The Evaluator never generates the user-facing answer -- that is a
-        separate synthesis stage (``AnswerFromResults``).  ``step_done``
-        advances to the next step; ``plan_done`` completes the plan;
-        ``need_replan`` marks the current step failed; ``step_incomplete``
-        leaves the plan unchanged.
+        separate synthesis stage (``AnswerFromResults``).  Verdicts resolve
+        steps: ``step_done`` (met), ``step_skipped`` (not needed),
+        ``need_replan`` (failed) and ``step_incomplete`` (still pending).
+        ``plan_done`` completes the plan only when no pending step remains;
+        otherwise the plan is sent back to the Planner (post-retry fallback).
         """
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
@@ -172,6 +234,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 continue
             if verdict.verdict == "step_done":
                 step.status = "done"
+            elif verdict.verdict == "step_skipped":
+                step.status = "skipped"
             elif verdict.verdict == "need_replan":
                 step.status = "failed"
                 replan_reasons.append(verdict.reason or f"step {number} needs revision")
@@ -182,7 +246,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             f"{replan_reasons = }"
         )
 
-        # --- Determine the plan's routing state --------------------------
+        # --- Determine the plan's routing state (goal-authoritative) -----
+        # Completion requires ``plan_done`` (the goal is met) with no pending
+        # step left; an unneeded pending step must be judged ``step_skipped``.
+        pending = [s for s in plan.step_list if s.status == "pending"]
         if result.overall == "abort":
             current = plan.current_step()
             if current is not None:
@@ -192,18 +259,26 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             # failure answer explains the real cause.
             update["failure_reason"] = result.reason or "the goal cannot be achieved"
             update["replan_reason"] = ""
-        elif result.overall == "plan_done":
-            # The run is complete: mark every remaining step done so the
-            # completed plan is coherent.
-            for step in plan.step_list:
-                if step.status == "pending":
-                    step.status = "done"
-            plan.status = "completed"
-            update["replan_reason"] = ""
         elif replan_reasons:
             plan.status = "in_progress"
             update["replan_reason"] = "; ".join(replan_reasons)
-        elif not any(step.status == "pending" for step in plan.step_list):
+        elif result.overall == "plan_done":
+            if not pending:
+                plan.status = "completed"
+                update["replan_reason"] = ""
+            else:
+                # Post-retry fallback: the model insists the goal is met but
+                # left steps unresolved.  Do not force-close them; send the
+                # plan back for revision instead.
+                plan.status = "in_progress"
+                numbers = ", ".join(str(s.step_number) for s in pending)
+                update["replan_reason"] = (
+                    f"plan_done with pending step(s) {numbers}; "
+                    "resolve them or drop plan_done"
+                )
+        elif not pending:
+            # Post-retry fallback: every step is resolved but the goal was
+            # never judged.  The work is done, so complete to the answer.
             plan.status = "completed"
             update["replan_reason"] = ""
         elif not plan.frontier():
