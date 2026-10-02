@@ -70,17 +70,18 @@ def _ctx(results: list[CallToolResult]) -> ToolCallerContext:
     return ctx
 
 
-async def test_always_writes_tool_results():
-    """No calls (or no client) still writes empty results, never stale ones."""
+async def test_skips_when_no_tool_calls_or_client():
+    """No calls (or no client): the node is skipped entirely, no events."""
     node = _make_node()
     events: list[dict] = []
     _record_stream(node, events)
-    assert await node.execute(MiniState()) == {"tool_results": []}
-    assert [e["type"] for e in events] == ["progress", "inspect"]
+    assert await node.execute(MiniState()) == {}
+    assert events == []
 
     node = _make_node(client=FakeMCPClient())
     _record_stream(node, events)
-    assert await node.execute(MiniState()) == {"tool_results": []}
+    assert await node.execute(MiniState()) == {}
+    assert events == []
 
 
 async def test_pre_exec_gates_on_tool_calls_and_client():

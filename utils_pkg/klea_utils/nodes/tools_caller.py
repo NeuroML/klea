@@ -90,44 +90,47 @@ class ToolsCallerNode(
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
 
-        Always writes ``tool_results`` -- an empty list when there is nothing
-        to dispatch -- so a previous batch's results are never left in state
-        and re-evaluated.
+        Skipped entirely -- no dispatch, no streaming, no state update -- when
+        there is nothing to dispatch (no tool calls, or no MCP client).  An
+        empty round is routed around upstream (the agent's picker router sends
+        it to replan; RAG resets ``tool_results`` at graph entry), so a
+        dispatched round always overwrites ``tool_results`` and no stale batch
+        survives.
 
         :param state: Current graph state (must carry ``tool_calls``).
         :returns: ``{"tool_results": [...]}`` plus any callback extras.
         """
         # Per-run context (values local to the run, not on the shared node).
         ctx = ToolCallerContext()
-        self._pre_exec_stream(ctx)
 
-        if self._pre_exec(state, ctx):
-            tool_calls = getattr(state, "tool_calls", [])
-            access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
-            self.logger.debug(
-                f"{tool_calls = }\n{access_level = }\n"
-                f"tool_infos_configured = {self._tool_infos is not None}"
+        if not self._pre_exec(state, ctx):
+            self.logger.debug("No tool calls to dispatch; skipping")
+            return {}
+
+        self._pre_exec_stream(ctx)
+        tool_calls = getattr(state, "tool_calls", [])
+        access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+        self.logger.debug(
+            f"{tool_calls = }\n{access_level = }\n"
+            f"tool_infos_configured = {self._tool_infos is not None}"
+        )
+        # Signal the round start in the status pane (coarse: every call is
+        # marked ``running`` together); the end-of-round ``_get_status``
+        # replaces the section with ``ok``/``error``.
+        running = self._get_running_status(state)
+        if running:
+            self.write_custom_stream(
+                NodeStreamEvent(
+                    type="state", node=self.label, data=running
+                ).model_dump()
             )
-            # Signal the round start in the status pane (coarse: every call is
-            # marked ``running`` together); the end-of-round ``_get_status``
-            # replaces the section with ``ok``/``error``.
-            running = self._get_running_status(state)
-            if running:
-                self.write_custom_stream(
-                    NodeStreamEvent(
-                        type="state", node=self.label, data=running
-                    ).model_dump()
-                )
-            results = await dispatch_tool_calls(
-                self._mcp_client,
-                [(tc.tool, tc.args) for tc in tool_calls],
-                self._tool_infos,
-                self._project_root,
-                access_level=access_level,
-            )
-        else:
-            self.logger.debug("No tool calls to dispatch; writing empty results")
-            results = []
+        results = await dispatch_tool_calls(
+            self._mcp_client,
+            [(tc.tool, tc.args) for tc in tool_calls],
+            self._tool_infos,
+            self._project_root,
+            access_level=access_level,
+        )
         self.logger.debug(f"{results =}")
         ctx.tool_results = results
 
