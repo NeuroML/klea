@@ -61,6 +61,7 @@
 ### Fixed
 
 - RAG retrieval depth (`k`) is now tracked per conversation instead of on the shared retriever, so growing `k` in one chat no longer affects concurrent chats or the next query on the same thread.
+- RAG evaluator score-based routing overrides now take effect: the effective route is recorded in state and read by the retrieval and answer nodes, so `k` grows only when retrieving more (not on a query rewrite) and best-effort answers carry their warning.
 - RAG retrieval filters work again: the query generator builds its structured-output schema per run from the domain's configured filter fields, so strict structured-output modes no longer close the `filters` object to `{}`; scalar, list and numeric-range constraints are all supported.
 - Tool picker calls bind their arguments again under strict structured output: a free-form `args` object was closed to `{}` by every provider's strict mode, so calls ran with empty parameters. The picker now builds a per-run, strict-safe schema from the disclosed tools (each tool's parameters as typed fields), so calls bind correctly.
 - Transient empty LLM responses (common with HuggingFace) are retried up to twice, and a persistently empty answer now returns a clear "please retry" message instead of a blank reply.
