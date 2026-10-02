@@ -23,8 +23,8 @@ from klea_agent.schemas import ArtefactSchema, KleaAgentState
 
 
 class AnswerSchema(BaseModel):
-    """Structured output of the answer-synthesis node."""
-
+    # The answer-synthesis node's structured output.  Formatting rules live in
+    # AnswerFromResults_system.md.
     answer: str = ""
 
 

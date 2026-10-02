@@ -5,7 +5,7 @@ Status: implemented convention.  Applies to every `BaseLLMNode` prompt
 the mechanism.  Extend existing prompts to follow this contract rather than
 inventing per-node patterns.
 
-Last updated: 2026-09-19.
+Last updated: 2026-10-02.
 
 ## Scope
 
@@ -92,6 +92,40 @@ only for a required slot whose absence is meaningful.
   exception).
 * Omitting a conditional field from the user prompt is cache-neutral; never
   make the stable part of the system prompt conditional.
+
+## Rule 6 - LLM output schemas are structure-only
+
+A node's `output_schema` (the pydantic model passed to `with_structured_output`)
+is **structure only**: field names, types, enums and defaults.  It carries **no
+class docstring and no `Field(description=...)`**.
+
+Pydantic emits a model's docstring as the JSON-schema `description` (and each
+`Field(description=...)` verbatim), and that schema reaches the model twice:
+`BaseLLMNode._format_output_schema_prompt` renders it into the system prompt
+(only the root `title`/`description` are dropped, so nested models leak), and
+`with_structured_output(..., method="json_schema")` sends it as the provider's
+`response_format`.  Hand-written prose there duplicates the `*_system.md`
+prompt and can silently **drift** from it, which misleads the model; it also
+wastes tokens.
+
+So, for an output model (and every model reachable from it):
+
+* put the semantics in the node's `*_system.md`, not in the schema;
+* keep developer notes (provenance, ADR references, rationale) in `#` comments
+  above the class or field, never in a docstring/`description`;
+* do not strip the schema of field names, enums or defaults - those are the
+  contract.
+
+Exception: the tools picker's per-run schema
+(`klea_utils.mcp.call_schema.build_tool_call_schema`) generates field
+descriptions from each MCP tool's `input_schema`.  Those are model-facing tool
+documentation derived from the tool definition (a single source), not
+hand-written prompt prose, so they are allowed.
+
+Regression guard: `agent_pkg/tests/test_schemas.py`,
+`rag_pkg/tests/test_schemas.py` and
+`utils_pkg/tests/test_call_schema.py` assert every static output schema is
+description-free.
 
 ## Checklist for a new or edited node
 

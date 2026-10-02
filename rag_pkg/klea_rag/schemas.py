@@ -16,8 +16,8 @@ from pydantic import BaseModel, Field
 
 
 class EvaluateAnswerSchema(BaseModel):
-    """Evaluation of LLM generated answer. Descriptions given in the main prompt"""
-
+    # Scores and the next-step directive for a generated answer.  Field
+    # semantics live in the Evaluator prompt, not here.
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     coverage: float = Field(default=0.0, ge=0.0, le=1.0)
     relevance: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -31,20 +31,8 @@ class EvaluateAnswerSchema(BaseModel):
 
 
 class RetrievalQueryOutput(BaseModel):
-    """Structured output of the retrieval-query generator.
-
-    Holds the search query and the retrieval constraints the generator
-    derives from the user's question.  All filter fields are
-    deployment-configured: the generator emits an operand mapping,
-    ``filters`` (keyed by the domain's ``filter_fields`` names), which the
-    ``GenerateRetrievalQuery`` node validates and normalizes via
-    ``klea_utils.stores.filters.normalize_config_filters`` into the
-    canonical single-clause DSL dicts carried by ``config_filters``.  The
-    backend-agnostic metadata filter is produced by
-    :meth:`to_metadata_filter` from ``config_filters`` and consumed by
-    the retrievers.
-    """
-
+    # The retrieval-query generator's structured output: the search query and
+    # its filters.  Field semantics live in the GenerateRetrievalQuery prompt.
     search_query: str = ""
     #: Filter operands exactly as the query generator produced them, keyed
     #: by the deployment's configured filter-field names.  This is the

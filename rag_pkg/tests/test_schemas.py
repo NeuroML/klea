@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import pytest
+from klea_rag.nodes.answer_from_context import AnswerSchema
 from klea_rag.rag import RAG
 from klea_rag.schemas import (
     EvaluateAnswerSchema,
@@ -22,6 +23,7 @@ from klea_utils.stores.filters import translate_metadata_filter
 from langgraph.channels.binop import BinaryOperatorAggregate
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import StateGraph
+from pydantic import BaseModel
 
 
 def test_no_constraints_returns_none():
@@ -177,3 +179,35 @@ def test_rag_state_models_roundtrip():
     }
     type_name, data = serde.dumps_typed(payload)
     assert serde.loads_typed((type_name, data)) == payload
+
+
+def _schema_descriptions(schema: type[BaseModel]) -> list[str]:
+    """Every ``description`` pydantic emits for *schema*, root and nested."""
+    found: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("description"), str):
+                found.append(node["description"])
+            for key, value in node.items():
+                if key in ("properties", "$defs") and isinstance(value, dict):
+                    for sub in value.values():
+                        walk(sub)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(schema.model_json_schema())
+    return found
+
+
+class TestOutputSchemasAreStructureOnly:
+    """LLM output schemas carry no prose: semantics live in the markdown prompts."""
+
+    @pytest.mark.parametrize(
+        "schema", [EvaluateAnswerSchema, RetrievalQueryOutput, AnswerSchema]
+    )
+    def test_no_description_reaches_the_model(self, schema):
+        assert _schema_descriptions(schema) == []

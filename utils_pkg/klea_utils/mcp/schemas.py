@@ -53,8 +53,8 @@ class ToolInfo(BaseModel):
 
 
 class ToolCallSchema(BaseModel):
-    """A single tool call selected by a tools picker node."""
-
+    # One bound tool call (arguments filled in for a plan step).  The picker
+    # binds arguments only; tool choice is the planner's.
     tool: str = ""
     args: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
@@ -65,6 +65,7 @@ class ToolCallSchema(BaseModel):
 
 
 class ToolCallsSchema(BaseModel):
-    """The structured output of a tools picker node: a list of tool calls."""
-
+    # The picker's structured output: the calls bound for the batch.  The
+    # per-run schema is built dynamically from the disclosed tools; this is
+    # the shape it mirrors.
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
