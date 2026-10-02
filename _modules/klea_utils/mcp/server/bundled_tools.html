@@ -876,10 +876,23 @@
     <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span>
             <span class="p">{</span>
-                <span class="s2">"error"</span><span class="p">:</span> <span class="s2">"Download failed (check the URL, network, or file path permissions)."</span>
+                <span class="s2">"error"</span><span class="p">:</span> <span class="s2">"Download failed (check the URL, network, or file path permissions)."</span><span class="p">,</span>
+                <span class="s2">"display"</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">"mime"</span><span class="p">:</span> <span class="s2">"text/plain"</span><span class="p">,</span>
+                    <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"download_file: </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2"> failed"</span><span class="p">,</span>
+                <span class="p">},</span>
             <span class="p">}</span>
         <span class="p">)</span>
-    <span class="k">return</span> <span class="n">to_result</span><span class="p">({</span><span class="s2">"saved_to"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">target</span><span class="p">),</span> <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">})</span></div>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"saved_to"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">target</span><span class="p">),</span>
+            <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"display"</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">"mime"</span><span class="p">:</span> <span class="s2">"text/plain"</span><span class="p">,</span>
+                <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"downloaded </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">}</span>
+    <span class="p">)</span></div>
 
 
 

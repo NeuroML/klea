@@ -360,8 +360,8 @@
 <div class="viewcode-block" id="ToolCallSchema">
 <a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.schemas.ToolCallSchema">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ToolCallSchema</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""A single tool call selected by a tools picker node."""</span>
-
+    <span class="c1"># One bound tool call (arguments filled in for a plan step).  The picker</span>
+    <span class="c1"># binds arguments only; tool choice is the planner's.</span>
     <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
@@ -375,8 +375,9 @@
 <div class="viewcode-block" id="ToolCallsSchema">
 <a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.schemas.ToolCallsSchema">[docs]</a>
 <span class="k">class</span><span class="w"> </span><span class="nc">ToolCallsSchema</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""The structured output of a tools picker node: a list of tool calls."""</span>
-
+    <span class="c1"># The picker's structured output: the calls bound for the batch.  The</span>
+    <span class="c1"># per-run schema is built dynamically from the disclosed tools; this is</span>
+    <span class="c1"># the shape it mirrors.</span>
     <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ToolCallSchema</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span></div>
 
 </pre></div>

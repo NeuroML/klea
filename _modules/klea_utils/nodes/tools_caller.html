@@ -327,7 +327,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">dispatch_tool_calls</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLangGraphNode</span><span class="p">,</span> <span class="n">NodeStreamData</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AbstractLangGraphNode</span><span class="p">,</span>
+    <span class="n">NodeStreamData</span><span class="p">,</span>
+    <span class="n">NodeStreamEvent</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallerContext</span>
 
 
@@ -410,6 +414,16 @@
                 <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_calls</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
                 <span class="sa">f</span><span class="s2">"tool_infos_configured = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
+            <span class="c1"># Signal the round start in the status pane (coarse: every call is</span>
+            <span class="c1"># marked ``running`` together); the end-of-round ``_get_status``</span>
+            <span class="c1"># replaces the section with ``ok``/``error``.</span>
+            <span class="n">running</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_running_status</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">running</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
+                    <span class="n">NodeStreamEvent</span><span class="p">(</span>
+                        <span class="nb">type</span><span class="o">=</span><span class="s2">"state"</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">running</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+                <span class="p">)</span>
             <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
                 <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
@@ -478,9 +492,12 @@
 <span class="sd">        standard, third-party-friendly path); then structured conventions</span>
 <span class="sd">        (``diff`` -&gt; ``text/x-diff``, ``code`` -&gt; ``text/x-&lt;language&gt;``,</span>
 <span class="sd">        ``display`` -&gt; ``text/markdown``); then a self-describing</span>
-<span class="sd">        ``display`` dict (``{"mime", "data", "meta"}``).  Plain ``TextContent``</span>
-<span class="sd">        is not surfaced (ours is the JSON dump).  Errors and results with</span>
-<span class="sd">        nothing to show are skipped.</span>
+<span class="sd">        ``display`` dict (``{"mime", "data", "meta"}``); then, for a</span>
+<span class="sd">        destructive tool with none of the above, a minimal ``text/x-shell``</span>
+<span class="sd">        call line so a third-party destructive call is still visible.  Plain</span>
+<span class="sd">        ``TextContent`` is not surfaced (ours is the JSON dump).  An errored</span>
+<span class="sd">        destructive result is still surfaced; other results with nothing to</span>
+<span class="sd">        show (and non-destructive errors) are skipped.</span>
 <span class="sd">        """</span>
         <span class="n">per_result</span> <span class="o">=</span> <span class="p">[</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry_for</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
@@ -491,17 +508,64 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_display_entry_for</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">tc</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Build a display entry for one call/result, or ``None``."""</span>
-        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span>
+<span class="w">        </span><span class="sd">"""Build a display entry for one call/result, or ``None``.</span>
+
+<span class="sd">        Precedence: a typed MCP content block first, then a structured</span>
+<span class="sd">        display convention (``display``/``diff``/``code``).  Failing both, a</span>
+<span class="sd">        destructive tool (ADR-0037) gets a minimal ``text/x-shell`` fallback</span>
+<span class="sd">        showing the call, so a third-party destructive tool that declares no</span>
+<span class="sd">        display convention is never silently invisible.</span>
+
+<span class="sd">        Errored results are shown for destructive tools (a failed</span>
+<span class="sd">        ``run_command`` is exactly what the user must see) but skipped for</span>
+<span class="sd">        non-destructive ones: their failure is already in the inspect pane</span>
+<span class="sd">        and drives Triage, so rendering every read-only error would only add</span>
+<span class="sd">        chat noise.</span>
+<span class="sd">        """</span>
         <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">destructive</span> <span class="o">=</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">destructive</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">destructive</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
         <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
         <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_content</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_structured</span><span class="p">(</span>
                 <span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span>
             <span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">destructive</span><span class="p">:</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_destructive_call</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">entry</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_destructive_call</span><span class="p">(</span><span class="n">tc</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Build a minimal shell-call entry for a destructive tool.</span>
+
+<span class="sd">        Used as the last-resort display for a destructive tool that provided</span>
+<span class="sd">        no typed content block and no display convention (third-party MCP</span>
+<span class="sd">        servers are not required to follow the Klea convention).  Shows the</span>
+<span class="sd">        call as ``tool(arg=...)`` with each argument value summarised, so the</span>
+<span class="sd">        user can see what was invoked without a long argument dump.</span>
+<span class="sd">        """</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">rendered</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_summarise_arg</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">rendered</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">args</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="si">}</span><span class="s2">()"</span>
+        <span class="k">return</span> <span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="s2">"text/x-shell"</span><span class="p">,</span> <span class="n">call</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_summarise_arg</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a short single-line rendering of one argument value."""</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\\</span><span class="s2">n"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">:</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s1">'"</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s1">"'</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\\</span><span class="s2">n"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+        <span class="k">return</span> <span class="n">text</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_content</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span><span class="p">,</span> <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
@@ -632,6 +696,35 @@
                     <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span><span class="p">)</span>
                 <span class="p">],</span>
             <span class="p">},</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_running_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the status-pane section for a round that is about to run.</span>
+
+<span class="sd">        Emitted before dispatch so the status pane shows each tool as</span>
+<span class="sd">        ``running``; the end-of-round :meth:`_get_status` replaces the same</span>
+<span class="sd">        section with ``ok``/``error``.  Coarse by design: every dispatched</span>
+<span class="sd">        call is marked running together, so a same-resource call that is</span>
+<span class="sd">        serialised (ADR-0041) or a gated call will read ``running`` until the</span>
+<span class="sd">        round ends.  Calls with no usable name are skipped, matching</span>
+<span class="sd">        :meth:`_get_status`.</span>
+
+<span class="sd">        :returns: A status section, or ``None`` when there is nothing to run.</span>
+<span class="sd">        """</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">continue</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- **</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">**: running"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
+            <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Running </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="si">}</span><span class="s2"> tool(s)"</span><span class="p">,</span>
+            <span class="n">display</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
         <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_status</span><span class="p">(</span>

@@ -343,6 +343,58 @@
 <span class="n">KILL_GRACE_SECONDS</span> <span class="o">=</span> <span class="mf">3.0</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_shell_display</span><span class="p">(</span>
+    <span class="n">command</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">returncode</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">stdout</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">stderr</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">error</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the chat-facing ``display`` block for a command result.</span>
+
+<span class="sd">    Returns a self-describing display dict (ADR-0040 convention:</span>
+<span class="sd">    ``{"mime", "data", "meta"}``) with MIME ``text/x-shell`` so the chat</span>
+<span class="sd">    renders one shell block.  The block shows the command, stdout, stderr</span>
+<span class="sd">    (when non-empty) and the exit status, so the user can keep an eye on</span>
+<span class="sd">    what was run (``run_command`` is destructive).  The full captured output</span>
+<span class="sd">    is included (already bounded per stream by ``max_output_chars``); the UI</span>
+<span class="sd">    collapses long blocks.</span>
+
+<span class="sd">    The block is omitted (returns ``None``) for a silent success: no stdout,</span>
+<span class="sd">    no stderr, and a zero exit.  A non-zero exit, captured output, or a</span>
+<span class="sd">    call-level ``error`` always produces a block.</span>
+
+<span class="sd">    :param command: The command string that was run.</span>
+<span class="sd">    :param returncode: Exit status, or ``None`` when the command never ran.</span>
+<span class="sd">    :param stdout: Captured standard output.</span>
+<span class="sd">    :param stderr: Captured standard error.</span>
+<span class="sd">    :param error: Call-level error message (timeout/denied/spawn), or ``""``.</span>
+<span class="sd">    :returns: The display dict, or ``None`` when there is nothing to show.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stdout</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">stderr</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">error</span> <span class="ow">and</span> <span class="n">returncode</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"$ </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">stdout</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stdout</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">stderr</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"--- stderr ---"</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stderr</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"--- error ---</span><span class="se">\n</span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">returncode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"[exit </span><span class="si">{</span><span class="n">returncode</span><span class="si">}</span><span class="s2">]"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"mime"</span><span class="p">:</span> <span class="s2">"text/x-shell"</span><span class="p">,</span>
+        <span class="s2">"data"</span><span class="p">:</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
+        <span class="s2">"meta"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"command"</span><span class="p">:</span> <span class="n">command</span><span class="p">,</span>
+            <span class="s2">"returncode"</span><span class="p">:</span> <span class="n">returncode</span><span class="p">,</span>
+        <span class="p">},</span>
+    <span class="p">}</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_result</span><span class="p">(</span>
     <span class="n">command</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">working_directory</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
@@ -354,6 +406,11 @@
     <span class="n">error</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Build the standard command result dict.</span>
+
+<span class="sd">    The dict also carries a chat-facing ``display`` field (ADR-0040</span>
+<span class="sd">    self-describing convention, ``{"mime", "data", "meta"}`` or ``None``)</span>
+<span class="sd">    so the tools caller can render the command, its output and its exit</span>
+<span class="sd">    status in the chat without a Klea-specific schema.</span>
 
 <span class="sd">    :param command: The command string that was run.</span>
 <span class="sd">    :param working_directory: Working directory used, or ``None`` when the</span>
@@ -375,6 +432,7 @@
         <span class="s2">"stderr"</span><span class="p">:</span> <span class="n">stderr</span><span class="p">,</span>
         <span class="s2">"truncated"</span><span class="p">:</span> <span class="n">truncated</span><span class="p">,</span>
         <span class="s2">"error"</span><span class="p">:</span> <span class="n">error</span><span class="p">,</span>
+        <span class="s2">"display"</span><span class="p">:</span> <span class="n">_shell_display</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="n">returncode</span><span class="p">,</span> <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span><span class="p">,</span> <span class="n">error</span><span class="p">),</span>
     <span class="p">}</span>
 
 
