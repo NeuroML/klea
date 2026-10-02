@@ -21,6 +21,7 @@ from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.stores.config import FilterFieldInfo
 from klea_utils.stores.filters import normalize_config_filters
+from klea_utils.stores.query_schema import build_retrieval_query_schema
 from langchain_core.messages import AIMessage
 
 from klea_rag.schemas import RAGState, RetrievalQueryOutput
@@ -29,13 +30,14 @@ from klea_rag.schemas import RAGState, RetrievalQueryOutput
 class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
     """Node that generates a concise retrieval query from the user's question.
 
-    Uses structured output (:class:`RetrievalQueryOutput`) so the search
-    query and any retrieval constraints are produced together from the
-    user's question.  Filter fields are deployment-configured per domain:
-    the system prompt lists the configured ``filter_fields`` for the
-    query's domains (so the model only ever proposes existing metadata
-    keys), and :meth:`_update_state` validates and normalizes the raw
-    ``filters`` operands into canonical DSL clauses.
+    Uses a per-run strict-safe structured-output schema (built from the
+    domain's configured filter fields, see
+    :func:`klea_utils.stores.query_schema.build_retrieval_query_schema`): the
+    search query plus one typed, optional field per allowed filter.  A
+    dynamic-key ``filters`` object would be closed to ``{}`` by providers'
+    strict structured-output modes (ADR-0044), so the configured fields are
+    emitted directly.  :meth:`_update_state` maps those fields back to the
+    operand mapping and validates/normalizes them into canonical DSL clauses.
     """
 
     model_role = "chat"
@@ -153,33 +155,50 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
         }
 
     @override
-    def _update_state(
-        self, result: RetrievalQueryOutput, state: RAGState, ctx: Any
-    ) -> dict[str, Any]:
+    def _get_output_schema(self, state: RAGState, ctx: Any) -> Any:
+        """Build the run's strict-safe schema from the allowed filter fields.
+
+        One typed, optional field per configured filter (plus
+        ``search_query``) so providers cannot close a dynamic-key ``filters``
+        object to ``{}`` (ADR-0044).
+        """
+        return build_retrieval_query_schema(self._configured_filter_fields(state))
+
+    @override
+    def _update_state(self, result: Any, state: RAGState, ctx: Any) -> dict[str, Any]:
         """Update state with the generated search query and filters.
 
-        Always writes a fresh :class:`RetrievalQueryOutput` instance from
-        the current LLM output, so nothing from a prior turn is carried
-        over.  The raw ``filters`` operands (keyed by the domain's
-        configured filter-field names) are validated and normalized into
-        canonical DSL clauses on ``config_filters``; operands for undeclared
-        fields are dropped with a warning (see
-        :func:`klea_utils.stores.filters.normalize_config_filters`).
+        The LLM result is an instance of the per-run schema: ``search_query``
+        plus one field per configured filter.  The non-null filter fields are
+        collected back into the operand mapping and validated/normalized into
+        canonical DSL clauses on ``config_filters`` (undeclared fields cannot
+        occur: the schema only declares configured fields).  A fresh
+        :class:`RetrievalQueryOutput` is always written, so nothing from a
+        prior turn is carried over.
         """
         allowed = self._configured_filter_fields(state)
-        result.config_filters = normalize_config_filters(result.filters, allowed)
+        data = result.model_dump(exclude_none=True)
+        search_query = data.pop("search_query", "")
+        config_filters = normalize_config_filters(data, allowed)
+        stored = RetrievalQueryOutput(
+            search_query=search_query,
+            filters=data,
+            config_filters=config_filters,
+        )
 
-        messages = [*state.messages, AIMessage(content=result.search_query)]
+        messages = [*state.messages, AIMessage(content=search_query)]
 
         return {
             "messages": messages,
-            "retrieval_query": result,
+            "retrieval_query": stored,
         }
 
     @override
-    def _get_default_error_result(self, ctx: Any) -> RetrievalQueryOutput:
-        """Return default result when processing fails."""
+    def _get_default_error_result(self, ctx: Any) -> Any:
+        """Return an empty result of the run's schema (no filters)."""
         self.logger.error("Processing failed")
+        if ctx.output_schema is not None:
+            return ctx.output_schema()
         return RetrievalQueryOutput()
 
     @override
