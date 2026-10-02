@@ -53,3 +53,15 @@ async def test_rag_graph_registers_context_schema(monkeypatch):
     assert rag.workflow is not None
     assert rag.workflow.context_schema is KleaRunContext
     logger.debug("RAG workflow context_schema = %s", rag.workflow.context_schema)
+
+
+def test_embedding_role_is_locked():
+    """The embedding model is not modifiable: stores are embedded once at
+    startup, so a per-request override could never be honoured."""
+    rag = RAG(checkpoint="inmemory")
+    rag._setup_models()
+
+    entry = rag.llm_models["embedding"]
+    assert entry.modifiable is False
+    # Chat roles stay user-configurable.
+    assert rag.llm_models["chat"].modifiable is True

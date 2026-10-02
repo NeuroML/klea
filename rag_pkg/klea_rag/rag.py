@@ -118,10 +118,14 @@ class RAG(BaseLangGraph):
                 modifiable=False,
             ),
             # required is adjusted in ``_configure_resources`` once the
-            # vector store configuration is known.
+            # vector store configuration is known.  Not modifiable: the vector
+            # stores are built once at startup from this model, so changing it
+            # per request/chat could not be honoured (and would not match how
+            # the stores were embedded).
             "embedding": LLMModel(
                 instance=None,
                 required=True,
+                modifiable=False,
                 model_type="embedding",
             ),
         }
