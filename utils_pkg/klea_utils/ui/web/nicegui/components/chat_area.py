@@ -99,6 +99,7 @@ def _render_messages(ctx: PageContext) -> None:
                     mime=msg.get("mime", ""),
                     data=msg.get("data", ""),
                     meta=msg.get("meta", {}),
+                    is_error=msg.get("is_error", False),
                     collapsed=collapsed,
                     idx=idx,
                     on_copy=lambda t=text: ui.run_javascript(

@@ -46,6 +46,11 @@ def _add_css_overrides() -> None:
     # Collapse long bot messages to ~6 lines with an expand / collapse toggle.
     ui.add_css(".msg-collapsed { max-height: 9em; overflow: hidden; }")
     ui.add_css(".msg-expanded { max-height: none; }")
+    # Tool blocks collapse to a one-line preview (the block header is the
+    # title); long diffs/command output stay hidden until expanded.
+    ui.add_css(".tool-block-collapsed { max-height: 1.8em; overflow: hidden; }")
+    # An errored tool block's header uses the theme's negative colour.
+    ui.add_css(".tool-header--error { color: var(--q-negative); }")
     # Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a
     # margin on ``<pre>``; a long line would overflow the bubble and the page.
     # The block is kept inside the bubble and its lines wrap (see the wrap
