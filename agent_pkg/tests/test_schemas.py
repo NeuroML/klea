@@ -69,6 +69,23 @@ class TestEvaluationSchema:
         assert evaluation.evaluations[0].step_number == 1
         assert evaluation.evaluations[0].verdict == "step_done"
 
+    def test_step_skipped_verdict_accepted(self):
+        evaluation = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_skipped")]
+        )
+        assert evaluation.evaluations[0].verdict == "step_skipped"
+
+
+class TestStepStatus:
+    """The distinct ``skipped`` status resolves a step that is not needed."""
+
+    def test_skipped_status_label_and_render(self):
+        step = StepSchema(step_number=1, description="optional", status="skipped")
+        assert step.status_label() == "[SKIPPED]"
+        assert step.status_label(markdown=True) == "[-]"
+        assert "[SKIPPED]" in step.render()
+        assert "[-]" in step.render(markdown=True)
+
 
 class TestStateDefaults:
     """New budget/history fields default cleanly."""
@@ -280,6 +297,16 @@ class TestPlanFrontier:
             ]
         )
         assert [s.step_number for s in plan.frontier()] == [3]
+
+    def test_skipped_dependency_is_satisfied(self):
+        """A skipped dependency unblocks its dependents (resolve-as-needed)."""
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="skipped"),
+                StepSchema(step_number=2, depends_on=[1]),
+            ]
+        )
+        assert [s.step_number for s in plan.frontier()] == [2]
 
     def test_frontier_caps_steps(self):
         plan = PlanSchema(step_list=[StepSchema(step_number=i + 1) for i in range(5)])

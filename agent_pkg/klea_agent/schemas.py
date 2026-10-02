@@ -36,7 +36,7 @@ class StepSchema(BaseModel):
     kind: Literal["tool", "reasoning"] = Field(default="tool", validate_default=True)
     suggested_tools: list[str] = Field(default_factory=list)
     depends_on: list[int] = []
-    status: Literal["pending", "done", "failed"] = Field(
+    status: Literal["pending", "done", "skipped", "failed"] = Field(
         default="pending", validate_default=True
     )
 
@@ -51,17 +51,21 @@ class StepSchema(BaseModel):
         :param current: Whether this is the plan's current step.
         :param markdown: ``True`` for symbol markers (user-facing render),
             ``False`` for word markers (prompt render).
-        :returns: Word form ``[DONE]``/``[FAILED]``/``[CURRENT]``/``[PENDING]``
-            or symbol form ``[x]``/``[!]``/``[*]``/``[ ]``.
+        :returns: Word form ``[DONE]``/``[SKIPPED]``/``[FAILED]``/``[CURRENT]``/
+            ``[PENDING]`` or symbol form ``[x]``/``[-]``/``[!]``/``[*]``/``[ ]``.
         """
         if markdown:
             if self.status == "done":
                 return "[x]"
+            if self.status == "skipped":
+                return "[-]"
             if self.status == "failed":
                 return "[!]"
             return "[*]" if current else "[ ]"
         if self.status == "done":
             return "[DONE]"
+        if self.status == "skipped":
+            return "[SKIPPED]"
         if self.status == "failed":
             return "[FAILED]"
         return "[CURRENT]" if current else "[PENDING]"
@@ -186,19 +190,22 @@ class PlannerPlanSchema(BaseModel):
 
         The dependency frontier used for parallel execution: a step is
         unblocked when every step number in its ``depends_on`` has status
-        ``done``.  ``done``/``failed`` steps and steps with unmet dependencies
-        are excluded.  ``depends_on: []`` needs nothing, so a step with no
-        declared dependencies is unblocked from the start.
+        ``done`` or ``skipped`` (both resolved).  ``done``/``skipped``/
+        ``failed`` steps and steps with unmet dependencies are excluded.
+        ``depends_on: []`` needs nothing, so a step with no declared
+        dependencies is unblocked from the start.
 
         :param max_steps: Optional cap on the number of steps returned (the
             batch-selection cap, ADR-0041).
         :returns: The runnable steps, in ``step_list`` order.
         """
-        done = {s.step_number for s in self.step_list if s.status == "done"}
+        resolved = {
+            s.step_number for s in self.step_list if s.status in ("done", "skipped")
+        }
         runnable = [
             s
             for s in self.step_list
-            if s.status == "pending" and all(dep in done for dep in s.depends_on)
+            if s.status == "pending" and all(dep in resolved for dep in s.depends_on)
         ]
         return runnable[:max_steps] if max_steps is not None else runnable
 
@@ -477,9 +484,13 @@ class StepEvaluation(BaseModel):
     # One judged step's verdict.  Verdict meanings live in
     # OperationalEvaluator_system.md.  A typed list (not a step_number-keyed
     # dict) is required: a dynamic-key object is closed to ``{}`` by strict
-    # structured-output modes (ADR-0044).
+    # structured-output modes (ADR-0044).  ``step_skipped`` resolves a step
+    # that is not needed to meet the goal (so ``plan_done`` may be set with
+    # no pending step left).
     step_number: int = 0
-    verdict: Literal["step_done", "step_incomplete", "need_replan"] = "step_done"
+    verdict: Literal["step_done", "step_skipped", "step_incomplete", "need_replan"] = (
+        "step_done"
+    )
     reason: str = ""
 
 
