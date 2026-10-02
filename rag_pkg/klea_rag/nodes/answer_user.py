@@ -55,6 +55,7 @@ class AnswerUser(AbstractLangGraphNode[RAGState, dict[str, Any], NodeContext]):
         answer = messages[-1]
         message = content_to_str(answer.content)
 
+        # The recorded ``route`` (not the raw verdict) drives the warning.
         if state.route != "continue" and self.BEST_EFFORT_WARNING not in message:
             message = f"{format_alert(self.BEST_EFFORT_WARNING)}\n\n" + message
 

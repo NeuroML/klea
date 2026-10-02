@@ -101,6 +101,8 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
 
         messages = [*state.messages, res_message]
 
+        # ``route`` is the effective decision recorded by RouteEvaluator, not
+        # the evaluator's raw ``next_step`` verdict.
         is_rewrite = state.route == "rewrite_answer"
         return {
             "messages": messages,
