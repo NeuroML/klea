@@ -65,7 +65,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert update["pending_question"] == ""
     assert update["route"] == RouteSchema()
     assert update["evaluation"].overall == ""
-    assert update["evaluation"].evaluations == {}
+    assert update["evaluation"].evaluations == []
     # The project instruction file is loaded into session-scoped discovery.
     assert update["discovery_persistent"].items[0].source == "AGENTS.md"
     assert update["discovery_persistent"].items[0].content == "project rules"

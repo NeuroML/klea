@@ -27,12 +27,12 @@ from klea_utils.nodes.context import LLMNodeContext
 
 def _verdict(
     step: int,
-    verdict: Literal["step_done", "step_incomplete", "need_replan"],
+    verdict: Literal["step_done", "step_skipped", "step_incomplete", "need_replan"],
     reason: str = "",
 ) -> EvaluationSchema:
-    """Build a single-step evaluation map."""
+    """Build a single-step evaluation."""
     return EvaluationSchema(
-        evaluations={step: StepEvaluation(verdict=verdict, reason=reason)}
+        evaluations=[StepEvaluation(step_number=step, verdict=verdict, reason=reason)]
     )
 
 
@@ -70,8 +70,15 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_plan_done_completes_plan_without_answering(self):
         """The Evaluator never writes ``message_for_user`` (that is AnswerFromResults)."""
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done"),
+                StepEvaluation(step_number=2, verdict="step_done"),
+            ],
+            overall="plan_done",
+        )
         update = self._evaluator()._update_state(
-            EvaluationSchema(overall="plan_done"), self._state(), LLMNodeContext()
+            result, self._state(), LLMNodeContext()
         )
         self.assertNotIn("message_for_user", update)
         plan = update["plan"]
@@ -107,7 +114,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = self._evaluator()._update_state(
             _verdict(1, "step_incomplete"), self._state(), LLMNodeContext()
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "step_incomplete")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "step_incomplete")
         self.assertEqual(update["plan"].step_list[0].status, "pending")
 
     def test_plan_done_without_plan(self):
@@ -131,6 +138,111 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         self.assertEqual(update["plan"].status, "completed")
 
+    def test_step_skipped_marks_step_not_needed(self):
+        update = self._evaluator()._update_state(
+            _verdict(1, "step_skipped", "not needed"), self._state(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].step_list[0].status, "skipped")
+        # Step 2 is still pending, so the plan continues.
+        self.assertEqual(update["plan"].status, "in_progress")
+
+    def test_plan_done_with_skipped_steps_completes(self):
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_skipped"),
+                StepEvaluation(step_number=2, verdict="step_skipped"),
+            ],
+            overall="plan_done",
+        )
+        update = self._evaluator()._update_state(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].status, "completed")
+        self.assertEqual(
+            [s.status for s in update["plan"].step_list], ["skipped", "skipped"]
+        )
+
+    def test_plan_done_with_pending_steps_replans(self):
+        """Post-retry fallback: do not force-close a pending step."""
+        update = self._evaluator()._update_state(
+            EvaluationSchema(overall="plan_done"), self._state(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].status, "in_progress")
+        self.assertIn("plan_done with pending", update["replan_reason"])
+
+    def test_all_steps_resolved_without_overall_completes(self):
+        """Post-retry fallback: the work is done even if the goal was unjudged."""
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done"),
+                StepEvaluation(step_number=2, verdict="step_done"),
+            ]
+        )
+        update = self._evaluator()._update_state(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].status, "completed")
+
+    def test_validate_plan_done_requires_resolved_steps(self):
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            overall="plan_done",
+        )
+        error = self._evaluator()._validate_result(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("still pending", error or "")
+
+    def test_validate_plan_done_ok_when_all_resolved(self):
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done"),
+                StepEvaluation(step_number=2, verdict="step_skipped"),
+            ],
+            overall="plan_done",
+        )
+        self.assertIsNone(
+            self._evaluator()._validate_result(result, self._state(), LLMNodeContext())
+        )
+
+    def test_validate_requires_overall_when_all_resolved(self):
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done"),
+                StepEvaluation(step_number=2, verdict="step_done"),
+            ]
+        )
+        error = self._evaluator()._validate_result(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("no overall", error or "")
+
+    def test_validate_rejects_unknown_step_number(self):
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=9, verdict="step_done")]
+        )
+        error = self._evaluator()._validate_result(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("step 9 is not in the plan", error or "")
+
+    def test_validate_plan_done_contradicts_need_replan(self):
+        result = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="need_replan"),
+                StepEvaluation(step_number=2, verdict="step_done"),
+            ],
+            overall="plan_done",
+        )
+        error = self._evaluator()._validate_result(
+            result, self._state(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("contradicts a need_replan", error or "")
+
     def test_empty_evaluation_escalates_to_replan(self):
         """A missing verdict (e.g. a failed LLM call) escalates deterministically."""
         evaluator = self._evaluator()
@@ -139,7 +251,7 @@ class TestOperationalEvaluator(unittest.TestCase):
             self._state(),
             LLMNodeContext(),
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertTrue(update["replan_reason"])
 
     def test_verdict_recorded_in_messages(self):
@@ -157,7 +269,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = evaluator._update_state(
             _verdict(1, "step_incomplete", "still going"), state, LLMNodeContext()
         )
-        self.assertEqual(update["evaluation"].evaluations[1].verdict, "need_replan")
+        self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
         self.assertEqual(update["step_attempt_counts"][1], 3)
 

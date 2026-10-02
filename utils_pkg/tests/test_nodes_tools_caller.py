@@ -113,14 +113,19 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    assert event_types == ["progress", "inspect", "state"]
+    # A running ``state`` event precedes dispatch; the end ``state`` follows.
+    assert event_types == ["progress", "state", "inspect", "state"]
 
-    info = events[1]["data"]
+    running = events[1]["data"]
+    assert running["display"] == "- **a**: running\n- **b**: running"
+    assert running["heading"] == "Tool Execution"
+
+    info = events[2]["data"]
     assert info["summary"] == "Called 2 tool(s), 2 succeeded"
     assert info["details"]["tool_names"] == ["a", "b"]
     assert info["details"]["failed_calls"] == 0
     assert info["details"]["tool_calls"][0]["tool"] == "a"
-    status = events[2]["data"]
+    status = events[3]["data"]
     assert status["display"] == "- **a**: ok\n- **b**: ok"
 
 
@@ -130,7 +135,7 @@ async def test_streaming_uses_shared_hooks():
     from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
     from klea_utils.nodes.context import NodeContext
 
-    class BareNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
+    class BareNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext]):
         async def execute(self, state):
             ctx = NodeContext()
             self._pre_exec_stream(ctx)
@@ -346,6 +351,34 @@ def test_get_status_none_when_all_names_empty():
     assert node._get_status(state, _ctx(results)) is None
 
 
+def test_get_running_status_lists_tools_with_titles():
+    """The pre-dispatch section marks each tool ``running`` (status pane)."""
+    node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
+    state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
+
+    status = node._get_running_status(state)
+
+    assert status is not None
+    assert status.heading == "Tool Execution"
+    assert status.summary == "Running 2 tool(s)"
+    assert status.display == "- **Alpha tool**: running\n- **b**: running"
+
+
+def test_get_running_status_none_without_tool_calls():
+    assert _make_node()._get_running_status(MiniState()) is None
+
+
+def test_get_running_status_skips_empty_name_calls():
+    """Matches ``_get_status``: an empty-name call is not rendered."""
+    node = _make_node(tool_infos={"read": ToolInfo(title="Read file")})
+    state = MiniState(tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")])
+
+    status = node._get_running_status(state)
+
+    assert status is not None
+    assert status.display == "- **Read file**: running"
+
+
 def test_tool_display_entries_for_diff_and_text():
     """Renders a fenced diff for file edits and passthrough text otherwise."""
     node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
@@ -438,6 +471,127 @@ def test_tool_display_entries_skip_errors_and_empty():
             content=[], structured_content={"diff": "+x"}, meta=None, is_error=True
         ),
         CallToolResult(content=[], structured_content=None, meta=None),
+    ]
+
+    assert node._tool_display_entries(tool_calls, results) == []
+
+
+def test_destructive_tool_without_convention_gets_shell_fallback():
+    """A destructive tool with no display convention shows its call."""
+    node = _make_node(
+        tool_infos={"delete_object": ToolInfo(title="Delete object", destructive=True)}
+    )
+    tool_calls = [
+        ToolCallSchema(tool="delete_object", args={"bucket": "prod", "key": "data.csv"})
+    ]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["header"] == "Delete object"
+    assert entries[0]["data"] == 'delete_object(bucket="prod", key="data.csv")'
+    assert entries[0]["display"] == (
+        '```shell\ndelete_object(bucket="prod", key="data.csv")\n```'
+    )
+    assert entries[0]["is_error"] is False
+
+
+def test_destructive_fallback_summarises_long_arguments():
+    """Long/newline argument values are truncated to keep the line short."""
+    node = _make_node(tool_infos={"doomed": ToolInfo(title="Doomed", destructive=True)})
+    tool_calls = [ToolCallSchema(tool="doomed", args={"blob": "x" * 500})]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["data"].startswith('doomed(blob="xxxx')
+    assert entries[0]["data"].endswith('...")')
+    assert "\n" not in entries[0]["data"]
+
+
+def test_non_destructive_tool_without_convention_is_skipped():
+    """A non-destructive tool with nothing renderable stays out of chat."""
+    node = _make_node(tool_infos={"safe": ToolInfo(title="Safe")})
+    tool_calls = [ToolCallSchema(tool="safe", args={"x": 1})]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    assert node._tool_display_entries(tool_calls, results) == []
+
+
+def test_destructive_declared_display_takes_precedence():
+    """A destructive tool's own display convention wins over the fallback."""
+    node = _make_node(tool_infos={"delete": ToolInfo(title="Delete", destructive=True)})
+    tool_calls = [ToolCallSchema(tool="delete", args={"path": "x"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={"display": {"mime": "text/x-diff", "data": "-gone"}},
+            meta=None,
+        )
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-diff"
+    assert entries[0]["data"] == "-gone"
+
+
+def test_errored_destructive_result_is_displayed():
+    """A failed destructive tool is shown with its declared display."""
+    node = _make_node(
+        tool_infos={"run_command": ToolInfo(title="Run command", destructive=True)}
+    )
+    tool_calls = [ToolCallSchema(tool="run_command", args={"command": "pytest"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={
+                "display": {
+                    "mime": "text/x-shell",
+                    "data": "$ pytest\n--- error ---\ntimed out",
+                }
+            },
+            meta=None,
+            is_error=True,
+        )
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["data"] == "$ pytest\n--- error ---\ntimed out"
+    assert entries[0]["is_error"] is True
+
+
+def test_errored_destructive_without_display_shows_fallback():
+    """A failed destructive tool with no display still shows its call."""
+    node = _make_node(
+        tool_infos={"delete_object": ToolInfo(title="Delete object", destructive=True)}
+    )
+    tool_calls = [ToolCallSchema(tool="delete_object", args={"key": "data.csv"})]
+    results = [
+        CallToolResult(content=[], structured_content=None, meta=None, is_error=True)
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["data"] == 'delete_object(key="data.csv")'
+    assert entries[0]["is_error"] is True
+
+
+def test_errored_non_destructive_result_is_skipped():
+    """A non-destructive error stays out of the chat (inspect only)."""
+    node = _make_node(tool_infos={"read_file": ToolInfo(title="Read file")})
+    tool_calls = [ToolCallSchema(tool="read_file", args={"path": "x"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={"error": "not found"},
+            meta=None,
+            is_error=True,
+        )
     ]
 
     assert node._tool_display_entries(tool_calls, results) == []

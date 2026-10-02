@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import pytest
 from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
+from klea_agent.nodes.answer_from_results import AnswerSchema
 from klea_agent.schemas import (
     EvaluationSchema,
     GoalSchema,
@@ -18,6 +19,7 @@ from klea_agent.schemas import (
     PlannerOutput,
     PlannerPlanSchema,
     PlanSchema,
+    ReasoningSchema,
     RouteSchema,
     StepEvaluation,
     StepOutput,
@@ -30,6 +32,7 @@ from langgraph.channels.binop import BinaryOperatorAggregate
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import StateGraph
 from mcp.types import TextContent
+from pydantic import BaseModel
 
 
 class TestRouteSchema:
@@ -59,9 +62,29 @@ class TestEvaluationSchema:
 
     def test_per_step_verdicts_map(self):
         evaluation = EvaluationSchema(
-            evaluations={1: StepEvaluation(verdict="step_done", reason="ok")}
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done", reason="ok")
+            ]
         )
-        assert evaluation.evaluations[1].verdict == "step_done"
+        assert evaluation.evaluations[0].step_number == 1
+        assert evaluation.evaluations[0].verdict == "step_done"
+
+    def test_step_skipped_verdict_accepted(self):
+        evaluation = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_skipped")]
+        )
+        assert evaluation.evaluations[0].verdict == "step_skipped"
+
+
+class TestStepStatus:
+    """The distinct ``skipped`` status resolves a step that is not needed."""
+
+    def test_skipped_status_label_and_render(self):
+        step = StepSchema(step_number=1, description="optional", status="skipped")
+        assert step.status_label() == "[SKIPPED]"
+        assert step.status_label(markdown=True) == "[-]"
+        assert "[SKIPPED]" in step.render()
+        assert "[-]" in step.render(markdown=True)
 
 
 class TestStateDefaults:
@@ -275,6 +298,16 @@ class TestPlanFrontier:
         )
         assert [s.step_number for s in plan.frontier()] == [3]
 
+    def test_skipped_dependency_is_satisfied(self):
+        """A skipped dependency unblocks its dependents (resolve-as-needed)."""
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="skipped"),
+                StepSchema(step_number=2, depends_on=[1]),
+            ]
+        )
+        assert [s.step_number for s in plan.frontier()] == [2]
+
     def test_frontier_caps_steps(self):
         plan = PlanSchema(step_list=[StepSchema(step_number=i + 1) for i in range(5)])
         assert [s.step_number for s in plan.frontier(max_steps=2)] == [1, 2]
@@ -394,3 +427,43 @@ class TestCheckpointMsgpack:
         }
         type_name, data = serde.dumps_typed(payload)
         assert serde.loads_typed((type_name, data)) == payload
+
+
+def _schema_descriptions(schema: type[BaseModel]) -> list[str]:
+    """Every ``description`` pydantic emits for *schema*, root and nested."""
+    found: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("description"), str):
+                found.append(node["description"])
+            for key, value in node.items():
+                if key in ("properties", "$defs") and isinstance(value, dict):
+                    for sub in value.values():
+                        walk(sub)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(schema.model_json_schema())
+    return found
+
+
+class TestOutputSchemasAreStructureOnly:
+    """LLM output schemas carry no prose: semantics live in the markdown prompts."""
+
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            RouteSchema,
+            PlannerOutput,
+            EvaluationSchema,
+            StepEvaluation,
+            ReasoningSchema,
+            AnswerSchema,
+        ],
+    )
+    def test_no_description_reaches_the_model(self, schema):
+        assert _schema_descriptions(schema) == []

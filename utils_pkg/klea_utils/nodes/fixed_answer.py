@@ -14,9 +14,10 @@ from typing import Any, override
 from pydantic import BaseModel
 
 from klea_utils.nodes.abstract import AbstractLangGraphNode
+from klea_utils.nodes.context import NodeContext
 
 
-class FixedAnswer(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
+class FixedAnswer(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext]):
     """Provide a fixed answer"""
 
     def __init__(

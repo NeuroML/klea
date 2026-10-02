@@ -16,11 +16,15 @@ Rules:
 * respond strictly in English.
 
 Filter fields:
-* extract any retrieval constraints the user states into the `filters` object
-* only use the filter fields listed under "Allowed filter fields" below; do not invent field names
-* supply the value the user states for each field; omit a key when the question does not state that constraint
-* for numeric fields you may specify a range as an operator expression (e.g. {{"$gte": 2020, "$lte": 2025}})
-* for list fields use the exact element values
+* set a top-level field for each retrieval constraint the user states (the
+  field names and types are in the output schema)
+* only use the filter fields listed under "Allowed filter fields" below; do not
+  invent field names
+* supply the value the user states for each field; omit a field when the
+  question does not state that constraint
+* for numeric fields (int/float) supply a bare value for equality, or a range
+  object for bounds (e.g. `{"gte": 2020, "lte": 2025}`)
+* for list fields supply every element value as a list
 
 Allowed filter fields:
 {allowed_filter_fields}

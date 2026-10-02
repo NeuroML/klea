@@ -52,6 +52,13 @@ Model configuration
    :members:
    :show-inheritance:
 
+Provider credentials
+--------------------
+
+.. automodule:: klea_utils.api.credentials
+   :members:
+   :show-inheritance:
+
 SSE streaming
 -------------
 

@@ -242,6 +242,7 @@ class TestApplyStreamEvent:
                             "data": "+hello",
                             "meta": {"path": "a.txt"},
                             "display": "```diff\n+hello\n```",
+                            "is_error": True,
                         },
                         {"tool": "noop", "data": "", "display": ""},
                     ]
@@ -257,6 +258,7 @@ class TestApplyStreamEvent:
         assert block["data"] == "+hello"
         assert block["meta"] == {"path": "a.txt"}
         assert block["text"] == "```diff\n+hello\n```"
+        assert block["is_error"] is True
 
     def test_unknown_type_ignored(self, chat):
         """Unknown event types mutate nothing and return None."""

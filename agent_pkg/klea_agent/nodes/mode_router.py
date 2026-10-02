@@ -65,7 +65,7 @@ def decide_mode(
     return ("general", "")
 
 
-class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
+class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Decide the operating mode at task entry.
 
     Writes the resolution into the state (``mode.resolved``, plus
@@ -115,7 +115,7 @@ class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
         }
 
 
-class ModeInformer(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
+class ModeInformer(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Inform the user when a requested mode cannot run.
 
     Terminal node for the ADR-0030 inform-or-restart branch: sets

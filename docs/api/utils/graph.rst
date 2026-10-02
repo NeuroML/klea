@@ -25,10 +25,10 @@ agent's ``mode``/``plan``/...; the RAG's ``query_domains`` and reference
 material).
 
 ..
-   ``BaseGraphSchema`` is a Pydantic model whose fields annotate framework
-   types (``AnyMessage``, ``CallToolResult``); autodoc cannot build it while
-   those packages are mocked (see ``autodoc_mock_imports`` in ``conf.py``),
-   so it is documented here in prose.
+   ``BaseGraphSchema`` is a Pydantic model annotated with
+   ``CallToolResult`` from ``fastmcp``, which remains mocked in
+   ``conf.py`` (``autodoc_mock_imports``); autodoc cannot build the model
+   while that import is mocked, so it is documented here in prose.
 
 Reducers
 --------

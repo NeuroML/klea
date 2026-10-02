@@ -41,6 +41,58 @@ DEFAULT_MAX_OUTPUT_CHARS = 100_000
 KILL_GRACE_SECONDS = 3.0
 
 
+def _shell_display(
+    command: str,
+    returncode: int | None,
+    stdout: str,
+    stderr: str,
+    error: str,
+) -> dict[str, Any] | None:
+    """Build the chat-facing ``display`` block for a command result.
+
+    Returns a self-describing display dict (ADR-0040 convention:
+    ``{"mime", "data", "meta"}``) with MIME ``text/x-shell`` so the chat
+    renders one shell block.  The block shows the command, stdout, stderr
+    (when non-empty) and the exit status, so the user can keep an eye on
+    what was run (``run_command`` is destructive).  The full captured output
+    is included (already bounded per stream by ``max_output_chars``); the UI
+    collapses long blocks.
+
+    The block is omitted (returns ``None``) for a silent success: no stdout,
+    no stderr, and a zero exit.  A non-zero exit, captured output, or a
+    call-level ``error`` always produces a block.
+
+    :param command: The command string that was run.
+    :param returncode: Exit status, or ``None`` when the command never ran.
+    :param stdout: Captured standard output.
+    :param stderr: Captured standard error.
+    :param error: Call-level error message (timeout/denied/spawn), or ``""``.
+    :returns: The display dict, or ``None`` when there is nothing to show.
+    """
+    if not stdout and not stderr and not error and returncode == 0:
+        return None
+
+    lines = [f"$ {command}"]
+    if stdout:
+        lines.append(stdout.rstrip("\n"))
+    if stderr:
+        lines.append("--- stderr ---")
+        lines.append(stderr.rstrip("\n"))
+    if error:
+        lines.append(f"--- error ---\n{error}")
+    if returncode is not None:
+        lines.append(f"[exit {returncode}]")
+
+    return {
+        "mime": "text/x-shell",
+        "data": "\n".join(lines),
+        "meta": {
+            "command": command,
+            "returncode": returncode,
+        },
+    }
+
+
 def _result(
     command: str,
     working_directory: str | None,
@@ -52,6 +104,11 @@ def _result(
     error: str = "",
 ) -> dict[str, Any]:
     """Build the standard command result dict.
+
+    The dict also carries a chat-facing ``display`` field (ADR-0040
+    self-describing convention, ``{"mime", "data", "meta"}`` or ``None``)
+    so the tools caller can render the command, its output and its exit
+    status in the chat without a Klea-specific schema.
 
     :param command: The command string that was run.
     :param working_directory: Working directory used, or ``None`` when the
@@ -73,6 +130,7 @@ def _result(
         "stderr": stderr,
         "truncated": truncated,
         "error": error,
+        "display": _shell_display(command, returncode, stdout, stderr, error),
     }
 
 

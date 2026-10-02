@@ -132,6 +132,29 @@ Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
   entry (`heading="Retry"`, structured `details`), instead of being visible
   only in the logs.
 
+### Update (2026-10-02)
+
+* Tool display precedence gains a final fallback for destructive tools
+  (ADR-0037): when a call yields no typed MCP content block and no structured
+  display convention, the tools caller emits a minimal `text/x-shell` call
+  line (`tool(arg=...)`, values summarised) so a destructive third-party MCP
+  tool is never silently invisible.  Destructive Klea tools declare their own
+  display instead (`run_command` -> `text/x-shell`; `download_file` ->
+  `text/plain`), so the fallback is only for tools that do not follow the
+  convention.
+* Errored **destructive** results are now surfaced too (a failed
+  `run_command` is exactly what the user must see); non-destructive errors
+  stay skipped, since their failure is already in the inspect pane and drives
+  Triage.  (The earlier "errors are skipped" rule was only in the code and
+  tests, not this ADR.)
+* The tools caller emits a per-tool `state` (status-pane) section **before**
+  dispatch, marking each call `running`, which the end-of-round status
+  replaces with `ok`/`error`.  This is coarse (all dispatched calls are marked
+  running together; exact per-call timing - relevant for same-resource
+  serialisation, ADR-0041 - is deferred).  It is a status-pane signal, not a
+  chat `tool` event, so the "status pane = activity, chat = artifacts" split
+  is preserved; no output is streamed.
+
 ## More Information
 
 * Amends ADR-0013 (inspection features).  Related: ADR-0019 (node contract),

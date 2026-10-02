@@ -12,6 +12,7 @@ import logging
 from typing import Any, override
 
 from klea_utils.nodes.abstract import AbstractLangGraphNode
+from klea_utils.nodes.context import NodeContext
 from langchain_core.messages import HumanMessage
 
 from klea_agent.discovery import refresh_project_files
@@ -26,7 +27,9 @@ from klea_agent.schemas import (
 )
 
 
-class InitGraphState(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
+class InitGraphState(
+    AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]
+):
     """Initialise/reset graph state before each iteration.
 
     Mirrors ``rag_pkg/klea_rag/nodes/init_rag.py``: resets per-turn

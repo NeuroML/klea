@@ -551,10 +551,23 @@ async def download_file(
     if target is None:
         return to_result(
             {
-                "error": "Download failed (check the URL, network, or file path permissions)."
+                "error": "Download failed (check the URL, network, or file path permissions).",
+                "display": {
+                    "mime": "text/plain",
+                    "data": f"download_file: {url} failed",
+                },
             }
         )
-    return to_result({"saved_to": str(target), "error": ""})
+    return to_result(
+        {
+            "saved_to": str(target),
+            "error": "",
+            "display": {
+                "mime": "text/plain",
+                "data": f"downloaded {url} -> {target}",
+            },
+        }
+    )
 
 
 @tool_meta(

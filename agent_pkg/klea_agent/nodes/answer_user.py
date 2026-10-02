@@ -17,12 +17,13 @@ from klea_utils.nodes.abstract import (
     NodeStreamEvent,
 )
 from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK
+from klea_utils.nodes.context import NodeContext
 from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState
 
 
-class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
+class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Node that returns the final message to the user."""
 
     def __init__(self, logger: logging.Logger, label: str):

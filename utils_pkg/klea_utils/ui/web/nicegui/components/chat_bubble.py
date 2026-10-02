@@ -76,6 +76,7 @@ class ChatBubble(ui.element):
         mime: str = "",
         data: str = "",
         meta: dict | None = None,
+        is_error: bool = False,
         on_expand=None,
         on_copy=None,
     ) -> None:
@@ -94,6 +95,8 @@ class ChatBubble(ui.element):
         :param data: The renderable payload (text or base64).
         :param meta: Extra entry metadata (path, language, ...); reserved for
             renderers that need it.
+        :param is_error: Whether a ``tool`` block's result is an error; the
+            header is rendered in the theme's negative colour.
         :param on_expand: Callable with no args, fired on expand/collapse click.
         :param on_copy: Callable with no args, fired on copy click.
         """
@@ -112,9 +115,20 @@ class ChatBubble(ui.element):
             ),
         ):
             if header:
-                ui.label(header).classes("text-xs font-bold text-grey-6")
+                header_classes = "text-xs font-bold"
+                header_classes += (
+                    " tool-header--error"
+                    if role == "tool" and is_error
+                    else " text-grey-6"
+                )
+                ui.label(header).classes(header_classes)
 
-            text_cls = "msg-collapsed" if collapsed else "msg-expanded"
+            if role == "tool":
+                # A tool block collapses to a one-line preview (the header is
+                # the title), expandable; long diffs/command output stay hidden.
+                text_cls = "tool-block-collapsed" if collapsed else "msg-expanded"
+            else:
+                text_cls = "msg-collapsed" if collapsed else "msg-expanded"
             # ``ui.markdown`` bodies get the chat markdown styling; ``ui.code``
             # bodies render their own box, so adding ``chat-markdown`` there
             # would stack our ``pre``/``code`` rules on top of it.

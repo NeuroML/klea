@@ -9,12 +9,12 @@ from typing import Any
 
 import pytest
 from klea_utils.mcp.call_schema import NO_TOOL_TAG, build_tool_call_schema
-from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from langchain_core.utils.function_calling import (
     convert_to_json_schema,
     convert_to_openai_tool,
 )
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 READ_FILE = {
     "type": "object",
@@ -138,3 +138,31 @@ def test_anthropic_transform_accepts_schema():
 def test_examples_are_attached():
     out = build_tool_call_schema(_tools(read_file=READ_FILE))
     assert "examples" in json.dumps(out.model_json_schema())
+
+
+def _schema_descriptions(schema: type[BaseModel]) -> list[str]:
+    """Every ``description`` pydantic emits for *schema*, root and nested."""
+    found: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("description"), str):
+                found.append(node["description"])
+            for key, value in node.items():
+                if key in ("properties", "$defs") and isinstance(value, dict):
+                    for sub in value.values():
+                        walk(sub)
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(schema.model_json_schema())
+    return found
+
+
+def test_static_picker_output_schemas_carry_no_descriptions():
+    """The static picker output models are structure-only (see prompt-conventions)."""
+    for schema in (ToolCallSchema, ToolCallsSchema):
+        assert _schema_descriptions(schema) == []

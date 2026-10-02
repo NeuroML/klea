@@ -56,10 +56,11 @@ TriageRouter (deterministic, per-step tool-error triage):
   no error                         -> Evaluator
 
 Evaluator (operational judge, per-step verdict map):
-  each step_done / step_incomplete -> batch entry (updated frontier, by kind)
-  any step need_replan             -> Planner
-  overall plan_done                -> AnswerFromResults (persists the deliverable) -> AnswerUser -> END
-  overall abort                    -> AnswerFromResults (failure) -> AnswerUser -> END
+  each step_done / step_skipped / step_incomplete -> batch entry (updated frontier, by kind)
+  any step need_replan                            -> Planner
+  overall plan_done with no pending step          -> AnswerFromResults (persists the deliverable) -> AnswerUser -> END
+  overall abort                                   -> AnswerFromResults (failure) -> AnswerUser -> END
+  inconsistent (plan_done + pending, or all resolved + no overall) -> one retry, then fail closed (Planner / answer)
 ```
 
 Trivial chat: Guard + RouteDecision (2 calls); the router answers inline and the
@@ -223,8 +224,8 @@ the latest observations so it can bind arguments that depend on prior outputs
 The plan is a directed acyclic graph: ``StepSchema.depends_on`` names the
 earlier steps a step needs.  Execution position is **derived, not stored**:
 
-* **Frontier** -- pending steps whose ``depends_on`` are all ``done``, in step
-  order.  ``depends_on: []`` is immediately runnable.
+* **Frontier** -- pending steps whose ``depends_on`` are all ``done`` or
+  ``skipped``, in step order.  ``depends_on: []`` is immediately runnable.
 * **Batch** -- the maximal *same-kind* prefix of the frontier (capped at 8
   steps), so tool steps go through the picker/caller and reasoning steps
   through the reasoning node.  A mixed frontier is drained one kind at a time.
@@ -368,17 +369,27 @@ optional ``overall`` outcome.
 
 Per-step verdicts:
 
-* ``step_done`` -> the step is marked ``done`` and the frontier advances (if it
-  was the last pending step the plan becomes ``completed``);
+* ``step_done`` -> the step is marked ``done`` and the frontier advances;
+* ``step_skipped`` -> the step is marked ``skipped`` (not needed) and the
+  frontier advances; a skipped dependency satisfies its dependents;
 * ``step_incomplete`` -> the step stays ``pending``; its attempt counter grows;
 * ``need_replan`` -> the step is marked ``failed`` and its reason becomes the
   Planner's ``replan_reason``.
 
 Overall outcome (when the plan is finished or unreachable):
 
-* ``plan_done`` -> every remaining step is marked ``done``, the plan is
-  ``completed`` -> AnswerFromResults -> AnswerUser;
+* ``plan_done`` -> the goal is met.  Valid only when no step is ``pending``; a
+  step that is not needed must be judged ``step_skipped`` in the same response.
+  On success the plan is ``completed`` -> AnswerFromResults -> AnswerUser;
 * ``abort`` -> the plan is ``aborted`` -> AnswerFromResults (failure).
+
+Consistency (goal-authoritative, ADR-0035): the Evaluator judges the goal and
+the steps, and the two must agree.  ``plan_done`` with a pending step, or an
+all-resolved plan with no overall, is rejected and retried once with the reason
+exposed as ``validation_feedback``.  If the model still returns an inconsistent
+result, the Evaluator fails closed: ``plan_done`` with a pending step routes to
+the Planner (replan); an all-resolved plan with no overall is completed to the
+answer (the work is done).
 
 After the plan updates, the router derives the next edge from the plan state:
 ``completed`` -> answer, ``aborted`` -> failure answer, a ``replan_reason`` ->

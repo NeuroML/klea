@@ -88,7 +88,7 @@ class NodeStreamEvent(BaseModel):
 class AbstractLangGraphNode[
     TState: BaseModel,
     TReturn,
-    TCtx: NodeContext = NodeContext,
+    TCtx: NodeContext,
 ](ABC):
     """Abstract base class for all LangGraph nodes.
 
@@ -759,7 +759,9 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ...
 
 
-class AbstractRouterNode[TState: BaseModel](AbstractLangGraphNode[TState, str]):
+class AbstractRouterNode[TState: BaseModel](
+    AbstractLangGraphNode[TState, str, NodeContext]
+):
     """Abstract class for LangGraph router nodes.
 
     Router nodes inspect the state and return a string label that determines

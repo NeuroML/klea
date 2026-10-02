@@ -21,14 +21,15 @@ extensions = [
     "sphinxcontrib.typer",
 ]
 
-# mcp 1.28+ and its fastmcp/langchain deps crash on import with
-# pydantic 2.13 under Sphinx's autodoc importer. Mock them.
+# fastmcp/mcp still fail to import inside Sphinx with pydantic 2.13:
+# models using ``model_config = {"extra": "allow"}`` raise
+# ``PydanticSchemaGenerationError: The type annotation for
+# __pydantic_extra__ must be dict[str, ...]`` (they import fine outside
+# Sphinx).  langchain/langchain_core/langgraph import cleanly and are no
+# longer mocked.
 autodoc_mock_imports = [
     "mcp",
     "fastmcp",
-    "langchain",
-    "langchain_core",
-    "langgraph",
 ]
 
 templates_path = ["_templates"]

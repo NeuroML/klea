@@ -36,7 +36,7 @@ class StepSchema(BaseModel):
     kind: Literal["tool", "reasoning"] = Field(default="tool", validate_default=True)
     suggested_tools: list[str] = Field(default_factory=list)
     depends_on: list[int] = []
-    status: Literal["pending", "done", "failed"] = Field(
+    status: Literal["pending", "done", "skipped", "failed"] = Field(
         default="pending", validate_default=True
     )
 
@@ -51,17 +51,21 @@ class StepSchema(BaseModel):
         :param current: Whether this is the plan's current step.
         :param markdown: ``True`` for symbol markers (user-facing render),
             ``False`` for word markers (prompt render).
-        :returns: Word form ``[DONE]``/``[FAILED]``/``[CURRENT]``/``[PENDING]``
-            or symbol form ``[x]``/``[!]``/``[*]``/``[ ]``.
+        :returns: Word form ``[DONE]``/``[SKIPPED]``/``[FAILED]``/``[CURRENT]``/
+            ``[PENDING]`` or symbol form ``[x]``/``[-]``/``[!]``/``[*]``/``[ ]``.
         """
         if markdown:
             if self.status == "done":
                 return "[x]"
+            if self.status == "skipped":
+                return "[-]"
             if self.status == "failed":
                 return "[!]"
             return "[*]" if current else "[ ]"
         if self.status == "done":
             return "[DONE]"
+        if self.status == "skipped":
+            return "[SKIPPED]"
         if self.status == "failed":
             return "[FAILED]"
         return "[CURRENT]" if current else "[PENDING]"
@@ -112,16 +116,10 @@ class StepSchema(BaseModel):
 
 
 class PlannerPlanSchema(BaseModel):
-    """The plan as the Planner authors it (ADR-0035).
-
-    The core plan: the steps, the status the Planner may set, and the current
-    step index.  This is both the Planner's structured-output contract and the
-    base for the runtime :class:`PlanSchema`, which widens ``status`` with the
-    lifecycle values written by code and adds the plan-history counters.  All
-    shared behaviour (``render``, ``current_step``, ``validate_plan``) lives
-    here.
-    """
-
+    # The plan as the Planner authors it: the steps and the status the Planner
+    # may set.  Base for the runtime PlanSchema (which widens the status with
+    # lifecycle values and adds the plan-history counters); render/current_step/
+    # validate_plan live here.
     step_list: list[StepSchema] = Field(default_factory=list)
     #: The statuses the Planner may set:
     #:
@@ -192,19 +190,22 @@ class PlannerPlanSchema(BaseModel):
 
         The dependency frontier used for parallel execution: a step is
         unblocked when every step number in its ``depends_on`` has status
-        ``done``.  ``done``/``failed`` steps and steps with unmet dependencies
-        are excluded.  ``depends_on: []`` needs nothing, so a step with no
-        declared dependencies is unblocked from the start.
+        ``done`` or ``skipped`` (both resolved).  ``done``/``skipped``/
+        ``failed`` steps and steps with unmet dependencies are excluded.
+        ``depends_on: []`` needs nothing, so a step with no declared
+        dependencies is unblocked from the start.
 
         :param max_steps: Optional cap on the number of steps returned (the
             batch-selection cap, ADR-0041).
         :returns: The runnable steps, in ``step_list`` order.
         """
-        done = {s.step_number for s in self.step_list if s.status == "done"}
+        resolved = {
+            s.step_number for s in self.step_list if s.status in ("done", "skipped")
+        }
         runnable = [
             s
             for s in self.step_list
-            if s.status == "pending" and all(dep in done for dep in s.depends_on)
+            if s.status == "pending" and all(dep in resolved for dep in s.depends_on)
         ]
         return runnable[:max_steps] if max_steps is not None else runnable
 
@@ -458,88 +459,47 @@ class Mode(BaseModel):
 
 
 class RouteSchema(BaseModel):
-    """Entry routing decision made by ``RouteDecision`` (ADR-0035).
-
-    ``chat`` is a self-contained general-conversation/knowledge request that
-    the router answers inline (``answer``); ``task`` is anything needing the
-    current environment/workspace/session and is handed to the Planner.  The
-    default is ``task`` (fail-closed: never answer a world-fact from
-    assumption).
-    """
-
-    route: Literal["chat", "task"] = Field(
-        default="task",
-        description="Answer inline (chat) or plan and execute (task)",
-    )
-    answer: str = Field(default="", description="Inline answer when route is 'chat'")
+    # Entry routing decision made by the route-decision node.  Semantics and
+    # rules live in RouteDecision_system.md.
+    route: Literal["chat", "task"] = "task"
+    answer: str = ""
 
 
 class PlannerOutput(BaseModel):
-    """Structured output of the Planner (ADR-0035).
-
-    The Planner is the task path's brain: it writes the immutable ``goal`` and
-    an evolvable ``plan``.  ``plan.status`` carries the outcome: ``in_progress``
-    (execute the plan), ``in_review`` (await human review), or ``unplannable``
-    (no viable plan).  It never answers the user directly -- chat is handled by
-    ``RouteDecision`` and the final reply by ``AnswerFromResults``.
-
-    :attr:`plan` is a :class:`PlannerPlanSchema` so the model only sees the
-    statuses it may set.  :attr:`reason` is a free-form place for the Planner's
-    own reasoning/justification; it becomes the failure explanation when the
-    plan is ``unplannable`` and is recorded in the run history otherwise.
-    """
-
+    # The Planner's structured output: the immutable goal and an evolvable
+    # plan.  Status meanings live in Planner_system.md.
     goal: GoalSchema = GoalSchema()
     plan: PlannerPlanSchema = PlannerPlanSchema()
     reason: str = ""
 
 
 class ReasoningSchema(BaseModel):
-    """Structured output of a reasoning step (ADR-0035 update 2026-09-19).
-
-    A reasoning step produces a conclusion from what is already known
-    (interpretation, decision, hypothesis, design, synthesis).  It is
-    deliberately general -- not every conclusion has evidence references or a
-    confidence -- so only the conclusion and a short rationale are required.
-    The conclusion is recorded as a :class:`StepOutput` (like a tool result) so
-    later steps and the Planner see it in ``observations``.
-    """
-
+    # A reasoning step's conclusion and short rationale.  Semantics live in
+    # ReasoningNode_system.md.
     conclusion: str = ""
     rationale: str = ""
 
 
 class StepEvaluation(BaseModel):
-    """A verdict for one plan step in the evaluated batch (ADR-0041)."""
-
-    verdict: Literal["step_done", "step_incomplete", "need_replan"] = Field(
-        default="step_done",
-        description="Outcome for this step",
+    # One judged step's verdict.  Verdict meanings live in
+    # OperationalEvaluator_system.md.  A typed list (not a step_number-keyed
+    # dict) is required: a dynamic-key object is closed to ``{}`` by strict
+    # structured-output modes (ADR-0044).  ``step_skipped`` resolves a step
+    # that is not needed to meet the goal (so ``plan_done`` may be set with
+    # no pending step left).
+    step_number: int = 0
+    verdict: Literal["step_done", "step_skipped", "step_incomplete", "need_replan"] = (
+        "step_done"
     )
-    reason: str = Field(default="", description="Short justification for the verdict")
+    reason: str = ""
 
 
 class EvaluationSchema(BaseModel):
-    """Per-step verdicts from the general Evaluator (ADR-0035/ADR-0041).
-
-    The Evaluator judges only: ``evaluations`` maps a 1-based plan step number
-    to its :class:`StepEvaluation`, and ``overall`` carries a whole-plan
-    outcome (``plan_done`` when the goal is met, ``abort`` when it cannot be
-    achieved) while ``reason`` explains it.  ``overall`` is empty while work
-    continues.  The Evaluator never generates the user-facing answer -- that is
-    a separate synthesis stage (``AnswerFromResults``), keeping evaluation
-    independent of generation.
-    """
-
-    evaluations: dict[int, StepEvaluation] = Field(
-        default_factory=dict,
-        description="Verdicts keyed by 1-based plan step number",
-    )
-    overall: Literal["", "plan_done", "abort"] = Field(
-        default="",
-        description="Whole-plan outcome; empty while work continues",
-    )
-    reason: str = Field(default="", description="Short justification for `overall`")
+    # The Evaluator's per-step verdicts and optional whole-plan outcome.
+    # Verdict and outcome semantics live in OperationalEvaluator_system.md.
+    evaluations: list[StepEvaluation] = Field(default_factory=list)
+    overall: Literal["", "plan_done", "abort"] = ""
+    reason: str = ""
 
 
 class StepOutput(BaseModel):

@@ -24,7 +24,8 @@ class MessageData(TypedDict):
 
     ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an
     optional small title (used by tool blocks).  Tool messages add the
-    mime/display/data/meta fields used by the chat-bubble renderer.
+    mime/display/data/meta fields used by the chat-bubble renderer, plus
+    ``is_error`` for an errored tool result (styled by the renderer).
     """
 
     text: str
@@ -34,6 +35,7 @@ class MessageData(TypedDict):
     mime: NotRequired[str]
     data: NotRequired[str]
     meta: NotRequired[dict[str, Any]]
+    is_error: NotRequired[bool]
 
 
 class StateSection(TypedDict):

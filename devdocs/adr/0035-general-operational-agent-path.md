@@ -528,3 +528,18 @@ state and not rendered into downstream prompts.
 Cross-references: ADR-0018 (message memory), ADR-0020 (picker/caller),
 ADR-0028 (prompt cache), ADR-0029 (correctness and artefacts), ADR-0032
 (state ownership), ADR-0041 (parallel step execution).
+
+## Update (2026-10-02): goal-authoritative completion and explicit step resolution
+
+Plan completion is now **goal-authoritative**: ``plan_done`` asserts the user's
+goal is met, and the plan is completed only when no step is ``pending``.  A step
+that is not needed is resolved explicitly with the new ``step_skipped`` verdict
+(a distinct ``skipped`` step status), so early completion is legal but never
+silent.  The old behaviour of force-marking every pending step ``done`` on
+``plan_done`` is removed.
+
+``plan_done`` with a pending step, or an all-resolved plan with no overall, is a
+machine-checkable inconsistency: the Evaluator retries once with the reason
+exposed as ``validation_feedback`` and, if the model insists, fails closed
+(``plan_done`` + pending -> Planner; all resolved + no overall -> answer).  See
+``devdocs/system/agent-general-path-control-flow.md``.
