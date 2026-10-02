@@ -13,11 +13,12 @@ from typing import Any, override
 
 from klea_utils.llm import content_to_str, format_alert
 from klea_utils.nodes.abstract import AbstractLangGraphNode
+from klea_utils.nodes.context import NodeContext
 
 from klea_rag.schemas import RAGState
 
 
-class AnswerUser(AbstractLangGraphNode[RAGState, dict[str, Any]]):
+class AnswerUser(AbstractLangGraphNode[RAGState, dict[str, Any], NodeContext]):
     """Node that returns the final message to the user."""
 
     #: Hardcoded note appended when the answer is a best-effort delivery:

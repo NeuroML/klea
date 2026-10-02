@@ -130,7 +130,7 @@ async def test_streaming_uses_shared_hooks():
     from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
     from klea_utils.nodes.context import NodeContext
 
-    class BareNode(AbstractLangGraphNode[BaseModel, dict[str, Any]]):
+    class BareNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext]):
         async def execute(self, state):
             ctx = NodeContext()
             self._pre_exec_stream(ctx)

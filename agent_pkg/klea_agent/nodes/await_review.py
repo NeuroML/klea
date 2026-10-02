@@ -16,12 +16,13 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from klea_utils.nodes.context import NodeContext
 from langchain_core.messages import HumanMessage
 
 from klea_agent.schemas import KleaAgentState
 
 
-class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any]]):
+class AwaitReview(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Capture the human's review of a plan (ADR-0035).
 
     Human evaluation, symmetric to the operational ``Evaluator``: it does not

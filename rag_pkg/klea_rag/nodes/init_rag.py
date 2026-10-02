@@ -12,11 +12,12 @@ import logging
 from typing import Any
 
 from klea_utils.nodes.abstract import AbstractLangGraphNode
+from klea_utils.nodes.context import NodeContext
 
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
 
 
-class InitRAGState(AbstractLangGraphNode[RAGState, dict[str, Any]]):
+class InitRAGState(AbstractLangGraphNode[RAGState, dict[str, Any], NodeContext]):
     """Initialise/reset RAG state before each iteration."""
 
     def __init__(self, logger: logging.Logger, label: str):

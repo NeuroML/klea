@@ -18,6 +18,7 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from klea_utils.nodes.context import NodeContext
 from klea_utils.stores.config import FilterFieldInfo
 from klea_utils.stores.filters import restrict_metadata_filter
 from klea_utils.stores.retrieval.base import BaseKleaRetriever
@@ -46,7 +47,7 @@ def _format_scores(doc: Any, score: float, precision: int = 2) -> str:
     return f"[{score:.{precision}f}]"
 
 
-class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
+class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any], NodeContext]):
     """Retrieve reference material from the configured retrievers.
 
     Queries all retrievers (vector stores, BM25 stores) for the domains in
