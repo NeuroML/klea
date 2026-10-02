@@ -38,10 +38,6 @@ from pathlib import Path
 #: LLM node bases whose second type argument is the output schema.
 _OUTPUT_NODE_BASES = {"BaseLLMNode", "AbstractLLMNode"}
 
-#: Nodes whose output schema is built dynamically at run time; exempt from
-#: discovery (their generated schema is covered by their own tests).
-_DYNAMIC_OUTPUT_NODES = {"ToolsPicker", "ClassifyQuestion"}
-
 #: Package directories scanned for node + schema modules, relative to the repo.
 _PACKAGE_DIRS = (
     "utils_pkg/klea_utils",
@@ -62,14 +58,28 @@ def _base_names(classdef: ast.ClassDef) -> list[ast.expr]:
     return list(classdef.bases)
 
 
-def _output_schema_name(classdef: ast.ClassDef, dynamic_nodes: set[str]) -> str | None:
+def _defines_output_schema_override(classdef: ast.ClassDef) -> bool:
+    """Return whether the node builds its output schema dynamically.
+
+    A ``_get_output_schema`` override (the tools picker, the RAG query
+    generator) returns a per-run schema, so the class's declared schema is not
+    the one sent to the model; the generated schema has its own tests.
+    """
+    return any(
+        isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and stmt.name == "_get_output_schema"
+        for stmt in classdef.body
+    )
+
+
+def _output_schema_name(classdef: ast.ClassDef) -> str | None:
     """Return the declared output-schema class name for an LLM node.
 
     Reads ``class X(BaseLLMNode[State, Schema])`` (the second type argument) and
     any ``output_schema=Schema`` keyword in the class body.  Returns ``None``
     for non-LLM classes, dynamic-output nodes, and ``BaseModel``/``None``.
     """
-    if classdef.name in dynamic_nodes:
+    if _defines_output_schema_override(classdef):
         return None
 
     candidates: list[str] = []
@@ -177,7 +187,7 @@ def _discover_output_schemas(
     classdefs = _collect_classdefs(forest)
     seeds: set[str] = set()
     for classdef in classdefs.values():
-        name = _output_schema_name(classdef, _DYNAMIC_OUTPUT_NODES)
+        name = _output_schema_name(classdef)
         if name is not None:
             seeds.add(name)
 
