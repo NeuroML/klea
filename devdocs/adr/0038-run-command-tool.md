@@ -179,6 +179,15 @@ step.  Both are separate follow-ups.
   disclosure/dispatch exclusion test (ADR-0037).
 * Lint/type: `ruff` and `ty` clean; `pytest -m "not localonly"`.
 
+### Update (2026-10-02)
+
+* `run_command` now carries a chat-facing `display` field (ADR-0040
+  self-describing convention: `{"mime": "text/x-shell", "data", "meta"}`), so
+  the command, its stdout/stderr and its exit status appear in the chat.  The
+  block shows the full captured output (the UI collapses long blocks) and is
+  shown when a stream is non-empty or the exit is non-zero (a silent success
+  stays quiet).  `download_file` gained a matching `text/plain` display.
+
 ## More Information
 
 * Related: ADR-0003 (`isError` contract), ADR-0007 (path permissions and the

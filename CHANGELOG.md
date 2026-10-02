@@ -32,6 +32,7 @@
 
 ### Changed
 
+- Destructive tool results are now surfaced in the chat: `run_command` renders one shell block with the command, its full stdout/stderr and exit status (shown when there is output or a non-zero exit; the UI collapses long blocks), and `download_file` shows the saved path or failure. A destructive third-party MCP tool that declares no display convention gets a minimal `tool(arg=...)` shell block, so a risky call is never silently invisible.
 - Web UI: the model dialog can copy one role's model configuration to all roles.
 - RAG retrieval runs each retriever call and the cross-encoder inference in worker threads, so a slow store or model no longer blocks the server event loop for other sessions.
 - A streaming run records the user turn when it starts (not only on completion), so a turn that fails mid-run is visible and retryable; the assistant reply is recorded on completion.
