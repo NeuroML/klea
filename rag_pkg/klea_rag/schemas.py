@@ -15,6 +15,23 @@ from klea_utils.mcp.access import AccessLevel
 from klea_utils.stores.retrieval.types import KValues
 from pydantic import BaseModel, Field
 
+#: Effective control-flow decision for the evaluator loop.  Recorded by
+#: ``RouteEvaluator`` from the evaluator's verdict plus scores and followed by
+#: the thin router.  Distinct from ``EvaluateAnswerSchema.next_step``: that is
+#: the evaluator LLM's raw recommendation, while ``route`` is the system's
+#: effective decision.  It can override the recommendation and adds the
+#: terminal-only destinations ``"fallback"`` and ``"best_effort"``; action
+#: nodes read ``route``, not ``next_step``.
+RouteName = Literal[
+    "continue",
+    "retrieve_more_info",
+    "modify_query",
+    "rewrite_answer",
+    "fallback",
+    "best_effort",
+    "undefined",
+]
+
 
 class EvaluateAnswerSchema(BaseModel):
     # Scores and the next-step directive for a generated answer.  Field
@@ -25,6 +42,8 @@ class EvaluateAnswerSchema(BaseModel):
     groundedness: float = Field(default=0.0, ge=0.0, le=1.0)
     coherence: float = Field(default=0.0, ge=0.0, le=1.0)
     conciseness: float = Field(default=0.0, ge=0.0, le=1.0)
+    # Raw evaluator recommendation.  The system's effective decision is
+    # ``RAGState.route``, derived from this plus the scores above.
     next_step: Literal[
         "continue", "retrieve_more_info", "modify_query", "rewrite_answer", "undefined"
     ] = Field(default="undefined", validate_default=True)
@@ -91,6 +110,12 @@ class RAGState(BaseGraphSchema):
 
     # number of answer rewrite attempts in evaluator loop
     rewrite_attempts: int = 0
+
+    # Effective routing decision for the current evaluator loop, recorded by
+    # RouteEvaluator from the evaluator verdict plus scores.  Action nodes read
+    # this (not ``text_response_eval.next_step``) so score-based overrides of
+    # the verdict are honoured.
+    route: RouteName = "undefined"
 
     # current k for each store: {retriever source label: {domain: {store: k}}}.
     # Stores not listed use their default k.  Reset for every new query.
