@@ -23,7 +23,7 @@ Filter fields:
 * supply the value the user states for each field; omit a field when the
   question does not state that constraint
 * for numeric fields (int/float) supply a bare value for equality, or a range
-  object for bounds (e.g. `{"gte": 2020, "lte": 2025}`)
+  object for bounds (e.g. `{{"gte": 2020, "lte": 2025}}`)
 * for list fields supply every element value as a list
 
 Allowed filter fields:

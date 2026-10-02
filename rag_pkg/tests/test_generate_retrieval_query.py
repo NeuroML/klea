@@ -82,6 +82,29 @@ def test_braces_in_descriptions_do_not_break_prompt_formatting():
     assert "range like {'$gte': x}" in text
 
 
+def test_prompt_files_escape_literal_json_braces():
+    """Literal JSON braces in the prompt files must be escaped.
+
+    An unescaped ``{"gte": ...}`` is parsed by the chat template as a variable
+    named ``"gte"`` and the run fails with INVALID_PROMPT_INPUT.
+    """
+    from pathlib import Path
+
+    from langchain_core.prompts import ChatPromptTemplate
+
+    prompts = Path(__file__).resolve().parents[1] / "klea_rag" / "nodes" / "prompts"
+    system = (prompts / "GenerateRetrievalQuery_system.md").read_text()
+    human = (prompts / "GenerateRetrievalQuery_user.md").read_text()
+    template = ChatPromptTemplate([("system", system), ("human", human)])
+
+    assert set(template.input_variables) == {"allowed_filter_fields", "query"}
+
+    rendered = template.invoke(
+        {"allowed_filter_fields": "- year (int): publication year", "query": "q"}
+    ).to_string()
+    assert '{"gte": 2020, "lte": 2025}' in rendered
+
+
 def _result(node: GenerateRetrievalQuery, state: RAGState, **fields):
     """Build a valid instance of the node's per-run output schema."""
     schema = node._get_output_schema(state, LLMNodeContext())
