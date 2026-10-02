@@ -443,6 +443,66 @@ def test_tool_display_entries_skip_errors_and_empty():
     assert node._tool_display_entries(tool_calls, results) == []
 
 
+def test_destructive_tool_without_convention_gets_shell_fallback():
+    """A destructive tool with no display convention shows its call."""
+    node = _make_node(
+        tool_infos={"delete_object": ToolInfo(title="Delete object", destructive=True)}
+    )
+    tool_calls = [
+        ToolCallSchema(tool="delete_object", args={"bucket": "prod", "key": "data.csv"})
+    ]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["header"] == "Delete object"
+    assert entries[0]["data"] == 'delete_object(bucket="prod", key="data.csv")'
+    assert entries[0]["display"] == (
+        '```shell\ndelete_object(bucket="prod", key="data.csv")\n```'
+    )
+
+
+def test_destructive_fallback_summarises_long_arguments():
+    """Long/newline argument values are truncated to keep the line short."""
+    node = _make_node(tool_infos={"doomed": ToolInfo(title="Doomed", destructive=True)})
+    tool_calls = [ToolCallSchema(tool="doomed", args={"blob": "x" * 500})]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["data"].startswith('doomed(blob="xxxx')
+    assert entries[0]["data"].endswith('...")')
+    assert "\n" not in entries[0]["data"]
+
+
+def test_non_destructive_tool_without_convention_is_skipped():
+    """A non-destructive tool with nothing renderable stays out of chat."""
+    node = _make_node(tool_infos={"safe": ToolInfo(title="Safe")})
+    tool_calls = [ToolCallSchema(tool="safe", args={"x": 1})]
+    results = [CallToolResult(content=[], structured_content=None, meta=None)]
+
+    assert node._tool_display_entries(tool_calls, results) == []
+
+
+def test_destructive_declared_display_takes_precedence():
+    """A destructive tool's own display convention wins over the fallback."""
+    node = _make_node(tool_infos={"delete": ToolInfo(title="Delete", destructive=True)})
+    tool_calls = [ToolCallSchema(tool="delete", args={"path": "x"})]
+    results = [
+        CallToolResult(
+            content=[],
+            structured_content={"display": {"mime": "text/x-diff", "data": "-gone"}},
+            meta=None,
+        )
+    ]
+
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert entries[0]["mime"] == "text/x-diff"
+    assert entries[0]["data"] == "-gone"
+
+
 def test_post_exec_stream_emits_tool_event():
     """A renderable result produces one ``tool`` event carrying the entries."""
     node = _make_node(tool_infos={"write_file": ToolInfo(title="Write file")})

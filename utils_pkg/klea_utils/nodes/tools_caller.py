@@ -171,9 +171,11 @@ class ToolsCallerNode(
         standard, third-party-friendly path); then structured conventions
         (``diff`` -> ``text/x-diff``, ``code`` -> ``text/x-<language>``,
         ``display`` -> ``text/markdown``); then a self-describing
-        ``display`` dict (``{"mime", "data", "meta"}``).  Plain ``TextContent``
-        is not surfaced (ours is the JSON dump).  Errors and results with
-        nothing to show are skipped.
+        ``display`` dict (``{"mime", "data", "meta"}``); then, for a
+        destructive tool with none of the above, a minimal ``text/x-shell``
+        call line so a third-party destructive call is still visible.  Plain
+        ``TextContent`` is not surfaced (ours is the JSON dump).  Errors and
+        results with nothing to show are skipped.
         """
         per_result = [
             self._display_entry_for(tc, result)
@@ -184,7 +186,15 @@ class ToolsCallerNode(
     def _display_entry_for(
         self, tc: Any, result: CallToolResult
     ) -> dict[str, Any] | None:
-        """Build a display entry for one call/result, or ``None``."""
+        """Build a display entry for one call/result, or ``None``.
+
+        Precedence: a typed MCP content block first, then a structured
+        display convention (``display``/``diff``/``code``).  Failing both, a
+        destructive tool (ADR-0037) gets a minimal ``text/x-shell`` fallback
+        showing the call, so a third-party destructive tool that declares no
+        display convention is never silently invisible.  Non-destructive
+        results with nothing renderable are skipped.
+        """
         if result.is_error:
             return None
         info = self._tool_infos.get(tc.tool) if self._tool_infos else None
@@ -194,7 +204,40 @@ class ToolsCallerNode(
             entry = self._display_from_structured(
                 result.structured_content, tc.tool, title
             )
+        if entry is None and info is not None and info.destructive:
+            entry = self._display_from_destructive_call(tc, title)
         return entry
+
+    @staticmethod
+    def _display_from_destructive_call(tc: Any, title: str) -> dict[str, Any]:
+        """Build a minimal shell-call entry for a destructive tool.
+
+        Used as the last-resort display for a destructive tool that provided
+        no typed content block and no display convention (third-party MCP
+        servers are not required to follow the Klea convention).  Shows the
+        call as ``tool(arg=...)`` with each argument value summarised, so the
+        user can see what was invoked without a long argument dump.
+        """
+        args = getattr(tc, "args", None) or {}
+        rendered = ", ".join(
+            f"{key}={ToolsCallerNode._summarise_arg(value)}"
+            for key, value in args.items()
+        )
+        call = f"{tc.tool}({rendered})" if args else f"{tc.tool}()"
+        return ToolsCallerNode._display_entry(tc.tool, title, "text/x-shell", call)
+
+    @staticmethod
+    def _summarise_arg(value: Any, limit: int = 80) -> str:
+        """Return a short single-line rendering of one argument value."""
+        if isinstance(value, str):
+            text = value.replace("\n", "\\n")
+            if len(text) > limit:
+                text = text[:limit] + "..."
+            return f'"{text}"'
+        text = repr(value).replace("\n", "\\n")
+        if len(text) > limit:
+            text = text[:limit] + "..."
+        return text
 
     def _display_from_content(
         self, result: CallToolResult, tool: str, title: str
