@@ -323,6 +323,7 @@
     <span class="n">split_output_by_section</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLLMNode</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeContext</span>
 
 <span class="c1">#: Default char budget for the recent verbatim window that is kept out of</span>
 <span class="c1">#: the summary.  Must match the base node's ``num_history_chars`` default so</span>
@@ -386,53 +387,62 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span> <span class="o">=</span> <span class="n">summarisation_threshold_chars</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">num_history_chars</span> <span class="o">=</span> <span class="n">num_history_chars</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">conversation</span> <span class="o">=</span> <span class="s2">""</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span> <span class="o">=</span> <span class="mi">0</span>
 
-    <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Skip if not enough old conversation to summarise."""</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_summarisation_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return ``(conversation, window_start)`` for this run.</span>
+
+<span class="sd">        Derived from *state* on each call rather than stored on the shared</span>
+<span class="sd">        node instance, so concurrent runs cannot clobber each other's</span>
+<span class="sd">        summarisation window (see ADR-0045).</span>
+<span class="sd">        """</span>
         <span class="n">recent</span> <span class="o">=</span> <span class="n">get_recent_messages</span><span class="p">(</span>
             <span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">num_history_chars</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">recent</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">conversation</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span>
+        <span class="n">window_start</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">recent</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+        <span class="n">conversation</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span>
             <span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
             <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span><span class="p">,</span>
+            <span class="n">window_start</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="k">return</span> <span class="n">conversation</span><span class="p">,</span> <span class="n">window_start</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span> <span class="o">&lt;=</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">:</span>  <span class="c1"># type: ignore</span>
+    <span class="nd">@override</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">NodeContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Skip if not enough old conversation to summarise."""</span>
+        <span class="n">conversation</span><span class="p">,</span> <span class="n">window_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">window_start</span> <span class="o">&lt;=</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">:</span>  <span class="c1"># type: ignore</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No new history to summarise yet"</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conversation</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Not enough conversation to summarise yet: "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">conversation</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="si">}</span><span class="s2"> chars"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="si">}</span><span class="s2"> chars"</span>
             <span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
         <span class="k">return</span> <span class="kc">True</span>
 
     <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_prompt_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_prompt_variables</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Format prompt with conversation data.</span>
 
 <span class="sd">        ``context_summary`` is empty on the first summarisation, so the</span>
 <span class="sd">        previous-summary section is composed as an optional block and omitted</span>
 <span class="sd">        entirely when there is none (prompt conventions).</span>
 <span class="sd">        """</span>
+        <span class="n">conversation</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"old_summary_block"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
                 <span class="s2">"Current summary"</span><span class="p">,</span>
                 <span class="n">state</span><span class="o">.</span><span class="n">context_summary</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
             <span class="p">),</span>
-            <span class="s2">"conversation"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">conversation</span><span class="p">,</span>
+            <span class="s2">"conversation"</span><span class="p">:</span> <span class="n">conversation</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_state</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Extract summary from raw AIMessage output.</span>
 
 <span class="sd">        A blank response is not a usable summary.  Advancing</span>
@@ -450,14 +460,15 @@
                 <span class="s2">"existing summary and leaving the window unsummarised"</span>
             <span class="p">)</span>
             <span class="k">return</span> <span class="p">{}</span>
+        <span class="n">_conversation</span><span class="p">,</span> <span class="n">window_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"context_summary"</span><span class="p">:</span> <span class="n">answer</span><span class="p">,</span>
-            <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_window_start</span><span class="p">,</span>
+            <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">window_start</span><span class="p">,</span>
         <span class="p">}</span>
 
     <span class="c1"># TODO: may need updating</span>
     <span class="nd">@override</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_default_error_result</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_default_error_result</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Return default result when processing fails."""</span>
         <span class="k">return</span> <span class="n">AIMessage</span><span class="p">(</span><span class="n">content</span><span class="o">=</span><span class="s2">""</span><span class="p">)</span></div>
 

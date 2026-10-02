@@ -357,6 +357,7 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">..models_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">probe_endpoint_model_limits</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span><span class="p">,</span> <span class="n">NodeStreamData</span><span class="p">,</span> <span class="n">NodeStreamEvent</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMNodeContext</span>
 
 <span class="c1">#: Max times to retry an invoke that overflowed the context window, each</span>
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
@@ -625,12 +626,17 @@
 <span class="w">        </span><span class="sd">"""Set Pydantic schema for structured output"""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_output_schema</span> <span class="o">=</span> <span class="n">value</span>
 
+<div class="viewcode-block" id="BaseLLMNode.output_schema_json">
+<a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.base.BaseLLMNode.output_schema_json">[docs]</a>
     <span class="nd">@cached_property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">output_schema_json</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Return JSON schema string for use in prompts."""</span>
-        <span class="k">return</span> <span class="n">convert_to_json_schema</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="k">else</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="n">convert_to_json_schema</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="k">else</span> <span class="p">{}</span></div>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_configure_llm</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span><span class="p">]:</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_configure_llm</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Configure LLM and build per-invoke config.</span>
 
 <span class="sd">        Returns the raw ``instance`` (a ``_ConfigurableModel``) without</span>
@@ -638,17 +644,18 @@
 <span class="sd">        so that providers that reject ``response_format`` can fall back to</span>
 <span class="sd">        prompt-based structured output.</span>
 
+<span class="sd">        :param ctx: Per-run node context.</span>
 <span class="sd">        :returns: (llm_instance, config_dict) where config_dict is a</span>
 <span class="sd">            ``RunnableConfig`` with ``configurable`` populated.</span>
 <span class="sd">        """</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
-        <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_invoke_config</span><span class="p">()</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_invoke_config</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">mask_sensitive</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'configurable'</span><span class="p">,</span><span class="w"> </span><span class="p">{}))</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">inst</span><span class="p">,</span> <span class="n">config</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_build_invoke_config</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_invoke_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">RunnableConfig</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Build the per-invoke RunnableConfig.</span>
 
 <span class="sd">        Delegates the full merge (role defaults -&gt; context overrides -&gt;</span>
@@ -705,7 +712,7 @@
         <span class="c1"># finite budget, mainly for the HuggingFace whole-window</span>
         <span class="c1"># reservation).  The retry path in _update_output_window opts into</span>
         <span class="c1"># the live endpoint for an accurate cap.</span>
-        <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_last_prompt</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">prompt</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="n">resolve_output_token_limit</span><span class="p">(</span>
             <span class="n">overrides</span><span class="p">,</span>
             <span class="n">provider</span><span class="o">=</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"openai"</span><span class="p">,</span>
@@ -789,7 +796,7 @@
         <span class="k">return</span> <span class="n">prompt</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_invoke_llm</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">llm</span><span class="p">:</span> <span class="n">Runnable</span><span class="p">,</span> <span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Async invoke LLM with optional structured output + fallback.</span>
 
@@ -810,7 +817,11 @@
 <span class="sd">        they stay on the structured path so its existing empty-retry budget is</span>
 <span class="sd">        used before degrading.</span>
 <span class="sd">        """</span>
-        <span class="n">prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_cache_control</span><span class="p">(</span><span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">ctx</span><span class="o">.</span><span class="n">prompt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="n">ctx</span><span class="o">.</span><span class="n">config</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_cache_control</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">prompt</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">config</span>
+        <span class="n">output_schema</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">inst</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">instance</span>
         <span class="n">configurable</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"configurable"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
@@ -818,7 +829,7 @@
         <span class="n">model</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">)</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="o">.</span><span class="n">model_name</span>
         <span class="n">base_url</span> <span class="o">=</span> <span class="n">configurable</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"base_url"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">output_schema</span><span class="p">:</span>
             <span class="n">output</span> <span class="o">=</span> <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invoke_with_retries</span><span class="p">(</span><span class="n">inst</span><span class="o">.</span><span class="n">ainvoke</span><span class="p">,</span> <span class="n">prompt</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">return</span> <span class="n">output</span>
@@ -833,7 +844,7 @@
             <span class="k">return</span> <span class="n">output</span>
 
         <span class="n">structured</span> <span class="o">=</span> <span class="n">inst</span><span class="o">.</span><span class="n">with_structured_output</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
+            <span class="n">output_schema</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s2">"json_schema"</span><span class="p">,</span> <span class="n">include_raw</span><span class="o">=</span><span class="kc">True</span>
         <span class="p">)</span>
         <span class="n">use_structured</span> <span class="o">=</span> <span class="kc">True</span>
 
@@ -867,6 +878,7 @@
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">,</span>
         <span class="n">direction</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"shrink"</span><span class="p">,</span> <span class="s2">"grow"</span><span class="p">],</span>
+        <span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Resize the reserved output window.</span>
 
@@ -923,7 +935,7 @@
             <span class="k">else</span><span class="p">:</span>
                 <span class="n">step</span> <span class="o">=</span> <span class="n">TRUNCATION_PHASE2_STEP</span>
                 <span class="n">phase</span> <span class="o">=</span> <span class="s2">"large-step"</span>
-            <span class="n">target</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">current</span> <span class="o">+</span> <span class="n">step</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jump_output_target</span><span class="p">(</span><span class="n">overrides</span><span class="p">))</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">current</span> <span class="o">+</span> <span class="n">step</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_jump_output_target</span><span class="p">(</span><span class="n">overrides</span><span class="p">,</span> <span class="n">prompt</span><span class="p">))</span>
 
         <span class="c1"># Set the provider token param directly (rather than the generic</span>
         <span class="c1"># key) so the resolver's "explicit value wins" precedence does not</span>
@@ -932,8 +944,7 @@
         <span class="c1"># grow are retries, so use the live endpoint for an accurate</span>
         <span class="c1"># context cap (falling back to models.dev), unlike the normal path.</span>
         <span class="n">overrides</span><span class="p">[</span><span class="n">token_param</span><span class="p">]</span> <span class="o">=</span> <span class="n">target</span>
-        <span class="n">last_prompt</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_prompt"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-        <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">last_prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="n">last_prompt</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="n">prompt</span> <span class="k">else</span> <span class="kc">None</span>
         <span class="n">resolve_output_token_limit</span><span class="p">(</span>
             <span class="n">overrides</span><span class="p">,</span>
             <span class="n">provider</span><span class="o">=</span><span class="n">provider</span><span class="p">,</span>
@@ -952,7 +963,9 @@
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">new_value</span> <span class="o">!=</span> <span class="n">current</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_jump_output_target</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_jump_output_target</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">overrides</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Return the output-window ceiling for truncation retries.</span>
 
 <span class="sd">        The ceiling is :data:`MAX_OUTPUT_TOKENS_CEILING` by default, but</span>
@@ -977,8 +990,7 @@
             <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"api_key"</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">limits</span> <span class="ow">and</span> <span class="n">limits</span><span class="o">.</span><span class="n">context</span><span class="p">:</span>
-            <span class="n">last_prompt</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">"_last_prompt"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-            <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">last_prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="n">last_prompt</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">input_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">prompt</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span> <span class="k">if</span> <span class="n">prompt</span> <span class="k">else</span> <span class="kc">None</span>
             <span class="k">if</span> <span class="n">input_chars</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="n">headroom</span> <span class="o">=</span> <span class="n">limits</span><span class="o">.</span><span class="n">context</span> <span class="o">-</span> <span class="n">estimate_input_tokens</span><span class="p">(</span><span class="n">input_chars</span><span class="p">)</span>
                 <span class="n">target</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">headroom</span><span class="p">)</span>
@@ -1044,7 +1056,7 @@
                     <span class="ow">and</span> <span class="n">overflow_retries</span> <span class="o">&lt;</span> <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span>
                 <span class="p">):</span>
                     <span class="n">overflow_retries</span> <span class="o">+=</span> <span class="mi">1</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"shrink"</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"shrink"</span><span class="p">,</span> <span class="n">prompt</span><span class="p">):</span>
                         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                             <span class="s2">"Context overflow but output window cannot shrink further"</span>
                         <span class="p">)</span>
@@ -1065,7 +1077,7 @@
 
                 <span class="k">if</span> <span class="n">category</span> <span class="ow">is</span> <span class="n">LLMInvocationErrorCategory</span><span class="o">.</span><span class="n">LENGTH_TRUNCATION</span><span class="p">:</span>
                     <span class="n">grow</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_truncation_retry</span><span class="p">(</span>
-                        <span class="n">config</span><span class="p">,</span> <span class="n">truncation_retries</span>
+                        <span class="n">config</span><span class="p">,</span> <span class="n">truncation_retries</span><span class="p">,</span> <span class="n">prompt</span>
                     <span class="p">)</span>
                     <span class="k">if</span> <span class="n">grow</span><span class="p">:</span>
                         <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
@@ -1123,7 +1135,9 @@
                 <span class="k">raise</span>
 
             <span class="k">if</span> <span class="n">is_output_truncated</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
-                <span class="n">grow</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_truncation_retry</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="n">truncation_retries</span><span class="p">)</span>
+                <span class="n">grow</span><span class="p">,</span> <span class="n">message</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_next_truncation_retry</span><span class="p">(</span>
+                    <span class="n">config</span><span class="p">,</span> <span class="n">truncation_retries</span><span class="p">,</span> <span class="n">prompt</span>
+                <span class="p">)</span>
                 <span class="k">if</span> <span class="n">grow</span><span class="p">:</span>
                     <span class="n">truncation_retries</span> <span class="o">+=</span> <span class="mi">1</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
@@ -1160,7 +1174,10 @@
             <span class="k">return</span> <span class="n">output</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_next_truncation_retry</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">,</span> <span class="n">truncation_retries</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span><span class="p">,</span>
+        <span class="n">truncation_retries</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">prompt</span><span class="p">:</span> <span class="n">PromptValue</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Return whether to retry a truncated invoke, and the log message.</span>
 
@@ -1182,7 +1199,7 @@
                 <span class="s2">"Output truncated but truncation retry budget exhausted"</span>
             <span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span><span class="p">,</span> <span class="s2">""</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"grow"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_output_window</span><span class="p">(</span><span class="n">config</span><span class="p">,</span> <span class="s2">"grow"</span><span class="p">,</span> <span class="n">prompt</span><span class="p">):</span>
             <span class="k">return</span> <span class="p">(</span>
                 <span class="kc">True</span><span class="p">,</span>
                 <span class="p">(</span>
@@ -1247,7 +1264,7 @@
             <span class="c1"># No active run (direct unit-test call): the retry is still logged.</span>
             <span class="k">pass</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_process_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output</span><span class="p">:</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_process_output</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Common output processing with error handling.</span>
 
 <span class="sd">        NOTE: structured output is best-effort.  A model can return a valid</span>
@@ -1260,20 +1277,21 @@
 <span class="sd">        revisit the prompt/model rather than expecting a loud invocation</span>
 <span class="sd">        error.</span>
 <span class="sd">        """</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output</span>
         <span class="n">result</span><span class="p">:</span> <span class="n">TOutput</span> <span class="o">|</span> <span class="n">AIMessage</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">schema</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span>
+        <span class="n">schema</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span>
 
         <span class="k">if</span> <span class="n">schema</span><span class="p">:</span>
             <span class="c1"># but answer is returned as message instead of json/dict</span>
             <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">):</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsing_error"</span><span class="p">]:</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                         <span class="sa">f</span><span class="s2">"LLM parsing error, using fallback: </span><span class="si">{</span><span class="n">output</span><span class="p">[</span><span class="s1">'parsing_error'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
                     <span class="p">)</span>
-                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">])</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_structured_message</span><span class="p">(</span><span class="n">output</span><span class="p">[</span><span class="s2">"raw"</span><span class="p">],</span> <span class="n">ctx</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">result</span> <span class="o">=</span> <span class="n">output</span><span class="p">[</span><span class="s2">"parsed"</span><span class="p">]</span>
                     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -1283,7 +1301,7 @@
                             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">critical</span><span class="p">(</span>
                                 <span class="sa">f</span><span class="s2">"Unexpected output type: </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">result</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
                             <span class="p">)</span>
-                            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+                            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
 
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Processed output: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -1293,7 +1311,7 @@
                 <span class="sa">f</span><span class="s2">"No output schema. Returning unprocessed output: </span><span class="si">{</span><span class="n">result</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">_is_empty_result</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">_is_empty_result</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">):</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Empty LLM output from </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="si">}</span><span class="s2">: nothing usable was "</span>
                 <span class="sa">f</span><span class="s2">"produced (all-default structured result or blank message)"</span>
@@ -1304,12 +1322,14 @@
             <span class="c1"># nodes keep the raw output: their ``_get_default_error_result``</span>
             <span class="c1"># is not necessarily an ``AIMessage`` (the guard returns a bare</span>
             <span class="c1"># ``str``), and user-facing ones supply their own fallback text.</span>
-            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
 
         <span class="k">return</span> <span class="n">result</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_structured_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">AIMessage</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parse_structured_message</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Parse a structured-output message, degrading to the typed default.</span>
 
 <span class="sd">        ``parse_output_with_thought`` can raise when the model returned blank</span>
@@ -1319,37 +1339,41 @@
 <span class="sd">        node and abort the run.</span>
 
 <span class="sd">        :param message: The raw model message to parse.</span>
+<span class="sd">        :param ctx: Per-run node context (supplies the resolved schema).</span>
 <span class="sd">        :returns: A schema instance, or ``_get_default_error_result()`` on</span>
 <span class="sd">            parse/validation failure.</span>
 <span class="sd">        """</span>
-        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">assert</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
         <span class="k">try</span><span class="p">:</span>
-            <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
+            <span class="n">result</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">parse_output_with_thought</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
         <span class="k">except</span> <span class="p">(</span><span class="n">OutputParserException</span><span class="p">,</span> <span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Structured output could not be parsed; using default result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
             <span class="p">)</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
             <span class="k">try</span><span class="p">:</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="p">)</span>
             <span class="k">except</span> <span class="p">(</span><span class="n">ValidationError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                     <span class="s2">"Parsed output failed schema validation; using default "</span>
                     <span class="sa">f</span><span class="s2">"result: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span>
                 <span class="p">)</span>
-                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">()</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_default_error_result</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">result</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_invoke_prompt</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">prompt_template</span><span class="p">:</span> <span class="n">ChatPromptTemplate</span><span class="p">,</span> <span class="n">variables</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">prompt_template</span><span class="p">:</span> <span class="n">ChatPromptTemplate</span><span class="p">,</span>
+        <span class="n">variables</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">],</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PromptValue</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Format prompt with state-specific parameters"""</span>
+<span class="w">        </span><span class="sd">"""Format prompt with state-specific parameters."""</span>
         <span class="n">prompt</span> <span class="o">=</span> <span class="n">prompt_template</span><span class="o">.</span><span class="n">invoke</span><span class="p">(</span><span class="n">variables</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prompt</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">prompt</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_format_output_schema_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_format_output_schema_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">schema</span><span class="p">:</span> <span class="nb">type</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Return the ``Output schema (strict)`` prompt block.</span>
 
 <span class="sd">        The raw JSON Schema (``title``/``type``/``properties``) invites</span>
@@ -1358,10 +1382,11 @@
 <span class="sd">        sanitized schema (top-level ``title``/``description`` dropped), an</span>
 <span class="sd">        explicit directive, and a generated example instance.</span>
 
+<span class="sd">        :param schema: The run's resolved output schema (static or dynamic).</span>
 <span class="sd">        :returns: Prompt text describing the required JSON output</span>
 <span class="sd">        """</span>
-        <span class="n">schema_json</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema_json</span>
-        <span class="n">schema</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">schema_json</span> <span class="o">=</span> <span class="n">convert_to_json_schema</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span>
+        <span class="n">sanitized</span> <span class="o">=</span> <span class="p">{</span>
             <span class="n">key</span><span class="p">:</span> <span class="n">value</span>
             <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">schema_json</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
             <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">"description"</span><span class="p">)</span>
@@ -1373,7 +1398,7 @@
 
 <span class="s2">            Respond in JSON following this schema:</span>
 
-<span class="s2">            </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">schema</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{{"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"}}"</span><span class="p">)</span><span class="si">}</span>
+<span class="s2">            </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">sanitized</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{{"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"}}"</span><span class="p">)</span><span class="si">}</span>
 
 <span class="s2">            The response must be a raw, valid JSON object like this example</span>
 <span class="s2">            (replace the placeholder values with real content):</span>
@@ -1385,7 +1410,9 @@
 <span class="s2">            """</span>
         <span class="p">)</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_system_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_system_prompt</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load system prompt from file, optionally adding memory and schema.</span>
 
 <span class="sd">        When memory is enabled, returns a list of ``("system", text)`` plus</span>
@@ -1395,13 +1422,14 @@
 <span class="sd">        as a plain string.</span>
 
 <span class="sd">        :param state: Graph state.</span>
+<span class="sd">        :param ctx: Per-run node context.</span>
 <span class="sd">        :returns: System prompt text, or a list of system text + history</span>
 <span class="sd">            message objects when memory is enabled.</span>
 <span class="sd">        """</span>
         <span class="n">system_prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_prompt_file</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_prefix</span><span class="si">}</span><span class="s2">_system"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
-            <span class="n">system_prompt</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_output_schema_prompt</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
+            <span class="n">system_prompt</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_output_schema_prompt</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">memory</span><span class="p">:</span>
             <span class="n">memory_addition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_memory_addition</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
@@ -1445,7 +1473,7 @@
         <span class="n">_</span><span class="p">,</span> <span class="n">recent</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
         <span class="k">return</span> <span class="n">recent</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load human prompt from file."""</span>
         <span class="n">human_prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_prompt_file</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_prefix</span><span class="si">}</span><span class="s2">_user"</span><span class="p">)</span>
 
@@ -1486,7 +1514,10 @@
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'#'</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">level</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="se">\n\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_create_prompt_template</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">system_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">human_prompt</span><span class="p">:</span> <span class="nb">str</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">system_prompt</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span>
+        <span class="n">human_prompt</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">],</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChatPromptTemplate</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Create ChatPromptTemplate with system and human messages.</span>
 
@@ -1497,6 +1528,7 @@
 <span class="sd">        :param system_prompt: System prompt text or a system-side list</span>
 <span class="sd">            including recent history messages.</span>
 <span class="sd">        :param human_prompt: Human prompt text.</span>
+<span class="sd">        :param ctx: Per-run node context.</span>
 <span class="sd">        """</span>
         <span class="n">system_messages</span> <span class="o">=</span> <span class="p">(</span>
             <span class="p">[(</span><span class="s2">"system"</span><span class="p">,</span> <span class="n">system_prompt</span><span class="p">)]</span>

@@ -899,7 +899,9 @@
         <span class="n">Field</span><span class="p">(</span>
             <span class="n">description</span><span class="o">=</span><span class="p">(</span>
                 <span class="s2">"Shell command string to run. Pipes, '&amp;&amp;' and redirection are "</span>
-                <span class="s2">"supported."</span>
+                <span class="s2">"supported. Scope the command to the requested target; do not "</span>
+                <span class="s2">"run a broader command or suite than asked (for example run the "</span>
+                <span class="s2">"one named test file, not the whole suite)."</span>
             <span class="p">),</span>
             <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="p">),</span>
