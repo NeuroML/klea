@@ -17,6 +17,7 @@ from fastapi import APIRouter, FastAPI
 logger = logging.getLogger(__name__)
 
 from klea_utils.api.chat_core import migrate_legacy_overrides
+from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.paths import init_dir
@@ -55,6 +56,11 @@ def make_app(
         await graph.setup()
         app.state.graph = graph
         logger.info("Graph setup complete (%s)", type(graph).__name__)
+
+        # Per-process registry of in-flight runs (single-flight per thread,
+        # cancellation).  In-process by design: the server is one uvicorn
+        # worker and asyncio tasks cannot be cancelled across processes.
+        app.state.active_runs = ActiveRunRegistry()
 
         db_path = init_dir(graph.paths.user_data_dir) / "sessions.db"
         app.state.chat_sessions = SessionStore(str(db_path))
