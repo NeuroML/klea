@@ -147,6 +147,13 @@ Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
   stay skipped, since their failure is already in the inspect pane and drives
   Triage.  (The earlier "errors are skipped" rule was only in the code and
   tests, not this ADR.)
+* The tools caller emits a per-tool `state` (status-pane) section **before**
+  dispatch, marking each call `running`, which the end-of-round status
+  replaces with `ok`/`error`.  This is coarse (all dispatched calls are marked
+  running together; exact per-call timing - relevant for same-resource
+  serialisation, ADR-0041 - is deferred).  It is a status-pane signal, not a
+  chat `tool` event, so the "status pane = activity, chat = artifacts" split
+  is preserved; no output is streamed.
 
 ## More Information
 

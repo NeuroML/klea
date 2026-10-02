@@ -25,7 +25,11 @@ from pydantic import BaseModel
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.dispatch import dispatch_tool_calls
 from klea_utils.mcp.schemas import ToolInfo
-from klea_utils.nodes.abstract import AbstractLangGraphNode, NodeStreamData
+from klea_utils.nodes.abstract import (
+    AbstractLangGraphNode,
+    NodeStreamData,
+    NodeStreamEvent,
+)
 from klea_utils.nodes.context import ToolCallerContext
 
 
@@ -104,6 +108,16 @@ class ToolsCallerNode(
                 f"{tool_calls = }\n{access_level = }\n"
                 f"tool_infos_configured = {self._tool_infos is not None}"
             )
+            # Signal the round start in the status pane (coarse: every call is
+            # marked ``running`` together); the end-of-round ``_get_status``
+            # replaces the section with ``ok``/``error``.
+            running = self._get_running_status(state)
+            if running:
+                self.write_custom_stream(
+                    NodeStreamEvent(
+                        type="state", node=self.label, data=running
+                    ).model_dump()
+                )
             results = await dispatch_tool_calls(
                 self._mcp_client,
                 [(tc.tool, tc.args) for tc in tool_calls],
@@ -375,6 +389,35 @@ class ToolsCallerNode(
                     for i, r in enumerate(ctx.tool_results)
                 ],
             },
+        )
+
+    def _get_running_status(self, state: BaseModel) -> NodeStreamData | None:
+        """Return the status-pane section for a round that is about to run.
+
+        Emitted before dispatch so the status pane shows each tool as
+        ``running``; the end-of-round :meth:`_get_status` replaces the same
+        section with ``ok``/``error``.  Coarse by design: every dispatched
+        call is marked running together, so a same-resource call that is
+        serialised (ADR-0041) or a gated call will read ``running`` until the
+        round ends.  Calls with no usable name are skipped, matching
+        :meth:`_get_status`.
+
+        :returns: A status section, or ``None`` when there is nothing to run.
+        """
+        tool_calls = getattr(state, "tool_calls", []) or []
+        lines: list[str] = []
+        for tc in tool_calls:
+            if not tc.tool.strip():
+                continue
+            info = self._tool_infos.get(tc.tool) if self._tool_infos else None
+            title = info.title if info and info.title else tc.tool
+            lines.append(f"- **{title}**: running")
+        if not lines:
+            return None
+        return NodeStreamData(
+            heading="Tool Execution",
+            summary=f"Running {len(tool_calls)} tool(s)",
+            display="\n".join(lines),
         )
 
     def _get_status(

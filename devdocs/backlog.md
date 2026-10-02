@@ -132,46 +132,15 @@ Last updated: 2026-10-02.
 
 ## Streaming / tool UX
 
-- Live per-tool status.  The tools caller emits only a node-level `progress`
-  ("Running tools"); per-tool results appear only after the round completes
-  (`state` -> status pane, `tool` -> chat, `inspect`).  There is no
-  "tool X is running" indicator while a call is in flight.  Add one, ideally
-  as a per-call status on the existing `tool` event (`status` =
-  `running`/`ok`/`error`, plus a stable `call_id`) rather than a new event
-  type (ADR-0040 chose one `tool` event with a discriminator).  Accurate live
-  status needs optional per-call callbacks in `dispatch_tool_calls`
-  (`klea_utils/mcp/dispatch.py`), since that is where concurrency and
-  same-resource serialisation are decided; the cheaper batch alternative
-  (mark every call running up-front, all done at the end) is inaccurate for
-  serialised groups and for gated/rejected calls.  Decide: chat-transcript
-  rows vs the top progress line; whether a completed row persists as its
-  output block or a compact `ok`/`error` line; whether the status pane also
-  updates live per call; web only or web + TUI (TUI ignores `tool` today).
-  Files: `utils_pkg/klea_utils/nodes/tools_caller.py`,
-  `utils_pkg/klea_utils/ui/web/nicegui/components/{stream,chat_bubble}.py`,
-  `utils_pkg/klea_utils/ui/web/nicegui/state.py` (`MessageData`),
-  `utils_pkg/klea_utils/graph/base.py` (event forwarding), `ui/tui/repl.py`.
-- Live tool output ("as it runs").  A long-running tool's output is emitted
-  only after its round completes (`tool` event), so a `run_command` that runs
-  for a while shows nothing until it finishes.  Design: extend the existing
-  `tool` event with a stable `call_id` + `status` (`running`/`ok`/`error`) and
-  stream output chunks in place, per ADR-0040's one-event-with-a-discriminator
-  rule.  Backend: `run_command` reads stdout/stderr incrementally and calls an
-  optional `on_output` callback; the bundled wrapper forwards chunks via
-  fastmcp `ctx.report_progress` (message=chunk, throttled);
-  `dispatch_tool_calls` passes a per-call `progress_handler`; the tools caller
-  emits live events.  Verify early: emitting from the MCP client's receive
-  task (contextvar / `get_stream_writer` risk; fallback is an `asyncio.Queue`
-  + node-side drainer) and that `report_progress` crosses the bundled stdio
-  subprocess.  Decide: rendering target (chat block updated in place vs a
-  status line); whether partial output is kept on timeout (decided: no - the
-  final block shows only the error, no partial capture); throttle policy.
-  Needs an ADR (next free is 0046) and an ADR-0038/0040 amendment.  Design
-  first; not yet implemented.  Files:
-  `utils_pkg/klea_utils/mcp/tool_impls/run_command.py`,
-  `utils_pkg/klea_utils/mcp/server/bundled_tools.py`,
-  `utils_pkg/klea_utils/mcp/dispatch.py`,
-  `utils_pkg/klea_utils/nodes/tools_caller.py`, web `stream.py`.
+- Exact live per-tool status (to think about - UX, optional).  A coarse
+  `running` status is now emitted at the round start and replaced by
+  `ok`/`error` at the end (status pane), so a same-resource call that is
+  serialised (ADR-0041) or a gated/rejected call reads `running` until the
+  round finishes.  Finer per-call start/finish would need optional callbacks
+  in `dispatch_tool_calls` (`klea_utils/mcp/dispatch.py`) and emission from
+  `gather` child tasks (contextvar / `get_stream_writer` risk; `asyncio.Queue`
+  + node-side drainer fallback).  Not a committed item - add only if the
+  coarse signal proves insufficient.
 - Non-destructive tool calls in the chat (to think about - UX, needs user
   feedback/iteration).  Today read-only context tools (`read_file`,
   `list_files`, `grep`, `find_files`, `web_fetch`) appear only in the status

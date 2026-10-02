@@ -113,14 +113,19 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    assert event_types == ["progress", "inspect", "state"]
+    # A running ``state`` event precedes dispatch; the end ``state`` follows.
+    assert event_types == ["progress", "state", "inspect", "state"]
 
-    info = events[1]["data"]
+    running = events[1]["data"]
+    assert running["display"] == "- **a**: running\n- **b**: running"
+    assert running["heading"] == "Tool Execution"
+
+    info = events[2]["data"]
     assert info["summary"] == "Called 2 tool(s), 2 succeeded"
     assert info["details"]["tool_names"] == ["a", "b"]
     assert info["details"]["failed_calls"] == 0
     assert info["details"]["tool_calls"][0]["tool"] == "a"
-    status = events[2]["data"]
+    status = events[3]["data"]
     assert status["display"] == "- **a**: ok\n- **b**: ok"
 
 
@@ -344,6 +349,34 @@ def test_get_status_none_when_all_names_empty():
     ]
 
     assert node._get_status(state, _ctx(results)) is None
+
+
+def test_get_running_status_lists_tools_with_titles():
+    """The pre-dispatch section marks each tool ``running`` (status pane)."""
+    node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
+    state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
+
+    status = node._get_running_status(state)
+
+    assert status is not None
+    assert status.heading == "Tool Execution"
+    assert status.summary == "Running 2 tool(s)"
+    assert status.display == "- **Alpha tool**: running\n- **b**: running"
+
+
+def test_get_running_status_none_without_tool_calls():
+    assert _make_node()._get_running_status(MiniState()) is None
+
+
+def test_get_running_status_skips_empty_name_calls():
+    """Matches ``_get_status``: an empty-name call is not rendered."""
+    node = _make_node(tool_infos={"read": ToolInfo(title="Read file")})
+    state = MiniState(tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")])
+
+    status = node._get_running_status(state)
+
+    assert status is not None
+    assert status.display == "- **Read file**: running"
 
 
 def test_tool_display_entries_for_diff_and_text():
