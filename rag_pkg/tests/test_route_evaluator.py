@@ -22,19 +22,18 @@ class FakeRetriever:
 
     def __init__(self, name="fake", k_can_increment=True):
         self.name = name
+        self.source_label = name
         self.k_can_increment = k_can_increment
         self.inc_count = 0
-        self.reset_count = 0
+        self.checked_k: list[dict] = []
 
-    def can_inc_k(self):
+    def can_inc_k(self, k_values):
+        self.checked_k.append(k_values)
         return self.k_can_increment
 
-    def inc_k(self):
+    def inc_k(self, k_values):
         self.inc_count += 1
-        return self.k_can_increment
-
-    def reset_k(self):
-        self.reset_count += 1
+        return k_values, self.k_can_increment
 
 
 def _make_router(retrievers) -> RouteEvaluator:
@@ -66,28 +65,29 @@ def _continue_state() -> RAGState:
     )
 
 
-def test_continue_resets_k_on_all_retrievers():
-    """Routing 'continue' resets k on every retriever."""
+def test_continue_does_not_touch_k():
+    """Routing 'continue' neither checks nor grows k (InitRAGState resets it)."""
     r1 = FakeRetriever("vector")
     r2 = FakeRetriever("bm25")
     router = _make_router([r1, r2])
 
     route = router.execute(_continue_state())
-    logger.info(f"route: {route} | resets: r1={r1.reset_count}, r2={r2.reset_count}")
+    logger.info(f"route: {route}")
 
     assert route == "continue"
-    assert r1.reset_count == 1
-    assert r2.reset_count == 1
+    assert r1.checked_k == [] and r2.checked_k == []
+    assert r1.inc_count == 0 and r2.inc_count == 0
 
 
 def test_retrieve_more_info_checks_capacity_without_mutating():
-    """Routing 'retrieve_more_info' consults capacity but never mutates k.
+    """Routing 'retrieve_more_info' consults capacity but never grows k.
 
-    The router only reports whether k can still grow; the actual ``inc_k()``
-    is applied once by RetrieveInfoNode when it retrieves.
+    The router only reports whether k can still grow, using each
+    retriever's k from the state; the actual ``inc_k()`` is applied once by
+    RetrieveInfoNode when it retrieves.
     """
     r1 = FakeRetriever("vector")
-    r2 = FakeRetriever("bm25")
+    r2 = FakeRetriever("bm25", k_can_increment=False)
     router = _make_router([r1, r2])
 
     # coverage >= 0.3 keeps the modify_query branch from short-circuiting
@@ -96,11 +96,13 @@ def test_retrieve_more_info_checks_capacity_without_mutating():
         text_response_eval=EvaluateAnswerSchema(
             coverage=0.5, confidence=0.4, next_step="retrieve_more_info"
         ),
+        retrieval_k={"vector": {"NeuroML": {"store": 6}}},
     )
     route = router.execute(state)
     logger.info(f"route: {route} | incs: r1={r1.inc_count}, r2={r2.inc_count}")
 
     assert route == "retrieve_more_info"
+    assert r1.checked_k == [{"NeuroML": {"store": 6}}]
     assert r1.inc_count == 0
     assert r2.inc_count == 0
 

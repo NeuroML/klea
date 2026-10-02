@@ -92,7 +92,7 @@ class TestStores(unittest.TestCase):
         self.assertEqual(retriever._k_inc_for(small), 1)
 
     def test_retrieve_uses_per_store_k(self):
-        """retrieve() passes each store its own current k."""
+        """retrieve() passes each store its default k when none is given."""
         retriever = self._make_retriever()
         big, small = retriever.config.domains["NeuroML"].vector_stores
         big_fake = FakeStore()
@@ -106,70 +106,74 @@ class TestStores(unittest.TestCase):
         self.assertEqual(small_fake.calls[0]["k"], 5)
         self.assertEqual(big_fake.calls[0]["score_threshold"], 0.15)
 
+    def test_retrieve_uses_given_k_values(self):
+        """retrieve() uses the given k values; stores missing from them use defaults."""
+        retriever = self._make_retriever()
+        big, small = retriever.config.domains["NeuroML"].vector_stores
+        big_fake = FakeStore()
+        small_fake = FakeStore()
+        big.loaded_object = big_fake
+        small.loaded_object = small_fake
+
+        retriever.retrieve("NeuroML", "some query", k_values={"NeuroML": {"big": 4}})
+
+        self.assertEqual(big_fake.calls[0]["k"], 4)
+        self.assertEqual(small_fake.calls[0]["k"], 5)
+
     def test_inc_k_loaded_only_and_capped(self):
-        """inc_k() only touches loaded stores, capped per-store at k_max."""
+        """inc_k() only grows loaded stores, capped per-store at k_max."""
         retriever = self._make_retriever()
         big, small = retriever.config.domains["NeuroML"].vector_stores
 
         # only load "big"; "small" stays unloaded
         big.loaded_object = FakeStore()
 
-        # big: 2 -> 4 (k_inc=2), returns True
-        self.assertTrue(retriever.inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", big), 4)
-        # small is not loaded, so it is not incremented
-        self.assertNotIn(("NeuroML", "small"), retriever._k)
+        # big: 2 -> 4 (k_inc=2); small is not loaded, so it is not grown
+        k_values, grew = retriever.inc_k({})
+        self.assertTrue(grew)
+        self.assertEqual(k_values, {"NeuroML": {"big": 4}})
 
-        # big is at k_max=4 and small is still unloaded, so nothing increments
-        self.assertFalse(retriever.inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", big), 4)
+        # big is at k_max=4 and small is still unloaded, so nothing grows
+        k_values, grew = retriever.inc_k(k_values)
+        self.assertFalse(grew)
+        self.assertEqual(k_values, {"NeuroML": {"big": 4}})
 
-        # load small; inc_k() now increments it 5 -> 6, capped by its own k_max
+        # load small; inc_k() now grows it 5 -> 6, capped by its own k_max
         small.loaded_object = FakeStore()
-        self.assertTrue(retriever.inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", small), 6)
-        self.assertEqual(retriever._current_k("NeuroML", big), 4)
+        k_values, grew = retriever.inc_k(k_values)
+        self.assertTrue(grew)
+        self.assertEqual(k_values, {"NeuroML": {"big": 4, "small": 6}})
 
-    def test_can_inc_k_reports_capacity_without_mutating(self):
-        """can_inc_k() reports room to grow k but never changes any k value."""
+    def test_inc_k_does_not_modify_given_values(self):
+        """inc_k() returns new k values and leaves the given ones untouched."""
+        retriever = self._make_retriever()
+        big, small = retriever.config.domains["NeuroML"].vector_stores
+        big.loaded_object = FakeStore()
+        small.loaded_object = FakeStore()
+
+        k_values = {"NeuroML": {"small": 6}}
+        new_values, _ = retriever.inc_k(k_values)
+
+        self.assertEqual(k_values, {"NeuroML": {"small": 6}})
+        self.assertEqual(new_values, {"NeuroML": {"big": 4, "small": 7}})
+
+    def test_can_inc_k_reports_capacity(self):
+        """can_inc_k() reports whether any loaded store has room to grow k."""
         retriever = self._make_retriever()
         big, small = retriever.config.domains["NeuroML"].vector_stores
 
         # only load "big"; "small" stays unloaded
         big.loaded_object = FakeStore()
 
-        # big (2, k_max=4, k_inc=2) has room; nothing is mutated
-        self.assertTrue(retriever.can_inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", big), 2)
+        # big (2, k_max=4, k_inc=2) has room
+        self.assertTrue(retriever.can_inc_k({}))
 
-        # big at k_max and no other loaded store: no room, still no mutation
-        retriever.inc_k()
-        self.assertFalse(retriever.can_inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", big), 4)
-
-        # an unloaded store with room does not count
-        self.assertNotIn(("NeuroML", "small"), retriever._k)
+        # big at k_max and the unloaded small store does not count
+        self.assertFalse(retriever.can_inc_k({"NeuroML": {"big": 4}}))
 
         # loading small makes can_inc_k() true again (5 -> 6 within k_max=10)
         small.loaded_object = FakeStore()
-        self.assertTrue(retriever.can_inc_k())
-        self.assertEqual(retriever._current_k("NeuroML", small), 5)
-
-    def test_reset_k(self):
-        """reset_k() restores loaded stores to their per-store defaults."""
-        retriever = self._make_retriever()
-        big, small = retriever.config.domains["NeuroML"].vector_stores
-        big.loaded_object = FakeStore()
-        small.loaded_object = FakeStore()
-
-        # increment both: big 2 -> 4, small 5 -> 6
-        retriever.inc_k()
-        self.assertEqual(retriever._current_k("NeuroML", big), 4)
-        self.assertEqual(retriever._current_k("NeuroML", small), 6)
-
-        retriever.reset_k()
-        self.assertEqual(retriever._current_k("NeuroML", big), 2)
-        self.assertEqual(retriever._current_k("NeuroML", small), 5)
+        self.assertTrue(retriever.can_inc_k({"NeuroML": {"big": 4}}))
 
     def test_retrieval(self):
         """Test retrieval from the configured vector and BM25 stores."""
@@ -312,23 +316,20 @@ class TestBM25Retriever(unittest.TestCase):
         self.assertTrue(res)
         self.assertEqual(res[0][0].metadata["file_name"], "b.md")
 
-    def test_inc_k_and_reset_k(self):
-        """inc_k()/reset_k() adjust the retrieval depth of loaded stores."""
+    def test_inc_k(self):
+        """inc_k() grows the retrieval depth of loaded stores."""
         manager = self._make_manager()
         store = manager.config.domains["NeuroML"].bm25_stores[0]
 
-        # inc_k() only touches loaded stores, so load first
+        # inc_k() only grows loaded stores, so load first
         manager.load("NeuroML")
-        self.assertEqual(manager._current_k("NeuroML", store), 2)
-        self.logger.info(f"default k: {manager._current_k('NeuroML', store)}")
+        self.assertEqual(manager._current_k({}, "NeuroML", store), 2)
+        self.logger.info(f"default k: {manager._current_k({}, 'NeuroML', store)}")
 
-        self.assertTrue(manager.inc_k())
-        self.assertEqual(manager._current_k("NeuroML", store), 3)
-        self.logger.info(f"k after inc_k(): {manager._current_k('NeuroML', store)}")
-
-        manager.reset_k()
-        self.assertEqual(manager._current_k("NeuroML", store), 2)
-        self.logger.info(f"k after reset_k(): {manager._current_k('NeuroML', store)}")
+        k_values, grew = manager.inc_k({})
+        self.assertTrue(grew)
+        self.assertEqual(manager._current_k(k_values, "NeuroML", store), 3)
+        self.logger.info(f"k after inc_k(): {k_values}")
 
 
 if __name__ == "__main__":

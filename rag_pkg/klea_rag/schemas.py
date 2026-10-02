@@ -12,6 +12,7 @@ from typing import Any, Literal
 
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.access import AccessLevel
+from klea_utils.stores.retrieval.base import KValues
 from pydantic import BaseModel, Field
 
 
@@ -102,6 +103,10 @@ class RAGState(BaseGraphSchema):
 
     # number of answer rewrite attempts in evaluator loop
     rewrite_attempts: int = 0
+
+    # current k for each store: {retriever source label: {domain: {store: k}}}.
+    # Stores not listed use their default k.  Reset for every new query.
+    retrieval_k: dict[str, KValues] = Field(default_factory=dict)
 
     # generated retrieval query (and any retrieval filters) for the
     # current round

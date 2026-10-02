@@ -32,6 +32,7 @@ class InitRAGState(AbstractLangGraphNode[RAGState, dict[str, Any]]):
             "message_for_user": "",
             "retrieval_attempts": 0,
             "rewrite_attempts": 0,
+            "retrieval_k": {},
             "query_domains": ["undefined"],
             "retrieval_query": RetrievalQueryOutput(),
             "tool_calls": [],

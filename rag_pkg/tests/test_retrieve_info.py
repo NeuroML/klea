@@ -39,24 +39,22 @@ class FakeRetriever:
         self.results = results
         self.source_label = name
         self.inc_count = 0
-        self.reset_count = 0
         self.queries: list[str] = []
         self.filters: list[dict | None] = []
+        self.k_values: list[dict | None] = []
 
-    def retrieve(self, domain_name, query, metadata_filter=None):
+    def retrieve(self, domain_name, query, metadata_filter=None, k_values=None):
         self.queries.append(query)
         self.filters.append(metadata_filter)
+        self.k_values.append(k_values)
         return self.results
 
-    def can_inc_k(self):
+    def can_inc_k(self, k_values):
         return True
 
-    def inc_k(self):
+    def inc_k(self, k_values):
         self.inc_count += 1
-        return True
-
-    def reset_k(self):
-        self.reset_count += 1
+        return {"NeuroML": {"store": 6}}, True
 
 
 def _make_node(retrievers) -> RetrieveInfoNode:
@@ -208,7 +206,11 @@ async def test_execute_merges_retrievers_with_rrf():
 
 
 async def test_execute_inc_k_on_all_retrievers_for_more_info():
-    """inc_k() is called on every retriever when more info is requested."""
+    """inc_k() is called on every retriever when more info is requested.
+
+    The grown k values are used for retrieval and returned in the state
+    update, keyed by retriever.
+    """
     r1 = FakeRetriever([], name="vector store")
     r2 = FakeRetriever([], name="BM25")
     node = _make_node([r1, r2])
@@ -219,11 +221,34 @@ async def test_execute_inc_k_on_all_retrievers_for_more_info():
         retrieval_query=RetrievalQueryOutput(search_query="q"),
         text_response_eval=EvaluateAnswerSchema(next_step="retrieve_more_info"),
     )
-    await node.execute(state)
+    result = await node.execute(state)
     logger.info(f"inc counts: r1={r1.inc_count}, r2={r2.inc_count}")
 
     assert r1.inc_count == 1
     assert r2.inc_count == 1
+    assert r1.k_values == [{"NeuroML": {"store": 6}}]
+    assert result["retrieval_k"] == {
+        "vector store": {"NeuroML": {"store": 6}},
+        "BM25": {"NeuroML": {"store": 6}},
+    }
+
+
+async def test_execute_keeps_k_without_more_info_request():
+    """Without a retrieve_more_info request, k from the state is used as is."""
+    r1 = FakeRetriever([], name="vector store")
+    node = _make_node([r1])
+
+    state = RAGState(
+        query="q",
+        query_domains=["NeuroML"],
+        retrieval_query=RetrievalQueryOutput(search_query="q"),
+        retrieval_k={"vector store": {"NeuroML": {"store": 7}}},
+    )
+    result = await node.execute(state)
+
+    assert r1.inc_count == 0
+    assert r1.k_values == [{"NeuroML": {"store": 7}}]
+    assert result["retrieval_k"] == {"vector store": {"NeuroML": {"store": 7}}}
 
 
 async def test_execute_truncates_reference_material_to_size_budget():

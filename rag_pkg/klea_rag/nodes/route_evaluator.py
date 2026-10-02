@@ -70,9 +70,6 @@ class RouteEvaluator(AbstractRouterNode):
             and resp.coherence >= 0.5
             and resp.conciseness >= 0.5
         ):
-            if self.retrievers:
-                for retriever in self.retrievers:
-                    retriever.reset_k()
             self.logger.debug("returning: continue")
             route = "continue"
         # not a good answer: something needs to be done
@@ -92,7 +89,10 @@ class RouteEvaluator(AbstractRouterNode):
                 ):
                     # limit what max k we can have, otherwise, we end up pulling the
                     # whole store..  If no store can grow k, fall back to a new query.
-                    if any(r.can_inc_k() for r in self.retrievers):
+                    if any(
+                        r.can_inc_k(state.retrieval_k.get(r.source_label, {}))
+                        for r in self.retrievers
+                    ):
                         self.logger.debug("returning: retrieve_more_info")
                         route = "retrieve_more_info"
                     else:

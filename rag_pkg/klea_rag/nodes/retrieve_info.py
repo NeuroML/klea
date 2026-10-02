@@ -150,13 +150,14 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
             }
 
         # Check if evaluator requested more info
+        retrieval_k = dict(state.retrieval_k)
         if state.text_response_eval.next_step == "retrieve_more_info":
             for retriever in self.retrievers:
-                grew = retriever.inc_k()
+                label = retriever.source_label
+                retrieval_k[label], grew = retriever.inc_k(retrieval_k.get(label, {}))
                 if not grew:
-                    self.logger.debug(
-                        f"{retriever.source_label} k already at max, not grown"
-                    )
+                    self.logger.debug(f"{label} k already at max, not grown")
+        self.logger.debug(f"{retrieval_k = }")
 
         # Retrieve from all retrievers for all domains
         metadata_filter = state.retrieval_query.to_metadata_filter()
@@ -184,6 +185,7 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
                         domain_name=domain_name,
                         query=cleaned_query,
                         metadata_filter=domain_filter,
+                        k_values=retrieval_k.get(retriever.source_label, {}),
                     )
                 except Exception as exc:  # noqa: BLE001   ---  per-retriever isolation, other retrievers still contribute
                     self.logger.warning(
@@ -305,4 +307,5 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any]]):
         return {
             "reference_material": reference_material,
             "retrieval_attempts": retrieval_attempts,
+            "retrieval_k": retrieval_k,
         }

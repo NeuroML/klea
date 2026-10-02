@@ -16,14 +16,21 @@ from langchain_core.documents import Document
 
 from ..config import PerDomainConfig, RetrieverConfig
 
+#: Current k for each store: ``{domain: {store: k}}``.  Stores not listed use
+#: their default k.
+KValues = dict[str, dict[str, int]]
+
 
 class BaseKleaRetriever(ABC):
     """Base class for domain-aware retriever managers.
 
     Holds the machinery common to all retrievers: lazy per-domain store
-    loading, per-store retrieval depth (``k``) tracking with graph-wide
+    loading, per-store retrieval depth (``k``) limits with graph-wide
     fallbacks, and the retrieval contract
-    ``retrieve(domain, query) -> list[tuple[Document, float]]``.
+    ``retrieve(domain, query, k_values=...) -> list[tuple[Document, float]]``.
+
+    One manager is shared by all graph threads, so it does not keep the
+    current k.  The graph keeps it in its state and passes it in.
 
     Subclasses must implement:
 
@@ -63,12 +70,6 @@ class BaseKleaRetriever(ABC):
         self.default_k = default_k
         self.k_max = k_max
         self.k_inc = k_inc
-        # Current retrieval depth (k) per store, keyed by (domain, store name).
-        # Seeded lazily from each store's default_k on first use; mutated by
-        # inc_k()/reset_k().  Keeping k per store lets each store be tuned
-        # independently even though retrieval is driven by a single graph-wide
-        # routing decision.
-        self._k: dict[tuple[str, str], int] = {}
         self.config: RetrieverConfig = config
         self.logger = logging.getLogger(f"{logger.name}.{self.__class__.__name__}")
 
@@ -100,12 +101,9 @@ class BaseKleaRetriever(ABC):
         """Return the k increment for a store, falling back to the global value."""
         return store.k_inc if store.k_inc is not None else self.k_inc
 
-    def _current_k(self, domain_name: str, store: Any) -> int:
-        """Return the current k for a store, seeding it from its default on first use."""
-        key = (domain_name, store.name)
-        if key not in self._k:
-            self._k[key] = self._default_k_for(store)
-        return self._k[key]
+    def _current_k(self, k_values: KValues, domain_name: str, store: Any) -> int:
+        """Return the current k for a store, or its default if not set yet."""
+        return k_values.get(domain_name, {}).get(store.name, self._default_k_for(store))
 
     def _loaded_stores(self) -> list[tuple[str, Any]]:
         """Return ``(domain_name, store)`` pairs for stores that are loaded."""
@@ -116,7 +114,7 @@ class BaseKleaRetriever(ABC):
                     loaded.append((domain_name, store))
         return loaded
 
-    def can_inc_k(self) -> bool:
+    def can_inc_k(self, k_values: KValues) -> bool:
         """Return whether any loaded store still has room to grow k.
 
         Non-mutating counterpart of :meth:`inc_k`: reports whether an
@@ -125,44 +123,40 @@ class BaseKleaRetriever(ABC):
         retrieving more information and re-querying, so the actual
         increment happens once, at the point of retrieval.
 
+        :param k_values: Current k for each store
         :returns: True if at least one loaded store's k is below its cap
         """
         for domain_name, store in self._loaded_stores():
-            current = self._current_k(domain_name, store)
+            current = self._current_k(k_values, domain_name, store)
             if current + self._k_inc_for(store) <= self._k_max_for(store):
                 return True
         return False
 
-    def inc_k(self) -> bool:
+    def inc_k(self, k_values: KValues) -> tuple[KValues, bool]:
         """Increase k for all loaded stores by their per-store increment.
 
         Each store's k is capped by its own ``k_max``, so stores with a
         smaller cap stop being incremented sooner.  Stores that are not yet
         loaded keep their default k until they are loaded.
 
-        :returns: True if at least one store's k was increased
+        :param k_values: Current k for each store; left unchanged
+        :returns: The new k for each store, and True if at least one
+            store's k was increased
         """
+        new_values = {domain: dict(ks) for domain, ks in k_values.items()}
         incremented = False
         for domain_name, store in self._loaded_stores():
-            current = self._current_k(domain_name, store)
+            current = self._current_k(k_values, domain_name, store)
             new_k = current + self._k_inc_for(store)
             if new_k <= self._k_max_for(store):
-                self._k[(domain_name, store.name)] = new_k
+                new_values.setdefault(domain_name, {})[store.name] = new_k
                 self.logger.debug(
                     f"{store.name = }\n{self._k_inc_for(store) = }\n{new_k = }"
                 )
                 incremented = True
         if not incremented:
             self.logger.debug("k not increased for any store")
-        return incremented
-
-    def reset_k(self) -> None:
-        """Reset k for all loaded stores to their per-store default value."""
-        for domain_name, store in self._loaded_stores():
-            self._k[(domain_name, store.name)] = self._default_k_for(store)
-            self.logger.debug(
-                f"k reset to {self._default_k_for(store) = } for {store.name = }"
-            )
+        return new_values, incremented
 
     def load_all_stores(self) -> None:
         """Load all stores for all domains."""
@@ -207,6 +201,7 @@ class BaseKleaRetriever(ABC):
         domain_name: str,
         query: str,
         metadata_filter: dict[str, Any] | None = None,
+        k_values: KValues | None = None,
     ) -> list[tuple[Document, float]]:
         """Retrieve documents from all stores for a domain.
 
@@ -216,6 +211,8 @@ class BaseKleaRetriever(ABC):
             :func:`klea_utils.stores.filters.validate_metadata_filter`).
             Applied natively by stores that support a backend filter and
             post-filtered for stores that do not (BM25)
+        :param k_values: Current k for each store; stores not listed use
+            their default k
         :returns: List of (document, relevance_score) tuples
         """
         self.load(domain_name)
@@ -230,7 +227,7 @@ class BaseKleaRetriever(ABC):
             data = self._retrieve_from_store(
                 store,
                 query,
-                self._current_k(domain_name, store),
+                self._current_k(k_values or {}, domain_name, store),
                 metadata_filter,
             )
             res.extend(data)
