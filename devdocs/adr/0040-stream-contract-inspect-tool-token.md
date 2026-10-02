@@ -142,6 +142,11 @@ Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
   display instead (`run_command` -> `text/x-shell`; `download_file` ->
   `text/plain`), so the fallback is only for tools that do not follow the
   convention.
+* Errored **destructive** results are now surfaced too (a failed
+  `run_command` is exactly what the user must see); non-destructive errors
+  stay skipped, since their failure is already in the inspect pane and drives
+  Triage.  (The earlier "errors are skipped" rule was only in the code and
+  tests, not this ADR.)
 
 ## More Information
 
