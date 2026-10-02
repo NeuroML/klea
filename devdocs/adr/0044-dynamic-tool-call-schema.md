@@ -165,6 +165,19 @@ NoTool           = {tool: Literal["no_tool"], reason: str}
   disabled with thinking), cannot carry `step`/`reason`, and would retire
   the picker's separate role (ADR-0020/0041) - a redesign, not a fix.
 
+### Update (2026-10-02)
+
+The dynamic-key collapse is not picker-specific: it applies to **every** LLM
+output schema.  The same defect was found in the Evaluator's verdict map
+(`evaluations`, keyed by step number) and the RAG query generator's `filters`
+(both silently `{}` on Anthropic).  `EvaluationSchema` now uses a typed
+`list[StepEvaluation]` (each carrying `step_number`), and the RAG query
+generator builds a per-run schema from its configured filter fields
+(`klea_utils.stores.query_schema.build_retrieval_query_schema`, overriding
+`_get_output_schema`).  The general rule and its architecture guard now live in
+`devdocs/system/prompt-conventions.md` (Rule 7) and
+`utils_pkg/tests/test_schema_hygiene.py`.
+
 ## More Information
 
 Related: ADR-0020 (unified tool caller), ADR-0028 (prompt cache ordering),

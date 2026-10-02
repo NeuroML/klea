@@ -127,6 +127,32 @@ Regression guard: `agent_pkg/tests/test_schemas.py`,
 `utils_pkg/tests/test_call_schema.py` assert every static output schema is
 description-free.
 
+## Rule 7 - LLM output schemas are strict-safe
+
+An output schema must contain **no dynamic-key map** (`dict[...]`).  Such a
+field becomes a JSON object with `additionalProperties`; provider strict modes
+close it to `properties: {}, additionalProperties: false`, so the model is
+grammar-constrained to emit `{}` and the field is useless (ADR-0044).  This is
+not limited to the tools picker - any output schema can hit it (observed: the
+Evaluator's verdict map and the RAG query generator's `filters`, both silently
+`{}` on Anthropic).
+
+* represent a dynamic collection as a **typed array** (`list[SomeModel]`) with
+  an explicit identity field (for example `StepEvaluation.step_number`), not a
+  map keyed by that identity;
+* for a **per-deployment set of typed values**, build a per-run schema from the
+  configured fields and override `_get_output_schema`: the tools picker via
+  `klea_utils.mcp.call_schema.build_tool_call_schema`, the RAG query generator
+  via `klea_utils.stores.query_schema.build_retrieval_query_schema`;
+* keep any field the node **derives** (computes after the call, e.g. normalized
+  DSL clauses) out of the output schema - it is not the model's to emit.
+
+Regression guard: `utils_pkg/tests/test_schema_hygiene.py` discovers every LLM
+output schema (and its nested models) across the packages and fails on a class
+docstring, a `Field(description=...)`, or a `dict[...]` field.  Nodes that
+override `_get_output_schema` are exempt (their generated schema is tested
+separately).
+
 ## Checklist for a new or edited node
 
 1. System prompt: stable; describe all inputs and any conditionality.
