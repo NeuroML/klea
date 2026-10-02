@@ -58,6 +58,61 @@ async def test_nonzero_exit_keeps_output(tmp_path):
     assert "err" in result["stderr"]
 
 
+async def test_display_shell_block_includes_command_output_and_exit(tmp_path):
+    """The chat display is one text/x-shell block with command/output/exit."""
+    result = await run_command(
+        "echo out; echo err >&2; exit 1",
+        working_directory=str(tmp_path),
+        project_root=str(tmp_path),
+    )
+    display = result["display"]
+    assert display["mime"] == "text/x-shell"
+    assert display["data"].splitlines()[0] == "$ echo out; echo err >&2; exit 1"
+    assert "out" in display["data"]
+    assert "--- stderr ---" in display["data"]
+    assert "err" in display["data"]
+    assert display["data"].rstrip().endswith("[exit 1]")
+    assert display["meta"] == {
+        "command": "echo out; echo err >&2; exit 1",
+        "returncode": 1,
+    }
+
+
+async def test_display_silent_success_has_no_block(tmp_path):
+    """A command with no output and a zero exit produces no chat block."""
+    result = await run_command(
+        "true", working_directory=str(tmp_path), project_root=str(tmp_path)
+    )
+    assert result["returncode"] == 0
+    assert result["display"] is None
+
+
+async def test_display_nonzero_exit_without_output(tmp_path):
+    """A silent non-zero exit still produces a block, so it is visible."""
+    result = await run_command(
+        "exit 3", working_directory=str(tmp_path), project_root=str(tmp_path)
+    )
+    display = result["display"]
+    assert display["mime"] == "text/x-shell"
+    assert display["data"] == "$ exit 3\n[exit 3]"
+    assert display["meta"]["returncode"] == 3
+
+
+async def test_display_error_is_shown(tmp_path):
+    """A call-level error (denied cwd) is shown in the block."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    result = await run_command(
+        "pwd", working_directory=str(outside), project_root=str(root)
+    )
+    display = result["display"]
+    assert display["mime"] == "text/x-shell"
+    assert "--- error ---" in display["data"]
+    assert display["meta"]["returncode"] is None
+
+
 async def test_working_directory_outside_project_denied(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
