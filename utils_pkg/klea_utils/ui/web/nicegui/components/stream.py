@@ -161,7 +161,7 @@ def stop_stream(ctx: PageContext) -> None:
     chat_id = ctx.streaming_chat_id
     task = ctx.stream_task
     logger.debug("stop_stream(chat=%s, task=%s)", chat_id, task)
-    if task is not None and not task.is_done():
+    if task is not None and not task.done():
         task.cancel()
     if chat_id:
         background_tasks.create(request_cancel(ctx.server_url, chat_id, ctx.user_id))

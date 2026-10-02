@@ -11,6 +11,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import json
 import logging
 
@@ -24,7 +25,11 @@ from klea_utils.api.sse import (
     stream_events,
     stream_events_sync,
 )
-from klea_utils.ui.web.nicegui.components.stream import apply_stream_event
+from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.stream import (
+    apply_stream_event,
+    stop_stream,
+)
 from klea_utils.ui.web.nicegui.state import chats, ensure_chat
 
 
@@ -451,3 +456,63 @@ class TestRequestCancel:
 
         monkeypatch.setattr("klea_utils.api.sse.httpx.AsyncClient", _factory)
         assert await request_cancel("http://backend", "c1", "u1") is False
+
+
+class TestStopStream:
+    """Unit tests for :func:`stop_stream` (the UI Stop control handler)."""
+
+    async def test_cancels_task_and_requests_server_cancel(self, monkeypatch):
+        """A live stream task is cancelled and a server cancel is fired."""
+        import klea_utils.ui.web.nicegui.components.stream as stream_mod
+
+        calls: list[tuple] = []
+        created: list = []
+
+        async def _fake_request_cancel(server_url, chat_id, user_id):
+            calls.append((server_url, chat_id, user_id))
+            return True
+
+        monkeypatch.setattr(stream_mod, "request_cancel", _fake_request_cancel)
+        # Capture the scheduled coroutine instead of running it on a loop.
+        monkeypatch.setattr(stream_mod.background_tasks, "create", created.append)
+
+        started = asyncio.Event()
+
+        async def _idle():
+            started.set()
+            await asyncio.sleep(10)
+
+        ctx = PageContext(server_url="http://backend", user_id="u1", chat_id="chat-1")
+        ctx.streaming_chat_id = "chat-1"
+        task = asyncio.create_task(_idle())
+        ctx.stream_task = task
+        await started.wait()
+
+        stop_stream(ctx)
+
+        assert task.cancelled() or task.cancelling()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        # Run the scheduled cancel coroutine and check its arguments.
+        assert len(created) == 1
+        await created[0]
+        assert calls == [("http://backend", "chat-1", "u1")]
+
+    async def test_noop_when_nothing_streaming(self, monkeypatch):
+        """No task and no chat id: safe no-op, no server call."""
+        import klea_utils.ui.web.nicegui.components.stream as stream_mod
+
+        calls: list[tuple] = []
+
+        async def _fake_request_cancel(*args):
+            calls.append(args)
+            return True
+
+        monkeypatch.setattr(stream_mod, "request_cancel", _fake_request_cancel)
+        monkeypatch.setattr(
+            stream_mod.background_tasks, "create", lambda coro: coro.close()
+        )
+
+        ctx = PageContext(server_url="http://backend", user_id="")
+        stop_stream(ctx)
+        assert calls == []
