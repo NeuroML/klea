@@ -60,10 +60,11 @@
 * Return the **complete** plan every time (all steps, 1-based unique numbers,
   statuses, `depends_on`):
   * `depends_on` lists earlier steps this step needs and may reference only
-    earlier step numbers (acyclic); a step runs once they are `done`.  Leave it
-    empty when nothing is needed (then it can run in parallel).
-  * Carry already-complete steps forward as `status = "done"` (`[DONE]`); do
-    not re-do them.
+    earlier step numbers (acyclic); a step runs once they are `done` or
+    `skipped`.  Leave it empty when nothing is needed (then it can run in
+    parallel).
+  * Carry already-complete steps forward as `status = "done"` (`[DONE]`) and
+    not-needed steps as `status = "skipped"` (`[SKIPPED]`); do not re-do them.
 * Replanning: on failure or unexpected output, adjust the remaining steps using
   `replan_reason` and `observations`.  If `validation_feedback` is present, fix
   exactly that and return the complete plan again.

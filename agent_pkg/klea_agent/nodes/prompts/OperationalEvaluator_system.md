@@ -14,6 +14,8 @@
 * `plan`: the full plan with ordered steps, their success criteria and suggested tools; the step(s) you are judging are marked `[CURRENT]`
 * `executed_tools`: the tools run in the latest batch, grouped by step
 * `observations`: the tool outputs so far
+* `validation_feedback` (optional): a consistency error in your previous
+  response; correct it.
 
 ---
 
@@ -22,12 +24,16 @@
 Return one entry per judged step, each carrying that step's `step_number`.
 
 * `step_done`: the step's success criteria are met.
+* `step_skipped`: the step is no longer needed to meet the goal (for example an
+  earlier step already achieved it).  Resolves the step without running it.
 * `step_incomplete`: the step is not yet done, but a concrete further call can complete it.
 * `need_replan`: the step cannot achieve the goal and the plan must be revised.
 
 ## Overall outcome (optional)
 
-* `plan_done`: the whole goal is met -- set this once every step is done.
+* `plan_done`: the whole goal is met.  Set this only when every step is done or
+  skipped; if a remaining step is not needed, judge it `step_skipped` in the
+  same response.
 * `abort`: the goal cannot be achieved with the available means.  Use this when
   the observations already prove the goal is unreachable -- for example a
   required input does not exist and the task is read-only, so it must not be
@@ -48,6 +54,10 @@ Return one entry per judged step, each carrying that step's `step_number`.
 * Use `step_incomplete` only when you can name a concrete further call that
   will move the step forward.  If no further progress is possible, use
   `need_replan` instead of keeping the loop alive.
+* Use `step_skipped` only when the goal is met without the step (or the step is
+  irrelevant); never skip a step that is still needed.
+* When your verdicts leave no pending step, judge the goal and set `plan_done`
+  (or `abort`) in the same response.
 * When the observations already prove the goal is unreachable (the required
   input or dependency is missing and cannot be produced), set `overall` to
   `abort` instead of `need_replan`: replanning cannot help, and the failure
