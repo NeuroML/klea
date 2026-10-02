@@ -21,6 +21,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import json
 import logging
 import traceback
@@ -29,12 +30,59 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
+from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import credential_scope
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
+
+
+class CancelPayload(BaseModel):
+    """Identity payload for ``POST /query/cancel`` (shared by both apps).
+
+    Cancellation addresses a chat's thread, so it needs only the same
+    ``(user_id, chat_id)`` identity the query payloads carry.
+    """
+
+    chat_id: str = Field(..., pattern=r"^[^:]+$")
+    user_id: str = Field(default="", pattern=r"^[^:]*$")
+
+
+def _active_runs(request: Request) -> ActiveRunRegistry:
+    """Resolve the in-flight run registry from ``app.state``.
+
+    :param request: The incoming request; ``request.app.state.active_runs``
+        is populated by :func:`klea_utils.api.app.make_app`'s lifespan.
+    :returns: The process's :class:`~klea_utils.api.runs.ActiveRunRegistry`.
+    """
+    registry = getattr(request.app.state, "active_runs", None)
+    if registry is None:
+        # Defensive: a hand-built test app may not run the shared lifespan.
+        registry = ActiveRunRegistry()
+        request.app.state.active_runs = registry
+    return registry
+
+
+def _ensure_thread_free(registry: ActiveRunRegistry, thread_id: str) -> None:
+    """Reject a new run when the thread already has one in flight.
+
+    A LangGraph checkpoint is a log, not a mutex: a second same-thread run
+    would proceed concurrently and its checkpoint writes would race.  The
+    registry makes a thread single-flight.
+
+    :param registry: The process's active-run registry.
+    :param thread_id: The checkpoint thread identifier.
+    :raises HTTPException: 409 when a run is already active for the thread.
+    """
+    if registry.is_active(thread_id):
+        logger.warning("Rejecting concurrent run for thread=%s", thread_id)
+        raise HTTPException(
+            status_code=409,
+            detail="A run is already in progress for this chat.",
+        )
 
 
 def _graph_and_store(request: Request) -> tuple[Any, SessionStore]:
@@ -60,6 +108,32 @@ def _graph_and_store(request: Request) -> tuple[Any, SessionStore]:
 def thread_id_for(user_id: str, chat_id: str) -> str:
     """Return the checkpoint thread id for a ``{user_id}:{chat_id}`` pair."""
     return f"user_{user_id}:chat_{chat_id}"
+
+
+def cancel_run(request: Request, user_id: str, chat_id: str) -> bool:
+    """Cancel the active run for a chat's thread, if any.
+
+    Idempotent: an absent or already-completed run is a no-op.  Cancelling
+    the driving task raises ``CancelledError`` at the node's next ``await``,
+    leaving the checkpoint resumable at the failed node; no assistant turn
+    is persisted (only the ``complete`` event writes one).
+
+    :param request: The incoming request; carries the active-run registry.
+    :param user_id: Persistent user identifier.
+    :param chat_id: Chat conversation identifier.
+    :returns: True when a live run was found and cancellation requested.
+    """
+    registry = _active_runs(request)
+    thread_id = thread_id_for(user_id, chat_id)
+    cancelled = registry.cancel(thread_id)
+    logger.info(
+        "cancel_run(user_id=%s chat_id=%s) thread=%s cancelled=%s",
+        user_id,
+        chat_id,
+        thread_id,
+        cancelled,
+    )
+    return cancelled
 
 
 def resolve_model_overrides(
@@ -265,6 +339,15 @@ async def run_query(
         "model_overrides": overrides or {},
     }
     logger.debug("run_query: assembled runtime context=%s", mask_sensitive(context))
+
+    # Single-flight per thread: reject a second run while one is in flight,
+    # then register this task so a concurrent cancel can reach it.  Cleared
+    # once the run returns (or raises), so the thread is reusable.
+    registry = _active_runs(request)
+    _ensure_thread_free(registry, thread_id)
+    task = asyncio.current_task()
+    if task is not None:
+        registry.register(thread_id, task)
     try:
         result = await graph.run_graph_invoke(
             None if resume else user_message,
@@ -296,6 +379,8 @@ async def run_query(
     except Exception as e:  # noqa: BLE001
         logger.error(f"{e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        registry.clear(thread_id)
 
     return message
 
@@ -415,8 +500,19 @@ def stream_response(
         "stream_response: assembled runtime context=%s", mask_sensitive(context)
     )
 
+    # Single-flight per thread, checked before the response is returned so a
+    # concurrent request gets a clean 409 rather than a second graph run.  The
+    # task is registered inside ``event_stream`` (the generator runs in its
+    # own task, which is the handle a cancel must reach) and cleared in its
+    # ``finally``; ``register`` also adds a done-callback as a leak backstop.
+    registry = _active_runs(request)
+    _ensure_thread_free(registry, thread_id)
+
     async def event_stream():
         logger.debug("stream_response: starting event stream for thread=%s", thread_id)
+        task = asyncio.current_task()
+        if task is not None:
+            registry.register(thread_id, task)
         try:
             raw_events = graph.run_graph_astream_events(
                 None if resume else user_message,
@@ -455,6 +551,8 @@ def stream_response(
         except Exception as e:  # noqa: BLE001
             logger.error(f"{e}\n{traceback.format_exc()}")
             yield _error_frame(str(e), type(e).__name__, resumable=True)
+        finally:
+            registry.clear(thread_id)
 
     return StreamingResponse(
         event_stream(),

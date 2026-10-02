@@ -89,14 +89,16 @@ def test_cancel_done_task_is_noop() -> None:
     asyncio.run(_run())
 
 
-def test_clear_ignores_live_task() -> None:
+def test_clear_removes_entry_even_while_task_running() -> None:
     async def _run() -> None:
         registry = ActiveRunRegistry()
         task = asyncio.create_task(_idle())
         registry.register("t1", task)
+        # The registering task calls clear from its own finally while still
+        # running, so a live task must be removable.
         registry.clear("t1")
-        # A live task must not be evicted by an explicit clear.
-        assert registry.is_active("t1")
+        assert registry.get("t1") is None
+        assert not registry.is_active("t1")
         task.cancel()
         try:
             await task
@@ -106,14 +108,27 @@ def test_clear_ignores_live_task() -> None:
     asyncio.run(_run())
 
 
-def test_clear_removes_done_task() -> None:
+def test_done_callback_does_not_evict_newer_run() -> None:
     async def _run() -> None:
         registry = ActiveRunRegistry()
-        task = asyncio.create_task(asyncio.sleep(0))
-        registry.register("t1", task)
-        await task
-        registry.clear("t1")
-        assert registry.get("t1") is None
+        old = asyncio.create_task(_idle())
+        registry.register("t1", old)
+        new = asyncio.create_task(_idle())
+        # A newer run supersedes the old entry before the old task finishes.
+        registry.register("t1", new)
+        old.cancel()
+        try:
+            await old
+        except asyncio.CancelledError:
+            pass
+        await asyncio.sleep(0)
+        # The old task's done-callback must not evict the newer run.
+        assert registry.get("t1") is new
+        new.cancel()
+        try:
+            await new
+        except asyncio.CancelledError:
+            pass
 
     asyncio.run(_run())
 

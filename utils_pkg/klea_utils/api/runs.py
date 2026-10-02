@@ -41,33 +41,34 @@ class ActiveRunRegistry:
     def register(self, thread_id: str, task: asyncio.Task) -> None:
         """Record *task* as the active run for *thread_id*.
 
-        A ``done`` callback clears the entry so a task that finishes
-        without an explicit :meth:`clear` (e.g. an unexpected exit) cannot
-        leak.  Registration is expected to be gated by :meth:`is_active`
-        at the call site.
+        A ``done`` callback clears the entry, but only when the stored task
+        is still *this* task, so a late callback from a superseded run
+        cannot evict a newer one.  Registration is expected to be gated by
+        :meth:`is_active` at the call site.
 
         :param thread_id: The checkpoint thread identifier.
         :param task: The task driving the graph run.
         """
         self._runs[thread_id] = task
-        task.add_done_callback(lambda _t, key=thread_id: self.clear(key))
+
+        def _on_done(finished: asyncio.Task, key: str = thread_id) -> None:
+            if self._runs.get(key) is finished:
+                self._runs.pop(key, None)
+                logger.debug(f"done-callback cleared {key = }")
+
+        task.add_done_callback(_on_done)
         logger.debug(f"{thread_id = }\n{id(task) = }")
 
     def clear(self, thread_id: str) -> None:
         """Drop the entry for *thread_id* if present (idempotent).
 
-        Only removes the entry when it is done or absent, so a late
-        ``clear`` from a superseded task cannot evict a newer active run.
+        Removes the entry unconditionally: the registering task calls this
+        from its own ``finally`` while still running (so its task is not
+        ``done``), and a superseded task's late clear is prevented by
+        :meth:`register`'s done-callback identity check, not here.
 
         :param thread_id: The checkpoint thread identifier.
         """
-        existing = self._runs.get(thread_id)
-        if existing is not None and not existing.done():
-            logger.debug(
-                f"clear() ignored for {thread_id = }: task still active "
-                f"{id(existing) = }"
-            )
-            return
         self._runs.pop(thread_id, None)
         logger.debug(f"cleared {thread_id = }")
 

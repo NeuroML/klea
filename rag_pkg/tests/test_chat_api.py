@@ -23,6 +23,7 @@ from httpx import ASGITransport
 # streaming responses can be consumed via
 # ``client.stream()`` + ``aiter_lines()``.
 from klea_rag.api.chat import create_chat_router
+from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 
 
@@ -32,6 +33,7 @@ def app(tmp_path):
     _app = FastAPI()
     _app.state.is_ready = True
     _app.state.chat_sessions = SessionStore(str(tmp_path / "sessions.db"))
+    _app.state.active_runs = ActiveRunRegistry()
 
     mock_graph = AsyncMock()
     mock_graph.run_graph_invoke.return_value = "mock answer"
@@ -244,3 +246,10 @@ class TestChat:
         self.logger.info(f"Messages stored after error: {messages}")
         assert [m["role"] for m in messages] == ["user"]
         assert messages[0]["content"] == "hello"
+
+    async def test_query_cancel_no_active_run_is_204(self, client):
+        """POST /query/cancel with no active run is an idempotent 204."""
+        response = await client.post(
+            "/query/cancel", json={"chat_id": "c", "user_id": "u"}
+        )
+        assert response.status_code == 204

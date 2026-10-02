@@ -14,6 +14,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -21,6 +22,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import HTTPException, Request
 from klea_utils.api import chat_core
+from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import LLMModel
 
@@ -354,3 +356,164 @@ class TestModelOverrideResolution:
         chat_core.migrate_legacy_overrides(store)
         assert store.get_credential("u", "openai") == "sk-new"
         assert "api_key" not in store.get_overrides("u", "c")["chat"]
+
+
+def _shared_request(store: SessionStore, graph) -> Request:
+    """A fake request that keeps a single ``active_runs`` on its app state."""
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            is_ready=True,
+            graph=graph,
+            chat_sessions=store,
+            active_runs=ActiveRunRegistry(),
+        )
+    )
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "POST",
+        "path": "/query",
+        "raw_path": b"/query",
+        "query_string": b"",
+        "root_path": "",
+        "headers": [],
+        "client": ("test", 123),
+        "server": ("test", 80),
+        "scheme": "http",
+        "app": app,
+        "state": {},
+    }
+    return Request(scope)
+
+
+class TestSingleFlightAndCancel:
+    """A chat's thread is single-flight; an active run can be cancelled."""
+
+    def setup_method(self):
+        self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+
+    async def test_concurrent_run_is_rejected_409(self, store, graph):
+        """A second same-thread run while one is in flight -> 409."""
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def _slow(*args, **kwargs):
+            started.set()
+            await release.wait()
+            return "answer"
+
+        graph.run_graph_invoke.side_effect = _slow
+        request = _shared_request(store, graph)
+
+        first = asyncio.create_task(
+            chat_core.run_query(request, query="one", user_id="u", chat_id="c")
+        )
+        await started.wait()
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(request, query="two", user_id="u", chat_id="c")
+        assert excinfo.value.status_code == 409
+        release.set()
+        assert await first == "answer"
+
+    async def test_run_clears_registry_after_completion(self, store, graph):
+        """After a run completes the thread is free for the next query."""
+        request = _shared_request(store, graph)
+        await chat_core.run_query(request, query="one", user_id="u", chat_id="c")
+        assert not request.app.state.active_runs.is_active("user_u:chat_c")
+        await chat_core.run_query(request, query="two", user_id="u", chat_id="c")
+
+    async def test_cancel_stops_run_and_thread_reusable(self, store, graph):
+        """cancel_run cancels the active task; a later run starts fresh."""
+        started = asyncio.Event()
+
+        async def _slow(*args, **kwargs):
+            started.set()
+            await asyncio.sleep(10)
+            return "answer"
+
+        graph.run_graph_invoke.side_effect = _slow
+        request = _shared_request(store, graph)
+        first = asyncio.create_task(
+            chat_core.run_query(request, query="one", user_id="u", chat_id="c")
+        )
+        await started.wait()
+        assert chat_core.cancel_run(request, "u", "c") is True
+        with pytest.raises(asyncio.CancelledError):
+            await first
+
+        # The cancelled turn persisted the user row but no assistant row.
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user"]
+
+        # The thread is free and a fresh query runs to completion.
+        graph.run_graph_invoke.side_effect = None
+        graph.run_graph_invoke.return_value = "fresh"
+        assert await chat_core.run_query(
+            request, query="two", user_id="u", chat_id="c"
+        ) == ("fresh")
+
+    async def test_cancel_missing_run_is_noop(self, store, graph):
+        """Cancelling a chat with no active run returns False."""
+        request = _shared_request(store, graph)
+        assert chat_core.cancel_run(request, "u", "nope") is False
+
+    async def test_stream_guard_rejects_concurrent_run(self, store, graph):
+        """A second streamed run for a busy thread -> 409 before streaming."""
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def _events(query, thread_id, *, extra_state=None, context=None):
+            started.set()
+            await release.wait()
+            yield {"type": "complete", "message_for_user": "answer"}
+
+        graph.run_graph_astream_events = _events
+        request = _shared_request(store, graph)
+
+        response = chat_core.stream_response(
+            request, query="one", user_id="u", chat_id="c"
+        )
+        first_chunk: list[str | bytes | memoryview] = []
+
+        async def _drain_one():
+            async for chunk in response.body_iterator:
+                first_chunk.append(chunk)
+                break
+
+        drain = asyncio.create_task(_drain_one())
+        await started.wait()
+        with pytest.raises(HTTPException) as excinfo:
+            chat_core.stream_response(request, query="two", user_id="u", chat_id="c")
+        assert excinfo.value.status_code == 409
+        release.set()
+        await drain
+        assert "complete" in "".join(str(c) for c in first_chunk)
+
+    async def test_stream_cancel_leaves_thread_reusable(self, store, graph):
+        """A streamed run can be cancelled and the thread reused."""
+        started = asyncio.Event()
+
+        async def _events(query, thread_id, *, extra_state=None, context=None):
+            started.set()
+            await asyncio.sleep(10)
+            yield {"type": "complete", "message_for_user": "answer"}
+
+        graph.run_graph_astream_events = _events
+        request = _shared_request(store, graph)
+
+        response = chat_core.stream_response(
+            request, query="one", user_id="u", chat_id="c"
+        )
+
+        async def _drain():
+            async for _ in response.body_iterator:
+                pass
+
+        task = asyncio.create_task(_drain())
+        await started.wait()
+        assert chat_core.cancel_run(request, "u", "c") is True
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        # No assistant row on cancel; thread is free for a new run.
+        assert [m["role"] for m in store.get_messages("u", "c")] == ["user"]
+        assert not request.app.state.active_runs.is_active("user_u:chat_c")

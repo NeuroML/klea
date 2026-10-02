@@ -14,7 +14,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from klea_utils.api import chat_core
 from pydantic import BaseModel, Field
 
@@ -53,5 +53,13 @@ def create_chat_router() -> APIRouter:
             user_id=payload.user_id,
             chat_id=payload.chat_id,
         )
+
+    @router.post("/query/cancel", status_code=204)
+    async def query_cancel(
+        request: Request, payload: chat_core.CancelPayload
+    ) -> Response:
+        """Cancel the chat's active run (idempotent; 204 always)."""
+        chat_core.cancel_run(request, payload.user_id, payload.chat_id)
+        return Response(status_code=204)
 
     return router
