@@ -76,15 +76,6 @@ Last updated: 2026-10-01.
 
 ## Infrastructure / correctness
 
-- Retrieval depth (`k`) is not per-invocation.  `BaseKleaRetriever._k` lives on
-  the process-wide `self.stores` / `self.bm25_stores` managers (built once in
-  `BaseLangGraph._get_vector_stores`), not in `RAGState`, so it is shared
-  across every `thread_id` and concurrent run; `reset_k()` only fires on the
-  accepted-answer route (`RouteEvaluator`), so `k` bleeds between invocations.
-  Fix requires moving `k` into `RAGState` and redesigning the retriever API so
-  `retrieve` / `inc_k` / `can_inc_k` / `reset_k` become graph/node methods
-  taking the state.  Deferred: larger refactor across `base.py`/`vs.py`/
-  `bm25.py`, `RouteEvaluator`, `RetrieveInfoNode` and `RAGState`.
 - Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
   carry per-node counts, but no consumer aggregates them per node (CLI drops
   `usage`; web UI sums one total; graph state keeps a run-level total).
