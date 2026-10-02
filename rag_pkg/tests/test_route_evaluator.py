@@ -9,8 +9,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from typing import Any, cast
 
-from klea_rag.nodes.route_evaluator import RouteEvaluator
+from klea_rag.nodes.route_evaluator import RouteDispatcher, RouteEvaluator
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState
 from langchain_core.messages import AIMessage
 
@@ -36,16 +37,15 @@ class FakeRetriever:
         return k_values, self.k_can_increment
 
 
-def _make_router(retrievers) -> RouteEvaluator:
+def _make_router(retrievers=None) -> RouteEvaluator:
     router = object.__new__(RouteEvaluator)
     router.logger = logging.getLogger("test_route_evaluator")
     router.label = "Routing evaluation"
-    router.retrievers = retrievers
+    router.retrievers = retrievers or []
     router.max_retrieval_attempts = 2
     router.max_rewrite_attempts = 1
     router.fallback_to_training_data = False
-    router.write_custom_stream = lambda event: None
-    logger.info(f"configured retrievers: {[r.name for r in retrievers]}")
+    cast(Any, router).write_custom_stream = lambda event: None
     return router
 
 
@@ -65,13 +65,13 @@ def _continue_state() -> RAGState:
     )
 
 
-def test_continue_does_not_touch_k():
+async def test_continue_does_not_touch_k():
     """Routing 'continue' neither checks nor grows k (InitRAGState resets it)."""
     r1 = FakeRetriever("vector")
     r2 = FakeRetriever("bm25")
     router = _make_router([r1, r2])
 
-    route = router.execute(_continue_state())
+    route = (await router.execute(_continue_state()))["route"]
     logger.info(f"route: {route}")
 
     assert route == "continue"
@@ -79,7 +79,7 @@ def test_continue_does_not_touch_k():
     assert r1.inc_count == 0 and r2.inc_count == 0
 
 
-def test_retrieve_more_info_checks_capacity_without_mutating():
+async def test_retrieve_more_info_checks_capacity_without_mutating():
     """Routing 'retrieve_more_info' consults capacity but never grows k.
 
     The router only reports whether k can still grow, using each
@@ -98,7 +98,7 @@ def test_retrieve_more_info_checks_capacity_without_mutating():
         ),
         retrieval_k={"vector": {"NeuroML": {"store": 6}}},
     )
-    route = router.execute(state)
+    route = (await router.execute(state))["route"]
     logger.info(f"route: {route} | incs: r1={r1.inc_count}, r2={r2.inc_count}")
 
     assert route == "retrieve_more_info"
@@ -107,7 +107,39 @@ def test_retrieve_more_info_checks_capacity_without_mutating():
     assert r2.inc_count == 0
 
 
-def test_retrieve_more_info_without_retrievers_uses_exhausted_decision():
+async def test_retrieve_more_info_via_score_override():
+    """Low confidence with adequate coverage routes to retrieve_more_info
+    even when the verdict said something else."""
+    router = _make_router([FakeRetriever("vector")])
+
+    state = RAGState(
+        query="q",
+        text_response_eval=EvaluateAnswerSchema(
+            coverage=0.7, confidence=0.4, next_step="continue"
+        ),
+    )
+    route = (await router.execute(state))["route"]
+
+    assert route == "retrieve_more_info"
+
+
+async def test_modify_query_override_wins_over_verdict():
+    """Low coverage routes to modify_query even when the verdict asked for
+    more info (so RetrieveInfoNode must not grow k)."""
+    router = _make_router([FakeRetriever("vector")])
+
+    state = RAGState(
+        query="q",
+        text_response_eval=EvaluateAnswerSchema(
+            coverage=0.2, confidence=0.4, next_step="retrieve_more_info"
+        ),
+    )
+    route = (await router.execute(state))["route"]
+
+    assert route == "modify_query"
+
+
+async def test_retrieve_more_info_without_retrievers_uses_exhausted_decision():
     """Without retrievers, 'retrieve_more_info' cannot retrieve: the routing
     falls to the exhausted-budget decision instead of continuing."""
     router = _make_router([])
@@ -125,13 +157,13 @@ def test_retrieve_more_info_without_retrievers_uses_exhausted_decision():
             next_step="retrieve_more_info",
         ),
     )
-    route = router.execute(state)
+    route = (await router.execute(state))["route"]
     logger.info(f"route with no retrievers: {route}")
 
     assert route == "best_effort"
 
 
-def test_rewrite_answer_directive_not_dropped_by_retrieval_budget():
+async def test_rewrite_answer_directive_not_dropped_by_retrieval_budget():
     """An explicit 'rewrite_answer' directive routes to rewrite even when the
     retrieval budget and retrievers are available (retrieval actions take
     priority, but must not swallow an explicit rewrite)."""
@@ -151,7 +183,30 @@ def test_rewrite_answer_directive_not_dropped_by_retrieval_budget():
             next_step="rewrite_answer",
         ),
     )
-    route = router.execute(state)
+    route = (await router.execute(state))["route"]
+
+    assert route == "rewrite_answer"
+
+
+async def test_rewrite_answer_via_score_override():
+    """High coverage/confidence with a weak answer routes to rewrite_answer
+    even when the verdict did not ask for it."""
+    router = _make_router([])
+
+    state = RAGState(
+        query="q",
+        rewrite_attempts=0,
+        text_response_eval=EvaluateAnswerSchema(
+            coverage=0.7,
+            confidence=0.7,
+            relevance=0.2,
+            groundedness=0.7,
+            coherence=0.8,
+            conciseness=0.8,
+            next_step="continue",
+        ),
+    )
+    route = (await router.execute(state))["route"]
 
     assert route == "rewrite_answer"
 
@@ -181,30 +236,34 @@ def _exhausted_state(
     )
 
 
-def test_exhausted_low_coverage_falls_back():
+async def test_exhausted_low_coverage_falls_back():
     """Exhausted with low coverage falls back to training data when enabled."""
     router = _make_router([])
     router.fallback_to_training_data = True
 
-    route = router.execute(
-        _exhausted_state(coverage=0.2, confidence=0.6, groundedness=0.7)
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.2, confidence=0.6, groundedness=0.7)
+        )
+    )["route"]
 
     assert route == "fallback"
 
 
-def test_exhausted_low_coverage_without_fallback_clarifies():
+async def test_exhausted_low_coverage_without_fallback_clarifies():
     """Exhausted with low coverage asks for clarification when fallback is off."""
     router = _make_router([])
 
-    route = router.execute(
-        _exhausted_state(coverage=0.2, confidence=0.6, groundedness=0.7)
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.2, confidence=0.6, groundedness=0.7)
+        )
+    )["route"]
 
     assert route == "undefined"
 
 
-def test_exhausted_low_confidence_falls_back():
+async def test_exhausted_low_confidence_falls_back():
     """Exhausted with vague context (low confidence) falls back to training data.
 
     Reached via the retrieve_more_info branch once k can no longer grow and
@@ -213,41 +272,60 @@ def test_exhausted_low_confidence_falls_back():
     router = _make_router([FakeRetriever("vector", k_can_increment=False)])
     router.fallback_to_training_data = True
 
-    route = router.execute(
-        _exhausted_state(coverage=0.6, confidence=0.2, groundedness=0.7)
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.6, confidence=0.2, groundedness=0.7)
+        )
+    )["route"]
 
     assert route == "fallback"
 
 
-def test_exhausted_ungrounded_clarifies():
+async def test_exhausted_ungrounded_clarifies():
     """Exhausted with an ungrounded answer asks for clarification."""
     router = _make_router([])
 
-    route = router.execute(
-        _exhausted_state(coverage=0.6, confidence=0.6, groundedness=0.2)
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.6, confidence=0.6, groundedness=0.2)
+        )
+    )["route"]
 
     assert route == "undefined"
 
 
-def test_exhausted_empty_answer_clarifies():
+async def test_exhausted_empty_answer_clarifies():
     """Exhausted with an empty answer asks for clarification."""
     router = _make_router([])
 
-    route = router.execute(
-        _exhausted_state(coverage=0.6, confidence=0.6, groundedness=0.7, content="")
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.6, confidence=0.6, groundedness=0.7, content="")
+        )
+    )["route"]
 
     assert route == "undefined"
 
 
-def test_exhausted_best_effort():
+async def test_exhausted_best_effort():
     """Exhausted with a grounded, non-empty answer routes to best_effort."""
     router = _make_router([])
 
-    route = router.execute(
-        _exhausted_state(coverage=0.5, confidence=0.6, groundedness=0.7)
-    )
+    route = (
+        await router.execute(
+            _exhausted_state(coverage=0.5, confidence=0.6, groundedness=0.7)
+        )
+    )["route"]
 
     assert route == "best_effort"
+
+
+async def test_dispatcher_follows_recorded_route():
+    """The thin dispatcher returns exactly the route recorded in state."""
+    dispatcher = RouteDispatcher(
+        logger=logging.getLogger("test_route_evaluator"), label="Following route"
+    )
+    state = _continue_state()
+    state.route = "best_effort"
+
+    assert await dispatcher.execute(state) == "best_effort"

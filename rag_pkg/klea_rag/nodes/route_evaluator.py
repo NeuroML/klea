@@ -9,20 +9,29 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from typing import Any, override
 
 from klea_utils.llm import content_to_str
 from klea_utils.nodes.abstract import (
+    AbstractLangGraphNode,
     AbstractRouterNode,
     NodeStreamData,
     NodeStreamEvent,
 )
+from klea_utils.nodes.context import NodeContext
 from klea_utils.stores.retrieval.base import BaseKleaRetriever
 
 from klea_rag.schemas import RAGState
 
 
-class RouteEvaluator(AbstractRouterNode):
-    """Route based on Evaluator node results"""
+class RouteEvaluator(AbstractLangGraphNode[RAGState, dict[str, Any], NodeContext]):
+    """Record the effective routing decision for the evaluator loop.
+
+    Reads the evaluator's verdict plus scores, resolves the effective route
+    (which may override the raw ``next_step`` verdict), and writes it to
+    ``RAGState.route``.  A thin :class:`RouteDispatcher` then follows that
+    route.  This node is read-only with respect to the retrievers.
+    """
 
     def __init__(
         self,
@@ -38,8 +47,8 @@ class RouteEvaluator(AbstractRouterNode):
         :param logger: Logger instance
         :param label: Human-readable label for UI progress display
         :param retrievers: Retrievers consulted (via ``can_inc_k``) to
-            decide whether k can still grow.  The router is read-only; the
-            actual increment is applied once by ``RetrieveInfoNode``
+            decide whether k can still grow.  The route node is read-only;
+            the actual increment is applied once by ``RetrieveInfoNode``
         :param max_retrieval_attempts: Combined budget for retrieval passes
             in the evaluator loop (the initial query retrieval, retrieve_more_info
             k-increases, and modify_query re-retrievals)
@@ -52,8 +61,9 @@ class RouteEvaluator(AbstractRouterNode):
         self.max_rewrite_attempts = max_rewrite_attempts
         self.fallback_to_training_data = fallback_to_training_data
 
-    def execute(self, state: RAGState):
-        """Route based on state, set by evaluator node."""
+    @override
+    async def execute(self, state: RAGState) -> dict[str, Any]:
+        """Resolve the route from the evaluator verdict and record it."""
         self._emit_progress()
         self.logger.debug(f"{state =}")
         resp = state.text_response_eval
@@ -169,4 +179,22 @@ class RouteEvaluator(AbstractRouterNode):
         )
         self.write_custom_stream(inspect_event.model_dump())
 
-        return route
+        return {"route": route}
+
+
+class RouteDispatcher(AbstractRouterNode[RAGState]):
+    """Thin router that follows the route recorded by :class:`RouteEvaluator`."""
+
+    def __init__(self, logger: logging.Logger, label: str):
+        """Initialise the dispatcher.
+
+        :param logger: Logger instance
+        :param label: Human-readable label for logging
+        """
+        super().__init__(logger, label)
+
+    @override
+    async def execute(self, state: RAGState) -> str:
+        """Return the recorded route so the graph follows it."""
+        self.logger.debug(f"{state.route = }")
+        return state.route

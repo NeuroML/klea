@@ -14,7 +14,7 @@ from typing import Any
 
 from klea_rag.nodes.init_rag import InitRAGState
 from klea_rag.nodes.retrieve_info import RetrieveInfoNode
-from klea_rag.nodes.route_evaluator import RouteEvaluator
+from klea_rag.nodes.route_evaluator import RouteDispatcher, RouteEvaluator
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
 from klea_utils.stores.config import PerDomainConfig, RetrieverConfig, VectorStoreInfo
 from klea_utils.stores.retrieval.base import BaseKleaRetriever
@@ -104,7 +104,7 @@ def _build_graph(retriever, evaluate, max_retrieval_attempts=5):
 
     init = InitRAGState(logger, "init")
     retrieve = RetrieveInfoNode(logger, "retrieve", retrievers=[retriever])
-    router = RouteEvaluator(
+    route_node = RouteEvaluator(
         logger=logger,
         label="route",
         retrievers=[retriever],
@@ -112,19 +112,22 @@ def _build_graph(retriever, evaluate, max_retrieval_attempts=5):
         max_rewrite_attempts=0,
         fallback_to_training_data=True,
     )
+    dispatcher = RouteDispatcher(logger=logger, label="dispatch")
 
     workflow = StateGraph(RAGState)
     workflow.add_node("init", init.execute)
     workflow.add_node("prepare", prepare)
     workflow.add_node("retrieve", retrieve.execute)
     workflow.add_node("evaluate", evaluate)
+    workflow.add_node(route_node.label, route_node.execute)
     workflow.add_edge(START, "init")
     workflow.add_edge("init", "prepare")
     workflow.add_edge("prepare", "retrieve")
     workflow.add_edge("retrieve", "evaluate")
+    workflow.add_edge("evaluate", route_node.label)
     workflow.add_conditional_edges(
-        "evaluate",
-        router.execute,
+        route_node.label,
+        dispatcher.execute,
         {
             "retrieve_more_info": "retrieve",
             "continue": END,

@@ -37,7 +37,7 @@ from .nodes.evaluator import Evaluator
 from .nodes.generate_retrieval_query import GenerateRetrievalQuery
 from .nodes.init_rag import InitRAGState
 from .nodes.retrieve_info import RetrieveInfoNode
-from .nodes.route_evaluator import RouteEvaluator
+from .nodes.route_evaluator import RouteDispatcher, RouteEvaluator
 from .nodes.route_query import RouteQuery
 from .schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
 
@@ -378,6 +378,12 @@ class RAG(BaseLangGraph):
             max_rewrite_attempts=self.app_config.general.max_rewrite_attempts,
             fallback_to_training_data=self.app_config.general.fallback_to_training_data,
         )
+        self.workflow.add_node(
+            self._route_evaluator_node.label, self._route_evaluator_node.execute
+        )
+        self._route_dispatcher_node = RouteDispatcher(
+            logger=self.logger, label="Following route"
+        )
 
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
@@ -458,9 +464,13 @@ class RAG(BaseLangGraph):
             self._evaluate_answer_node.label,
         )
 
-        self.workflow.add_conditional_edges(
+        self.workflow.add_edge(
             self._evaluate_answer_node.label,
-            self._route_evaluator_node.execute,
+            self._route_evaluator_node.label,
+        )
+        self.workflow.add_conditional_edges(
+            self._route_evaluator_node.label,
+            self._route_dispatcher_node.execute,
             {
                 "continue": self._answer_user_node.label,
                 "retrieve_more_info": self._retrieve_info_node.label,
