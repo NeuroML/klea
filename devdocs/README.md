@@ -87,7 +87,7 @@ Structure:
 | `adr/0040-stream-contract-inspect-tool-token.md` | ADR-0040: Stream contract: `inspect` events, chat-renderable `tool` events, gated `token` (amends ADR-0013) |
 | `adr/0041-plan-step-granularity-and-parallelism.md` | ADR-0041: Plan step granularity, explicit dependencies and parallel step execution |
 | `adr/0042-session-model-defaults-and-provider-credentials.md` | ADR-0042: Per-session model defaults and provider-scoped credentials |
-| `adr/0043-graph-fault-tolerance-and-resume.md` | ADR-0043: Graph fault tolerance: transient retry and checkpoint resume |
+| `adr/0043-graph-fault-tolerance-and-resume.md` | ADR-0043: Graph fault tolerance: transient retry, checkpoint resume, and cancellation (single active run per thread) |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

@@ -4,7 +4,7 @@ Status: reference note.  Confirms LangGraph semantics we rely on for
 fault tolerance; the transient-retry and resume-by-flag work is tracked in
 `devdocs/backlog.md`.
 
-Last updated: 2026-09-29.
+Last updated: 2026-10-03.
 
 ## Scope
 
@@ -61,6 +61,32 @@ Because resume does not re-enter the entry node, per-turn state that the
 entry node resets (plan, observations, counters) survives across a
 resume.  A resume therefore continues the same run with state intact,
 whereas a new query is a new turn.
+
+## Cancellation
+
+Verified against the installed `langgraph`: the checkpointer is a log, not
+a mutex, and there is no graph-level cancel/pause API.  A run is stopped by
+cancelling the `asyncio.Task` that drives it (the request task for
+`/query`, the `StreamingResponse` generator's task for `/query/stream`).
+
+* **`CancelledError` reaches the node.**  It is raised at the node/tool's
+  next `await` and propagates through `astream_events`; LangGraph leaves a
+  recoverable checkpoint.  A node doing synchronous, non-awaiting work (or
+  one that swallows `CancelledError`) is not interruptible until it yields.
+* **The checkpoint is left resumable.**  After a cancel the thread reports
+  `next == (<node>,)` with the values from the last completed super-step.
+* **No reset is needed for the next turn.**  A new `{"query": ...}` on the
+  same thread starts from `START` and the abandoned half-run is discarded;
+  state simply appends to the thread.
+* **No resume-from-cancel.**  Klea does not offer resuming a user-cancelled
+  run: a resume would re-run the cancelled node and could repeat a
+  server-side tool side effect that is still running (server-side tool
+  cancellation is deferred, ADR-0043).  Cancel shows a plain "Stopped"
+  marker; Retry remains for the *error* path only.
+* **Single-flight.**  Two concurrent same-thread runs would race their
+  checkpoint writes; the per-thread registry (`klea_utils/api/runs.py`)
+  rejects the second with HTTP 409, and `POST /query/cancel` cancels the
+  active one.
 
 ## Implications for the planned work
 

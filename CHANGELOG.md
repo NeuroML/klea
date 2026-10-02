@@ -29,6 +29,7 @@
 - Web UI: for a `huggingface` role the model dialog offers a **Run** choice (hosted inference providers, or local) and an **inference provider** field (`auto`/`cheapest`/`fastest`/`preferred`, or a specific provider), with a "pick one or type in" hint on the editable fields.
 - Web UI: `klea web` and `klea-rag web` accept `--favicon` (a file path, `http(s)`/`data:` URL, raw SVG or a single character) for the browser-tab icon, which now defaults to the bundled Klea icon instead of NiceGUI's.
 - Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
+- Cancel a running query: `POST /query/cancel` stops the active run for a chat (the web UI's send button becomes a Stop button while streaming), leaving the thread clean for the next query; only one run may be active per chat, so a concurrent same-chat request is rejected with `409` (ADR-0043).
 
 ### Changed
 

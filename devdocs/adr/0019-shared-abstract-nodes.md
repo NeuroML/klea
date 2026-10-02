@@ -124,6 +124,17 @@ type in ``klea_utils``".
   ``AbstractLLMNode.execute`` is the true template.  This is the
   "Template Method at two levels" companion to ``ADR-0016`` (graph) and
   lives together with it in the todolist as requested.
+* **Do not swallow cancellation (amended ``2026-10-03``).**  A run is
+  stopped by cancelling its `asyncio.Task` (ADR-0043), which raises
+  `CancelledError` at the node/tool's next `await`.  Node and tool code
+  must let it propagate: never `except BaseException` or
+  `except ...CancelledError` (and never a bare `except`) without
+  re-raising.  Catch `Exception` instead, which does not swallow
+  cancellation.  The shared tool caller already honours this (per-call
+  capture in `klea_utils/mcp/dispatch.py` catches `Exception`), and the
+  contract is enforced statically by
+  `utils_pkg/tests/test_cancellation_contract.py` (with an inline
+  `cancellation-contract: exempt` marker for the rare dev-only handler).
 
 ### Consequences
 

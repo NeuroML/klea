@@ -78,6 +78,34 @@ window (option A cannot).
 * **Client.** The web UI shows an inline error with a **Retry** action
   when the error event is `resumable`; Retry re-streams with
   `resume=true`.
+* **Cancellation / single active run per thread (amended 2026-10-03).**
+  A LangGraph checkpointer is a *log, not a mutex*: two `ainvoke` calls on
+  the same `thread_id` run concurrently and the last checkpoint write
+  wins (verified against the installed `langgraph`; there is no per-thread
+  run guard and no graph-level cancel API).  Klea therefore holds a
+  per-process registry (`klea_utils/api/runs.py` `ActiveRunRegistry`,
+  `app.state.active_runs`) mapping `thread_id` to the `asyncio.Task`
+  driving that thread.  Two behaviours follow:
+  - **Single-flight.** `run_query` / `stream_response` reject a second
+    same-thread run with HTTP `409` while one is in flight, so a chat's
+    thread never runs twice.
+  - **Cancel.** `POST /query/cancel` (shared `CancelPayload`; 204,
+    idempotent) cancels the registered task.  `CancelledError` reaches the
+    node at its next `await`, leaving the checkpoint resumable at the
+    failed node; no assistant turn is persisted.  The web UI's send button
+    becomes **Stop** while streaming and fires the same cancel.
+
+  Node/tool code must not swallow cancellation (the `CancelledError`
+  contract, ADR-0019).  The registry is in-process by design (single
+  uvicorn worker); multi-worker deployments would need sticky routing or a
+  distributed signal.
+  - *Caveat (remote tools):* cancelling the local task stops the node but
+    the MCP server-side tool may keep running.  FastMCP exposes
+    `Client.cancel(request_id)` and the MCP SDK honours
+    `notifications/cancelled`, but Klea does not capture the JSON-RPC
+    request id and relies on per-call timeouts; true server-side tool
+    cancellation is deferred to the FastMCP v4 upgrade
+    (PrefectHQ/fastmcp#1305).
 
 ### Consequences
 
@@ -101,12 +129,19 @@ window (option A cannot).
 * Unit tests: `utils_pkg/tests/test_llm_invoke_retries.py` (transient
   retry), `test_llm_invocation_errors.py` (type-based timeout),
   `test_graph_base.py` (`None` input), `test_chat_core.py`
-  (resume + persistence), `test_stream_events.py` (resume payload);
-  `agent_pkg/tests/test_chat_api.py` (payload validation, resume input,
-  failed-turn persistence).
+  (resume + persistence, single-flight + cancel),
+  `test_stream_events.py` (resume payload, cancel client),
+  `test_active_runs.py` (registry lifecycle), `test_cancellation_contract.py`
+  (no swallowed `CancelledError`); `agent_pkg/tests/test_chat_api.py` and
+  `rag_pkg/tests/test_chat_api.py` (payload validation, resume input,
+  failed-turn persistence, cancel endpoint).
+* Cancellation verified empirically: cancelling the driving task leaves
+  `next == (failed_node,)` and a fresh query starts a clean turn (recorded
+  in `devdocs/system/graph-resume.md`).
 * Semantics recorded in `devdocs/system/graph-resume.md`.
 * Manual/E2E: a fault-injection hook to force a node failure is tracked in
-  `devdocs/backlog.md` (LangGraph has no external pause API).
+  `devdocs/backlog.md` (LangGraph has no external pause API; the run is
+  stopped by cancelling its `asyncio.Task`).
 
 ## Pros and Cons of the Options
 
@@ -140,7 +175,11 @@ window (option A cannot).
 * LangGraph persistence: https://docs.langchain.com/oss/python/langgraph/persistence
 * `devdocs/system/graph-resume.md` (confirmed semantics),
   `devdocs/adr/0017-llm-invoke-retry.md` (adaptive retries),
+  `devdocs/adr/0019-shared-abstract-nodes.md` (the `CancelledError`
+  node/tool contract),
   `devdocs/adr/0023-sqlite-checkpointer.md` (checkpointer),
   `devdocs/adr/0035-general-operational-agent-path.md` (loop budgets).
 * HITL `interrupt`/`Command(resume=...)` should reuse this resume path;
   see `devdocs/backlog.md`.
+* FastMCP server-side tool cancellation: PrefectHQ/fastmcp#1305
+  (deferred to the FastMCP v4 upgrade).

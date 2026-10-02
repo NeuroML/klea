@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-02.
+Last updated: 2026-10-03.
 
 ## HITL / plan review
 
@@ -26,6 +26,24 @@ Last updated: 2026-10-02.
   `devdocs/system/agent-general-path-control-flow.md` and ADR-0035 when
   implemented.  Older session logs cite stale ADR numbers for this - use the
   next free one.
+
+## Cancellation / concurrency
+
+- Per-thread queueing: today a second same-thread query is rejected with
+  HTTP 409 while a run is active (ADR-0043).  A per-thread FIFO that runs
+  queued turns after the current one is a possible future UX (opencode
+  queues; ChatGPT/Gemini stop-and-disable).  Deferred: adds ordering,
+  backpressure, and cancel-interaction complexity.
+- Server-side tool cancellation: cancelling a run stops the node but the
+  MCP server-side tool may keep running (per-call timeout is the backstop).
+  True cancellation needs the FastMCP task API / `Client.cancel(request_id)`
+  (MCP `notifications/cancelled`), which requires capturing the JSON-RPC
+  request id; fold this into the planned FastMCP v4 upgrade
+  (PrefectHQ/fastmcp#1305).  See ADR-0043.
+- Multi-worker deployments: the active-run registry is in-process, so
+  cancellation and single-flight only work with one uvicorn worker.  A
+  multi-worker setup would need sticky routing or a distributed cancel
+  signal.  Not needed at current scale.
 
 ## Agent general path
 
@@ -150,13 +168,16 @@ Last updated: 2026-10-02.
   deterministic test hook (e.g. a debug/fault-injection env var that makes a
   chosen node raise once) so `resume=true` can be tested: the web Retry action,
   checkpoint continuation from the failed node (not the entry node), and
-  single-turn persistence (one user row, one assistant row).
+  single-turn persistence (one user row, one assistant row).  (A run *is*
+  stopped externally by cancelling its `asyncio.Task` -- see ADR-0043 -- but
+  that is cancellation, not the failed-node resume this hook targets.)
 - Add a NiceGUI element-rendering test harness (e.g. `nicegui.testing.User`
   / `Screen` fixtures) so UI wiring can be asserted without a browser:
   dialogs rebuilding on credential/model change, the chat-area welcome CTA
-  appearing/disappearing, status-pane refresh, and send-button gating.
-  Today only pure helpers (`utils_pkg/tests/test_ui_state.py`) and
-  registration smoke tests (`agent_pkg/tests/test_access_ui.py`) exist.
+  appearing/disappearing, status-pane refresh, send-button gating, and the
+  send/Stop button toggle while streaming.  Today only pure helpers
+  (`utils_pkg/tests/test_ui_state.py`) and registration smoke tests
+  (`agent_pkg/tests/test_access_ui.py`) exist.
 - `rag_pkg/klea_rag/nodes/generate_retrieval_query.py`:
   `_get_default_error_result` returns an all-default `RetrievalQueryOutput()`
   (empty `search_query`); decide whether that should degrade to a clear
