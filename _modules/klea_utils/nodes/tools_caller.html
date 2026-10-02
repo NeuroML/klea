@@ -396,44 +396,47 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Gate and dispatch the tool calls in ``state.tool_calls``.</span>
 
-<span class="sd">        Always writes ``tool_results`` -- an empty list when there is nothing</span>
-<span class="sd">        to dispatch -- so a previous batch's results are never left in state</span>
-<span class="sd">        and re-evaluated.</span>
+<span class="sd">        Skipped entirely -- no dispatch, no streaming, no state update -- when</span>
+<span class="sd">        there is nothing to dispatch (no tool calls, or no MCP client).  An</span>
+<span class="sd">        empty round is routed around upstream (the agent's picker router sends</span>
+<span class="sd">        it to replan; RAG resets ``tool_results`` at graph entry), so a</span>
+<span class="sd">        dispatched round always overwrites ``tool_results`` and no stale batch</span>
+<span class="sd">        survives.</span>
 
 <span class="sd">        :param state: Current graph state (must carry ``tool_calls``).</span>
 <span class="sd">        :returns: ``{"tool_results": [...]}`` plus any callback extras.</span>
 <span class="sd">        """</span>
         <span class="c1"># Per-run context (values local to the run, not on the shared node).</span>
         <span class="n">ctx</span> <span class="o">=</span> <span class="n">ToolCallerContext</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
-            <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
-            <span class="n">access_level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_calls</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"tool_infos_configured = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No tool calls to dispatch; skipping"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">access_level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_calls</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"tool_infos_configured = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="c1"># Signal the round start in the status pane (coarse: every call is</span>
+        <span class="c1"># marked ``running`` together); the end-of-round ``_get_status``</span>
+        <span class="c1"># replaces the section with ``ok``/``error``.</span>
+        <span class="n">running</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_running_status</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">running</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
+                <span class="n">NodeStreamEvent</span><span class="p">(</span>
+                    <span class="nb">type</span><span class="o">=</span><span class="s2">"state"</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">running</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
             <span class="p">)</span>
-            <span class="c1"># Signal the round start in the status pane (coarse: every call is</span>
-            <span class="c1"># marked ``running`` together); the end-of-round ``_get_status``</span>
-            <span class="c1"># replaces the section with ``ok``/``error``.</span>
-            <span class="n">running</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_running_status</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">running</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
-                    <span class="n">NodeStreamEvent</span><span class="p">(</span>
-                        <span class="nb">type</span><span class="o">=</span><span class="s2">"state"</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">running</span>
-                    <span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
-                <span class="p">)</span>
-            <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
-                <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
-                <span class="n">access_level</span><span class="o">=</span><span class="n">access_level</span><span class="p">,</span>
-            <span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No tool calls to dispatch; writing empty results"</span><span class="p">)</span>
-            <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
+            <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
+            <span class="n">access_level</span><span class="o">=</span><span class="n">access_level</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">results</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span> <span class="o">=</span> <span class="n">results</span>
 
