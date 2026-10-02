@@ -150,9 +150,9 @@ class RetrieveInfoNode(AbstractLangGraphNode[RAGState, dict[str, Any], NodeConte
                 "reference_material": reference_material,
             }
 
-        # Check if evaluator requested more info
+        # Check if the route asks for more info
         retrieval_k = dict(state.retrieval_k)
-        if state.text_response_eval.next_step == "retrieve_more_info":
+        if state.route == "retrieve_more_info":
             for retriever in self.retrievers:
                 label = retriever.source_label
                 retrieval_k[label], grew = retriever.inc_k(retrieval_k.get(label, {}))

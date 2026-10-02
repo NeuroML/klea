@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 
 from klea_rag.nodes.answer_user import AnswerUser
-from klea_rag.schemas import EvaluateAnswerSchema, RAGState
+from klea_rag.schemas import RAGState
 from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ async def test_answer_user_continue_no_warning():
     node = _make_node()
     state = RAGState(
         messages=[AIMessage(content="a real answer")],
-        text_response_eval=EvaluateAnswerSchema(next_step="continue"),
+        route="continue",
     )
 
     result = await node.execute(state)
@@ -44,7 +44,7 @@ async def test_answer_user_best_effort_appends_warning():
     node = _make_node()
     state = RAGState(
         messages=[AIMessage(content="a partial answer")],
-        text_response_eval=EvaluateAnswerSchema(next_step="modify_query"),
+        route="best_effort",
     )
 
     result = await node.execute(state)

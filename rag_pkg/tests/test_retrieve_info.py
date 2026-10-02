@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 from klea_rag.nodes.retrieve_info import RetrieveInfoNode
-from klea_rag.schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
+from klea_rag.schemas import RAGState, RetrievalQueryOutput
 from klea_utils.stores.config import FilterFieldInfo
 from langchain_core.documents import Document
 
@@ -219,7 +219,7 @@ async def test_execute_inc_k_on_all_retrievers_for_more_info():
         query="q",
         query_domains=["NeuroML"],
         retrieval_query=RetrievalQueryOutput(search_query="q"),
-        text_response_eval=EvaluateAnswerSchema(next_step="retrieve_more_info"),
+        route="retrieve_more_info",
     )
     result = await node.execute(state)
     logger.info(f"inc counts: r1={r1.inc_count}, r2={r2.inc_count}")

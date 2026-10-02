@@ -101,7 +101,7 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
 
         messages = [*state.messages, res_message]
 
-        is_rewrite = state.text_response_eval.next_step == "rewrite_answer"
+        is_rewrite = state.route == "rewrite_answer"
         return {
             "messages": messages,
             "reference_material": state.reference_material,
