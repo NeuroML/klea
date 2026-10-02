@@ -494,6 +494,7 @@ def test_destructive_tool_without_convention_gets_shell_fallback():
     assert entries[0]["display"] == (
         '```shell\ndelete_object(bucket="prod", key="data.csv")\n```'
     )
+    assert entries[0]["is_error"] is False
 
 
 def test_destructive_fallback_summarises_long_arguments():
@@ -560,6 +561,7 @@ def test_errored_destructive_result_is_displayed():
 
     assert entries[0]["mime"] == "text/x-shell"
     assert entries[0]["data"] == "$ pytest\n--- error ---\ntimed out"
+    assert entries[0]["is_error"] is True
 
 
 def test_errored_destructive_without_display_shows_fallback():
@@ -576,6 +578,7 @@ def test_errored_destructive_without_display_shows_fallback():
 
     assert entries[0]["mime"] == "text/x-shell"
     assert entries[0]["data"] == 'delete_object(key="data.csv")'
+    assert entries[0]["is_error"] is True
 
 
 def test_errored_non_destructive_result_is_skipped():

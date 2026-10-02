@@ -132,6 +132,7 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
                     "mime": entry.get("mime", ""),
                     "data": entry.get("data", ""),
                     "meta": entry.get("meta", {}),
+                    "is_error": bool(entry.get("is_error", False)),
                 }
             )
         return "tool"

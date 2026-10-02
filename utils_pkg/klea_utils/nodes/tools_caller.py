@@ -227,6 +227,9 @@ class ToolsCallerNode(
             )
         if entry is None and destructive:
             entry = self._display_from_destructive_call(tc, title)
+        if entry is not None:
+            # Carried to the frontend so it can style an errored block.
+            entry["is_error"] = bool(result.is_error)
         return entry
 
     @staticmethod
