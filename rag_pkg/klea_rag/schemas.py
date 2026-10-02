@@ -12,7 +12,7 @@ from typing import Any, Literal
 
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.access import AccessLevel
-from klea_utils.stores.retrieval.base import KValues
+from klea_utils.stores.retrieval.types import KValues
 from pydantic import BaseModel, Field
 
 

@@ -15,10 +15,7 @@ from typing import Any
 from langchain_core.documents import Document
 
 from ..config import PerDomainConfig, RetrieverConfig
-
-#: Current k for each store: ``{domain: {store: k}}``.  Stores not listed use
-#: their default k.
-KValues = dict[str, dict[str, int]]
+from .types import KValues
 
 
 class BaseKleaRetriever(ABC):
