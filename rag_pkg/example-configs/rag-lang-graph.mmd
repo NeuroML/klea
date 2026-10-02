@@ -17,6 +17,7 @@ graph TD;
 	Retrieving\20information(Retrieving information)
 	Generating\20answer(Generating answer)
 	Evaluating\20answer(Evaluating answer)
+	Routing\20evaluation(Routing evaluation)
 	Preparing\20response(Preparing response)
 	Requesting\20clarification(Requesting clarification)
 	Summarizing\20history(Summarizing history)
@@ -28,18 +29,19 @@ graph TD;
 	Classifying\20question -. &nbsp;non_domain_query&nbsp; .-> Answering\20generally;
 	Classifying\20question -. &nbsp;non_domain_refuse&nbsp; .-> Refusing\20query;
 	Classifying\20question -. &nbsp;domain_query&nbsp; .-> Splitting;
-	Evaluating\20answer -. &nbsp;fallback&nbsp; .-> Answering\20generally;
-	Evaluating\20answer -. &nbsp;rewrite_answer&nbsp; .-> Generating\20answer;
-	Evaluating\20answer -. &nbsp;modify_query&nbsp; .-> Generating\20search;
-	Evaluating\20answer -. &nbsp;best_effort&nbsp; .-> Preparing\20response;
-	Evaluating\20answer -. &nbsp;undefined&nbsp; .-> Requesting\20clarification;
-	Evaluating\20answer -. &nbsp;retrieve_more_info&nbsp; .-> Retrieving\20information;
+	Evaluating\20answer --> Routing\20evaluation;
 	Generating\20answer --> Evaluating\20answer;
 	Generating\20search --> Retrieving\20information;
 	Initializing --> Checking\20safety;
 	Preparing\20response --> Summarizing\20history;
 	Requesting\20clarification --> Summarizing\20history;
 	Retrieving\20information --> Generating\20answer;
+	Routing\20evaluation -. &nbsp;fallback&nbsp; .-> Answering\20generally;
+	Routing\20evaluation -. &nbsp;rewrite_answer&nbsp; .-> Generating\20answer;
+	Routing\20evaluation -. &nbsp;modify_query&nbsp; .-> Generating\20search;
+	Routing\20evaluation -. &nbsp;best_effort&nbsp; .-> Preparing\20response;
+	Routing\20evaluation -. &nbsp;undefined&nbsp; .-> Requesting\20clarification;
+	Routing\20evaluation -. &nbsp;retrieve_more_info&nbsp; .-> Retrieving\20information;
 	Running\20tools --> Generating\20answer;
 	Selecting\20tools --> Running\20tools;
 	Splitting --> Generating\20search;

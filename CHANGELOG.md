@@ -32,6 +32,8 @@
 
 ### Changed
 
+- The RAG embedding model is now fixed (not user-modifiable): vector stores are embedded once at startup, so a per-request/chat embedding override could not be honoured; the model dialog shows the role as locked.
+- The tool caller node is skipped entirely when there is nothing to dispatch (no tool calls, or no MCP client): it no longer emits progress/inspection events or writes an empty tool-results update for a skipped round, consistent with the other nodes.
 - Destructive tool results are now surfaced in the chat: `run_command` renders one shell block with the command, its full stdout/stderr and exit status (shown when there is output or a non-zero exit; the UI collapses long blocks), and `download_file` shows the saved path or failure. A destructive third-party MCP tool that declares no display convention gets a minimal `tool(arg=...)` shell block, so a risky call is never silently invisible.
 - Web UI: tool result blocks collapse to a one-line preview (the block title plus the first line) and expand on demand; an errored tool block's title is shown in the theme's negative colour.
 - Web UI: the status pane lists the tools in a round as they run, marking each `running` and replacing it with `ok`/`error` when the round ends.
@@ -60,6 +62,7 @@
 
 ### Fixed
 
+- RAG retrieval query generation no longer fails with `INVALID_PROMPT_INPUT`: a literal `{"gte": ..., "lte": ...}` range example in the prompt was being parsed as a template variable and is now escaped.
 - RAG retrieval depth (`k`) is now tracked per conversation instead of on the shared retriever, so growing `k` in one chat no longer affects concurrent chats or the next query on the same thread.
 - RAG evaluator score-based routing overrides now take effect: the effective route is recorded in state and read by the retrieval and answer nodes, so `k` grows only when retrieving more (not on a query rewrite) and best-effort answers carry their warning.
 - RAG retrieval filters work again: the query generator builds its structured-output schema per run from the domain's configured filter fields, so strict structured-output modes no longer close the `filters` object to `{}`; scalar, list and numeric-range constraints are all supported.

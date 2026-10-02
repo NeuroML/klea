@@ -76,7 +76,7 @@ flowchart TD
         retrieve["Retrieving information<br/>RetrieveInfoNode<br/>VSRetriever + BM25RetrieverManager<br/>restrict_metadata_filter per domain<br/>RRF + max_refs_size (ADR-0012, ADR-0022)"]
         answerCtx["Generating answer<br/>AnswerFromContext (chat)<br/>serialize_reference_material + citations"]
         evaluator["Evaluating answer<br/>Evaluator (chat)<br/>confidence/coverage/groundedness… → next_step"]
-        routeEval["Routing evaluation<br/>RouteEvaluator<br/>continue / retrieve_more_info / rewrite_answer / modify_query / fallback / best_effort / undefined<br/>(fallback_to_training_data, max attempts)"]
+        routeEval["Routing evaluation<br/>RouteEvaluator (records route) + RouteDispatcher<br/>route field: continue / retrieve_more_info / rewrite_answer / modify_query / fallback / best_effort / undefined<br/>(fallback_to_training_data, max attempts; action nodes read route, not next_step)"]
         answerGen["Answering generally<br/>AnswerGeneral (chat, FallbackConfig)<br/>training-data with fallback_warning when domain-routed"]
         prep["Preparing response<br/>AnswerUser<br/>final message_for_user"]
         clarify["Requesting clarification<br/>FixedAnswer<br/>Apologies. I could not answer..."]
@@ -97,12 +97,13 @@ flowchart TD
     caller --> answerCtx
     retrieve --> answerCtx
     answerCtx --> evaluator
-    evaluator -. fallback .-> answerGen
-    evaluator -. rewrite_answer .-> answerCtx
-    evaluator -. modify_query .-> genSearch
-    evaluator -. best_effort .-> prep
-    evaluator -. undefined .-> clarify
-    evaluator -. retrieve_more_info .-> retrieve
+    evaluator --> routeEval
+    routeEval -. fallback .-> answerGen
+    routeEval -. rewrite_answer .-> answerCtx
+    routeEval -. modify_query .-> genSearch
+    routeEval -. best_effort .-> prep
+    routeEval -. undefined .-> clarify
+    routeEval -. retrieve_more_info .-> retrieve
     answerGen --> summarise
     prep --> summarise
     clarify --> summarise
@@ -147,7 +148,7 @@ flowchart TD
     sqlite -- "shared lib" --> utils
 ```
 
-*Notes:* Solid `--> ` = normal graph edge (from ``rag.py:191``). Dotted `-. label .->` = conditional ``add_conditional_edges`` (``GuardRouter``, ``RouteQuery``, ``RouteEvaluator``). Double-dash `inspection` / `session` / `MCP` / `LLM` edges are component→container/external interactions that ``draw_mermaid`` omits; they are what make this a C4 Level 3 rather than a bare node graph. Dashed external `bundled` is auto-launched stdio per-app (ADR-0004). The auto-generated ``rag_pkg/example-configs/rag-lang-graph.mmd`` (``config: flowchart: curve: linear`` plus ``classDef first/last``) is the faithful ``draw_mermaid()`` artefact kept alongside the PNG; the node labels above are normalised to it (``Checking safety`` not ``Checking_safety``).
+*Notes:* Solid `--> ` = normal graph edge (from ``rag.py:191``). Dotted `-. label .->` = conditional ``add_conditional_edges`` (``GuardRouter``, ``RouteQuery``, the ``RouteDispatcher`` that follows ``RouteEvaluator``'s recorded ``route``). Double-dash `inspection` / `session` / `MCP` / `LLM` edges are component→container/external interactions that ``draw_mermaid`` omits; they are what make this a C4 Level 3 rather than a bare node graph. Dashed external `bundled` is auto-launched stdio per-app (ADR-0004). The auto-generated ``rag_pkg/example-configs/rag-lang-graph.mmd`` (``config: flowchart: curve: linear`` plus ``classDef first/last``) is the faithful ``draw_mermaid()`` artefact kept alongside the PNG; the node labels above are normalised to it (``Checking safety`` not ``Checking_safety``).
 
 ## Auto-generated LangGraph topology (faithful to code, for drift check)
 
@@ -173,6 +174,7 @@ graph TD;
 	Retrieving\20information(Retrieving information)
 	Generating\20answer(Generating answer)
 	Evaluating\20answer(Evaluating answer)
+	Routing\20evaluation(Routing evaluation)
 	Preparing\20response(Preparing response)
 	Requesting\20clarification(Requesting clarification)
 	Summarizing\20history(Summarizing history)
@@ -184,18 +186,19 @@ graph TD;
 	Classifying\20question -. &nbsp;non_domain_query&nbsp; .-> Answering\20generally;
 	Classifying\20question -. &nbsp;non_domain_refuse&nbsp; .-> Refusing\20query;
 	Classifying\20question -. &nbsp;domain_query&nbsp; .-> Splitting;
-	Evaluating\20answer -. &nbsp;fallback&nbsp; .-> Answering\20generally;
-	Evaluating\20answer -. &nbsp;rewrite_answer&nbsp; .-> Generating\20answer;
-	Evaluating\20answer -. &nbsp;modify_query&nbsp; .-> Generating\20search;
-	Evaluating\20answer -. &nbsp;best_effort&nbsp; .-> Preparing\20response;
-	Evaluating\20answer -. &nbsp;undefined&nbsp; .-> Requesting\20clarification;
-	Evaluating\20answer -. &nbsp;retrieve_more_info&nbsp; .-> Retrieving\20information;
+	Evaluating\20answer --> Routing\20evaluation;
 	Generating\20answer --> Evaluating\20answer;
 	Generating\20search --> Retrieving\20information;
 	Initializing --> Checking\20safety;
 	Preparing\20response --> Summarizing\20history;
 	Requesting\20clarification --> Summarizing\20history;
 	Retrieving\20information --> Generating\20answer;
+	Routing\20evaluation -. &nbsp;fallback&nbsp; .-> Answering\20generally;
+	Routing\20evaluation -. &nbsp;rewrite_answer&nbsp; .-> Generating\20answer;
+	Routing\20evaluation -. &nbsp;modify_query&nbsp; .-> Generating\20search;
+	Routing\20evaluation -. &nbsp;best_effort&nbsp; .-> Preparing\20response;
+	Routing\20evaluation -. &nbsp;undefined&nbsp; .-> Requesting\20clarification;
+	Routing\20evaluation -. &nbsp;retrieve_more_info&nbsp; .-> Retrieving\20information;
 	Running\20tools --> Generating\20answer;
 	Selecting\20tools --> Running\20tools;
 	Splitting --> Generating\20search;
@@ -226,7 +229,7 @@ graph TD;
 | Retrieving information | ``klea_rag/nodes/retrieve_info.py`` | ``RetrieveInfoNode`` | ``VSRetriever`` + ``BM25RetrieverManager`` per ``BaseKleaRetriever``; ``restrict_metadata_filter`` per domain; ``RRF`` + ``max_refs_size`` (ADR-0012) |
 | Generating answer | ``klea_rag/nodes/answer_from_context.py`` | ``AnswerFromContext`` (``chat``) | ``serialize_reference_material`` + citations |
 | Evaluating answer | ``klea_rag/nodes/evaluator.py`` | ``Evaluator`` (``chat``) | ``confidence/coverage/groundedness… → next_step`` |
-| Routing evaluation | ``klea_rag/nodes/route_evaluator.py`` | ``RouteEvaluator`` | ``fallback_to_training_data`` / ``max attempts`` → ``fallback / best_effort / undefined`` (ADR-0009) |
+| Routing evaluation | ``klea_rag/nodes/route_evaluator.py`` | ``RouteEvaluator`` + ``RouteDispatcher`` | resolves the effective ``route`` from verdict + scores, records it on ``RAGState.route`` (the thin dispatcher follows it); action nodes read ``route``, not ``next_step`` (ADR-0009) |
 | Answering generally | ``klea_utils/nodes/answer_general.py`` | ``AnswerGeneral`` (``chat``, ``FallbackConfig``) | ``format_alert(fallback_warning)`` only when domain-routed (ADR-0009) |
 | Preparing response | ``klea_rag/nodes/answer_user.py`` | ``AnswerUser`` | ``message_for_user`` |
 | Summarizing history | ``klea_utils/nodes/summarise_memory.py`` | ``SummariseMemoryNode`` | ``BaseMessage``-object memory (ADR-0018) + ``context_summary`` |

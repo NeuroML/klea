@@ -197,3 +197,33 @@ Chosen option: "C. Configurable fallback with graded close-out".
   (``2026-03..04`` ``rag_pkg`` graph extraction, ``2026-08-05..07``
   ``answer_general``/``evaluator`` prompts, ``2026-08-21`` filter
   routing).
+
+## Update (2026-10-02): recorded ``route``, not raw ``next_step``
+
+The graded close-out described above is unchanged, but its mechanism was
+corrected.  Previously the router returned the route as a conditional-edge
+label only, while downstream action nodes re-derived the action from the
+evaluator's raw ``next_step``.  Because the router's score-based rules can
+*override* ``next_step`` (e.g. low ``confidence`` with adequate ``coverage``
+routes to ``retrieve_more_info`` even when the verdict said otherwise), those
+overrides did not reach the action nodes: ``k`` did not grow, ``modify_query``
+could still grow ``k``, ``rewrite_attempts`` did not advance, and the
+best-effort warning could be suppressed (a regression introduced when the
+router's ``k`` increment was removed to fix a double increment).
+
+Now:
+
+* ``RouteEvaluator`` is a full state-updating node: it resolves the effective
+  decision and records it on ``RAGState.route`` (distinct from
+  ``text_response_eval.next_step``, the evaluator LLM's raw verdict) and keeps
+  emitting the same inspect event (``route`` + ``next_step``).
+* A thin ``RouteDispatcher`` (an ``AbstractRouterNode``) follows the recorded
+  ``route``; the graph is ``Evaluating answer -> Routing evaluation ->
+  {route}``.
+* Action nodes read ``route``, not ``next_step``: ``RetrieveInfoNode`` grows
+  ``k`` only on ``route == "retrieve_more_info"``; ``AnswerFromContext`` bumps
+  ``rewrite_attempts`` on ``route == "rewrite_answer"``; ``AnswerUser`` warns
+  when ``route != "continue"``.
+
+See ``devdocs/system/c4-component-rag.md`` and ``RAGState.route`` in
+``rag_pkg/klea_rag/schemas.py``.
