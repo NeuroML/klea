@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-01.
+Last updated: 2026-10-02.
 
 ## HITL / plan review
 
@@ -46,10 +46,6 @@ Last updated: 2026-10-01.
   report nearby entries on a missing target, and the picker escalates identical
   failed calls, but `run_command` is still not boundary-checked like the file
   tools, so consider a guard; gather a concrete case before coding.
-- Planner completion gap: the Planner can mark a plan's only/all steps `done`
-  with `status=in_progress` (it has no `completed` status), which routes to the
-  step entry with no current step and forces an empty-picker replan (observed in
-  the `missing_file` E2E).  Consider a deterministic completion path.
 
 ## Tools
 
@@ -76,7 +72,8 @@ Last updated: 2026-10-01.
 
 ## Infrastructure / correctness
 
-- Retrieval depth (`k`) is not per-invocation.  `BaseKleaRetriever._k` lives on
+- Retrieval depth (`k`) is not per-invocation (**in review** - PR open).
+  `BaseKleaRetriever._k` lives on
   the process-wide `self.stores` / `self.bm25_stores` managers (built once in
   `BaseLangGraph._get_vector_stores`), not in `RAGState`, so it is shared
   across every `thread_id` and concurrent run; `reset_k()` only fires on the
@@ -101,11 +98,10 @@ Last updated: 2026-10-01.
   default used instead).
 - Third-party trust roadmap (consent loop, sandbox-by-default, curated server
   registry), deferred per ADR-0037.
-- Model/provider picker: replace the free-text model field with a
-  models.dev-catalog-backed picker (via `klea_utils.models_catalog`), exposed
-  through a backend catalog endpoint so the browser does not call models.dev
-  directly, with an "Other (custom)" free-text fallback and local providers
-  marked by an offline probe.  Design captured with ADR-0042.
+- Model/provider picker residual: the catalog-backed picker, the backend
+  `/models/catalogue` endpoint and the free-text "custom" fallback are
+  implemented.  Remaining: mark local/on-device providers (Ollama, LM Studio,
+  ...) via an offline probe in the provider list.
 - Credentials follow-ups (ADR-0042): per-request/session-only keys that are
   never persisted server-side (web/TUI parity); OS keyring support (desktop
   only, absent on headless servers); `{env:VAR}` references in place of stored
@@ -155,21 +151,37 @@ Last updated: 2026-10-01.
   `utils_pkg/klea_utils/ui/web/nicegui/components/{stream,chat_bubble}.py`,
   `utils_pkg/klea_utils/ui/web/nicegui/state.py` (`MessageData`),
   `utils_pkg/klea_utils/graph/base.py` (event forwarding), `ui/tui/repl.py`.
-- Surface `run_command` output in the chat like file-edit diffs.  Its
-  structured result (`command`/`returncode`/`stdout`/`stderr`/`truncated`)
-  is not recognised by `_display_from_structured` (only `display`/`diff`/
-  `code` are), so it produces no `tool` block.  Routes: (1) have
-  `run_command` return a self-describing `display` dict (the ADR-0040
-  convention; cap the payload since `stdout` is already in
-  `structured_content`), or (2) add a generic `command`/`stdout` ->
-  `text/x-shell` convention in `tools_caller.py`.  Decide: show always vs
-  only when there is output or a non-zero exit; stderr inline vs only on a
-  non-zero exit (timeouts/denials stay `is_error` and are not displayed, per
-  ADR-0040); size cap / collapse threshold.  Side effect to accept: once
-  displayed, run_command results count as `displayed_to_user: yes`, so the
-  final answer will not reprint them.  Files:
+- Live tool output ("as it runs").  A long-running tool's output is emitted
+  only after its round completes (`tool` event), so a `run_command` that runs
+  for a while shows nothing until it finishes.  Design: extend the existing
+  `tool` event with a stable `call_id` + `status` (`running`/`ok`/`error`) and
+  stream output chunks in place, per ADR-0040's one-event-with-a-discriminator
+  rule.  Backend: `run_command` reads stdout/stderr incrementally and calls an
+  optional `on_output` callback; the bundled wrapper forwards chunks via
+  fastmcp `ctx.report_progress` (message=chunk, throttled);
+  `dispatch_tool_calls` passes a per-call `progress_handler`; the tools caller
+  emits live events.  Verify early: emitting from the MCP client's receive
+  task (contextvar / `get_stream_writer` risk; fallback is an `asyncio.Queue`
+  + node-side drainer) and that `report_progress` crosses the bundled stdio
+  subprocess.  Decide: rendering target (chat block updated in place vs a
+  status line); whether partial output is kept on timeout (decided: no - the
+  final block shows only the error, no partial capture); throttle policy.
+  Needs an ADR (next free is 0046) and an ADR-0038/0040 amendment.  Design
+  first; not yet implemented.  Files:
   `utils_pkg/klea_utils/mcp/tool_impls/run_command.py`,
-  `utils_pkg/klea_utils/nodes/tools_caller.py`.
+  `utils_pkg/klea_utils/mcp/server/bundled_tools.py`,
+  `utils_pkg/klea_utils/mcp/dispatch.py`,
+  `utils_pkg/klea_utils/nodes/tools_caller.py`, web `stream.py`.
+- Non-destructive tool calls in the chat (to think about - UX, needs user
+  feedback/iteration).  Today read-only context tools (`read_file`,
+  `list_files`, `grep`, `find_files`, `web_fetch`) appear only in the status
+  and inspect panes; the chat carries artifacts (diffs, command output,
+  images) and destructive results only.  opencode shows context tools as a
+  collapsed group because its transcript is its activity log; Klea has
+  dedicated panes, so this may just be redundant noise.  If pursued, prefer a
+  single collapsed summary row ("read 4 files, searched 3 patterns") over one
+  row per call, in the status pane or as one chat group.  Not a committed
+  item.
 
 ## Testing
 
