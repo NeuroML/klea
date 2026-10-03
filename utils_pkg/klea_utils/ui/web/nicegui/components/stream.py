@@ -19,7 +19,7 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from nicegui import background_tasks, ui
+from nicegui import background_tasks
 
 from klea_utils.api.sse import request_cancel, stream_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
@@ -144,9 +144,8 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     return None
 
 
-def _retry_stream(ctx: PageContext, query: str, chat_id: str, error_row: Any) -> None:
-    """Remove the error row and resume the chat's last failed run."""
-    error_row.delete()
+def _retry_stream(ctx: PageContext, query: str, chat_id: str) -> None:
+    """Resume the chat's last failed run (Retry action)."""
     background_tasks.create(run_stream(ctx, query, chat_id, resume=True))
 
 
@@ -190,8 +189,14 @@ async def run_stream(
     # The Stop control calls back into this context; register it here so the
     # component needs no import of this module, and flip the button to Stop.
     ctx.stop_streaming = lambda: stop_stream(ctx)
+    # Retry resumes this turn; the status region's Retry button invokes it.
+    ctx.stream_retry_cb = lambda: _retry_stream(ctx, query, chat_id)
     ctx.refresh_stream_button()
     current_chat["state_sections"] = {}
+    # The status region is per-chat state (rendered by the chat-area
+    # component), so it is replaced wholesale on every turn and switching
+    # chats restores each chat's own status.
+    current_chat["status"] = {"kind": "progress", "heading": ""}
     if resume:
         # Continuing the same turn: keep the existing inspector section and
         # re-activate it so appended entries land in the right place.
@@ -207,15 +212,7 @@ async def run_stream(
         current_chat["inspector_entries"].append(marker)
         ctx.begin_inspector_section(chat_id, marker)
     ctx.refresh_status_pane()
-
-    # run_stream runs in a background task, which has no ambient slot; enter
-    # the stream container explicitly before creating elements (see the slot
-    # warning on PageContext).
-    with ctx.stream_container:
-        pg_row = ui.row().classes("w-full items-center gap-2 p-2")
-        with pg_row:
-            ui.spinner(type="dots").classes("w-4 h-4")
-            pg_label = ui.label("").classes("text-xs text-grey-5 italic")
+    ctx.refresh_stream_status()
 
     def _reset_streaming_state() -> None:
         """Clear the streaming flags and refresh the status pane."""
@@ -240,7 +237,10 @@ async def run_stream(
                 heading = (event.get("data") or {}).get("heading") or event.get(
                     "node", ""
                 )
-                pg_label.set_text(heading)
+                # Update the live heading in place (no full re-render).
+                current_chat["status"]["heading"] = heading
+                if ctx.status_label is not None:
+                    ctx.status_label.set_text(heading)
                 continue
             action = apply_stream_event(current_chat, event)
             if action in ("usage", "state", "context"):
@@ -251,14 +251,13 @@ async def run_stream(
             elif action == "tool":
                 ctx.render_chat_area()
             elif action == "complete":
-                pg_row.delete()
                 logger.debug("chat=%s stream complete", chat_id)
+                current_chat["status"] = {"kind": "idle"}
                 ctx.render_chat_area()
                 _reset_streaming_state()
                 ctx.refresh_inspector()
                 break
             elif action == "error":
-                pg_row.delete()
                 error_msg = event.get("message", "Unknown error")
                 resumable = bool(event.get("resumable"))
                 logger.debug(
@@ -267,48 +266,29 @@ async def run_stream(
                     error_msg,
                     resumable,
                 )
-                with ctx.stream_container:
-                    error_row = ui.row().classes("w-full items-center gap-2 p-2")
-                    with error_row:
-                        ui.icon("error").classes("text-negative")
-                        message = f"Error: {error_msg}"
-                        # Missing-model errors are actionable: point the user
-                        # at the Choose models dialog so they can set a model
-                        # and retry without leaving the page.
-                        if "No model configured" in error_msg:
-                            message += (
-                                " Use the settings (gear) icon to choose a "
-                                "model for this chat, then retry."
-                            )
-                        ui.label(message).classes("text-xs text-negative flex-grow")
-                        if resumable:
-                            ui.button(
-                                "Retry",
-                                on_click=lambda row=error_row: _retry_stream(
-                                    ctx, query, chat_id, row
-                                ),
-                            ).props("flat dense color=primary")
+                current_chat["status"] = {
+                    "kind": "error",
+                    "message": error_msg,
+                    "resumable": resumable,
+                }
+                ctx.refresh_stream_status()
                 _reset_streaming_state()
                 break
     except asyncio.CancelledError:
-        # The user pressed Stop: drop the progress row, show a plain
-        # (non-error) marker and clear the streaming state.  Re-raise so the
-        # task ends cancelled -- NiceGUI's exception handler ignores it.
+        # The user pressed Stop: record a "Stopped" status for this chat and
+        # re-render the region from it.  Re-raise so the task ends cancelled
+        # (NiceGUI's exception handler ignores it).
         logger.debug("chat=%s stream cancelled by user", chat_id)
-        pg_row.delete()
-        with ctx.stream_container:
-            ui.label("Stopped").classes("text-xs text-grey-5 italic p-2")
+        current_chat["status"] = {"kind": "stopped"}
+        ctx.refresh_stream_status()
         _reset_streaming_state()
-        ctx.render_chat_area()
         raise
     except httpx.RequestError as e:
-        pg_row.delete()
         logger.debug("chat=%s request error: %s", chat_id, e)
-        with ctx.stream_container:
-            ui.notification(
-                f"Connection error: {e}",
-                type="negative",
-                timeout=10000,
-                close_button=True,
-            )
+        current_chat["status"] = {
+            "kind": "error",
+            "message": f"Connection error: {e}",
+            "resumable": False,
+        }
+        ctx.refresh_stream_status()
         _reset_streaming_state()

@@ -79,6 +79,36 @@ class TokenUsage(TypedDict):
     total_tokens: int
 
 
+class StatusData(TypedDict):
+    """Per-chat status region content (the stream container).
+
+    Rendered under the transcript for the chat and scoped to its current
+    (or last) turn.  ``kind`` selects the rendering:
+
+    ==========  ================================================
+    kind        meaning
+    ==========  ================================================
+    ``idle``    nothing to show
+    ``progress``  an in-flight run; ``heading`` is the live line
+    ``error``   a failed run; ``message`` and ``resumable`` (Retry)
+    ``stopped`` the run was cancelled by the user
+    ==========  ================================================
+
+    Any new turn (send / retry) resets it, so a terminal status never
+    survives past the next user action.
+    """
+
+    kind: str
+    heading: NotRequired[str]
+    message: NotRequired[str]
+    resumable: NotRequired[bool]
+
+
+def idle_status() -> StatusData:
+    """Return the empty per-chat status."""
+    return {"kind": "idle"}
+
+
 class ChatData(TypedDict):
     """In-memory state for one chat session (see :func:`ensure_chat`).
 
@@ -105,6 +135,8 @@ class ChatData(TypedDict):
     inspector_sections_collapsed: set[int]
     #: Status-pane sections, keyed by node label / section key.
     state_sections: dict[str, StateSection]
+    #: Current/last turn's stream-container status (progress/error/stopped).
+    status: StatusData
     #: Active model config per role (from ``fetch_active_models``).
     model_info: dict[str, dict[str, Any]]
     #: Accumulated token totals for this chat.
@@ -141,6 +173,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
             "inspector_expanded": set(),
             "inspector_sections_collapsed": set(),
             "state_sections": {},
+            "status": idle_status(),
             "model_info": {},
             "token_usage": {
                 "input_tokens": 0,

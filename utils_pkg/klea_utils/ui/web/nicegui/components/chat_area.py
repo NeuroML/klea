@@ -21,9 +21,67 @@ from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats, missing_credentials
+from klea_utils.ui.web.nicegui.state import StatusData, chats, missing_credentials
 
 logger = logging.getLogger(__name__)
+
+
+def render_stream_status(ctx: PageContext, retry_cb=None) -> None:
+    """Render the status region for the active chat from its per-chat state.
+
+    The region is a single slot under the transcript, owned by the chat's
+    ``status`` dict (``state.ChatData``), so it is restored on chat switch
+    and replaced wholesale on the next turn.  ``kind`` selects the content:
+
+    * ``progress`` - a spinner plus the live ``heading``.
+    * ``error``    - the message and, when ``resumable``, a Retry action.
+    * ``stopped``  - a plain "Stopped" line.
+    * ``idle``/missing - nothing.
+
+    :param ctx: The shared page context (uses ``stream_container``).
+    :param retry_cb: Callable invoked by the Retry button; the stream
+        component passes it when rendering a live error.
+    """
+    status = _current_status(ctx)
+    kind = status.get("kind", "idle")
+    container = ctx.stream_container
+    container.clear()
+    if kind == "idle":
+        return
+    with container:
+        if kind == "progress":
+            with ui.row().classes("w-full items-center gap-2 p-2"):
+                ui.spinner(type="dots").classes("w-4 h-4")
+                label = ui.label(status.get("heading", "")).classes(
+                    "text-xs text-grey-5 italic"
+                )
+            ctx.status_label = label
+        elif kind == "error":
+            with ui.row().classes("w-full items-center gap-2 p-2"):
+                ui.icon("error").classes("text-negative")
+                message = f"Error: {status.get('message', '')}"
+                if "No model configured" in message:
+                    message += (
+                        " Use the settings (gear) icon to choose a model for "
+                        "this chat, then retry."
+                    )
+                ui.label(message).classes("text-xs text-negative flex-grow")
+                if status.get("resumable") and retry_cb is not None:
+                    ui.button("Retry", on_click=retry_cb).props(
+                        "flat dense color=primary"
+                    )
+        elif kind == "stopped":
+            ui.label("Stopped").classes("text-xs text-grey-5 italic p-2")
+
+
+def _current_status(ctx: PageContext) -> StatusData:
+    """Return the active chat's status dict, or ``{"kind": "idle"}``."""
+    if not ctx.chat_id:
+        return {"kind": "idle"}
+    chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
+    if not chat:
+        return {"kind": "idle"}
+    return chat.get("status") or {"kind": "idle"}
 
 
 def _render_messages(ctx: PageContext) -> None:
@@ -41,6 +99,11 @@ def _render_messages(ctx: PageContext) -> None:
         else 0,
     )
     ctx.chat_area.clear()
+    # The status region is rendered from the active chat's per-chat status,
+    # so switching chats restores that chat's own status and no stale
+    # marker bleeds across.  A live run re-renders this from state too, so
+    # there is a single source of truth for the region.
+    render_stream_status(ctx)
     with ctx.chat_area:
         if not current:
             with (
@@ -153,5 +216,8 @@ def attach_chat_area(ctx: PageContext) -> None:
         ctx.stream_container = ui.column().classes("w-full")
 
     ctx.render_chat_area = lambda: _render_messages(ctx)
+    ctx.refresh_stream_status = lambda: render_stream_status(
+        ctx, retry_cb=ctx.stream_retry_cb
+    )
     ctx.scroll_chat_bottom = lambda: _scroll_to_bottom(ctx)
     _render_messages(ctx)
