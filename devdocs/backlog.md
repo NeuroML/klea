@@ -58,9 +58,12 @@ Last updated: 2026-10-03.
   "progress"`), gate the input and toggle the button per current chat,
   cancel the current chat's task, add a chat-list running indicator, and
   guard background-task renders so a hidden chat's updates do not repaint
-  the visible one.  Multiple browser sessions (separate `user_id`s:
-  distinct tabs/profiles) already work; this is only about concurrent runs
-  within one page.  No server change needed.
+  the visible one.  Independent sessions require separate browser
+  windows/profiles (or incognito): `app.storage.user` is keyed by the
+  NiceGUI session cookie, which is shared across tabs of one profile, so
+  tabs share a `user_id` (and its chats) rather than getting their own.
+  This item is only about concurrent runs within one page; no server
+  change needed.
 
 ## Agent general path
 
