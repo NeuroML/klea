@@ -85,14 +85,14 @@ class StatusData(TypedDict):
     Rendered under the transcript for the chat and scoped to its current
     (or last) turn.  ``kind`` selects the rendering:
 
-    ==========  ================================================
-    kind        meaning
-    ==========  ================================================
-    ``idle``    nothing to show
+    ============  ================================================
+    kind          meaning
+    ============  ================================================
+    ``idle``      nothing to show
     ``progress``  an in-flight run; ``heading`` is the live line
-    ``error``   a failed run; ``message`` and ``resumable`` (Retry)
-    ``stopped`` the run was cancelled by the user
-    ==========  ================================================
+    ``error``     a failed run; ``message`` and ``resumable`` (Retry)
+    ``stopped``   the run was cancelled by the user
+    ============  ================================================
 
     Any new turn (send / retry) resets it, so a terminal status never
     survives past the next user action.
