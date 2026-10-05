@@ -388,6 +388,10 @@
     <span class="c1">#: Chat currently being streamed, so the inspector can tell if it is</span>
     <span class="c1">#: appending to the active chat.</span>
     <span class="n">streaming_chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="c1">#: The background task driving the current NiceGUI stream, so the Stop</span>
+    <span class="c1">#: control can cancel it locally (belt-and-braces alongside the server</span>
+    <span class="c1">#: ``/query/cancel`` call).</span>
+    <span class="n">stream_task</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">mini_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="c1"># Extra request fields merged into the ``/query/stream`` POST body</span>
@@ -403,6 +407,9 @@
     <span class="n">chat_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">scroll_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">stream_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Live progress label inside the status region, updated in place during</span>
+    <span class="c1">#: a run (the region itself is re-rendered from per-chat state).</span>
+    <span class="n">status_label</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">text</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">loading_row</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1">#: Stable inspector pane content column / scroll area (incremental append).</span>
@@ -426,6 +433,19 @@
     <span class="n">append_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">reset_center_tab</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_send_state</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Re-render the status region (stream container) from the active chat's</span>
+    <span class="c1">#: per-chat status.  Registered by the chat-area component; the stream</span>
+    <span class="c1">#: component calls it on each status transition.</span>
+    <span class="n">refresh_stream_status</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Retry handler for a live failed run, invoked by the status region's</span>
+    <span class="c1">#: Retry button (set by the stream component when it renders an error).</span>
+    <span class="n">stream_retry_cb</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Flip the send control between Send and Stop based on ``is_streaming``</span>
+    <span class="c1">#: (registered by the input area; called by the stream component).</span>
+    <span class="n">refresh_stream_button</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Stop the active run for the given chat (registered by the stream</span>
+    <span class="c1">#: component; the input area's Stop control calls it).</span>
+    <span class="n">stop_streaming</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">fetch_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">fetch_session_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">fetch_credentials</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>

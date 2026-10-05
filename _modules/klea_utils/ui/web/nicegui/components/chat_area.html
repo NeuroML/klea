@@ -323,9 +323,70 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">StatusData</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="render_stream_status">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.chat_area.render_stream_status">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">render_stream_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render the status region for the active chat from its per-chat state.</span>
+
+<span class="sd">    The region is a single slot under the transcript, owned by the chat's</span>
+<span class="sd">    ``status`` dict (``state.ChatData``), so it is restored on chat switch</span>
+<span class="sd">    and replaced wholesale on the next turn.  ``kind`` selects the content:</span>
+
+<span class="sd">    * ``progress`` - a spinner plus the live ``heading``.</span>
+<span class="sd">    * ``error``    - the message and, when ``resumable``, a Retry action.</span>
+<span class="sd">    * ``stopped``  - a plain "Stopped" line.</span>
+<span class="sd">    * ``idle``/missing - nothing.</span>
+
+<span class="sd">    :param ctx: The shared page context (uses ``stream_container``).</span>
+<span class="sd">    :param retry_cb: Callable invoked by the Retry button; the stream</span>
+<span class="sd">        component passes it when rendering a live error.</span>
+<span class="sd">    """</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">_current_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"idle"</span><span class="p">)</span>
+    <span class="n">container</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span>
+    <span class="n">container</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"idle"</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">with</span> <span class="n">container</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center gap-2 p-2"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">spinner</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">"dots"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-4 h-4"</span><span class="p">)</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                    <span class="s2">"text-xs text-grey-5 italic"</span>
+                <span class="p">)</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">status_label</span> <span class="o">=</span> <span class="n">label</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center gap-2 p-2"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="s2">"error"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-negative"</span><span class="p">)</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Error: </span><span class="si">{</span><span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'message'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                <span class="k">if</span> <span class="s2">"No model configured"</span> <span class="ow">in</span> <span class="n">message</span><span class="p">:</span>
+                    <span class="n">message</span> <span class="o">+=</span> <span class="p">(</span>
+                        <span class="s2">" Use the settings (gear) icon to choose a model for "</span>
+                        <span class="s2">"this chat, then retry."</span>
+                    <span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">message</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-negative flex-grow"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"resumable"</span><span class="p">)</span> <span class="ow">and</span> <span class="n">retry_cb</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Retry"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">retry_cb</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
+                        <span class="s2">"flat dense color=primary"</span>
+                    <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"stopped"</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Stopped"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 italic p-2"</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_current_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StatusData</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the active chat's status dict, or ``{"kind": "idle"}``."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+    <span class="n">chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">chat</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"status"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -343,6 +404,11 @@
         <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="c1"># The status region is rendered from the active chat's per-chat status,</span>
+    <span class="c1"># so switching chats restores that chat's own status and no stale</span>
+    <span class="c1"># marker bleeds across.  A live run re-renders this from state too, so</span>
+    <span class="c1"># there is a single source of truth for the region.</span>
+    <span class="n">render_stream_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">current</span><span class="p">:</span>
             <span class="k">with</span> <span class="p">(</span>
@@ -457,6 +523,9 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">render_stream_status</span><span class="p">(</span>
+        <span class="n">ctx</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">stream_retry_cb</span>
+    <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_chat_bottom</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_scroll_to_bottom</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>
 

@@ -581,7 +581,7 @@
             <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_await_one</span><span class="p">(</span><span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">coro</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
                 <span class="k">try</span><span class="p">:</span>
                     <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="k">await</span> <span class="n">coro</span>
-                <span class="k">except</span> <span class="ne">BaseException</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - surfaced as a result</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - surfaced as a result</span>
                     <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="n">exc</span>
 
             <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_sequential</span><span class="p">(</span>

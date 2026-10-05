@@ -411,6 +411,44 @@
 
 
 
+<div class="viewcode-block" id="request_cancel">
+<a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sse.request_cancel">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">request_cancel</span><span class="p">(</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Ask the server to cancel the chat's active run (idempotent).</span>
+
+<span class="sd">    Best-effort: a 204 (or any non-error response) means the request</span>
+<span class="sd">    reached the server; network failures are logged and return ``False``</span>
+<span class="sd">    so the frontend can still stop locally.</span>
+
+<span class="sd">    :param server_url: Base URL of the backend API server.</span>
+<span class="sd">    :param chat_id: Chat conversation identifier.</span>
+<span class="sd">    :param user_id: Opaque persistent user identifier.</span>
+<span class="sd">    :param timeout: Request timeout in seconds.</span>
+<span class="sd">    :returns: True when the server accepted the cancel request.</span>
+<span class="sd">    """</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="si">}</span><span class="s2">/query/cancel"</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"chat_id"</span><span class="p">:</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user_id"</span><span class="p">:</span> <span class="n">user_id</span><span class="p">}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="n">payload</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+            <span class="s2">"request_cancel(chat=</span><span class="si">%s</span><span class="s2">, user=</span><span class="si">%s</span><span class="s2">): HTTP </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">chat_id</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="p">,</span>
+            <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">&lt;</span> <span class="mi">400</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"request_cancel failed for chat=</span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_fetch_json</span><span class="p">(</span><span class="n">url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">5</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""GET *url* and return the parsed JSON body, or ``None`` on failure."""</span>
     <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>

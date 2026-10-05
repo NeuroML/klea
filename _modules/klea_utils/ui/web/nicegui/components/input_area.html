@@ -377,6 +377,11 @@
                     <span class="n">close_button</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">return</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span><span class="p">:</span>
+                <span class="c1"># A run is already active for this chat; the send control is</span>
+                <span class="c1"># a Stop button in that state, so ignore a stray Enter.</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"send ignored: a run is already streaming"</span><span class="p">)</span>
+                <span class="k">return</span>
             <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">query</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span>
             <span class="n">text</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s2">""</span>
@@ -409,11 +414,10 @@
 
         <span class="c1"># Send button inside the field, anchored to the bottom-right: the</span>
         <span class="c1"># textarea autogrows upward as the message gets longer while the</span>
-        <span class="c1"># button stays on its last line (the Gemini pattern).</span>
+        <span class="c1"># button stays on its last line (the Gemini pattern).  While a run</span>
+        <span class="c1"># streams the same button becomes Stop.</span>
         <span class="k">with</span> <span class="n">text</span><span class="o">.</span><span class="n">add_slot</span><span class="p">(</span><span class="s2">"append"</span><span class="p">):</span>
-            <span class="n">send_button</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"send"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">send</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
-                <span class="s2">"flat dense round color=primary"</span>
-            <span class="p">)</span>
+            <span class="n">send_button</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"send"</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat dense round color=primary"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">send_button</span><span class="p">:</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Enter to send, Shift+Enter for newline"</span><span class="p">)</span>
 
@@ -428,9 +432,33 @@
                     <span class="n">send_button</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"send button state update failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"send state updated: </span><span class="si">{</span><span class="n">incomplete</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"send state updated: </span><span class="si">{</span><span class="n">incomplete</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">info</span><span class="p">)</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
 
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span> <span class="o">=</span> <span class="n">refresh_send_state</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">refresh_stream_button</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Flip the send control to Stop while a run is streaming."""</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span><span class="p">:</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=stop"</span><span class="p">)</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=send"</span><span class="p">)</span>
+                    <span class="n">refresh_send_state</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stream button state update failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span> <span class="o">=</span> <span class="n">refresh_stream_button</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">on_button_click</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Route the button: send normally, stop while streaming."""</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stop requested from the send/stop button"</span><span class="p">)</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">stop_streaming</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">send</span><span class="p">()</span>
+
+        <span class="n">send_button</span><span class="o">.</span><span class="n">on_click</span><span class="p">(</span><span class="n">on_button_click</span><span class="p">)</span>
 
         <span class="c1"># Plain Enter sends the message and prevents the default newline</span>
         <span class="k">def</span><span class="w"> </span><span class="nf">handle_enter</span><span class="p">(</span><span class="n">e</span><span class="p">:</span> <span class="n">GenericEventArguments</span><span class="p">):</span>
@@ -441,8 +469,8 @@
                 <span class="n">send</span><span class="p">()</span>
 
         <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"keydown.enter.exact.prevent"</span><span class="p">,</span> <span class="n">handle_enter</span><span class="p">)</span>
-        <span class="c1"># Clicking the send icon inside the textarea also sends.</span>
-        <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click:append"</span><span class="p">,</span> <span class="n">send</span><span class="p">)</span>
+        <span class="c1"># Clicking the send icon inside the textarea also sends (or stops).</span>
+        <span class="n">text</span><span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"click:append"</span><span class="p">,</span> <span class="n">on_button_click</span><span class="p">)</span>
 
     <span class="c1"># Disable chat input (and send) until backend is ready.  initial_load's</span>
     <span class="c1"># model fetch calls refresh_send_state() to re-enable when configured.</span>
