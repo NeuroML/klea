@@ -360,7 +360,7 @@
 <span class="sd">       work as an ``async`` event handler (NiceGUI awaits it in the</span>
 <span class="sd">       client/slot context, so ``ui.dialog()`` etc. work), or enter a</span>
 <span class="sd">       slot explicitly before creating elements, e.g. ``with</span>
-<span class="sd">       ctx.stream_container:`` (streaming rows) or ``with</span>
+<span class="sd">       ctx.turn_status_container:`` (the turn status region) or ``with</span>
 <span class="sd">       ctx.dialog_container:`` (dialogs opened from a background task).</span>
 <span class="sd">       Updating existing elements and ``app.storage`` from a background</span>
 <span class="sd">       task is fine.</span>
@@ -406,10 +406,10 @@
     <span class="n">center_panels</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">chat_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">scroll_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">stream_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Live progress label inside the status region, updated in place during</span>
+    <span class="n">turn_status_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Live progress label inside the turn status region, updated in place during</span>
     <span class="c1">#: a run (the region itself is re-rendered from per-chat state).</span>
-    <span class="n">status_label</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">turn_status_label</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">text</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">loading_row</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1">#: Stable inspector pane content column / scroll area (incremental append).</span>
@@ -433,19 +433,23 @@
     <span class="n">append_inspector</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">reset_center_tab</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="n">refresh_send_state</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
-    <span class="c1">#: Re-render the status region (stream container) from the active chat's</span>
-    <span class="c1">#: per-chat status.  Registered by the chat-area component; the stream</span>
+    <span class="c1">#: Re-render the turn status region from the active chat's turn status.</span>
+    <span class="c1">#: Registered by the chat-area component; the stream</span>
     <span class="c1">#: component calls it on each status transition.</span>
-    <span class="n">refresh_stream_status</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
-    <span class="c1">#: Retry handler for a live failed run, invoked by the status region's</span>
+    <span class="n">refresh_turn_status</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Retry handler for a live failed run, invoked by the turn status region's</span>
     <span class="c1">#: Retry button (set by the stream component when it renders an error).</span>
-    <span class="n">stream_retry_cb</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">turn_retry_cb</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1">#: Flip the send control between Send and Stop based on ``is_streaming``</span>
     <span class="c1">#: (registered by the input area; called by the stream component).</span>
     <span class="n">refresh_stream_button</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="c1">#: Stop the active run for the given chat (registered by the stream</span>
     <span class="c1">#: component; the input area's Stop control calls it).</span>
     <span class="n">stop_streaming</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
+    <span class="c1">#: Submit a HITL interrupt answer/cancel from the status-region form</span>
+    <span class="c1">#: (``response``, ``interrupt_id``, ``cancel``); registered by the input</span>
+    <span class="c1">#: area, called by the chat area's form (ADR-0046).</span>
+    <span class="n">submit_interrupt</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="n">fetch_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">fetch_session_model_info</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">fetch_credentials</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>

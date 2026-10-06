@@ -311,6 +311,51 @@
 <span class="sd">"""</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_prompt_interrupt</span><span class="p">(</span><span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">app_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Prompt for a HITL ask and return ``(interrupt_response, cancel)``.</span>
+
+<span class="sd">    A ``review`` ask offers approve / request changes / cancel; an ``input``</span>
+<span class="sd">    ask prompts one answer per question.  ``(None, True)`` means cancel.</span>
+
+<span class="sd">    :param ask: The interrupt ``data`` (``kind``, ``question``/``questions``).</span>
+<span class="sd">    :param app_prefix: Prefix for the input prompts.</span>
+<span class="sd">    :returns: The resume mapping to send, and whether the user cancelled.</span>
+<span class="sd">    """</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"*** The agent needs your input ***"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span><span class="p">:</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">choice</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="nb">input</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (REVIEW) [a]pprove / [r]equest changes / "</span>
+                    <span class="s2">"[c]ancel &gt;&gt;&gt; "</span>
+                <span class="p">)</span>
+                <span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"a"</span><span class="p">,</span> <span class="s2">"approve"</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">{</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"approve"</span><span class="p">},</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"r"</span><span class="p">,</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"request changes"</span><span class="p">):</span>
+                <span class="n">feedback</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (REVIEW) feedback &gt;&gt;&gt; "</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">return</span> <span class="p">{</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">:</span> <span class="n">feedback</span><span class="p">},</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"cancel"</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"Please choose a, r, or c."</span><span class="p">)</span>
+
+    <span class="n">questions</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"questions"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">questions</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">questions</span><span class="p">:</span>
+        <span class="n">questions</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"question"</span><span class="p">:</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"More information is needed."</span><span class="p">}]</span>
+    <span class="n">answers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">question</span> <span class="ow">in</span> <span class="n">questions</span><span class="p">:</span>
+        <span class="n">answer</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (INPUT) </span><span class="si">{</span><span class="n">question</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'question'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> (or 'cancel') &gt;&gt;&gt; "</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">answer</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"cancel"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span>
+        <span class="n">answers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"answers"</span><span class="p">:</span> <span class="n">answers</span><span class="p">},</span> <span class="kc">False</span>
+
+
 <div class="viewcode-block" id="run_repl">
 <a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.repl.run_repl">[docs]</a>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_repl</span><span class="p">(</span>
@@ -361,28 +406,59 @@
         <span class="k">await</span> <span class="n">check_api_is_ready</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2">/health/ready"</span><span class="p">)</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_query_one</span><span class="p">(</span><span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">full_response</span> <span class="o">=</span> <span class="s2">""</span>
-        <span class="n">error_msg</span> <span class="o">=</span> <span class="s2">""</span>
-        <span class="nb">print</span><span class="p">()</span>
+<span class="w">        </span><span class="sd">"""Stream one turn, answering any HITL interrupt it pauses on."""</span>
+        <span class="n">resume</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">interrupt_response</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">interrupt_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">interrupt_cancel</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">full_response</span> <span class="o">=</span> <span class="s2">""</span>
+            <span class="n">error_msg</span> <span class="o">=</span> <span class="s2">""</span>
+            <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="nb">print</span><span class="p">()</span>
 
-        <span class="k">with</span> <span class="n">yaspin</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"Working ..."</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">spinner</span><span class="p">:</span>
-            <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream_events</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">url</span><span class="p">):</span>
-                <span class="k">if</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
-                    <span class="n">spinner</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">event</span><span class="p">[</span>
-                        <span class="s2">"node"</span>
-                    <span class="p">]</span>
-                <span class="k">elif</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
-                    <span class="n">full_response</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                    <span class="n">spinner</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="s2">"[OK]"</span><span class="p">)</span>
-                <span class="k">elif</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
-                    <span class="n">error_msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">,</span> <span class="s2">"Unknown server error"</span><span class="p">)</span>
-                    <span class="n">spinner</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"[ERROR]"</span><span class="p">)</span>
-                    <span class="k">break</span>
+            <span class="k">with</span> <span class="n">yaspin</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"Working ..."</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">spinner</span><span class="p">:</span>
+                <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream_events</span><span class="p">(</span>
+                    <span class="n">query</span><span class="p">,</span>
+                    <span class="n">chat_id</span><span class="p">,</span>
+                    <span class="n">url</span><span class="p">,</span>
+                    <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+                    <span class="n">interrupt_response</span><span class="o">=</span><span class="n">interrupt_response</span><span class="p">,</span>
+                    <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
+                    <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">interrupt_cancel</span><span class="p">,</span>
+                <span class="p">):</span>
+                    <span class="n">etype</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
+                        <span class="n">spinner</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                            <span class="s2">"heading"</span>
+                        <span class="p">)</span> <span class="ow">or</span> <span class="n">event</span><span class="p">[</span><span class="s2">"node"</span><span class="p">]</span>
+                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
+                        <span class="n">ask</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+                        <span class="k">break</span>
+                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
+                        <span class="n">full_response</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                        <span class="n">spinner</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="s2">"[OK]"</span><span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
+                        <span class="n">error_msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">,</span> <span class="s2">"Unknown server error"</span><span class="p">)</span>
+                        <span class="n">spinner</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"[ERROR]"</span><span class="p">)</span>
+                        <span class="k">break</span>
 
-        <span class="n">output</span> <span class="o">=</span> <span class="n">error_msg</span> <span class="ow">or</span> <span class="n">full_response</span>
-        <span class="n">label</span> <span class="o">=</span> <span class="s2">"(ERROR)"</span> <span class="k">if</span> <span class="n">error_msg</span> <span class="k">else</span> <span class="s2">"(AI)"</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> &gt;&gt;&gt; </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"-"</span> <span class="o">*</span> <span class="mi">40</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Paused for human input: prompt, then stream the answer (which</span>
+                <span class="c1"># may itself pause again) in the same turn.</span>
+                <span class="n">interrupt_response</span><span class="p">,</span> <span class="n">interrupt_cancel</span> <span class="o">=</span> <span class="n">_prompt_interrupt</span><span class="p">(</span>
+                    <span class="n">ask</span><span class="p">,</span> <span class="n">app_prefix</span>
+                <span class="p">)</span>
+                <span class="n">interrupt_id</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt_id"</span><span class="p">)</span>
+                <span class="n">query</span> <span class="o">=</span> <span class="s2">""</span>
+                <span class="n">resume</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">continue</span>
+
+            <span class="n">output</span> <span class="o">=</span> <span class="n">error_msg</span> <span class="ow">or</span> <span class="n">full_response</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="s2">"(ERROR)"</span> <span class="k">if</span> <span class="n">error_msg</span> <span class="k">else</span> <span class="s2">"(AI)"</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> &gt;&gt;&gt; </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"-"</span> <span class="o">*</span> <span class="mi">40</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span>
 
     <span class="k">if</span> <span class="n">single_query</span><span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (USER) &gt;&gt;&gt; </span><span class="si">{</span><span class="n">single_query</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>

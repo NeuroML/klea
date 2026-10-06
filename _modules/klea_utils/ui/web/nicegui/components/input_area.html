@@ -322,7 +322,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">ensure_chat</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">chats</span><span class="p">,</span>
+    <span class="n">ensure_chat</span><span class="p">,</span>
+    <span class="n">interrupt_display</span><span class="p">,</span>
+    <span class="n">missing_credentials</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -362,9 +367,56 @@
             <span class="n">info</span> <span class="o">=</span> <span class="n">_effective_model_info</span><span class="p">()</span>
             <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">missing_required_roles</span><span class="p">(</span><span class="n">info</span><span class="p">)</span> <span class="ow">or</span> <span class="n">missing_credentials</span><span class="p">(</span><span class="n">info</span><span class="p">))</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">_awaiting_input</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Whether the active chat is paused at a HITL interrupt."""</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span>
+                <span class="n">chat</span> <span class="ow">and</span> <span class="p">(</span><span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"turn_status"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"awaiting_input"</span>
+            <span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">submit_interrupt</span><span class="p">(</span>
+            <span class="n">response</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cancel</span><span class="p">:</span> <span class="nb">bool</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Send a HITL answer/cancel (the status-region form calls this)."""</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">chat_id</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)[</span><span class="s2">"messages"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">interrupt_display</span><span class="p">(</span><span class="n">response</span><span class="p">,</span> <span class="n">cancel</span><span class="o">=</span><span class="n">cancel</span><span class="p">),</span>
+                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
+                    <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span>
+                    <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
+            <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">stream</span><span class="o">.</span><span class="n">run_stream</span><span class="p">(</span>
+                    <span class="n">ctx</span><span class="p">,</span>
+                    <span class="s2">""</span><span class="p">,</span>
+                    <span class="n">chat_id</span><span class="p">,</span>
+                    <span class="n">interrupt_response</span><span class="o">=</span><span class="n">response</span><span class="p">,</span>
+                    <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
+                    <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">cancel</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span> <span class="o">=</span> <span class="n">submit_interrupt</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Append the current input text as a user message, then stream."""</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">return</span>
+            <span class="k">if</span> <span class="n">_awaiting_input</span><span class="p">():</span>
+                <span class="c1"># The status-region form is the input while paused; ignore a</span>
+                <span class="c1"># stray Enter (useful once D1b re-enables the box on reload).</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"send ignored: awaiting interrupt input"</span><span class="p">)</span>
                 <span class="k">return</span>
             <span class="k">if</span> <span class="n">_setup_incomplete</span><span class="p">():</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -437,13 +489,20 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span> <span class="o">=</span> <span class="n">refresh_send_state</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">refresh_stream_button</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">            </span><span class="sd">"""Flip the send control to Stop while a run is streaming."""</span>
+<span class="w">            </span><span class="sd">"""Flip the send control to Stop, or disable it while awaiting input."""</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span><span class="p">:</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=stop"</span><span class="p">)</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+                    <span class="n">text</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="n">_awaiting_input</span><span class="p">():</span>
+                    <span class="c1"># The status-region form is the input; disable the main box.</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=send"</span><span class="p">)</span>
+                    <span class="n">send_button</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+                    <span class="n">text</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=send"</span><span class="p">)</span>
+                    <span class="n">text</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
                     <span class="n">refresh_send_state</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stream button state update failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>

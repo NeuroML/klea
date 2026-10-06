@@ -442,6 +442,12 @@
             <span class="p">)</span>
         <span class="k">return</span> <span class="s2">"tool"</span>
 
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
+        <span class="c1"># The run paused for HITL input (ADR-0046): store the ask so the</span>
+        <span class="c1"># status region can render the form; cleared when the next turn starts.</span>
+        <span class="n">chat</span><span class="p">[</span><span class="s2">"interrupt"</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="k">return</span> <span class="s2">"interrupt"</span>
+
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
         <span class="k">return</span> <span class="s2">"error"</span>
 
@@ -477,22 +483,39 @@
 <div class="viewcode-block" id="run_stream">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.stream.run_stream">[docs]</a>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_stream</span><span class="p">(</span>
-    <span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">resume</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">interrupt_response</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">interrupt_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">interrupt_cancel</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Stream a query's events into the UI for *chat_id*.</span>
 
 <span class="sd">    Shows a progress row while streaming, commits the final answer and</span>
 <span class="sd">    inspector data on completion, and surfaces errors inline (with a Retry</span>
-<span class="sd">    action when the run can be resumed from its checkpoint).</span>
+<span class="sd">    action when the run can be resumed from its checkpoint).  When the run</span>
+<span class="sd">    pauses for human input it renders the ask (the status region builds the</span>
+<span class="sd">    form) and stops streaming until the user answers or cancels.</span>
 
 <span class="sd">    :param ctx: The shared page context.</span>
-<span class="sd">    :param query: The user's query text (unused when resuming).</span>
+<span class="sd">    :param query: The user's query text (unused when resuming/answering).</span>
 <span class="sd">    :param chat_id: Chat conversation identifier.</span>
 <span class="sd">    :param resume: Resume the chat's last failed run instead of starting a</span>
 <span class="sd">        new turn (the query is not resent).</span>
+<span class="sd">    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046).</span>
+<span class="sd">    :param interrupt_id: Id of the interrupt being answered.</span>
+<span class="sd">    :param interrupt_cancel: Cancel the pending interrupt instead of answering.</span>
 <span class="sd">    """</span>
     <span class="n">current_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Streaming query for chat </span><span class="si">%s</span><span class="s2"> (resume=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">resume</span><span class="p">)</span>
+    <span class="n">is_query</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">interrupt_response</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">interrupt_cancel</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="s2">"Streaming chat </span><span class="si">%s</span><span class="s2"> (resume=</span><span class="si">%s</span><span class="s2"> interrupt=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+        <span class="n">chat_id</span><span class="p">,</span>
+        <span class="n">resume</span><span class="p">,</span>
+        <span class="s2">"cancel"</span> <span class="k">if</span> <span class="n">interrupt_cancel</span> <span class="k">else</span> <span class="n">interrupt_response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="n">chat_id</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">stream_task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">current_task</span><span class="p">()</span>
@@ -500,16 +523,18 @@
     <span class="c1"># component needs no import of this module, and flip the button to Stop.</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">stop_streaming</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">stop_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="c1"># Retry resumes this turn; the status region's Retry button invokes it.</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">stream_retry_cb</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">turn_retry_cb</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
     <span class="n">current_chat</span><span class="p">[</span><span class="s2">"state_sections"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="c1"># The status region is per-chat state (rendered by the chat-area</span>
     <span class="c1"># component), so it is replaced wholesale on every turn and switching</span>
     <span class="c1"># chats restores each chat's own status.</span>
-    <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"heading"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
-    <span class="k">if</span> <span class="n">resume</span><span class="p">:</span>
-        <span class="c1"># Continuing the same turn: keep the existing inspector section and</span>
-        <span class="c1"># re-activate it so appended entries land in the right place.</span>
+    <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"heading"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
+    <span class="n">current_chat</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"interrupt"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">is_query</span><span class="p">:</span>
+        <span class="c1"># Continuing the same turn (resume or an interrupt answer/cancel):</span>
+        <span class="c1"># keep the existing inspector section and re-activate it so appended</span>
+        <span class="c1"># entries land in the right place.</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Start a new inspector section for this query.  Entries are appended</span>
@@ -522,7 +547,7 @@
         <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">begin_inspector_section</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">marker</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span><span class="p">()</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_reset_streaming_state</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Clear the streaming flags and refresh the status pane."""</span>
@@ -540,6 +565,9 @@
             <span class="n">user_id</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span>
             <span class="n">extra</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">query_extra</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
             <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+            <span class="n">interrupt_response</span><span class="o">=</span><span class="n">interrupt_response</span><span class="p">,</span>
+            <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
+            <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">interrupt_cancel</span><span class="p">,</span>
         <span class="p">):</span>
             <span class="n">t</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">,</span> <span class="s2">"?"</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream event type=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
@@ -548,9 +576,9 @@
                     <span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span>
                 <span class="p">)</span>
                 <span class="c1"># Update the live heading in place (no full re-render).</span>
-                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">][</span><span class="s2">"heading"</span><span class="p">]</span> <span class="o">=</span> <span class="n">heading</span>
-                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">status_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">ctx</span><span class="o">.</span><span class="n">status_label</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span>
+                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">][</span><span class="s2">"heading"</span><span class="p">]</span> <span class="o">=</span> <span class="n">heading</span>
+                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="n">action</span> <span class="o">=</span> <span class="n">apply_stream_event</span><span class="p">(</span><span class="n">current_chat</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">):</span>
@@ -560,9 +588,18 @@
                 <span class="n">ctx</span><span class="o">.</span><span class="n">append_inspector</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
+            <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
+                <span class="c1"># The run paused for HITL input: show the ask and stop</span>
+                <span class="c1"># streaming until the user answers or cancels (ADR-0046).</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> paused for input"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"awaiting_input"</span><span class="p">}</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+                <span class="n">_reset_streaming_state</span><span class="p">()</span>
+                <span class="k">break</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream complete"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+                <span class="n">current_chat</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"interrupt"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
                 <span class="n">_reset_streaming_state</span><span class="p">()</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
@@ -576,12 +613,12 @@
                     <span class="n">error_msg</span><span class="p">,</span>
                     <span class="n">resumable</span><span class="p">,</span>
                 <span class="p">)</span>
-                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
                     <span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
                     <span class="s2">"message"</span><span class="p">:</span> <span class="n">error_msg</span><span class="p">,</span>
                     <span class="s2">"resumable"</span><span class="p">:</span> <span class="n">resumable</span><span class="p">,</span>
                 <span class="p">}</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span><span class="p">()</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
                 <span class="n">_reset_streaming_state</span><span class="p">()</span>
                 <span class="k">break</span>
     <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
@@ -589,18 +626,18 @@
         <span class="c1"># re-render the region from it.  Re-raise so the task ends cancelled</span>
         <span class="c1"># (NiceGUI's exception handler ignores it).</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream cancelled by user"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-        <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"stopped"</span><span class="p">}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span><span class="p">()</span>
+        <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"stopped"</span><span class="p">}</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span>
         <span class="k">raise</span>
     <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">RequestError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> request error: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
-        <span class="n">current_chat</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
             <span class="s2">"message"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Connection error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
         <span class="p">}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span></div>
 
 </pre></div>

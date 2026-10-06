@@ -316,6 +316,7 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
@@ -323,15 +324,15 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">StatusData</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">TurnStatus</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="render_stream_status">
-<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.chat_area.render_stream_status">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">render_stream_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Render the status region for the active chat from its per-chat state.</span>
+<div class="viewcode-block" id="render_turn_status">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.chat_area.render_turn_status">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">render_turn_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render the turn status region for the active chat from its state.</span>
 
 <span class="sd">    The region is a single slot under the transcript, owned by the chat's</span>
 <span class="sd">    ``status`` dict (``state.ChatData``), so it is restored on chat switch</span>
@@ -342,13 +343,13 @@
 <span class="sd">    * ``stopped``  - a plain "Stopped" line.</span>
 <span class="sd">    * ``idle``/missing - nothing.</span>
 
-<span class="sd">    :param ctx: The shared page context (uses ``stream_container``).</span>
+<span class="sd">    :param ctx: The shared page context (uses ``turn_status_container``).</span>
 <span class="sd">    :param retry_cb: Callable invoked by the Retry button; the stream</span>
 <span class="sd">        component passes it when rendering a live error.</span>
 <span class="sd">    """</span>
-    <span class="n">status</span> <span class="o">=</span> <span class="n">_current_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">status</span> <span class="o">=</span> <span class="n">_current_turn_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">kind</span> <span class="o">=</span> <span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"idle"</span><span class="p">)</span>
-    <span class="n">container</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span>
+    <span class="n">container</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_container</span>
     <span class="n">container</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"idle"</span><span class="p">:</span>
         <span class="k">return</span>
@@ -359,7 +360,7 @@
                 <span class="n">label</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
                     <span class="s2">"text-xs text-grey-5 italic"</span>
                 <span class="p">)</span>
-            <span class="n">ctx</span><span class="o">.</span><span class="n">status_label</span> <span class="o">=</span> <span class="n">label</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span> <span class="o">=</span> <span class="n">label</span>
         <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full items-center gap-2 p-2"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="s2">"error"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-negative"</span><span class="p">)</span>
@@ -375,18 +376,92 @@
                         <span class="s2">"flat dense color=primary"</span>
                     <span class="p">)</span>
         <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"stopped"</span><span class="p">:</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Stopped"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 italic p-2"</span><span class="p">)</span></div>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Stopped"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 italic p-2"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"awaiting_input"</span><span class="p">:</span>
+            <span class="n">_render_interrupt_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>
 
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_current_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StatusData</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_current_turn_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TurnStatus</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the active chat's status dict, or ``{"kind": "idle"}``."""</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
     <span class="n">chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">chat</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
-    <span class="k">return</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"status"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"turn_status"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_ask</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the active chat's pending HITL ask, or ``{}``."""</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{}</span>
+    <span class="n">chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">chat</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_interrupt_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render the HITL ask form in the turn status region (ADR-0046).</span>
+
+<span class="sd">    A ``review`` ask gets Approve / Request changes / Cancel; an ``input``</span>
+<span class="sd">    ask gets one text field per question plus Answer / Cancel.  Submitting</span>
+<span class="sd">    calls :attr:`PageContext.submit_interrupt` (registered by the input area).</span>
+<span class="sd">    """</span>
+    <span class="n">ask</span> <span class="o">=</span> <span class="n">_interrupt_ask</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">)</span>
+    <span class="n">interrupt_id</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt_id"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-2 p-3 border border-primary rounded"</span><span class="p">):</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"The agent needs your input"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span><span class="p">:</span>
+            <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">textarea</span><span class="p">(</span><span class="n">placeholder</span><span class="o">=</span><span class="s2">"Feedback (required to request changes)"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outlined autogrow"</span><span class="p">)</span>
+                <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"gap-2"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                    <span class="s2">"Approve"</span><span class="p">,</span>
+                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span>
+                        <span class="p">{</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"approve"</span><span class="p">},</span> <span class="n">interrupt_id</span><span class="p">,</span> <span class="kc">False</span>
+                    <span class="p">),</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                    <span class="s2">"Request changes"</span><span class="p">,</span>
+                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span>
+                        <span class="p">{</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">:</span> <span class="n">feedback</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">},</span>
+                        <span class="n">interrupt_id</span><span class="p">,</span>
+                        <span class="kc">False</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outline"</span><span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                    <span class="s2">"Cancel"</span><span class="p">,</span>
+                    <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat color=negative"</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># input kind: one text field per question.</span>
+        <span class="n">questions</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"questions"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">questions</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">questions</span><span class="p">:</span>
+            <span class="n">fallback</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"More information is needed to continue."</span>
+            <span class="n">questions</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"question"</span><span class="p">:</span> <span class="n">fallback</span><span class="p">}]</span>
+        <span class="n">fields</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">question</span> <span class="ow">in</span> <span class="n">questions</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
+            <span class="n">fields</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ui</span><span class="o">.</span><span class="n">input</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outlined dense"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">))</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_submit</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">"answers"</span><span class="p">:</span> <span class="p">[</span><span class="n">field</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span> <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">]},</span>
+                <span class="n">interrupt_id</span><span class="p">,</span>
+                <span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"gap-2"</span><span class="p">):</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Answer"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">_submit</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                <span class="s2">"Cancel"</span><span class="p">,</span>
+                <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat color=negative"</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -404,11 +479,11 @@
         <span class="k">else</span> <span class="mi">0</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
-    <span class="c1"># The status region is rendered from the active chat's per-chat status,</span>
+    <span class="c1"># The turn status region is rendered from the active chat's turn status,</span>
     <span class="c1"># so switching chats restores that chat's own status and no stale</span>
     <span class="c1"># marker bleeds across.  A live run re-renders this from state too, so</span>
     <span class="c1"># there is a single source of truth for the region.</span>
-    <span class="n">render_stream_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">render_turn_status</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span><span class="p">:</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">current</span><span class="p">:</span>
             <span class="k">with</span> <span class="p">(</span>
@@ -515,16 +590,16 @@
 <span class="sd">    context (the surrounding layout decides where the tab panels go).</span>
 
 <span class="sd">    :param ctx: The shared page context; ``chat_area``,</span>
-<span class="sd">        ``scroll_area`` and ``stream_container`` are filled in here.</span>
+<span class="sd">        ``scroll_area`` and ``turn_status_container`` are filled in here.</span>
 <span class="sd">    """</span>
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">scroll_area</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full grow chat-scroll-area"</span><span class="p">)</span> <span class="k">as</span> <span class="n">scroll_area</span><span class="p">:</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_area</span> <span class="o">=</span> <span class="n">scroll_area</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_status</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">render_stream_status</span><span class="p">(</span>
-        <span class="n">ctx</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">stream_retry_cb</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">render_turn_status</span><span class="p">(</span>
+        <span class="n">ctx</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">turn_retry_cb</span>
     <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_chat_bottom</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_scroll_to_bottom</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>

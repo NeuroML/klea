@@ -325,7 +325,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.checkpoint.sqlite.aio</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncSqliteSaver</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.graph.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">CompiledStateGraph</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.stream</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamTransformer</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Command</span><span class="p">,</span> <span class="n">RunnableConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">Tool</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">platformdirs</span><span class="w"> </span><span class="kn">import</span> <span class="n">PlatformDirs</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ConfigDict</span><span class="p">,</span> <span class="n">Field</span><span class="p">,</span> <span class="n">create_model</span>
@@ -369,6 +369,36 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"model_dump"</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">state</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_interrupt_event</span><span class="p">(</span><span class="n">intr</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Build an ``interrupt`` stream event from a LangGraph ``Interrupt``.</span>
+
+<span class="sd">    The interrupting node authors the interrupt *value*.  When it is a</span>
+<span class="sd">    mapping (the convention: ``kind`` and ``question``) its keys are carried</span>
+<span class="sd">    into ``data``; any other value is surfaced as ``question``.  The</span>
+<span class="sd">    framework's ``id`` is always added as ``interrupt_id`` so a client can</span>
+<span class="sd">    echo it when resuming (stale-answer safety), and a</span>
+<span class="sd">    ``hitl_response_schema`` (when the node supplied one) is forwarded so</span>
+<span class="sd">    clients can render a typed form.</span>
+
+<span class="sd">    :param intr: The ``langgraph.types.Interrupt`` from the paused run.</span>
+<span class="sd">    :param node: Label of the node that interrupted.</span>
+<span class="sd">    :returns: A ``{"type": "interrupt", "node": ..., "data": {...}}`` event.</span>
+<span class="sd">    """</span>
+    <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">intr</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="k">else</span> <span class="p">{</span><span class="s2">"question"</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+    <span class="p">)</span>
+    <span class="n">data</span><span class="p">[</span><span class="s2">"interrupt_id"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">intr</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># ``Interrupt.response_schema`` is LangGraph's API attribute (set by</span>
+    <span class="c1"># ``interrupt(value, response_schema=...)``).  Forward it under our own</span>
+    <span class="c1"># ``hitl_response_schema`` stream key so it is not confused with an</span>
+    <span class="c1"># LLM/API response elsewhere.</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">intr</span><span class="p">,</span> <span class="s2">"response_schema"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">schema</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">data</span><span class="p">[</span><span class="s2">"hitl_response_schema"</span><span class="p">]</span> <span class="o">=</span> <span class="n">schema</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"interrupt"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="n">node</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="n">data</span><span class="p">}</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">_CustomChannelEnabler</span><span class="p">(</span><span class="n">StreamTransformer</span><span class="p">):</span>
@@ -1211,7 +1241,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_invoke">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_invoke</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Command</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1219,9 +1249,12 @@
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run the graph with a simple string query.</span>
 
-<span class="sd">        :param query: User query string, or ``None`` to **resume** the thread</span>
+<span class="sd">        :param query: User query string, ``None`` to **resume** the thread</span>
 <span class="sd">            from its last checkpoint (the failed node is re-run; the entry</span>
-<span class="sd">            node is not).  On resume ``extra_state`` is ignored.</span>
+<span class="sd">            node is not), or a :class:`~langgraph.types.Command` (e.g.</span>
+<span class="sd">            ``Command(resume=...)``) to continue a paused thread.  On a</span>
+<span class="sd">            ``None`` resume ``extra_state`` is ignored; a ``Command`` is</span>
+<span class="sd">            passed through verbatim.</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation (e.g. an app-specific ``mode`` request).  These are</span>
@@ -1248,12 +1281,17 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Command</span> <span class="o">|</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Resume: pass ``None`` so LangGraph continues from the checkpoint</span>
             <span class="c1"># at the failed node (it does not re-enter the entry node).</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
             <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">Command</span><span class="p">):</span>
+            <span class="c1"># A Command (e.g. ``Command(resume=...)``) is passed through</span>
+            <span class="c1"># verbatim; it carries its own update/resume payload.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Continuing thread </span><span class="si">%s</span><span class="s2"> with a Command"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="n">query</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
             <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
@@ -1362,7 +1400,7 @@
 <a class="viewcode-back" href="../../../api/utils/graph.html#klea_utils.graph.base.BaseLangGraph.run_graph_astream_events">[docs]</a>
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_graph_astream_events</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
-        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Command</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">thread_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"default_thread"</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">extra_state</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1387,6 +1425,11 @@
 <span class="sd">        ``{"type": "context", "data": {...}}``</span>
 <span class="sd">            Session-level context (app-defined, e.g. an operating mode and</span>
 <span class="sd">            its assurance), emitted by a node via a ``context`` custom event</span>
+<span class="sd">        ``{"type": "interrupt", "node": "&lt;label&gt;", "data": {...}}``</span>
+<span class="sd">            The run paused at a node's ``interrupt()``.  ``data`` carries the</span>
+<span class="sd">            node-authored payload (``kind``, ``question``) plus the</span>
+<span class="sd">            framework's ``interrupt_id``; when a pause is emitted no</span>
+<span class="sd">            ``complete`` event follows.</span>
 <span class="sd">        ``{"type": "complete", "message_for_user": "&lt;answer&gt;"}``</span>
 <span class="sd">            Final answer from the completed graph</span>
 
@@ -1397,15 +1440,18 @@
 <span class="sd">        flow through.</span>
 
 <span class="sd">        Reference: https://docs.langchain.com/oss/python/langgraph/event-streaming</span>
+<span class="sd">        Interrupts: https://docs.langchain.com/oss/python/langgraph/interrupts</span>
 
-<span class="sd">        :param query: User query string, or ``None`` to **resume** the thread</span>
-<span class="sd">            from its last checkpoint (see the fault-tolerance note).  On resume</span>
-<span class="sd">            the graph re-enters the failed node rather than the entry node, so</span>
-<span class="sd">            per-turn state is preserved; ``extra_state`` is ignored.</span>
+<span class="sd">        :param query: User query string, ``None`` to **resume** the thread</span>
+<span class="sd">            from its last checkpoint (see the fault-tolerance note), or a</span>
+<span class="sd">            :class:`~langgraph.types.Command` (e.g. ``Command(resume=...)``) to</span>
+<span class="sd">            continue a paused thread.  On a ``None`` resume the graph re-enters</span>
+<span class="sd">            the failed node rather than the entry node, so per-turn state is</span>
+<span class="sd">            preserved; a ``Command`` is passed through verbatim.</span>
 <span class="sd">        :param thread_id: Session/thread identifier for checkpointing</span>
 <span class="sd">        :param extra_state: Optional initial state fields merged into the</span>
 <span class="sd">            invocation alongside ``query`` (e.g. an app-specific ``mode``</span>
-<span class="sd">            request).  Ignored when *query* is ``None`` (resume).</span>
+<span class="sd">            request).  Ignored when *query* is ``None`` or a ``Command``.</span>
 <span class="sd">        :param context: Per-run runtime context (ADR-0033), forwarded</span>
 <span class="sd">            verbatim to the graph run (see :meth:`run_graph_invoke`).</span>
 <span class="sd">        :yields: Structured event dicts</span>
@@ -1415,12 +1461,17 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">graph</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"Graph not compiled. Call setup() first."</span><span class="p">)</span>
 
-        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+        <span class="n">graph_input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="n">Command</span> <span class="o">|</span> <span class="kc">None</span>
         <span class="k">if</span> <span class="n">query</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="c1"># Resume: pass ``None`` so LangGraph continues from the checkpoint</span>
             <span class="c1"># at the failed node (it does not re-enter the entry node).</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Resuming thread </span><span class="si">%s</span><span class="s2"> from checkpoint"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
             <span class="n">graph_input</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="n">Command</span><span class="p">):</span>
+            <span class="c1"># A Command (e.g. ``Command(resume=...)``) is passed through</span>
+            <span class="c1"># verbatim; it carries its own update/resume payload.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Continuing thread </span><span class="si">%s</span><span class="s2"> with a Command"</span><span class="p">,</span> <span class="n">thread_id</span><span class="p">)</span>
+            <span class="n">graph_input</span> <span class="o">=</span> <span class="n">query</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">graph_input</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"query"</span><span class="p">:</span> <span class="n">query</span><span class="p">}</span>
             <span class="k">if</span> <span class="n">extra_state</span><span class="p">:</span>
@@ -1544,6 +1595,27 @@
                 <span class="n">current_node</span><span class="p">,</span>
                 <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">-</span> <span class="n">node_start</span><span class="p">,</span>
             <span class="p">)</span>
+        <span class="c1"># Documented v3 interrupt projection (ADR-0046): after the stream</span>
+        <span class="c1"># drains, ``stream.interrupted`` says whether the run paused and</span>
+        <span class="c1"># ``stream.interrupts`` carries the payloads.  On the async lane these</span>
+        <span class="c1"># are async methods; on the sync lane they are properties -- handle</span>
+        <span class="c1"># both.  A pause must not emit a terminal ``complete``.</span>
+        <span class="n">interrupted</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="s2">"interrupted"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">interrupted</span><span class="p">):</span>
+            <span class="n">interrupted</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interrupted</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">interrupted</span><span class="p">:</span>
+            <span class="n">interrupts</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="s2">"interrupts"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">callable</span><span class="p">(</span><span class="n">interrupts</span><span class="p">):</span>
+                <span class="n">interrupts</span> <span class="o">=</span> <span class="k">await</span> <span class="n">interrupts</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">intr</span> <span class="ow">in</span> <span class="n">interrupts</span> <span class="ow">or</span> <span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                    <span class="s2">"Graph paused at interrupt </span><span class="si">%s</span><span class="s2"> (node </span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span>
+                    <span class="nb">getattr</span><span class="p">(</span><span class="n">intr</span><span class="p">,</span> <span class="s2">"id"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                    <span class="n">current_node</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">yield</span> <span class="n">_interrupt_event</span><span class="p">(</span><span class="n">intr</span><span class="p">,</span> <span class="n">current_node</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Graph paused at an interrupt after </span><span class="si">%.2f</span><span class="s2">s"</span><span class="p">,</span> <span class="n">total_elapsed</span><span class="p">)</span>
+            <span class="k">return</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Graph completed in </span><span class="si">%.2f</span><span class="s2">s"</span><span class="p">,</span> <span class="n">total_elapsed</span><span class="p">)</span>
 
         <span class="n">message</span> <span class="o">=</span> <span class="s2">""</span>

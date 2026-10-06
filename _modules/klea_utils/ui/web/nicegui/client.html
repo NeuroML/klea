@@ -387,7 +387,8 @@
                         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="si">}</span><span class="s2">/chat/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">/context"</span>
                     <span class="p">)</span>
                     <span class="k">if</span> <span class="n">ctx_resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
-                        <span class="n">context</span> <span class="o">=</span> <span class="n">ctx_resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"context"</span><span class="p">)</span>
+                        <span class="n">body</span> <span class="o">=</span> <span class="n">ctx_resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+                        <span class="n">context</span> <span class="o">=</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"context"</span><span class="p">)</span>
                         <span class="k">if</span> <span class="n">context</span><span class="p">:</span>
                             <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
                             <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
@@ -397,6 +398,15 @@
                                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                                     <span class="s2">"hydrated context for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">context</span>
                                 <span class="p">)</span>
+                        <span class="c1"># A paused thread re-presents its HITL ask (ADR-0046),</span>
+                        <span class="c1"># so a reload renders the form instead of a dead chat.</span>
+                        <span class="n">pending</span> <span class="o">=</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"pending_interrupt"</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+                            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
+                                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"interrupt"</span><span class="p">]</span> <span class="o">=</span> <span class="n">pending</span>
+                                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"awaiting_input"</span><span class="p">}</span>
+                                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"hydrated pending interrupt for </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Failed to hydrate chats from server: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span></div>
 

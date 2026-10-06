@@ -330,8 +330,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunnableConfig</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.chat_core</span><span class="w"> </span><span class="kn">import</span> <span class="n">_graph_and_store</span><span class="p">,</span> <span class="n">thread_id_for</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLangGraph</span><span class="p">,</span> <span class="n">_normalise_state_snapshot</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.chat_common</span><span class="w"> </span><span class="kn">import</span> <span class="n">_graph_and_store</span><span class="p">,</span> <span class="n">thread_id_for</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.hitl</span><span class="w"> </span><span class="kn">import</span> <span class="n">_snapshot_interrupts</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.graph.base</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">BaseLangGraph</span><span class="p">,</span>
+    <span class="n">_interrupt_event</span><span class="p">,</span>
+    <span class="n">_normalise_state_snapshot</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -342,10 +347,12 @@
 <span class="w">    </span><span class="sd">"""Create an APIRouter exposing the graph-level ``context`` projection.</span>
 
 <span class="sd">    ``GET /chat/{user_id}/{chat_id}/context``</span>
-<span class="sd">        Return ``{"context": {...}}`` -- the checkpointed session context</span>
-<span class="sd">        projected by the app's ``context_snapshot`` hook -- or</span>
-<span class="sd">        ``{"context": null}`` when the thread has no checkpoint yet (a</span>
-<span class="sd">        chat that never ran a query) or the graph uses no checkpointer.</span>
+<span class="sd">        Return ``{"context": {...}, "pending_interrupt": {...} | null}`` --</span>
+<span class="sd">        the checkpointed session context projected by the app's</span>
+<span class="sd">        ``context_snapshot`` hook, plus any pending HITL interrupt</span>
+<span class="sd">        (ADR-0046) so a reloaded frontend can re-present the ask.  Both are</span>
+<span class="sd">        ``null`` when the thread has no checkpoint yet (a chat that never</span>
+<span class="sd">        ran a query) or the graph uses no checkpointer.</span>
 <span class="sd">    """</span>
     <span class="n">router</span> <span class="o">=</span> <span class="n">APIRouter</span><span class="p">(</span><span class="n">prefix</span><span class="o">=</span><span class="s2">"/chat"</span><span class="p">,</span> <span class="n">tags</span><span class="o">=</span><span class="p">[</span><span class="s2">"context"</span><span class="p">])</span>
 
@@ -369,7 +376,7 @@
                 <span class="n">user_id</span><span class="p">,</span>
                 <span class="n">chat_id</span><span class="p">,</span>
             <span class="p">)</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"pending_interrupt"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
 
         <span class="n">config</span><span class="p">:</span> <span class="n">RunnableConfig</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"thread_id"</span><span class="p">:</span> <span class="n">thread_id</span><span class="p">}}</span>
         <span class="c1"># ``aget_tuple`` returns None for a thread that never ran.  That is</span>
@@ -380,7 +387,7 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): no checkpoint yet"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span>
             <span class="p">)</span>
-            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">"pending_interrupt"</span><span class="p">:</span> <span class="kc">None</span><span class="p">}</span>
 
         <span class="n">snapshot</span> <span class="o">=</span> <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">graph</span><span class="o">.</span><span class="n">aget_state</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
         <span class="c1"># ``_normalise_state_snapshot`` keeps this identical to the stream</span>
@@ -388,8 +395,18 @@
         <span class="c1"># a plain dict whatever the state backend renders.</span>
         <span class="n">values</span> <span class="o">=</span> <span class="n">_normalise_state_snapshot</span><span class="p">(</span><span class="n">snapshot</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
         <span class="n">context</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">context_snapshot</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): context=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="n">context</span><span class="p">}</span>
+        <span class="c1"># The same snapshot carries any pending HITL interrupt (ADR-0046), so</span>
+        <span class="c1"># a reloaded frontend can re-present the ask without a second read.</span>
+        <span class="n">interrupts</span> <span class="o">=</span> <span class="n">_snapshot_interrupts</span><span class="p">(</span><span class="n">snapshot</span><span class="p">)</span>
+        <span class="n">interrupt</span> <span class="o">=</span> <span class="n">_interrupt_event</span><span class="p">(</span><span class="n">interrupts</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">""</span><span class="p">)[</span><span class="s2">"data"</span><span class="p">]</span> <span class="k">if</span> <span class="n">interrupts</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">"get_chat_context(</span><span class="si">%s</span><span class="s2">, </span><span class="si">%s</span><span class="s2">): context=</span><span class="si">%s</span><span class="s2"> pending_interrupt=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="p">,</span>
+            <span class="n">chat_id</span><span class="p">,</span>
+            <span class="n">context</span><span class="p">,</span>
+            <span class="nb">bool</span><span class="p">(</span><span class="n">interrupts</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"context"</span><span class="p">:</span> <span class="n">context</span><span class="p">,</span> <span class="s2">"pending_interrupt"</span><span class="p">:</span> <span class="n">interrupt</span><span class="p">}</span>
 
     <span class="k">return</span> <span class="n">router</span></div>
 

@@ -396,22 +396,24 @@
 
 
 
-<div class="viewcode-block" id="StatusData">
-<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.StatusData">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">StatusData</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Per-chat status region content (the stream container).</span>
+<div class="viewcode-block" id="TurnStatus">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.TurnStatus">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">TurnStatus</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Per-chat turn status content (the chat-pane region under the transcript).</span>
 
 <span class="sd">    Rendered under the transcript for the chat and scoped to its current</span>
 <span class="sd">    (or last) turn.  ``kind`` selects the rendering:</span>
 
-<span class="sd">    ============  ================================================</span>
-<span class="sd">    kind          meaning</span>
-<span class="sd">    ============  ================================================</span>
-<span class="sd">    ``idle``      nothing to show</span>
-<span class="sd">    ``progress``  an in-flight run; ``heading`` is the live line</span>
-<span class="sd">    ``error``     a failed run; ``message`` and ``resumable`` (Retry)</span>
-<span class="sd">    ``stopped``   the run was cancelled by the user</span>
-<span class="sd">    ============  ================================================</span>
+<span class="sd">    ==================  ============================================</span>
+<span class="sd">    kind                meaning</span>
+<span class="sd">    ==================  ============================================</span>
+<span class="sd">    ``idle``            nothing to show</span>
+<span class="sd">    ``progress``        an in-flight run; ``heading`` is the live line</span>
+<span class="sd">    ``error``           a failed run; ``message`` and ``resumable`` (Retry)</span>
+<span class="sd">    ``stopped``         the run was cancelled by the user</span>
+<span class="sd">    ``awaiting_input``  the run paused for HITL input; the ask is on</span>
+<span class="sd">                        :attr:`ChatData.interrupt` (ADR-0046)</span>
+<span class="sd">    ==================  ============================================</span>
 
 <span class="sd">    Any new turn (send / retry) resets it, so a terminal status never</span>
 <span class="sd">    survives past the next user action.</span>
@@ -424,9 +426,9 @@
 
 
 
-<div class="viewcode-block" id="idle_status">
-<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.idle_status">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">idle_status</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">StatusData</span><span class="p">:</span>
+<div class="viewcode-block" id="idle_turn_status">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.idle_turn_status">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">idle_turn_status</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">TurnStatus</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the empty per-chat status."""</span>
     <span class="k">return</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span></div>
 
@@ -460,14 +462,19 @@
     <span class="n">inspector_sections_collapsed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
     <span class="c1">#: Status-pane sections, keyed by node label / section key.</span>
     <span class="n">state_sections</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">StateSection</span><span class="p">]</span>
-    <span class="c1">#: Current/last turn's stream-container status (progress/error/stopped).</span>
-    <span class="n">status</span><span class="p">:</span> <span class="n">StatusData</span>
+    <span class="c1">#: Current/last turn's status (progress/error/stopped/awaiting_input).</span>
+    <span class="n">turn_status</span><span class="p">:</span> <span class="n">TurnStatus</span>
     <span class="c1">#: Active model config per role (from ``fetch_active_models``).</span>
     <span class="n">model_info</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
     <span class="c1">#: Accumulated token totals for this chat.</span>
     <span class="n">token_usage</span><span class="p">:</span> <span class="n">TokenUsage</span>
     <span class="c1">#: Hydrated graph session context (e.g. the agent operating mode).</span>
     <span class="n">context</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="c1">#: Pending HITL ask (ADR-0046) while the run is paused: the interrupt</span>
+    <span class="c1">#: ``data`` (``kind``, ``question``/``questions``, ``interrupt_id`` and a</span>
+    <span class="c1">#: ``hitl_response_schema`` when the node supplied one).  Cleared when the</span>
+    <span class="c1">#: next turn starts.</span>
+    <span class="n">interrupt</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
     <span class="c1">#: App-defined context-control preferences (mode / access level).</span>
     <span class="n">mode_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">access_pref</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span></div>
@@ -501,7 +508,7 @@
             <span class="s2">"inspector_expanded"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"inspector_sections_collapsed"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"state_sections"</span><span class="p">:</span> <span class="p">{},</span>
-            <span class="s2">"status"</span><span class="p">:</span> <span class="n">idle_status</span><span class="p">(),</span>
+            <span class="s2">"turn_status"</span><span class="p">:</span> <span class="n">idle_turn_status</span><span class="p">(),</span>
             <span class="s2">"model_info"</span><span class="p">:</span> <span class="p">{},</span>
             <span class="s2">"token_usage"</span><span class="p">:</span> <span class="p">{</span>
                 <span class="s2">"input_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
@@ -512,6 +519,33 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"found existing </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">chats</span><span class="p">[</span><span class="n">key</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="interrupt_display">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.interrupt_display">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">interrupt_display</span><span class="p">(</span>
+    <span class="n">response</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">cancel</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a HITL answer/cancel as the user turn shown in the transcript.</span>
+
+<span class="sd">    Mirrors the server-side transcript rendering in ``chat_core``: an</span>
+<span class="sd">    ``answers`` list is joined, a review decision/feedback is shown, and a</span>
+<span class="sd">    cancel is marked.</span>
+
+<span class="sd">    :param response: The resume mapping sent to the server, or ``None``.</span>
+<span class="sd">    :param cancel: Whether the user cancelled the interrupt.</span>
+<span class="sd">    :returns: The user-turn text.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">cancel</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">response</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">"(cancelled)"</span>
+    <span class="n">answers</span> <span class="o">=</span> <span class="n">response</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"answers"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">answers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span> <span class="k">for</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">answers</span><span class="p">)</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">response</span><span class="p">[</span><span class="n">key</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"decision"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">)</span> <span class="k">if</span> <span class="n">response</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="k">return</span> <span class="s2">": "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="k">if</span> <span class="n">parts</span> <span class="k">else</span> <span class="s2">"(answered)"</span></div>
 
 
 
