@@ -40,9 +40,9 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
       decision (or cancel).  An approval sets ``plan.status = in_progress``
       and the router dispatches straight into the execution loop -- no Planner
       call; a revision carries ``feedback`` back to the Planner.
-    * ``kind="input"`` asks the Planner's ``pending_question`` and writes the
-      answer to ``human_input`` so the Planner can finalise a ``needs_input``
-      plan.
+    * ``kind="input"`` asks the questions on the plan's blocked steps (all
+      batched into one interrupt) and writes the answers to ``human_input`` so
+      the Planner can re-author a runnable plan.
 
     A cancel marks the plan ``user_cancelled``, records a note in
     ``messages``, and lets the router send the run to a terminal reply; the
@@ -71,10 +71,14 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
     def _ask(self, state: KleaAgentState) -> dict[str, Any]:
         """Return the interrupt payload shown to the user."""
         if self.kind == "input":
-            question = (
-                state.pending_question or "More information is needed to continue."
-            )
-            return {"kind": "input", "question": question}
+            # Flatten the blocked steps' questions; a step with questions is a
+            # draft step that cannot run until they are answered (ADR-0046).
+            questions = [
+                {"step_number": step.step_number, "question": question}
+                for step in state.plan.step_list
+                for question in step.needs_input
+            ]
+            return {"kind": "input", "questions": questions}
         return {
             "kind": "review",
             "question": "Review the plan: approve it, request changes, or cancel.",
@@ -93,15 +97,46 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
     def _on_answer(
         self, state: KleaAgentState, answers: dict[str, Any]
     ) -> dict[str, Any]:
-        """Apply the review decision, or record the supplied fact."""
+        """Apply the review decision, or record the supplied facts."""
         if self.kind == "review":
             return self._apply_review(state, answers)
-        text = str(answers.get("text", ""))
+        answers_list = [str(answer) for answer in (answers.get("answers") or [])]
+        human_input = self._map_answers(state, answers_list)
         return {
-            "human_input": text,
+            "human_input": human_input,
             "replan_reason": "",
-            "messages": [*state.messages, HumanMessage(content=text)],
+            "messages": [
+                *state.messages,
+                HumanMessage(content=self._render_answers(state, human_input)),
+            ],
         }
+
+    @staticmethod
+    def _map_answers(state: KleaAgentState, answers: list[str]) -> dict[int, list[str]]:
+        """Map the positional answers back onto the blocked steps."""
+        mapping: dict[int, list[str]] = {}
+        index = 0
+        for step in state.plan.step_list:
+            if not step.needs_input:
+                continue
+            count = len(step.needs_input)
+            mapping[step.step_number] = answers[index : index + count]
+            index += count
+        return mapping
+
+    @staticmethod
+    def _render_answers(
+        state: KleaAgentState, human_input: dict[int, list[str]]
+    ) -> str:
+        """Render the answers against their step's question for the transcript."""
+        asked = {step.step_number: step.needs_input for step in state.plan.step_list}
+        lines: list[str] = []
+        for step_number, answers in human_input.items():
+            questions = asked.get(step_number, [])
+            for index, answer in enumerate(answers):
+                question = questions[index] if index < len(questions) else "(question)"
+                lines.append(f"- Step {step_number} Q: {question} A: {answer}")
+        return "\n".join(lines)
 
     def _apply_review(
         self, state: KleaAgentState, answers: dict[str, Any]
@@ -151,10 +186,15 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         otherwise not see the cancellation.  A note-only message (no plan
         content) is deliberate: a cancelled plan is not carried forward.
         """
-        question = str(payload.get("question", ""))
+        question = str(payload.get("question", "")) or "; ".join(
+            str(entry.get("question", ""))
+            for entry in (payload.get("questions") or [])
+            if isinstance(entry, dict)
+        )
         note = (
             "User cancelled the run while awaiting an answer to: "
-            f"{question}  No remaining steps were executed."
+            f"{question or '(the pending question)'}  "
+            "No remaining steps were executed."
         )
         return {
             "replan_reason": "",

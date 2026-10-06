@@ -9,10 +9,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
-from typing import Any, final
+from typing import Any, Literal, final
 
 from langgraph.types import interrupt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from klea_utils.nodes.abstract import (
     AbstractLangGraphNode,
@@ -20,6 +20,17 @@ from klea_utils.nodes.abstract import (
     NodeStreamEvent,
 )
 from klea_utils.nodes.context import NodeContext
+
+
+class _QuestionsResponse(BaseModel):
+    """Default resume schema for a ``questions`` payload (free-text answers).
+
+    ``answers`` is positional, aligned with the flattened question list; the
+    reserved ``action`` cancels.
+    """
+
+    action: Literal["answer", "cancel"] = "answer"
+    answers: list[str] = Field(default_factory=list)
 
 
 class AwaitHumanNode[TState: BaseModel](
@@ -37,8 +48,8 @@ class AwaitHumanNode[TState: BaseModel](
       should carry a ``kind`` and the question or questions);
     * :meth:`_hitl_response_schema` -- an optional Pydantic model describing
       the expected resume payload, so clients can render a typed form (when
-      not overridden and the payload carries ``questions``, a free-text model
-      is built from their ``key`` s);
+      not overridden and the payload carries ``questions``, a default
+      free-text ``answers`` list schema is used);
     * :meth:`_on_answer` -- state updates for an answer;
     * :meth:`_on_cancel` -- state updates for a cancellation.
 
@@ -70,6 +81,17 @@ class AwaitHumanNode[TState: BaseModel](
     ) -> type[BaseModel] | None:
         """Return an optional Pydantic model for the resume payload."""
         return None
+
+    @staticmethod
+    def _questions_schema(
+        questions: list[dict[str, Any]],
+    ) -> type[BaseModel] | None:
+        """Return the default free-text schema for a ``questions`` payload.
+
+        The client answers the questions positionally in ``answers`` (or
+        cancels); :meth:`_parse_response` and the app map them back.
+        """
+        return _QuestionsResponse if questions else None
 
     def _on_answer(self, state: TState, answers: dict[str, Any]) -> dict[str, Any]:
         """Return state updates for an answer."""
@@ -130,6 +152,12 @@ class AwaitHumanNode[TState: BaseModel](
         self.logger.debug(f"{self.kind = }\n{payload = }")
 
         schema = self._hitl_response_schema(state, payload)
+        if schema is None:
+            # No app schema: a ``questions`` payload gets a free-text form so
+            # clients can render one field per question.
+            questions = payload.get("questions")
+            if isinstance(questions, list):
+                schema = self._questions_schema(questions)
         # ``response_schema`` is LangGraph's interrupt kwarg; the app-facing
         # hook is ``_hitl_response_schema`` (see the class docstring).
         response = (

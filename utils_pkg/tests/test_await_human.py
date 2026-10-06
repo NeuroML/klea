@@ -132,6 +132,41 @@ async def test_hitl_response_schema_is_published_and_validated():
     assert result["answer"] == "x"
 
 
+class _FormNode(AwaitHumanNode[_State]):
+    """A subclass relying on the default free-text questions schema."""
+
+    def _ask(self, state: _State) -> dict[str, Any]:
+        return {
+            "kind": "input",
+            "questions": [
+                {"step_number": 1, "question": "which file?"},
+                {"step_number": 1, "question": "which mode?"},
+            ],
+        }
+
+    def _on_answer(self, state: _State, answers: dict[str, Any]) -> dict[str, Any]:
+        return {"answer": "|".join(str(a) for a in (answers.get("answers") or []))}
+
+    def _on_cancel(self, state: _State, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"cancelled": True}
+
+
+async def test_questions_payload_uses_default_answers_schema():
+    """A ``questions`` payload gets the default positional answers schema."""
+    graph = _compile(_FormNode)
+    config = {"configurable": {"thread_id": "form"}}
+
+    await graph.ainvoke(_State(), config=config)
+    intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
+    assert intr.response_schema is not None
+    assert set(intr.response_schema["properties"]) == {"action", "answers"}
+
+    result = await graph.ainvoke(
+        Command(resume={"action": "answer", "answers": ["a", "b"]}), config=config
+    )
+    assert result["answer"] == "a|b"
+
+
 def test_parse_response_accepts_model_dict_and_string():
     """_parse_response normalises a model, a mapping, and a bare string."""
     assert AwaitHumanNode._parse_response("hi") == ("answer", {"answer": "hi"})

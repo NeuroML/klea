@@ -49,7 +49,6 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
         failure_reason="boom",
         evaluation=EvaluationSchema(overall="abort"),
         replan_reason="tool failed",
-        pending_question="which file?",
     )
     update = await node.execute(state)
 
@@ -62,7 +61,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert update["step_attempt_counts"] == {}
     assert update["failure_reason"] == ""
     assert update["replan_reason"] == ""
-    assert update["pending_question"] == ""
+    assert update["human_input"] == {}
     assert update["route"] == RouteSchema()
     assert update["evaluation"].overall == ""
     assert update["evaluation"].evaluations == []

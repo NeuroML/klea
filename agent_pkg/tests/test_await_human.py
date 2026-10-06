@@ -12,7 +12,7 @@ import logging
 from typing import Literal
 
 from klea_agent.nodes.await_human import AwaitHuman
-from klea_agent.schemas import PlanSchema
+from klea_agent.schemas import PlanSchema, StepSchema
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -23,9 +23,8 @@ from pydantic import BaseModel, Field
 class _HitlState(BaseModel):
     """Minimal state carrying just the fields AwaitHuman reads/writes."""
 
-    pending_question: str = ""
     human_feedback: str = ""
-    human_input: str = ""
+    human_input: dict[int, list[str]] = Field(default_factory=dict)
     replan_reason: str = ""
     messages: list[AnyMessage] = Field(default_factory=list)
     plan: PlanSchema = Field(default_factory=PlanSchema)
@@ -41,21 +40,41 @@ def _compile(kind: Literal["review", "input"]):
     return workflow.compile(checkpointer=InMemorySaver())
 
 
-async def test_input_ask_and_answer():
-    """The input instance asks pending_question and writes human_input."""
+async def test_input_batches_step_questions_and_writes_answers():
+    """The input instance asks the blocked steps' questions and writes answers."""
     graph = _compile("input")
     config = {"configurable": {"thread_id": "input"}}
-
-    await graph.ainvoke(_HitlState(pending_question="Which file?"), config=config)
-
-    ask = (await graph.aget_state(config)).tasks[0].interrupts[0].value
-    assert ask == {"kind": "input", "question": "Which file?"}
-
-    result = await graph.ainvoke(
-        Command(resume={"action": "answer", "text": "a.txt"}), config=config
+    plan = PlanSchema(
+        status="needs_input",
+        step_list=[
+            StepSchema(step_number=1, description="find", success_criteria="found"),
+            StepSchema(
+                step_number=2,
+                description="deploy",
+                needs_input=["Which file?", "Which mode?"],
+            ),
+        ],
     )
 
-    assert result["human_input"] == "a.txt"
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
+
+    intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
+    assert intr.value == {
+        "kind": "input",
+        "questions": [
+            {"step_number": 2, "question": "Which file?"},
+            {"step_number": 2, "question": "Which mode?"},
+        ],
+    }
+    # One interrupt, a typed form with a positional answers list.
+    assert set(intr.response_schema["properties"]) == {"action", "answers"}
+
+    result = await graph.ainvoke(
+        Command(resume={"action": "answer", "answers": ["a.txt", "fast"]}),
+        config=config,
+    )
+
+    assert result["human_input"] == {2: ["a.txt", "fast"]}
     assert isinstance(result["messages"][-1], HumanMessage)
     assert (await graph.aget_state(config)).next == ()
 
@@ -106,7 +125,11 @@ async def test_cancel_marks_user_cancelled():
     graph = _compile("input")
     config = {"configurable": {"thread_id": "cancel"}}
 
-    await graph.ainvoke(_HitlState(pending_question="Which file?"), config=config)
+    plan = PlanSchema(
+        status="needs_input",
+        step_list=[StepSchema(step_number=1, needs_input=["Which file?"])],
+    )
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
     result = await graph.ainvoke(Command(resume={"action": "cancel"}), config=config)
 
     assert result["plan"].status == "user_cancelled"
