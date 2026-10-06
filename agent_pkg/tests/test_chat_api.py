@@ -376,6 +376,71 @@ class TestChat:
         )
         assert response.status_code == 422
 
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            {"interrupt_response": {"answers": ["a"]}, "resume": True},
+            {"query": "hi", "interrupt_response": {"answers": ["a"]}},
+            {"interrupt_response": {"answers": ["a"]}, "interrupt_cancel": True},
+            {"resume": True, "interrupt_id": "i1"},
+        ],
+    )
+    async def test_query_rejects_bad_interrupt_payloads(self, client, extra):
+        """Only one action may be set, and only a plain query carries text."""
+        response = await client.post(
+            "/query", json={"chat_id": "c", "user_id": "u", **extra}
+        )
+        assert response.status_code == 422
+
+    async def test_query_passes_interrupt_answer(self, client, monkeypatch):
+        """The interrupt answer fields are forwarded to chat_core.run_query."""
+        from klea_utils.api import chat_core
+
+        captured: dict = {}
+
+        async def _fake_run_query(request, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+        monkeypatch.setattr(chat_core, "run_query", _fake_run_query)
+        response = await client.post(
+            "/query",
+            json={
+                "chat_id": "c",
+                "user_id": "u",
+                "interrupt_response": {"answers": ["a.txt"]},
+                "interrupt_id": "i1",
+            },
+        )
+        assert response.status_code == 200
+        assert captured["interrupt_response"] == {"answers": ["a.txt"]}
+        assert captured["interrupt_id"] == "i1"
+        assert captured["interrupt_cancel"] is False
+
+    async def test_query_stream_passes_interrupt_cancel(self, client, monkeypatch):
+        """The interrupt cancel flag is forwarded to chat_core.stream_response."""
+        from fastapi.responses import StreamingResponse
+        from klea_utils.api import chat_core
+
+        captured: dict = {}
+
+        async def _fake_stream(request, **kwargs):
+            captured.update(kwargs)
+
+            async def _empty():
+                yield "data: {}\n\n"
+
+            return StreamingResponse(_empty(), media_type="text/event-stream")
+
+        monkeypatch.setattr(chat_core, "stream_response", _fake_stream)
+        response = await client.post(
+            "/query/stream",
+            json={"chat_id": "c", "user_id": "u", "interrupt_cancel": True},
+        )
+        assert response.status_code == 200
+        assert captured["interrupt_cancel"] is True
+        assert captured["interrupt_response"] is None
+
     async def test_query_error_stores_only_user_turn(self, app, client):
         """A failed /query still records the user turn (retryable), not an answer."""
         self.logger.info("Injecting error into run_graph_invoke")

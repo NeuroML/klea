@@ -37,6 +37,26 @@ class ChatPayload(BaseModel):
         default=False,
         description="Resume the last failed run for this chat (no query)",
     )
+    # Answer a pending HITL interrupt (ADR-0046): the resume mapping, e.g.
+    # ``{"answers": [...]}`` for a needs_input ask or
+    # ``{"decision": "approve"|"revise", "feedback": "..."}`` for a plan
+    # review.  ``action`` defaults to ``answer``.
+    interrupt_response: dict[str, Any] | None = Field(
+        default=None,
+        description="Answer a pending HITL interrupt (the resume mapping)",
+    )
+    # The id of the interrupt being answered; a mismatch with the thread's
+    # pending interrupt is rejected as stale.
+    interrupt_id: str | None = Field(
+        default=None,
+        description="Id of the pending interrupt being answered",
+    )
+    # Cancel the pending HITL interrupt instead of answering it (a terminal
+    # run).
+    interrupt_cancel: bool = Field(
+        default=False,
+        description="Cancel the pending HITL interrupt (no query)",
+    )
     # Operating-mode request passed into the graph's initial state
     # (ADR-0030); the resolved mode comes back as a ``context``
     # event on the stream.
@@ -52,14 +72,33 @@ class ChatPayload(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _validate_query(self) -> "ChatPayload":
-        """Require a query unless resuming; a resume must not carry one."""
+    def _validate_action(self) -> "ChatPayload":
+        """Require exactly one action; only a plain query carries text."""
         text = self.query.strip()
-        if self.resume:
+        actions = [
+            name
+            for name, flag in (
+                ("resume", self.resume),
+                ("interrupt_response", self.interrupt_response is not None),
+                ("interrupt_cancel", self.interrupt_cancel),
+            )
+            if flag
+        ]
+        if len(actions) > 1:
+            raise ValueError(
+                "provide only one of resume, interrupt_response, interrupt_cancel"
+            )
+        if actions:
             if text:
-                raise ValueError("query must be empty when resume is true")
+                raise ValueError("query must be empty for resume/interrupt actions")
+            if self.interrupt_id is not None and not (
+                self.interrupt_response is not None or self.interrupt_cancel
+            ):
+                raise ValueError("interrupt_id requires an interrupt action")
         elif not text:
-            raise ValueError("query is required unless resume is true")
+            raise ValueError(
+                "query is required unless resuming or answering an interrupt"
+            )
         return self
 
 
@@ -94,6 +133,9 @@ def create_chat_router() -> APIRouter:
             user_id=payload.user_id,
             chat_id=payload.chat_id,
             resume=payload.resume,
+            interrupt_response=payload.interrupt_response,
+            interrupt_cancel=payload.interrupt_cancel,
+            interrupt_id=payload.interrupt_id,
             extra_state=_extra_state(payload),
         )
         return {"result": message}
@@ -106,6 +148,9 @@ def create_chat_router() -> APIRouter:
             user_id=payload.user_id,
             chat_id=payload.chat_id,
             resume=payload.resume,
+            interrupt_response=payload.interrupt_response,
+            interrupt_cancel=payload.interrupt_cancel,
+            interrupt_id=payload.interrupt_id,
             extra_state=_extra_state(payload),
         )
 
