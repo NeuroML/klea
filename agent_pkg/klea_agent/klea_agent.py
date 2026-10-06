@@ -219,13 +219,31 @@ class KleaAgent(BaseLangGraph):
         return self._step_kind(state)
 
     async def _await_human_router(self, state: KleaAgentState) -> str:
-        """Route after a HITL pause: back to the Planner, or cancel (ADR-0046).
+        """Route after a HITL fact request: back to the Planner, or cancel.
 
-        A cancel sets ``plan.status == "user_cancelled"``; anything else is an
-        answer that resumes the same run at the Planner.
+        Used by the ``needs_input`` input node (ADR-0046).  A cancel sets
+        ``plan.status == "user_cancelled"``; the supplied fact otherwise
+        resumes the same run at the Planner, which finalises the plan.
         """
         if state.plan.status == "user_cancelled":
             return "cancelled"
+        return "planner"
+
+    async def _review_router(self, state: KleaAgentState) -> str:
+        """Route after plan review (ADR-0046).
+
+        An approval sets ``plan.status == "in_progress"`` and dispatches
+        straight into the execution loop by step kind (or to the answer when
+        no step remains); a revision (still ``in_review``) returns to the
+        Planner with the feedback; a cancel is terminal.
+        """
+        status = state.plan.status
+        if status == "user_cancelled":
+            return "cancelled"
+        if status == "in_progress":
+            if state.plan.current_step() is None:
+                return "plan_done"
+            return self._step_kind(state)
         return "planner"
 
     @staticmethod
@@ -589,13 +607,11 @@ class KleaAgent(BaseLangGraph):
             logger=self.logger,
             label="Awaiting review",
             kind="review",
-            answer_field="human_feedback",
         )
         self._await_input_node = AwaitHuman(
             logger=self.logger,
             label="Awaiting input",
             kind="input",
-            answer_field="human_input",
         )
         self._cancelled_answer_node = FixedAnswer(
             logger=self.logger,
@@ -696,15 +712,18 @@ class KleaAgent(BaseLangGraph):
                 "reasoning": self._reasoning_node.label,
             },
         )
-        # Human-in-the-loop (ADR-0046): an answer loops back to the Planner,
-        # which interprets the review feedback (``human_feedback``) or the
-        # supplied fact (``human_input``); a cancel is terminal and never runs
-        # the plan.
+        # HITL (ADR-0046).  Review: an approval dispatches straight into the
+        # execution loop (no Planner call), a revision returns to the Planner
+        # with the feedback, and a cancel is terminal.  Input: the supplied
+        # fact returns to the Planner so it can finalise the plan.
         self.workflow.add_conditional_edges(
             self._await_review_node.label,
-            self._await_human_router,
+            self._review_router,
             {
                 "planner": self._planner_node.label,
+                "tool": self._tools_picker_node.label,
+                "reasoning": self._reasoning_node.label,
+                "plan_done": self._answer_from_results_node.label,
                 "cancelled": self._cancelled_answer_node.label,
             },
         )
