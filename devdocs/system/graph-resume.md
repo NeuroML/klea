@@ -78,9 +78,15 @@ node) re-enters from `START` and abandons the pending task.  Verified: a
 graph `START -> init -> boom -> END` that failed at `boom` re-ran `init`
 when given a new input (the log gained a second `init` entry) rather than
 resuming `boom`.  HITL consequence: answering an interrupt requires
-`Command(resume=...)`; a plain chat message starts a new turn and, because
-the suspended node sits on the `START` path, is re-entered and interrupts
-again.
+`Command(resume=...)`; a plain chat message starts a new turn and the
+pending interrupt is simply dropped.  Whether the fresh run reaches the
+suspended node again is a property of the graph, not of this mechanism: in
+the linear probe above it re-entered and re-interrupted (the node sat on
+the `START` path), but in Klea the HITL node is reached conditionally from
+the Planner, so a plain message abandons the pause and only re-interrupts
+if the new turn's routing reaches it.  Klea therefore rejects a plain
+query while an interrupt is pending (backend `409`) so the pause is never
+silently dropped.
 
 ## Edge cases
 
@@ -142,9 +148,11 @@ cancelling the `asyncio.Task` that drives it (the request task for
 * Persistence: record the user turn when the run starts and the assistant
   reply when it completes, so a failed turn is visible/retryable and a
   resume completes the same turn rather than duplicating it.
-* HITL interrupt resume must send `Command(resume=...)` (see Interrupts):
+* HITL interrupt resume must send `Command(resume=...)` (see Interrupts);
   a plain query while an interrupt is pending starts a new turn and
-  re-enters the suspended node, so the interrupt never clears.
+  abandons the pause, so the backend rejects it (409) and Klea uses
+  `interrupt_response` / `interrupt_cancel` (ADR-0046) rather than `resume`
+  for HITL.
 
 ## References
 
