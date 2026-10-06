@@ -14,6 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import json
 import logging
+from typing import Any
 
 from nicegui import ui
 
@@ -21,13 +22,13 @@ from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import StatusData, chats, missing_credentials
+from klea_utils.ui.web.nicegui.state import TurnStatus, chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 
 
-def render_stream_status(ctx: PageContext, retry_cb=None) -> None:
-    """Render the status region for the active chat from its per-chat state.
+def render_turn_status(ctx: PageContext, retry_cb=None) -> None:
+    """Render the turn status region for the active chat from its state.
 
     The region is a single slot under the transcript, owned by the chat's
     ``status`` dict (``state.ChatData``), so it is restored on chat switch
@@ -38,13 +39,13 @@ def render_stream_status(ctx: PageContext, retry_cb=None) -> None:
     * ``stopped``  - a plain "Stopped" line.
     * ``idle``/missing - nothing.
 
-    :param ctx: The shared page context (uses ``stream_container``).
+    :param ctx: The shared page context (uses ``turn_status_container``).
     :param retry_cb: Callable invoked by the Retry button; the stream
         component passes it when rendering a live error.
     """
-    status = _current_status(ctx)
+    status = _current_turn_status(ctx)
     kind = status.get("kind", "idle")
-    container = ctx.stream_container
+    container = ctx.turn_status_container
     container.clear()
     if kind == "idle":
         return
@@ -55,7 +56,7 @@ def render_stream_status(ctx: PageContext, retry_cb=None) -> None:
                 label = ui.label(status.get("heading", "")).classes(
                     "text-xs text-grey-5 italic"
                 )
-            ctx.status_label = label
+            ctx.turn_status_label = label
         elif kind == "error":
             with ui.row().classes("w-full items-center gap-2 p-2"):
                 ui.icon("error").classes("text-negative")
@@ -173,11 +174,11 @@ def _render_messages(ctx: PageContext) -> None:
         else 0,
     )
     ctx.chat_area.clear()
-    # The status region is rendered from the active chat's per-chat status,
+    # The turn status region is rendered from the active chat's turn status,
     # so switching chats restores that chat's own status and no stale
     # marker bleeds across.  A live run re-renders this from state too, so
     # there is a single source of truth for the region.
-    render_stream_status(ctx)
+    render_turn_status(ctx)
     with ctx.chat_area:
         if not current:
             with (
@@ -282,16 +283,16 @@ def attach_chat_area(ctx: PageContext) -> None:
     context (the surrounding layout decides where the tab panels go).
 
     :param ctx: The shared page context; ``chat_area``,
-        ``scroll_area`` and ``stream_container`` are filled in here.
+        ``scroll_area`` and ``turn_status_container`` are filled in here.
     """
     with ui.scroll_area().classes("w-full grow chat-scroll-area") as scroll_area:
         ctx.scroll_area = scroll_area
         ctx.chat_area = ui.column().classes("w-full")
-        ctx.stream_container = ui.column().classes("w-full")
+        ctx.turn_status_container = ui.column().classes("w-full")
 
     ctx.render_chat_area = lambda: _render_messages(ctx)
-    ctx.refresh_stream_status = lambda: render_stream_status(
-        ctx, retry_cb=ctx.stream_retry_cb
+    ctx.refresh_turn_status = lambda: render_turn_status(
+        ctx, retry_cb=ctx.turn_retry_cb
     )
     ctx.scroll_chat_bottom = lambda: _scroll_to_bottom(ctx)
     _render_messages(ctx)

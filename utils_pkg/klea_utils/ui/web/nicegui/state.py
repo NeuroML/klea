@@ -79,20 +79,22 @@ class TokenUsage(TypedDict):
     total_tokens: int
 
 
-class StatusData(TypedDict):
-    """Per-chat status region content (the stream container).
+class TurnStatus(TypedDict):
+    """Per-chat turn status content (the chat-pane region under the transcript).
 
     Rendered under the transcript for the chat and scoped to its current
     (or last) turn.  ``kind`` selects the rendering:
 
-    ============  ================================================
-    kind          meaning
-    ============  ================================================
-    ``idle``      nothing to show
-    ``progress``  an in-flight run; ``heading`` is the live line
-    ``error``     a failed run; ``message`` and ``resumable`` (Retry)
-    ``stopped``   the run was cancelled by the user
-    ============  ================================================
+    ==================  ============================================
+    kind                meaning
+    ==================  ============================================
+    ``idle``            nothing to show
+    ``progress``        an in-flight run; ``heading`` is the live line
+    ``error``           a failed run; ``message`` and ``resumable`` (Retry)
+    ``stopped``         the run was cancelled by the user
+    ``awaiting_input``  the run paused for HITL input; the ask is on
+                        :attr:`ChatData.interrupt` (ADR-0046)
+    ==================  ============================================
 
     Any new turn (send / retry) resets it, so a terminal status never
     survives past the next user action.
@@ -104,7 +106,7 @@ class StatusData(TypedDict):
     resumable: NotRequired[bool]
 
 
-def idle_status() -> StatusData:
+def idle_turn_status() -> TurnStatus:
     """Return the empty per-chat status."""
     return {"kind": "idle"}
 
@@ -135,14 +137,19 @@ class ChatData(TypedDict):
     inspector_sections_collapsed: set[int]
     #: Status-pane sections, keyed by node label / section key.
     state_sections: dict[str, StateSection]
-    #: Current/last turn's stream-container status (progress/error/stopped).
-    status: StatusData
+    #: Current/last turn's status (progress/error/stopped/awaiting_input).
+    turn_status: TurnStatus
     #: Active model config per role (from ``fetch_active_models``).
     model_info: dict[str, dict[str, Any]]
     #: Accumulated token totals for this chat.
     token_usage: TokenUsage
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
+    #: Pending HITL ask (ADR-0046) while the run is paused: the interrupt
+    #: ``data`` (``kind``, ``question``/``questions``, ``interrupt_id`` and a
+    #: ``hitl_response_schema`` when the node supplied one).  Cleared when the
+    #: next turn starts.
+    interrupt: NotRequired[dict[str, Any]]
     #: App-defined context-control preferences (mode / access level).
     mode_pref: NotRequired[str]
     access_pref: NotRequired[str]
@@ -173,7 +180,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
             "inspector_expanded": set(),
             "inspector_sections_collapsed": set(),
             "state_sections": {},
-            "status": idle_status(),
+            "turn_status": idle_turn_status(),
             "model_info": {},
             "token_usage": {
                 "input_tokens": 0,
@@ -184,6 +191,30 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
     else:
         logger.debug("found existing %s", key)
     return chats[key]
+
+
+def interrupt_display(
+    response: Mapping[str, Any] | None, *, cancel: bool = False
+) -> str:
+    """Render a HITL answer/cancel as the user turn shown in the transcript.
+
+    Mirrors the server-side transcript rendering in ``chat_core``: an
+    ``answers`` list is joined, a review decision/feedback is shown, and a
+    cancel is marked.
+
+    :param response: The resume mapping sent to the server, or ``None``.
+    :param cancel: Whether the user cancelled the interrupt.
+    :returns: The user-turn text.
+    """
+    if cancel or not response:
+        return "(cancelled)"
+    answers = response.get("answers")
+    if isinstance(answers, list):
+        return "; ".join(str(answer) for answer in answers)
+    parts = [
+        str(response[key]) for key in ("decision", "feedback") if response.get(key)
+    ]
+    return ": ".join(parts) if parts else "(answered)"
 
 
 def resolve_choice(

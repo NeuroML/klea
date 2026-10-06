@@ -30,7 +30,7 @@ from klea_utils.ui.web.nicegui.components.stream import (
     apply_stream_event,
     stop_stream,
 )
-from klea_utils.ui.web.nicegui.state import chats, ensure_chat
+from klea_utils.ui.web.nicegui.state import chats, ensure_chat, interrupt_display
 
 
 @pytest.fixture
@@ -274,6 +274,42 @@ class TestApplyStreamEvent:
         """error events map to the error action without mutation."""
         assert apply_stream_event(chat, {"type": "error", "message": "boom"}) == "error"
         assert chat["messages"] == []
+
+    def test_interrupt_stores_ask(self, chat):
+        """interrupt events store the ask (question/id) on the chat."""
+        result = apply_stream_event(
+            chat,
+            {
+                "type": "interrupt",
+                "node": "Awaiting input",
+                "data": {
+                    "kind": "input",
+                    "questions": [{"step_number": 1, "question": "which file?"}],
+                    "interrupt_id": "i1",
+                },
+            },
+        )
+        assert result == "interrupt"
+        assert chat["interrupt"]["interrupt_id"] == "i1"
+        assert chat["interrupt"]["questions"][0]["question"] == "which file?"
+        assert chat["messages"] == []
+
+
+class TestInterruptDisplay:
+    """``interrupt_display`` renders the user turn for an interrupt answer."""
+
+    def test_answers_joined(self):
+        assert interrupt_display({"answers": ["a", "b"]}) == "a; b"
+
+    def test_review_decision_with_feedback(self):
+        assert (
+            interrupt_display({"decision": "revise", "feedback": "use v2"})
+            == "revise: use v2"
+        )
+
+    def test_cancel_and_empty(self):
+        assert interrupt_display(None, cancel=True) == "(cancelled)"
+        assert interrupt_display(None) == "(cancelled)"
 
 
 def _sse_response() -> httpx.Response:

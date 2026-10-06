@@ -20,7 +20,12 @@ from klea_utils.ui.web.nicegui.client import create_chat_on_server
 from klea_utils.ui.web.nicegui.components import stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
-from klea_utils.ui.web.nicegui.state import chats, ensure_chat, missing_credentials
+from klea_utils.ui.web.nicegui.state import (
+    chats,
+    ensure_chat,
+    interrupt_display,
+    missing_credentials,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +63,56 @@ def attach_input(ctx: PageContext) -> None:
             info = _effective_model_info()
             return bool(missing_required_roles(info) or missing_credentials(info))
 
+        def _awaiting_input() -> bool:
+            """Whether the active chat is paused at a HITL interrupt."""
+            if not ctx.chat_id:
+                return False
+            chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
+            return bool(
+                chat and (chat.get("turn_status") or {}).get("kind") == "awaiting_input"
+            )
+
+        def submit_interrupt(
+            response: dict | None, interrupt_id: str | None, cancel: bool
+        ) -> None:
+            """Send a HITL answer/cancel (the status-region form calls this)."""
+            if ctx.is_streaming:
+                return
+            chat_id = ctx.chat_id
+            if not chat_id:
+                return
+            stamp = datetime.now().astimezone().strftime("%X")
+            ensure_chat(ctx.user_id, chat_id)["messages"].append(
+                {
+                    "text": interrupt_display(response, cancel=cancel),
+                    "stamp": stamp,
+                    "role": "user",
+                    "header": "",
+                }
+            )
+            ctx.render_chat_area()
+            ctx.refresh_chat_list()
+            background_tasks.create(
+                stream.run_stream(
+                    ctx,
+                    "",
+                    chat_id,
+                    interrupt_response=response,
+                    interrupt_id=interrupt_id,
+                    interrupt_cancel=cancel,
+                )
+            )
+
+        ctx.submit_interrupt = submit_interrupt
+
         def send() -> None:
             """Append the current input text as a user message, then stream."""
             if not text.value.strip():
+                return
+            if _awaiting_input():
+                # The status-region form is the input while paused; ignore a
+                # stray Enter (useful once D1b re-enables the box on reload).
+                logger.debug("send ignored: awaiting interrupt input")
                 return
             if _setup_incomplete():
                 logger.warning(
@@ -133,13 +185,20 @@ def attach_input(ctx: PageContext) -> None:
         ctx.refresh_send_state = refresh_send_state
 
         def refresh_stream_button() -> None:
-            """Flip the send control to Stop while a run is streaming."""
+            """Flip the send control to Stop, or disable it while awaiting input."""
             try:
                 if ctx.is_streaming:
                     send_button.props("icon=stop")
                     send_button.enable()
+                    text.enable()
+                elif _awaiting_input():
+                    # The status-region form is the input; disable the main box.
+                    send_button.props("icon=send")
+                    send_button.disable()
+                    text.disable()
                 else:
                     send_button.props("icon=send")
+                    text.enable()
                     refresh_send_state()
             except Exception as e:  # noqa: BLE001
                 logger.debug("stream button state update failed: %s", e)

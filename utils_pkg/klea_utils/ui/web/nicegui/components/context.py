@@ -56,7 +56,7 @@ class PageContext:
        work as an ``async`` event handler (NiceGUI awaits it in the
        client/slot context, so ``ui.dialog()`` etc. work), or enter a
        slot explicitly before creating elements, e.g. ``with
-       ctx.stream_container:`` (streaming rows) or ``with
+       ctx.turn_status_container:`` (the turn status region) or ``with
        ctx.dialog_container:`` (dialogs opened from a background task).
        Updating existing elements and ``app.storage`` from a background
        task is fine.
@@ -102,10 +102,10 @@ class PageContext:
     center_panels: Any = None
     chat_area: Any = None
     scroll_area: Any = None
-    stream_container: Any = None
-    #: Live progress label inside the status region, updated in place during
+    turn_status_container: Any = None
+    #: Live progress label inside the turn status region, updated in place during
     #: a run (the region itself is re-rendered from per-chat state).
-    status_label: Any = None
+    turn_status_label: Any = None
     text: Any = None
     loading_row: Any = None
     #: Stable inspector pane content column / scroll area (incremental append).
@@ -129,19 +129,23 @@ class PageContext:
     append_inspector: Callable[..., None] = field(default=_noop_args)
     reset_center_tab: Callable[[], None] = field(default=_noop)
     refresh_send_state: Callable[[], None] = field(default=_noop)
-    #: Re-render the status region (stream container) from the active chat's
-    #: per-chat status.  Registered by the chat-area component; the stream
+    #: Re-render the turn status region from the active chat's turn status.
+    #: Registered by the chat-area component; the stream
     #: component calls it on each status transition.
-    refresh_stream_status: Callable[[], None] = field(default=_noop)
-    #: Retry handler for a live failed run, invoked by the status region's
+    refresh_turn_status: Callable[[], None] = field(default=_noop)
+    #: Retry handler for a live failed run, invoked by the turn status region's
     #: Retry button (set by the stream component when it renders an error).
-    stream_retry_cb: Callable[[], Any] | None = None
+    turn_retry_cb: Callable[[], Any] | None = None
     #: Flip the send control between Send and Stop based on ``is_streaming``
     #: (registered by the input area; called by the stream component).
     refresh_stream_button: Callable[[], None] = field(default=_noop)
     #: Stop the active run for the given chat (registered by the stream
     #: component; the input area's Stop control calls it).
     stop_streaming: Callable[..., Any] = field(default=_noop_args)
+    #: Submit a HITL interrupt answer/cancel from the status-region form
+    #: (``response``, ``interrupt_id``, ``cancel``); registered by the input
+    #: area, called by the chat area's form (ADR-0046).
+    submit_interrupt: Callable[..., Any] = field(default=_noop_args)
     fetch_model_info: Callable[[], Any] | None = None
     fetch_session_model_info: Callable[[], Any] | None = None
     fetch_credentials: Callable[[], Any] | None = None
