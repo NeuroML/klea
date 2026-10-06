@@ -33,8 +33,9 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
-                 |-- status in_review -----> AwaitReview --(user input only)--> Planner
-                 |-- status needs_input ---> AnswerFromResults (question) -> AnswerUser -> END
+                 |-- status in_review -----> AwaitHuman (review) --approve--> batch entry
+                 |                                        '--revise----> Planner
+                 |-- status needs_input ---> AwaitHuman (input) --answer--> Planner
                  '-- status in_progress ---> batch entry (ADR-0041)
 
 Batch entry (maximal same-kind prefix of the frontier, capped at 8 steps):
@@ -78,7 +79,7 @@ answered from assumption.
 | Guard | safety classification (ADR-0010) | yes (guard role) |
 | RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan, flag review (ADR-0035); never answers the user | yes (plan role) |
-| AwaitReview | capture human review input only (no LLM); free-text feedback | no |
+| AwaitHuman | HITL pause/resume (ADR-0046): plan review (approve/revise) or a blocked step's questions; no LLM | no |
 | ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
 | ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
 | TriageRouter | deterministic per-step tool-error triage: which steps errored? retries left? | no |
@@ -101,17 +102,19 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 
 | status | meaning | edge |
 |--------|---------|------|
-| ``in_review`` | plan produced, awaiting human review | ``AwaitReview`` |
-| ``needs_input`` | blocked on a missing fact only the user can supply; the question is in ``reason`` (a partial plan is allowed) | ``AnswerFromResults`` (question) |
+| ``in_review`` | plan produced, awaiting human review | ``AwaitHuman`` (review) |
+| ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
 | ``in_progress`` | ready; execute the next batch (same-kind frontier prefix) by its ``kind`` | batch entry |
 
-``Planner._update_state``: ``needs_input`` -> state ``needs_input`` with
-``pending_question`` from ``reason``; steps + review -> ``in_review``; steps ->
-``in_progress``; ``unplannable`` (or no steps) -> ``unplannable``.  It never
-answers the user.  ``PlannerPlanSchema`` exposes only these editable statuses to
-the model; the state ``PlanSchema`` also carries the runtime ones
-(``not_started``/``completed``/``failed``/``aborted``) written by code.
+``Planner._update_state``: any step with ``needs_input`` questions forces
+``needs_input`` (a draft; the status is derived from the steps); steps + review
+-> ``in_review``; steps -> ``in_progress``; ``unplannable`` (or no steps) ->
+``unplannable``.  It never answers the user.  ``PlannerPlanSchema`` exposes only
+these editable statuses to the model; the state ``PlanSchema`` also carries the
+runtime ones
+(``not_started``/``completed``/``failed``/``aborted``/``user_cancelled``)
+written by code.
 
 ### Planner plan ownership (Design A)
 
@@ -157,25 +160,35 @@ Two related rules keep the Planner from inventing work:
   evidence shows the goal cannot be met, the Planner prefers reporting that
   over adding steps that cannot succeed.
 
-## Plan review (human-in-the-loop)
+## Plan review and step questions (human-in-the-loop)
 
-``AwaitReview`` is human evaluation of the plan, symmetric to the Evaluator's
-judgement of steps, but it carries **no LLM call**: it captures the user's
-free-text input into ``human_feedback`` and routes back to the Planner.  The
-Planner interprets the feedback: "good to go" -> ``in_progress``; changes ->
-a revised plan with ``in_review`` (the review loop).  The Planner is the sole
-plan/status writer, so ``in_review`` and the feedback cannot diverge from the
-routing state.  The general path triggers review only when the Planner decides
-it is needed; the scientific path may additionally require final-plan approval.
+Human-in-the-loop is a single pause/resume mechanism (ADR-0046).  A reusable
+template node (``klea_utils/nodes/await_human.py``, ``AwaitHumanNode``) owns
+the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
+(``AwaitHuman``) is instantiated twice:
 
-For the first implementation stage ``AwaitReview`` is a stub that supplies a
-canned "looks good, proceed" input, exercising the loop without LangGraph
-``interrupt``.  Real ``interrupt``/``Command(resume=...)`` (and the API/UI
-resume path, including resume-of-same-execution vs new-turn semantics) is a
-separate pending stage (HITL interrupt/resume ADR).  That stage must also wire
-``needs_input``: today it terminates with the question in the answer, and the
-next turn is a fresh run; the interrupt should resume the same run with the
-answer and the plan/state intact.
+* ``AwaitHuman`` **review** is human evaluation of the plan, symmetric to the
+  Evaluator's judgement of steps, with **no LLM call**.  It captures an
+  explicit decision (``ReviewResponse``: approve / revise / cancel).
+  **Approve** deterministically sets ``in_progress`` and the router sends the
+  run straight into execution (no Planner call); **revise** returns the
+  feedback to the Planner, which owns the revised plan; **cancel** ends the
+  run (``user_cancelled``).
+* ``AwaitHuman`` **input** asks the questions a *blocked step* carries
+  (``StepSchema.needs_input``); the answers resume the same run at the
+  Planner, which re-authors the plan without the questions.
+
+A step with ``needs_input`` questions is a draft: it is not executed (and is
+exempt from the executable-step checks) until the Planner re-authors it.  The
+plan status ``needs_input`` is derived from the steps, so a plan can never be
+"runnable" while carrying unanswered questions.  A plan-level question is just
+a clarification step carrying its ``needs_input``.
+
+The resume carries an optional typed ``response_schema`` (forwarded on the
+stream event as ``hitl_response_schema``).  A plain query (or a failure resume)
+while a thread is paused is rejected with ``409`` in the backend, so an
+interrupt is never silently ignored.  See ``devdocs/system/graph-resume.md``
+for the confirmed pause/resume semantics.
 
 ## Tool disclosure
 
@@ -272,8 +285,6 @@ deferred ADR-0041 open item.
   semantic no-progress budget).
 * ``picker_attempts``/``picker_step`` (consecutive unusable picker selections
   and the step they belong to; bounded retry before escalating).
-* ``pending_question: str`` (the question to ask when ``plan.status`` is
-  ``needs_input``).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``evaluation: EvaluationSchema`` (latest per-step verdict map plus the
   ``overall`` outcome and a reason; ADR-0041).
@@ -286,9 +297,11 @@ deferred ADR-0041 open item.
 **Transient node-to-node signals** (not durable state; consumed/cleared within
 the run; not rendered into downstream prompts):
 
-* ``human_feedback: str`` -- the latest review input, written by ``AwaitReview``
-  and interpreted then cleared by the Planner (which records the round on
-  ``plan.human_feedback_rounds``).
+* ``human_feedback: str`` -- the latest review input, written by ``AwaitHuman``
+  (review) and interpreted then cleared by the Planner (which records the round
+  on ``plan.human_feedback_rounds``).
+* ``human_input: dict[int, list[str]]`` -- the answers to a blocked step's
+  questions, written by ``AwaitHuman`` (input) and read/cleared by the Planner.
 * ``replan_reason: str`` -- the unified automated-replan trigger, set by the
   Evaluator on ``need_replan`` and by the tool-round recorder on a failed batch;
   read and cleared by the Planner.
@@ -309,7 +322,7 @@ only curated results cross into later tasks:
   ``AnswerFromResults`` prompts so project conventions reach both planning and
   the final reply.  ``AnswerFromResults`` auto-persists the completed task's
   deliverable as a concise ``ArtefactSchema`` (goal + result, keyed by a slug of
-  the goal so a re-run supersedes); failure and ``needs_input`` persist nothing.
+  the   goal so a re-run supersedes); failure persists nothing.
   The Planner sees the rendered artefacts (`artefacts_text()`), so a later task
   can build on an earlier one.  Intermediate tool/reasoning outputs never leak
   into artefacts.
@@ -324,8 +337,8 @@ only curated results cross into later tasks:
   possible.
 * Level 2, independent LLM verification: a separate evaluator node (never
   same-call self-critique); ideally a different model when configured.
-* Level 3, human: ambiguity -> ask; consequential actions -> approval
-  (``AwaitReview``).
+* Level 3, human: ambiguity -> ask (``AwaitHuman`` input); consequential
+  actions -> approval (``AwaitHuman`` review).
 
 General mode prioritises level 0; level 2 is operational and results are
 unverified.  Scientific mode requires level 1 criteria and an independent
@@ -458,15 +471,15 @@ semantics are in ``devdocs/system/graph-resume.md``.
 
 ## Answer synthesis
 
-``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success),
-``abort``/``unplannable`` (failure), or ``needs_input`` (ask the pending
-question).  On success it writes ``message_for_user`` from the goal, the
-completed plan and the observations, and persists the deliverable to
-``artefacts`` (see Persistence); on failure it explains concisely what was
-attempted and why it could not be completed (using ``failure_reason``, the plan
-and the observations); on ``needs_input`` it asks ``pending_question``.  The
-outcome-specific detail (failure reason or question) is rendered as a single
-conditional block, omitted entirely on success.  It judges nothing.  Its prompt
+``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success) or
+``abort``/``unplannable`` (failure).  (A ``needs_input`` plan never reaches it:
+it pauses at the HITL input node.)  On success it writes ``message_for_user``
+from the goal, the completed plan and the observations, and persists the
+deliverable to ``artefacts`` (see Persistence); on failure it explains concisely
+what was attempted and why it could not be completed (using
+``failure_reason``, the plan and the observations).  The outcome-specific
+detail (the failure reason) is rendered as a single conditional block, omitted
+entirely on success.  It judges nothing.  Its prompt
 carries the output-formatting rules (verbatim command/list output in fenced
 code blocks, identifiers in backticks, a blank line before lists, no raw JSON
 dumps).  A deterministic fallback covers an empty or failed synthesis.

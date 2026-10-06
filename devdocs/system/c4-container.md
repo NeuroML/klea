@@ -155,7 +155,7 @@ The internals of the RAG container (``classify_question``,
 (auto-generated Mermaid core + ``elk`` augmentation, with drift check
 against ``rag_pkg/example-configs/rag-lang-graph.mmd``).  The agent's graph
 (``planner``, ``route_decision``, ``reasoning``, ``operational_evaluator``,
-the shared picker/caller, the ``AwaitReview`` stub) is shown at Level 3 in
+the shared picker/caller, the ``AwaitHuman`` HITL nodes) is shown at Level 3 in
 `c4-component-agent.md` (same convention, drift check against
 ``agent_pkg/example-configs/klea-agent-lang-graph.mmd``); it implements the
 general operational path (``ADR-0035``, which supersedes the ``ADR-0025``

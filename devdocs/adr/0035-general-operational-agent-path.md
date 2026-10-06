@@ -312,8 +312,9 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   model may answer the user directly, and it must not answer world-facts.
 * The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
   answers the user.  `plan.status` is the post-Planner routing source:
-  `in_review` -> `AwaitReview`, `unplannable` -> failure answer, `in_progress`
-  -> step execution.  It produces a plan even for a single action.
+  `in_review` -> `AwaitHuman` (review), `needs_input` -> `AwaitHuman` (input),
+  `unplannable` -> failure answer, `in_progress` -> step execution.  It
+  produces a plan even for a single action.
 * Trivial chat stays the cheap floor: Guard + RouteDecision (2 calls).
 * Goal immutability: the Planner writes `state.goal` only while unset;
   `InitGraphState` clears it per execution.
@@ -343,10 +344,13 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   dispatch; unknown-but-non-empty names are not retried by the picker but are
   caught by dispatch, whose error Triage acts on.  The picker itself does not
   filter, so the feedback is preserved.
-* Plan review uses a human-input node (`AwaitReview`) whose free-text feedback
-  the Planner interprets; the Planner owns the `in_review -> in_progress`
-  transition.  The first stage ships an auto-approve stub; real LangGraph
-  `interrupt`/resume is recorded as ADR-0037.
+* Plan review uses a human-input node (`AwaitHuman`, ADR-0046) that pauses with
+  LangGraph `interrupt` and captures an explicit approve/revise decision.  A
+  human approval deterministically sets `in_progress` and dispatches straight
+  into execution; a revision returns the feedback to the Planner, which owns
+  the revised plan.  (This supersedes the earlier stub and the note here that
+  the Planner LLM performs the `in_review -> in_progress` transition: a human
+  approval now does.)
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan;
   3 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->

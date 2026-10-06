@@ -238,8 +238,8 @@ Still open:
 * **Batch cap.** Default 8 steps / 16 calls; revisit once measured.
 * **Path normalisation.** Lexical `os.path.normpath` only; absolute-vs-relative
   forms of the same file are not grouped.
-* **Interaction with HITL.** How plan review (`AwaitReview`) presents a
-  frontier/DAG plan rather than a linear one.
+* **Interaction with HITL.** How plan review (`AwaitHuman`, ADR-0046) presents
+  a frontier/DAG plan rather than a linear one.
 
 Related decisions and references:
 

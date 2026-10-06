@@ -74,7 +74,9 @@ flowchart TD
         decline["Declining query<br/>FixedAnswer (shared)<br/>I cannot respond..."]
         route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat vs task (fail-closed)"]
         planner["Planning<br/>Planner (plan)<br/>sole author of goal + plan; ADR-0035"]
-        review["Awaiting review<br/>AwaitReview (non-LLM stub)<br/>captures human_feedback"]
+        review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>approve/revise; ADR-0046"]
+        awaitInput["Awaiting input<br/>AwaitHuman (non-LLM)<br/>answers a blocked step's questions; ADR-0046"]
+        cancelled["Cancelled<br/>FixedAnswer (shared)<br/>terminal: run cancelled"]
         picker["Selecting tools<br/>ToolsPicker (chat, shared)<br/>binds args for suggested_tools; ADR-0020/0034"]
         caller["Running tools<br/>ToolsCallerNode (shared)<br/>dispatch + access gate; ADR-0007/0037"]
         triage["Triaging<br/>TriageRouter (deterministic router)<br/>retry vs evaluate vs replan"]
@@ -105,10 +107,17 @@ flowchart TD
     route -. chat .-> prepare
     planner -. review .-> review
     planner -. failure .-> compose
-    planner -. needs_input .-> compose
+    planner -. needs_input .-> awaitInput
     planner -. tool .-> picker
     planner -. reasoning .-> reasoning
-    review --> planner
+    review -. planner .-> planner
+    review -. tool .-> picker
+    review -. reasoning .-> reasoning
+    review -. plan_done .-> compose
+    review -. cancelled .-> cancelled
+    awaitInput -. planner .-> planner
+    awaitInput -. cancelled .-> cancelled
+    cancelled --> ENDC
     picker -. dispatch .-> caller
     picker -. retry_picker .-> picker
     picker -. replan .-> planner
@@ -160,10 +169,13 @@ flowchart TD
     reasoning -- "inspection" --> inspection
     evaluator -- "inspection" --> inspection
     compose -- "inspection" --> inspection
+    review -- "inspection" --> inspection
+    awaitInput -- "inspection" --> inspection
     summarise -- "inspection" --> inspection
 
     init -- "session" --> sqlite
     review -- "session" --> sqlite
+    awaitInput -- "session" --> sqlite
     prepare -- "session" --> sqlite
     summarise -- "session" --> sqlite
     decline -- "session" --> sqlite
@@ -173,20 +185,21 @@ flowchart TD
     sqlite -- "shared lib" --> utils
 ```
 
-*Notes:* Solid `-->` = normal graph edge (from ``klea_agent.py:422``).
+*Notes:* Solid `-->` = normal graph edge (from ``klea_agent.py:_create_graph``).
 Dotted `-. label .->` = conditional ``add_conditional_edges``
-(``GuardRouter``, ``RouteDecision``, ``Planner``, the picker router, the
-``TriageRouter``, the evaluator router).  Double-dash `inspection` /
-`session` / `MCP` / `LLM` edges are component-to-container/external
-interactions that ``draw_mermaid`` omits; they are what make this a C4
-Level 3 rather than a bare node graph.  The deterministic routers
-(``Routing safety``, ``Triaging``) and the ``needs_input`` planner edge are
-augmentations: in the generated topology the routers are conditional-edge
-functions attached to ``Checking safety`` and ``Running tools``, so they
-have no box, and ``failure`` and ``needs_input`` both collapse to the
-``Composing answer`` edge.  The supporting components are shown as a
-separate block because C4 components are inside the container, but they
-are not graph nodes.  The auto-generated
+(``GuardRouter``, ``RouteDecision``, ``Planner``, the review/input await
+routers, the picker router, the ``TriageRouter``, the evaluator router).
+Double-dash `inspection` / `session` / `MCP` / `LLM` edges are
+component-to-container/external interactions that ``draw_mermaid`` omits;
+they are what make this a C4 Level 3 rather than a bare node graph.  The
+deterministic routers (``Routing safety``, ``Triaging``) are augmentations:
+in the generated topology the routers are conditional-edge functions attached
+to ``Checking safety`` and ``Running tools``, so they have no box.  The HITL
+nodes (``Awaiting review``, ``Awaiting input``, ``Cancelled``) are real graph
+nodes (ADR-0046): review approval dispatches into the batch entry, a revision
+returns to the Planner, and a cancel is terminal.  The supporting components
+are shown as a separate block because C4 components are inside the container,
+but they are not graph nodes.  The auto-generated
 ``agent_pkg/example-configs/klea-agent-lang-graph.mmd`` (``config:
 flowchart: curve: linear`` plus ``classDef first/last``) is the faithful
 ``draw_mermaid()`` artefact kept alongside the PNG; the node labels above
@@ -222,9 +235,17 @@ graph TD;
 	Composing\20answer(Composing answer)
 	Preparing\20response(Preparing response)
 	Awaiting\20review(Awaiting review)
+	Awaiting\20input(Awaiting input)
+	Cancelled(Cancelled)
 	Summarizing\20history(Summarizing history)
 	__end__([<p>__end__</p>]):::last
-	Awaiting\20review --> Planning;
+	Awaiting\20input -. &nbsp;cancelled&nbsp; .-> Cancelled;
+	Awaiting\20input -. &nbsp;planner&nbsp; .-> Planning;
+	Awaiting\20review -. &nbsp;cancelled&nbsp; .-> Cancelled;
+	Awaiting\20review -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
+	Awaiting\20review -. &nbsp;planner&nbsp; .-> Planning;
+	Awaiting\20review -. &nbsp;reasoning&nbsp; .-> Reasoning;
+	Awaiting\20review -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
 	Composing\20answer --> Preparing\20response;
@@ -237,6 +258,7 @@ graph TD;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Evaluating -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Initializing --> Determining\20mode;
+	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
 	Planning -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
 	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
@@ -249,6 +271,7 @@ graph TD;
 	Selecting\20tools -. &nbsp;replan&nbsp; .-> Planning;
 	Selecting\20tools -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
+	Cancelled --> __end__;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
@@ -274,7 +297,7 @@ graph TD;
 | Declining query | ``klea_utils/nodes/fixed_answer.py`` | ``FixedAnswer``: canned refusal | terminal; writes ``message_for_user`` |
 | Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow entry router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task``; no tool list (ADR-0035) |
 | Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035) |
-| Awaiting review | ``klea_agent/nodes/await_review.py`` | ``AwaitReview``: captures human review input only | Non-LLM stub (``STUB_REVIEW``) until the HITL interrupt/resume ADR; writes ``human_feedback`` |
+| Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046): reusable HITL node, two instances (review writes ``human_feedback``; input writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve -> execution, revise -> Planner, cancel -> terminal |
 | Selecting tools | ``klea_utils/nodes/tools_picker.py`` | ``ToolsPicker`` (shared, ``chat``): binds arguments for the step's ``suggested_tools`` | per-app prompt registry, full static ``tools_info``; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034) |
 | Running tools | ``klea_utils/nodes/tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
 | Triaging | ``klea_agent/nodes/triage_router.py`` | ``TriageRouter`` (deterministic router): mechanical tool-error triage | ``retry`` (re-pick same tool) / ``evaluate`` / ``replan``; ADaPT counter via ``update_tool_retry_counts`` (ADR-0035) |
@@ -320,9 +343,6 @@ graph TD;
   implemented: it inserts grounding, evidence, provenance and an
   independent verifier additively on this general path, and adds the
   scientific answer variant.  This diagram shows the general path only.
-* The HITL interrupt/resume stage (``AwaitReview`` -> real LangGraph
-  ``interrupt``/``Command(resume=...)`` and wiring ``needs_input`` to
-  resume the same run) will change the review and ``needs_input`` edges.
 * Parallel step execution (ADR-0041, accepted 2026-09-21) and
   dependency-frontier batching will change the step-entry structure.
 * The retrieval tool (``search_stores``) that wires RAG stores into the

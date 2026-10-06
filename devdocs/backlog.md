@@ -4,28 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-03.
-
-## HITL / plan review
-
-- Replace the `AwaitReview` stub (`STUB_REVIEW`, canned "Looks good,
-  proceed") with real LangGraph `interrupt()` / `Command(resume=...)`; add
-  the API and web UI resume path.  `agent_pkg/klea_agent/nodes/await_review.py`.
-  The failure-resume path already exists (`resume=true` on `/query/stream`,
-  checkpoint continuation, ADR-0043) and should be reused: an interrupt resume
-  is the same `Command(resume=...)` over the same thread, so only the
-  interrupt source and the payload differ.
-- Decide the semantics: resume the **same** execution with state intact vs
-  start a new turn.
-- Generalise `AwaitReview` into a reusable await-user node and wire
-  `needs_input` / `pending_question` to resume with the plan and state intact
-  (today `needs_input` ends the run with the question; the next turn is a
-  fresh run).
-- Decide whether `needs_input` should also be a step kind.
-- Write the ADR (next ADR); update
-  `devdocs/system/agent-general-path-control-flow.md` and ADR-0035 when
-  implemented.  Older session logs cite stale ADR numbers for this - use the
-  next free one.
+Last updated: 2026-10-05.
 
 ## Cancellation / concurrency
 

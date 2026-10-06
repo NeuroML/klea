@@ -52,7 +52,7 @@ entirely, heading included** - never rendered as a label with an empty value.
   slot always exists and its emptiness is itself information (for example
   `observations`, `goal`, `plan`, `query`).
 * **Conditional input** - present only when applicable; omitted (heading and
-  body) otherwise.  For example `failure_reason`, `pending_question`,
+  body) otherwise.  For example `failure_reason`, `human_input`,
   `replan_reason`, `human_feedback`, `validation_feedback`, `picker_feedback`.
 
 ## Rule 3 - Mechanics: `_optional_section`

@@ -179,7 +179,7 @@ window (option A cannot).
   node/tool contract),
   `devdocs/adr/0023-sqlite-checkpointer.md` (checkpointer),
   `devdocs/adr/0035-general-operational-agent-path.md` (loop budgets).
-* HITL `interrupt`/`Command(resume=...)` should reuse this resume path;
-  see `devdocs/backlog.md`.
+* HITL `interrupt`/`Command(resume=...)` reuses this resume path
+  (`devdocs/adr/0046-hitl-interrupt-resume.md`).
 * FastMCP server-side tool cancellation: PrefectHQ/fastmcp#1305
   (deferred to the FastMCP v4 upgrade).
