@@ -23,7 +23,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.stream import StreamTransformer
-from langgraph.types import RunnableConfig
+from langgraph.types import Command, RunnableConfig
 from mcp.types import Tool
 from platformdirs import PlatformDirs
 from pydantic import BaseModel, ConfigDict, Field, create_model
@@ -67,6 +67,27 @@ def _normalise_state_snapshot(state: Any) -> dict[str, Any]:
     if not isinstance(state, dict) and hasattr(state, "model_dump"):
         return state.model_dump()
     return state
+
+
+def _interrupt_event(intr: Any, node: str) -> dict[str, Any]:
+    """Build an ``interrupt`` stream event from a LangGraph ``Interrupt``.
+
+    The interrupting node authors the interrupt *value*.  When it is a
+    mapping (the convention: ``kind`` and ``question``) its keys are carried
+    into ``data``; any other value is surfaced as ``question``.  The
+    framework's ``id`` is always added as ``interrupt_id`` so a client can
+    echo it when resuming (stale-answer safety).
+
+    :param intr: The ``langgraph.types.Interrupt`` from the paused run.
+    :param node: Label of the node that interrupted.
+    :returns: A ``{"type": "interrupt", "node": ..., "data": {...}}`` event.
+    """
+    value = getattr(intr, "value", None)
+    data: dict[str, Any] = (
+        dict(value) if isinstance(value, dict) else {"question": value}
+    )
+    data["interrupt_id"] = getattr(intr, "id", None)
+    return {"type": "interrupt", "node": node, "data": data}
 
 
 class _CustomChannelEnabler(StreamTransformer):
@@ -893,7 +914,7 @@ class BaseLangGraph(ABC):
 
     async def run_graph_invoke(
         self,
-        query: str | None,
+        query: str | Command | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -901,9 +922,12 @@ class BaseLangGraph(ABC):
     ) -> str:
         """Run the graph with a simple string query.
 
-        :param query: User query string, or ``None`` to **resume** the thread
+        :param query: User query string, ``None`` to **resume** the thread
             from its last checkpoint (the failed node is re-run; the entry
-            node is not).  On resume ``extra_state`` is ignored.
+            node is not), or a :class:`~langgraph.types.Command` (e.g.
+            ``Command(resume=...)``) to continue a paused thread.  On a
+            ``None`` resume ``extra_state`` is ignored; a ``Command`` is
+            passed through verbatim.
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation (e.g. an app-specific ``mode`` request).  These are
@@ -930,12 +954,17 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        graph_input: dict[str, Any] | None
+        graph_input: dict[str, Any] | Command | None
         if query is None:
             # Resume: pass ``None`` so LangGraph continues from the checkpoint
             # at the failed node (it does not re-enter the entry node).
             self.logger.info("Resuming thread %s from checkpoint", thread_id)
             graph_input = None
+        elif isinstance(query, Command):
+            # A Command (e.g. ``Command(resume=...)``) is passed through
+            # verbatim; it carries its own update/resume payload.
+            self.logger.info("Continuing thread %s with a Command", thread_id)
+            graph_input = query
         else:
             graph_input = {"query": query}
             if extra_state:
@@ -1035,7 +1064,7 @@ class BaseLangGraph(ABC):
 
     async def run_graph_astream_events(
         self,
-        query: str | None,
+        query: str | Command | None,
         thread_id: str = "default_thread",
         *,
         extra_state: dict[str, Any] | None = None,
@@ -1060,6 +1089,11 @@ class BaseLangGraph(ABC):
         ``{"type": "context", "data": {...}}``
             Session-level context (app-defined, e.g. an operating mode and
             its assurance), emitted by a node via a ``context`` custom event
+        ``{"type": "interrupt", "node": "<label>", "data": {...}}``
+            The run paused at a node's ``interrupt()``.  ``data`` carries the
+            node-authored payload (``kind``, ``question``) plus the
+            framework's ``interrupt_id``; when a pause is emitted no
+            ``complete`` event follows.
         ``{"type": "complete", "message_for_user": "<answer>"}``
             Final answer from the completed graph
 
@@ -1071,14 +1105,16 @@ class BaseLangGraph(ABC):
 
         Reference: https://docs.langchain.com/oss/python/langgraph/event-streaming
 
-        :param query: User query string, or ``None`` to **resume** the thread
-            from its last checkpoint (see the fault-tolerance note).  On resume
-            the graph re-enters the failed node rather than the entry node, so
-            per-turn state is preserved; ``extra_state`` is ignored.
+        :param query: User query string, ``None`` to **resume** the thread
+            from its last checkpoint (see the fault-tolerance note), or a
+            :class:`~langgraph.types.Command` (e.g. ``Command(resume=...)``) to
+            continue a paused thread.  On a ``None`` resume the graph re-enters
+            the failed node rather than the entry node, so per-turn state is
+            preserved; a ``Command`` is passed through verbatim.
         :param thread_id: Session/thread identifier for checkpointing
         :param extra_state: Optional initial state fields merged into the
             invocation alongside ``query`` (e.g. an app-specific ``mode``
-            request).  Ignored when *query* is ``None`` (resume).
+            request).  Ignored when *query* is ``None`` or a ``Command``.
         :param context: Per-run runtime context (ADR-0033), forwarded
             verbatim to the graph run (see :meth:`run_graph_invoke`).
         :yields: Structured event dicts
@@ -1088,12 +1124,17 @@ class BaseLangGraph(ABC):
         if self.graph is None:
             raise RuntimeError("Graph not compiled. Call setup() first.")
 
-        graph_input: dict[str, Any] | None
+        graph_input: dict[str, Any] | Command | None
         if query is None:
             # Resume: pass ``None`` so LangGraph continues from the checkpoint
             # at the failed node (it does not re-enter the entry node).
             self.logger.info("Resuming thread %s from checkpoint", thread_id)
             graph_input = None
+        elif isinstance(query, Command):
+            # A Command (e.g. ``Command(resume=...)``) is passed through
+            # verbatim; it carries its own update/resume payload.
+            self.logger.info("Continuing thread %s with a Command", thread_id)
+            graph_input = query
         else:
             graph_input = {"query": query}
             if extra_state:
@@ -1114,6 +1155,8 @@ class BaseLangGraph(ABC):
         last_values: dict = {}
         # Last emitted session-context snapshot, for change-dedup.
         last_context: dict[str, Any] | None = None
+        # A paused run (interrupt) must not emit a terminal ``complete``.
+        interrupt_seen = False
 
         async for event in stream:
             method = event["method"]
@@ -1192,6 +1235,18 @@ class BaseLangGraph(ABC):
 
             elif method == "values":
                 last_values = event["params"]["data"]
+                # A paused run reports its pending interrupts on the
+                # ``values`` event; surface each as an ``interrupt`` event so
+                # the client can present the ask and resume with a Command.
+                interrupts = event["params"].get("interrupts") or ()
+                for intr in interrupts:
+                    interrupt_seen = True
+                    self.logger.info(
+                        "Graph paused at interrupt %s (node %s)",
+                        getattr(intr, "id", None),
+                        current_node,
+                    )
+                    yield _interrupt_event(intr, current_node)
                 # ``values`` snapshots arrive as a dict (TypedDict state) or
                 # as the pydantic state instance; ``_normalise_state_snapshot``
                 # gives ``context_snapshot`` a plain dict in the stream path --
@@ -1217,6 +1272,10 @@ class BaseLangGraph(ABC):
                 current_node,
                 time.monotonic() - node_start,
             )
+        if interrupt_seen:
+            # The run is paused, not finished: no terminal ``complete``.
+            self.logger.info("Graph paused at an interrupt after %.2fs", total_elapsed)
+            return
         self.logger.info("Graph completed in %.2fs", total_elapsed)
 
         message = ""

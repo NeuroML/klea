@@ -780,6 +780,113 @@ class TestProgressStreaming:
         ]
 
 
+class TestInterruptStreaming:
+    """A paused run emits an ``interrupt`` event and suppresses ``complete``.
+
+    Under ``astream_events`` v3 a pause is reported on the ``values``
+    channel via a non-empty ``params["interrupts"]``; the runner surfaces
+    it as an ``interrupt`` event and must not emit a terminal ``complete``.
+    """
+
+    def setup_method(self):
+        self.logger = logging.getLogger("test_graph_base.interrupt")
+
+    def _graph(self, events: list[dict]) -> _ContextCaptureGraph:
+        return _ContextCaptureGraph(cast(Any, _ProgressEventCompiled(events)))
+
+    async def _stream(self, graph) -> list[dict]:
+        return [e async for e in graph.run_graph_astream_events("q")]
+
+    async def test_interrupt_event_and_no_complete(self):
+        from langgraph.types import Interrupt
+
+        intr = Interrupt(value={"kind": "input", "question": "Which file?"}, id="i-1")
+        graph = self._graph(
+            [
+                {
+                    "method": "values",
+                    "params": {"data": {"query": "q"}, "interrupts": ()},
+                },
+                {
+                    "method": "values",
+                    "params": {"data": {"query": "q"}, "interrupts": (intr,)},
+                },
+            ]
+        )
+
+        events = await self._stream(graph)
+
+        interrupts = [e for e in events if e.get("type") == "interrupt"]
+        assert len(interrupts) == 1
+        assert interrupts[0]["data"] == {
+            "kind": "input",
+            "question": "Which file?",
+            "interrupt_id": "i-1",
+        }
+        assert not [e for e in events if e.get("type") == "complete"]
+
+    async def test_string_interrupt_value_becomes_question(self):
+        from langgraph.types import Interrupt
+
+        intr = Interrupt(value="Need a path", id="i-2")
+        graph = self._graph(
+            [
+                {
+                    "method": "values",
+                    "params": {"data": {"query": "q"}, "interrupts": (intr,)},
+                }
+            ]
+        )
+
+        events = await self._stream(graph)
+
+        data = next(e for e in events if e.get("type") == "interrupt")["data"]
+        assert data == {"question": "Need a path", "interrupt_id": "i-2"}
+
+    async def test_no_interrupt_completes(self):
+        graph = self._graph(
+            [
+                {
+                    "method": "values",
+                    "params": {
+                        "data": {"query": "q", "message_for_user": "done"},
+                        "interrupts": (),
+                    },
+                }
+            ]
+        )
+
+        events = await self._stream(graph)
+
+        completes = [e for e in events if e.get("type") == "complete"]
+        assert completes == [{"type": "complete", "message_for_user": "done"}]
+
+    async def test_run_graph_invoke_accepts_command(self):
+        from langgraph.types import Command
+
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        cmd = Command(resume={"action": "answer", "text": "yes"})
+
+        result = await graph.run_graph_invoke(cmd, "t")
+
+        assert result == "ok"
+        assert compiled.inputs[-1] is cmd
+
+    async def test_run_graph_astream_events_accepts_command(self):
+        from langgraph.types import Command
+
+        compiled = _CaptureCompiled()
+        graph = _ContextCaptureGraph(compiled)
+        cmd = Command(resume={"action": "cancel"})
+
+        events = [e async for e in graph.run_graph_astream_events(cmd, "t")]
+
+        assert compiled.inputs[-1] is cmd
+        # The fake stream has no values event, so a terminal complete is emitted.
+        assert [e for e in events if e.get("type") == "complete"]
+
+
 class _RetryToyState(BaseModel):
     """State for the retry-streaming graph."""
 
