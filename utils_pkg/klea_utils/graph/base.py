@@ -76,7 +76,9 @@ def _interrupt_event(intr: Any, node: str) -> dict[str, Any]:
     mapping (the convention: ``kind`` and ``question``) its keys are carried
     into ``data``; any other value is surfaced as ``question``.  The
     framework's ``id`` is always added as ``interrupt_id`` so a client can
-    echo it when resuming (stale-answer safety).
+    echo it when resuming (stale-answer safety), and a
+    ``hitl_response_schema`` (when the node supplied one) is forwarded so
+    clients can render a typed form.
 
     :param intr: The ``langgraph.types.Interrupt`` from the paused run.
     :param node: Label of the node that interrupted.
@@ -87,6 +89,13 @@ def _interrupt_event(intr: Any, node: str) -> dict[str, Any]:
         dict(value) if isinstance(value, dict) else {"question": value}
     )
     data["interrupt_id"] = getattr(intr, "id", None)
+    # ``Interrupt.response_schema`` is LangGraph's API attribute (set by
+    # ``interrupt(value, response_schema=...)``).  Forward it under our own
+    # ``hitl_response_schema`` stream key so it is not confused with an
+    # LLM/API response elsewhere.
+    schema = getattr(intr, "response_schema", None)
+    if schema is not None:
+        data["hitl_response_schema"] = schema
     return {"type": "interrupt", "node": node, "data": data}
 
 

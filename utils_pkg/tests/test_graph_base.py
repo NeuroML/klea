@@ -852,6 +852,23 @@ class TestInterruptStreaming:
         data = next(e for e in events if e.get("type") == "interrupt")["data"]
         assert data == {"question": "Need a path", "interrupt_id": "i-2"}
 
+    async def test_hitl_response_schema_is_forwarded(self):
+        from langgraph.types import Interrupt
+
+        schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
+        intr = Interrupt(
+            value={"kind": "review", "question": "q"}, id="i-3", response_schema=schema
+        )
+        graph = self._graph(
+            [{"method": "values", "params": {"data": {"query": "q"}}}],
+            interrupts=[intr],
+        )
+
+        events = await self._stream(graph)
+
+        data = next(e for e in events if e.get("type") == "interrupt")["data"]
+        assert data["hitl_response_schema"] == schema
+
     async def test_no_interrupt_completes(self):
         graph = self._graph(
             [
