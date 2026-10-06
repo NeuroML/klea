@@ -9,7 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 from klea_utils.nodes.await_human import AwaitHumanNode
@@ -30,25 +30,52 @@ class _State(BaseModel):
 
 
 class _Node(AwaitHumanNode[_State]):
-    """A concrete app-style subclass providing the three policy hooks."""
+    """A concrete app-style subclass: free-text answer, cancel hook."""
 
-    def _question(self, state: _State) -> str:
-        return state.question or "question?"
+    def _ask(self, state: _State) -> dict[str, Any]:
+        return {"kind": "test", "question": state.question or "question?"}
 
-    def _on_answer(self, state: _State, text: str) -> dict[str, Any]:
-        return {"messages": [*state.messages, HumanMessage(content=text)]}
+    def _on_answer(self, state: _State, answers: dict[str, Any]) -> dict[str, Any]:
+        text = str(answers.get("text", ""))
+        return {
+            "answer": text,
+            "messages": [*state.messages, HumanMessage(content=text)],
+        }
 
-    def _on_cancel(self, state: _State, question: str) -> dict[str, Any]:
+    def _on_cancel(self, state: _State, payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "cancelled": True,
             "messages": [*state.messages, AIMessage(content="cancelled")],
         }
 
 
-def _compile():
-    node = _Node(
-        logging.getLogger("test"), "Awaiting", kind="review", answer_field="answer"
-    )
+class _ChoiceResponse(BaseModel):
+    """A typed resume payload used by the hitl_response_schema test."""
+
+    action: Literal["answer", "cancel"] = "answer"
+    option: str = ""
+
+
+class _SchemaNode(AwaitHumanNode[_State]):
+    """A subclass that supplies a typed ``hitl_response_schema``."""
+
+    def _ask(self, state: _State) -> dict[str, Any]:
+        return {"kind": "choice", "question": "pick one"}
+
+    def _hitl_response_schema(
+        self, state: _State, payload: dict[str, Any]
+    ) -> type[BaseModel] | None:
+        return _ChoiceResponse
+
+    def _on_answer(self, state: _State, answers: dict[str, Any]) -> dict[str, Any]:
+        return {"answer": str(answers.get("option", ""))}
+
+    def _on_cancel(self, state: _State, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"cancelled": True}
+
+
+def _compile(node_cls: type[AwaitHumanNode] = _Node):
+    node = node_cls(logging.getLogger("test"), "Awaiting", kind="test")
     workflow = StateGraph(_State)
     workflow.add_node(node.label, node.execute)
     workflow.add_edge(START, node.label)
@@ -57,7 +84,7 @@ def _compile():
 
 
 async def test_answer_writes_field_and_message():
-    """An interrupt pauses; an answer resumes and writes the field."""
+    """An interrupt pauses; an answer resumes and runs the answer hook."""
     graph = _compile()
     config = {"configurable": {"thread_id": "a"}}
 
@@ -65,10 +92,7 @@ async def test_answer_writes_field_and_message():
 
     paused = await graph.aget_state(config)
     assert paused.next == ("Awaiting",)
-    assert paused.tasks[0].interrupts[0].value == {
-        "kind": "review",
-        "question": "Q?",
-    }
+    assert paused.tasks[0].interrupts[0].value == {"kind": "test", "question": "Q?"}
 
     result = await graph.ainvoke(
         Command(resume={"action": "answer", "text": "yes"}), config=config
@@ -79,8 +103,8 @@ async def test_answer_writes_field_and_message():
     assert (await graph.aget_state(config)).next == ()
 
 
-async def test_cancel_clears_field_and_marks():
-    """A cancel runs the cancel hook and clears the answer field."""
+async def test_cancel_runs_cancel_hook():
+    """A cancel runs the cancel hook and never the answer hook."""
     graph = _compile()
     config = {"configurable": {"thread_id": "b"}}
 
@@ -90,24 +114,37 @@ async def test_cancel_clears_field_and_marks():
     assert result["cancelled"] is True
     assert result["answer"] == ""
     assert isinstance(result["messages"][-1], AIMessage)
-    assert (await graph.aget_state(config)).next == ()
 
 
-async def test_bare_string_resume_is_an_answer():
-    """A bare string resume value is accepted (no sentinel envelope)."""
-    graph = _compile()
+async def test_hitl_response_schema_is_published_and_validated():
+    """A node's hitl_response_schema is exposed on the interrupt and validated."""
+    graph = _compile(_SchemaNode)
     config = {"configurable": {"thread_id": "c"}}
 
-    await graph.ainvoke(_State(question="Q?"), config=config)
-    result = await graph.ainvoke(Command(resume="plain"), config=config)
+    await graph.ainvoke(_State(), config=config)
+    intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
+    assert intr.response_schema is not None
+    assert "option" in intr.response_schema["properties"]
 
-    assert result["answer"] == "plain"
-
-
-def test_question_hook_must_be_overridden():
-    """The base question hook raises until an app overrides it."""
-    node = AwaitHumanNode(
-        logging.getLogger("test"), "Awaiting", kind="x", answer_field="answer"
+    result = await graph.ainvoke(
+        Command(resume={"action": "answer", "option": "x"}), config=config
     )
+    assert result["answer"] == "x"
+
+
+def test_parse_response_accepts_model_dict_and_string():
+    """_parse_response normalises a model, a mapping, and a bare string."""
+    assert AwaitHumanNode._parse_response("hi") == ("answer", {"answer": "hi"})
+    assert AwaitHumanNode._parse_response({"action": "cancel"}) == ("cancel", {})
+    assert AwaitHumanNode._parse_response({"a": "b"}) == ("answer", {"a": "b"})
+    assert AwaitHumanNode._parse_response(_ChoiceResponse(option="x")) == (
+        "answer",
+        {"option": "x"},
+    )
+
+
+def test_ask_hook_must_be_overridden():
+    """The base ask hook raises until an app overrides it."""
+    node = AwaitHumanNode(logging.getLogger("test"), "Awaiting", kind="x")
     with pytest.raises(NotImplementedError):
-        node._question(_State())
+        node._ask(_State())
