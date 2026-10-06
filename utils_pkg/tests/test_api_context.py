@@ -30,23 +30,40 @@ class _StateValue(BaseModel):
     mode: dict
 
 
-class _StateSnapshot:
-    """Shapes like ``langgraph.types.StateSnapshot.values``."""
+class _FakeTask:
+    """Shapes like ``langgraph.types.PregelTask`` (only ``interrupts`` used)."""
 
-    def __init__(self, values):
+    def __init__(self, interrupts):
+        self.interrupts = tuple(interrupts)
+
+
+class _FakeInterrupt:
+    """Shapes like ``langgraph.types.Interrupt``."""
+
+    def __init__(self, value, id_):
+        self.value = value
+        self.id = id_
+
+
+class _StateSnapshot:
+    """Shapes like ``langgraph.types.StateSnapshot``."""
+
+    def __init__(self, values, interrupts=()):
         self.values = values
+        self.tasks = [_FakeTask(interrupts)] if interrupts else []
 
 
 class _FakeCompiledGraph:
     """Shapes like ``CompiledStateGraph.aget_state``."""
 
-    def __init__(self, values):
+    def __init__(self, values, interrupts=()):
         self._values = values
+        self._interrupts = list(interrupts)
         self.aget_state_calls = 0
 
     async def aget_state(self, config):
         self.aget_state_calls += 1
-        return _StateSnapshot(self._values)
+        return _StateSnapshot(self._values, self._interrupts)
 
 
 class _FakeCheckpointer:
@@ -133,7 +150,8 @@ class TestContextProjection:
                 "mode": "scientific",
                 "requested": "scientific",
                 "note": "source ready",
-            }
+            },
+            "pending_interrupt": None,
         }
         # The hook received the raw values dict, untouched by normalization.
         assert fake.snapshot_states == [values]
@@ -171,7 +189,7 @@ class TestContextProjection:
 
         resp = await client.get("/chat/alice/fresh-chat/context")
         assert resp.status_code == 200
-        assert resp.json() == {"context": None}
+        assert resp.json() == {"context": None, "pending_interrupt": None}
         # The compiled graph is never read for an untouched thread.
         assert fake.graph.aget_state_calls == 0
 
@@ -182,7 +200,30 @@ class TestContextProjection:
 
         resp = await client.get("/chat/alice/chat-1/context")
         assert resp.status_code == 200
-        assert resp.json() == {"context": None}
+        assert resp.json() == {"context": None, "pending_interrupt": None}
+
+    async def test_pending_interrupt_is_exposed(self, app, client):
+        """A paused thread exposes its pending HITL ask for hydration."""
+        values = {"mode": {"requested": "general", "resolved": "general", "note": ""}}
+        intr = _FakeInterrupt(
+            {
+                "kind": "input",
+                "questions": [{"step_number": 1, "question": "which file?"}],
+            },
+            "i1",
+        )
+        fake = self._fake(values=values)
+        fake.graph = _FakeCompiledGraph(values=values, interrupts=[intr])
+        app.state.graph = fake
+
+        resp = await client.get("/chat/alice/chat-1/context")
+
+        assert resp.status_code == 200
+        assert resp.json()["pending_interrupt"] == {
+            "kind": "input",
+            "questions": [{"step_number": 1, "question": "which file?"}],
+            "interrupt_id": "i1",
+        }
 
     async def test_not_ready_returns_503(self, app, client):
         """The endpoint honours the shared service-readiness gate."""

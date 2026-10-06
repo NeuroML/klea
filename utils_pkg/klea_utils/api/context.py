@@ -29,7 +29,12 @@ from langgraph.types import RunnableConfig
 from pydantic import Field
 
 from klea_utils.api.chat_common import _graph_and_store, thread_id_for
-from klea_utils.graph.base import BaseLangGraph, _normalise_state_snapshot
+from klea_utils.api.hitl import _snapshot_interrupts
+from klea_utils.graph.base import (
+    BaseLangGraph,
+    _interrupt_event,
+    _normalise_state_snapshot,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,10 +43,12 @@ def create_context_router() -> APIRouter:
     """Create an APIRouter exposing the graph-level ``context`` projection.
 
     ``GET /chat/{user_id}/{chat_id}/context``
-        Return ``{"context": {...}}`` -- the checkpointed session context
-        projected by the app's ``context_snapshot`` hook -- or
-        ``{"context": null}`` when the thread has no checkpoint yet (a
-        chat that never ran a query) or the graph uses no checkpointer.
+        Return ``{"context": {...}, "pending_interrupt": {...} | null}`` --
+        the checkpointed session context projected by the app's
+        ``context_snapshot`` hook, plus any pending HITL interrupt
+        (ADR-0046) so a reloaded frontend can re-present the ask.  Both are
+        ``null`` when the thread has no checkpoint yet (a chat that never
+        ran a query) or the graph uses no checkpointer.
     """
     router = APIRouter(prefix="/chat", tags=["context"])
 
@@ -65,7 +72,7 @@ def create_context_router() -> APIRouter:
                 user_id,
                 chat_id,
             )
-            return {"context": None}
+            return {"context": None, "pending_interrupt": None}
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         # ``aget_tuple`` returns None for a thread that never ran.  That is
@@ -76,7 +83,7 @@ def create_context_router() -> APIRouter:
             logger.debug(
                 "get_chat_context(%s, %s): no checkpoint yet", user_id, chat_id
             )
-            return {"context": None}
+            return {"context": None, "pending_interrupt": None}
 
         snapshot = await graph.graph.aget_state(config)
         # ``_normalise_state_snapshot`` keeps this identical to the stream
@@ -84,7 +91,17 @@ def create_context_router() -> APIRouter:
         # a plain dict whatever the state backend renders.
         values = _normalise_state_snapshot(snapshot.values)
         context = graph.context_snapshot(values)
-        logger.debug("get_chat_context(%s, %s): context=%s", user_id, chat_id, context)
-        return {"context": context}
+        # The same snapshot carries any pending HITL interrupt (ADR-0046), so
+        # a reloaded frontend can re-present the ask without a second read.
+        interrupts = _snapshot_interrupts(snapshot)
+        interrupt = _interrupt_event(interrupts[0], "")["data"] if interrupts else None
+        logger.debug(
+            "get_chat_context(%s, %s): context=%s pending_interrupt=%s",
+            user_id,
+            chat_id,
+            context,
+            bool(interrupts),
+        )
+        return {"context": context, "pending_interrupt": interrupt}
 
     return router

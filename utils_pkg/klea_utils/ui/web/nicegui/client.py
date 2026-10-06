@@ -83,7 +83,8 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                         f"{server_url}/chat/{user_id}/{chat_id}/context"
                     )
                     if ctx_resp.status_code == 200:
-                        context = ctx_resp.json().get("context")
+                        body = ctx_resp.json()
+                        context = body.get("context")
                         if context:
                             current_chat = chats.get(key)
                             if current_chat:
@@ -93,6 +94,15 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                                 logger.debug(
                                     "hydrated context for %s: %s", key, context
                                 )
+                        # A paused thread re-presents its HITL ask (ADR-0046),
+                        # so a reload renders the form instead of a dead chat.
+                        pending = body.get("pending_interrupt")
+                        if pending:
+                            current_chat = chats.get(key)
+                            if current_chat:
+                                current_chat["interrupt"] = pending
+                                current_chat["turn_status"] = {"kind": "awaiting_input"}
+                                logger.debug("hydrated pending interrupt for %s", key)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to hydrate chats from server: %s", e)
 

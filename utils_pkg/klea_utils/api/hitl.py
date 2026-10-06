@@ -25,6 +25,17 @@ from fastapi import HTTPException
 logger = logging.getLogger(__name__)
 
 
+def _snapshot_interrupts(snapshot: Any) -> tuple[Any, ...]:
+    """Return the interrupt objects carried by a checkpoint state snapshot."""
+    tasks = getattr(snapshot, "tasks", None)
+    if not isinstance(tasks, (list, tuple)):
+        return ()
+    interrupts: list[Any] = []
+    for task in tasks:
+        interrupts.extend(getattr(task, "interrupts", ()) or ())
+    return tuple(interrupts)
+
+
 async def _pending_interrupts(graph: Any, thread_id: str) -> tuple[Any, ...]:
     """Return the interrupt objects a paused thread is waiting on (ADR-0046).
 
@@ -45,13 +56,7 @@ async def _pending_interrupts(graph: Any, thread_id: str) -> tuple[Any, ...]:
     except Exception:  # noqa: BLE001 - a state read must never break a request
         logger.debug("Could not read checkpoint state for thread=%s", thread_id)
         return ()
-    tasks = getattr(snapshot, "tasks", None)
-    if not isinstance(tasks, (list, tuple)):
-        return ()
-    interrupts: list[Any] = []
-    for task in tasks:
-        interrupts.extend(getattr(task, "interrupts", ()) or ())
-    return tuple(interrupts)
+    return _snapshot_interrupts(snapshot)
 
 
 def _interrupt_question(intr: Any) -> str:
