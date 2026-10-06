@@ -47,7 +47,7 @@ Last updated: 2026-10-03.
 - Parallel chats in one page: the server allows concurrent runs for
   different threads (`active_runs` is keyed per `thread_id`), but the
   NiceGUI frontend serialises one page to a single stream.  Stream state
-  (`is_streaming`, `stream_task`, `streaming_chat_id`, `stream_retry_cb`)
+  (`is_streaming`, `stream_task`, `streaming_chat_id`, `turn_retry_cb`)
   is page-scoped on `PageContext`, so while chat A streams the send/Stop
   button and input gating apply page-wide and chat B cannot start; Stop
   targets whichever run last started, and a finishing run clears the
