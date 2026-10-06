@@ -39,6 +39,11 @@ class StepSchema(BaseModel):
     status: Literal["pending", "done", "skipped", "failed"] = Field(
         default="pending", validate_default=True
     )
+    #: Questions this step needs the user to answer before it can run
+    #: (ADR-0046).  A step with questions is *blocked*: it is part of a draft
+    #: plan and is not executed (and is exempt from the executable-step checks)
+    #: until the Planner re-authors it without questions.  Empty once runnable.
+    needs_input: list[str] = Field(default_factory=list)
 
     def status_label(self, *, current: bool = False, markdown: bool = False) -> str:
         """Return the step status as a bracketed marker.
@@ -592,22 +597,17 @@ class KleaAgentState(BaseGraphSchema):
     #: which interprets it and records the round on
     #: ``plan.human_feedback_rounds``.
     human_feedback: str = ""
-    #: Answer supplied by the user to resume a ``needs_input`` interrupt
-    #: (HITL, ADR-0046).  Written by the ``AwaitHuman`` input instance on
-    #: resume; read and cleared by the Planner, which incorporates the missing
-    #: fact and finalises the partial plan.  Distinct from ``human_feedback``
-    #: so a supplied fact is not counted as a review round.
-    human_input: str = ""
+    #: Answers supplied by the user to resume a ``needs_input`` interrupt
+    #: (HITL, ADR-0046), grouped by the blocked step's number.  Written by the
+    #: ``AwaitHuman`` input instance on resume; read and cleared by the
+    #: Planner, which re-authors the draft plan with them.  Distinct from
+    #: ``human_feedback`` so supplied facts are not counted as a review round.
+    human_input: dict[int, list[str]] = Field(default_factory=dict)
     #: Why the Planner is being re-entered for an automated replan: set by the
     #: Evaluator on ``need_replan`` and by the tool-round recorder when a batch
     #: had a failed call; read and cleared by the Planner.  Empty on the first
     #: plan and after a human review (which supplies ``human_feedback``).
     replan_reason: str = ""
-    # the question the Planner needs answered when ``plan.status`` is
-    # ``needs_input`` (carried from the Planner's ``reason``); presented by
-    # ``AnswerFromResults`` and, once the HITL interrupt lands, answered by the
-    # user to resume the run.
-    pending_question: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()

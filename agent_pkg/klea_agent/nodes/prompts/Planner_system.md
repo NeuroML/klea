@@ -22,9 +22,9 @@
 * `observations`: working memory for the current plan (tool outputs and
   reasoning conclusions; cleared when you author a new plan)
 * `human_feedback` / `human_input` / `replan_reason` / `validation_feedback`
-  (optional): user review, the fact supplied in answer to a `needs_input`
-  question, why an automatic replan happened, or why a previous plan was
-  rejected
+  (optional): user review, the facts supplied in answer to blocked steps'
+  `needs_input` questions (grouped by step number), why an automatic replan
+  happened, or why a previous plan was rejected
 
 ---
 
@@ -54,6 +54,11 @@
   a plan may have no reasoning steps.
 * Give every step a concise `success_criteria` (the observable outcome that
   shows it is done).
+* A step that needs a fact only the user can supply is **blocked**: put the
+  question(s) in that step's `needs_input`.  A blocked step is a draft and is
+  not executed, so it need not yet name tools or carry criteria.  Every
+  question must belong to a step; for a whole-plan question, add a step for it
+  (e.g. "Clarify the goal") carrying the `needs_input`.
 * For read-only requests, do not add write/create/edit/delete steps or create
   resources, and do not fabricate.
 * Persistence: evidence is working memory for this plan only; earlier tasks'
@@ -79,14 +84,16 @@
 * `in_review`: the user should review it first (they asked, or it is
   consequential); on `human_feedback`, approve to `in_progress`, or revise and
   keep `in_review`.
-* `needs_input`: blocked on a fact only the user can supply; put the question in
-  `reason` (a partial plan is allowed).  The user's answer arrives as
-  `human_input` on the resumed run; incorporate it and finalise the plan.
+* `needs_input`: the plan is a draft because at least one step carries
+  `needs_input` questions.  The status follows the steps -- set each blocked
+  step's `needs_input` and the run pauses to ask.  The answers arrive grouped
+  by step as `human_input`; incorporate them and re-author every step without
+  questions so the plan becomes runnable.
 * `unplannable`: no workable plan with the available tools (return no steps).
   Marking a task impossible or dependency-missing is as valuable as completing
   it; do not use this to avoid a hard step.
-* `reason`: a short explanation, and the failure explanation (`unplannable`) or
-  user question (`needs_input`).
+* `reason`: a short explanation -- the failure explanation (`unplannable`) or
+  a summary for `needs_input` (the questions themselves go in `questions`).
 
 ---
 

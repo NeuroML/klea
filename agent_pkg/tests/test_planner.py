@@ -260,12 +260,14 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan"].human_feedback_rounds, 1)
 
     def test_human_input_is_exposed_and_consumed(self):
-        """A needs_input answer reaches the prompt, then is cleared and not
+        """needs_input answers reach the prompt, then are cleared and not
         counted as a review round."""
         state = KleaAgentState(
-            human_input="the file is models/cell.nml",
-            pending_question="which file?",
-            plan=PlanSchema(status="needs_input"),
+            human_input={1: ["models/cell.nml"]},
+            plan=PlanSchema(
+                status="needs_input",
+                step_list=[StepSchema(step_number=1, needs_input=["which file?"])],
+            ),
         )
         planner = self._planner()
 
@@ -285,8 +287,7 @@ class TestPlannerState(unittest.TestCase):
             state,
             LLMNodeContext(),
         )
-        self.assertEqual(update["human_input"], "")
-        self.assertEqual(update["pending_question"], "")
+        self.assertEqual(update["human_input"], {})
         self.assertEqual(update["plan"].human_feedback_rounds, 0)
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
 
@@ -507,54 +508,67 @@ class TestPlannerValidation(unittest.TestCase):
         assert error is not None
         self.assertIn("unplannable", error)
 
-    def test_accepts_needs_input_with_steps(self):
+    def test_accepts_blocked_step_as_draft(self):
+        """A blocked step is exempt from the executable-step tool check."""
         output = PlannerOutput(
             plan=PlannerPlanSchema(
                 status="needs_input",
-                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+                step_list=[
+                    StepSchema(description="deploy", needs_input=["which env?"])
+                ],
             )
         )
         self.assertIsNone(
             self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
         )
 
-    def test_accepts_needs_input_without_steps(self):
+    def test_rejects_needs_input_without_questions(self):
+        """needs_input with no blocked step is contradictory."""
         output = PlannerOutput(
             plan=PlannerPlanSchema(status="needs_input"), reason="which file?"
         )
-        self.assertIsNone(
-            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
         )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("no step has questions", error)
 
-    def test_needs_input_sets_status_and_question(self):
+    def test_blocked_step_forces_needs_input_status(self):
+        """A step with questions makes the plan a draft, whatever status."""
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    status="needs_input",
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ],
-                ),
-                reason="which file?",
+                    step_list=[StepSchema(description="deploy", needs_input=["env?"])]
+                )
             ),
             KleaAgentState(query="q"),
             LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "needs_input")
-        self.assertEqual(update["pending_question"], "which file?")
+        self.assertEqual(update["plan"].step_list[0].needs_input, ["env?"])
         self.assertNotIn("failure_reason", update)
 
-    def test_needs_input_without_steps_is_not_unplannable(self):
+    def test_multiple_questions_on_a_step_are_carried(self):
+        """A step may carry several questions for one interrupt."""
         update = self._planner()._update_state(
             PlannerOutput(
-                plan=PlannerPlanSchema(status="needs_input"),
-                reason="which file?",
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(
+                            description="deploy",
+                            needs_input=["which file?", "which mode?"],
+                        )
+                    ]
+                )
             ),
             KleaAgentState(),
             LLMNodeContext(),
         )
         self.assertEqual(update["plan"].status, "needs_input")
-        self.assertEqual(update["pending_question"], "which file?")
+        self.assertEqual(
+            update["plan"].step_list[0].needs_input, ["which file?", "which mode?"]
+        )
 
     def test_rejects_tool_step_without_tools(self):
         output = PlannerOutput(

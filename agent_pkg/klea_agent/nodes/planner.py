@@ -113,6 +113,18 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         ]
         return "\n\n".join(parts)
 
+    @staticmethod
+    def _render_human_input(state: KleaAgentState) -> str:
+        """Render the user's needs_input answers against the steps that asked."""
+        asked = {step.step_number: step.needs_input for step in state.plan.step_list}
+        lines: list[str] = []
+        for step_number, answers in state.human_input.items():
+            questions = asked.get(step_number, [])
+            for index, answer in enumerate(answers):
+                question = questions[index] if index < len(questions) else "(question)"
+                lines.append(f"- Step {step_number} Q: {question} A: {answer}")
+        return "\n".join(lines)
+
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the query, current plan state and tool catalogue.
@@ -128,7 +140,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             section
             for section in (
                 self._optional_section("Review feedback", state.human_feedback),
-                self._optional_section("User input", state.human_input),
+                self._optional_section("User input", self._render_human_input(state)),
                 self._optional_section("Replan reason", state.replan_reason),
                 self._optional_section("Validation feedback", ctx.validation_feedback),
             )
@@ -159,7 +171,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         * the plan does not exceed :attr:`max_plan_steps`;
         * structural plan consistency (:meth:`PlanSchema.validate_plan`);
         * ``kind``/tool consistency: a ``tool`` step names at least one tool,
-          a ``reasoning`` step names none.
+          a ``reasoning`` step names none -- unless the step is **blocked** (it
+          has ``needs_input`` questions), since a blocked step is a draft that
+          is not executed and need not yet be runnable;
+        * ``needs_input`` status must be accompanied by at least one blocked
+          step (a question to ask).
 
         An empty plan with a non-``unplannable`` status is not an error --
         :meth:`_update_state` deterministically coerces it to ``unplannable``.
@@ -181,6 +197,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         if plan.step_list:
             errors.extend(plan.validate_plan())
             for step in plan.step_list:
+                if step.needs_input:
+                    # A blocked step is a draft; it need not be runnable yet.
+                    continue
                 if step.kind == "tool" and not step.suggested_tools:
                     errors.append(
                         f"step {step.step_number} is a tool step but names no tool"
@@ -189,6 +208,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     errors.append(
                         f"step {step.step_number} is a reasoning step but names tools"
                     )
+        if plan.status == "needs_input" and not any(
+            step.needs_input for step in plan.step_list
+        ):
+            errors.append(
+                "status is 'needs_input' but no step has questions; "
+                "attach the questions to the blocked step(s)"
+            )
         return "; ".join(errors) if errors else None
 
     @override
@@ -213,22 +239,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         answers the user -- chat is handled by ``RouteDecision`` and the final
         reply by ``AnswerFromResults``.
 
-        A ``needs_input`` status maps to the state plan with ``result.reason``
-        carried as ``pending_question`` (a partial plan is allowed); an
-        ``unplannable`` status (or an empty plan) fails the run, using
-        ``result.reason`` as the failure explanation; a plan with steps maps
-        the remaining statuses to the state plan.  ``result.reason`` is also
-        recorded with the plan in ``messages`` for continuity.
+        A plan with any blocked step (a step carrying ``needs_input``
+        questions) is written as a draft with status ``needs_input`` regardless
+        of the model's status; an ``unplannable`` status (or an empty plan)
+        fails the run, using ``result.reason`` as the failure explanation; a
+        plan with steps maps the remaining statuses to the state plan.
+        ``result.reason`` is also recorded with the plan in ``messages`` for
+        continuity.
         """
         # The transient human/feedback inputs are consumed on this pass: the
-        # prompt just read them, so clear them (and any stale pending question)
-        # from state.  The ``needs_input`` branch below re-sets
-        # ``pending_question`` when it asks a new question.
+        # prompt just read them, so clear them from state.  The blocked state
+        # below is re-derived from the plan the Planner writes.
         update: dict[str, Any] = {
             "human_feedback": "",
-            "human_input": "",
+            "human_input": {},
             "replan_reason": "",
-            "pending_question": "",
         }
 
         # --- Plan-history counters (durable run signal) -------------------
@@ -336,12 +361,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "Planner proposed a different goal; keeping the fixed goal (ADR-0035)"
             )
 
-        if result.plan.status == "needs_input":
-            # A partial plan is allowed: some steps may be runnable, but the
-            # Planner needs a missing fact before it can finalise.  The
-            # question travels in ``pending_question``; short-term the run ends
-            # with the question (AnswerFromResults), and the HITL interrupt
-            # will later resume this run with the answer.
+        # A step with questions is blocked: the plan is a draft and cannot run
+        # until the Planner re-authors it without questions (ADR-0046).  The
+        # blocked state is derived deterministically from the steps, not taken
+        # from the model's status (which may be out of sync).
+        blocked = [step for step in steps if step.needs_input]
+        if blocked:
             plan = PlanSchema(
                 step_list=steps,
                 status="needs_input",
@@ -350,15 +375,15 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 automated_plan_revisions=revisions,
             )
             update["plan"] = plan
-            update["pending_question"] = (
-                result.reason or "More information is needed to continue."
-            )
             update["step_outputs"] = {}
             update["tool_retry_counts"] = {}
             update["step_attempt_counts"] = {}
-            message = f"Plan (needs_input):\n{plan.render()}"
-            if result.reason:
-                message += f"\nQuestion: {result.reason}"
+            lines = "\n".join(
+                f"- Step {step.step_number}: {question}"
+                for step in blocked
+                for question in step.needs_input
+            )
+            message = f"Plan (needs_input):\n{plan.render()}\nQuestions:\n{lines}"
             update["messages"] = [*state.messages, AIMessage(content=message)]
             self.logger.debug(f"{update = }")
             return update

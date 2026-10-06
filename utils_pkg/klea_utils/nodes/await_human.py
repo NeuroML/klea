@@ -36,7 +36,9 @@ class AwaitHumanNode[TState: BaseModel](
     * :meth:`_ask` -- the JSON-serialisable payload shown to the user (it
       should carry a ``kind`` and the question or questions);
     * :meth:`_hitl_response_schema` -- an optional Pydantic model describing
-      the expected resume payload, so clients can render a typed form;
+      the expected resume payload, so clients can render a typed form (when
+      not overridden and the payload carries ``questions``, a free-text model
+      is built from their ``key`` s);
     * :meth:`_on_answer` -- state updates for an answer;
     * :meth:`_on_cancel` -- state updates for a cancellation.
 
