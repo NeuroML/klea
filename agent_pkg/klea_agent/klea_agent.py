@@ -199,8 +199,9 @@ class KleaAgent(BaseLangGraph):
         """Route on the Planner's ``plan.status`` and the step kind (ADR-0035).
 
         ``unplannable`` -> failure answer; ``in_review`` -> human review;
-        ``needs_input`` -> the answer node asks the pending question;
-        ``completed`` (all steps already done) -> answer; otherwise
+        ``needs_input`` -> the HITL input node asks the blocked steps'
+        questions (ADR-0046); ``completed`` (all steps already done) -> answer;
+        otherwise
         (``in_progress``) -> dispatch the next runnable step by ``kind``
         (ADR-0041).  An ``in_progress`` plan with no runnable step is blocked
         and fails closed.

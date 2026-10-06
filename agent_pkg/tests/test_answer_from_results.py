@@ -12,7 +12,12 @@ import logging
 import unittest
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults, AnswerSchema
-from klea_agent.schemas import GoalSchema, KleaAgentState, PlanSchema, StepSchema
+from klea_agent.schemas import (
+    GoalSchema,
+    KleaAgentState,
+    PlanSchema,
+    StepSchema,
+)
 from klea_utils.nodes.context import LLMNodeContext
 
 
@@ -108,26 +113,6 @@ class TestAnswerFromResults(unittest.TestCase):
         state.plan = PlanSchema(status="unplannable")
         self.assertTrue(self._node()._is_failure(state))
 
-    def _needs_input_state(self) -> KleaAgentState:
-        state = KleaAgentState(query="do x")
-        state.plan = PlanSchema(status="needs_input")
-        state.pending_question = "which file?"
-        return state
-
-    def test_needs_input_outcome_in_prompt_variables(self):
-        variables = self._node()._get_prompt_variables(
-            self._needs_input_state(), LLMNodeContext()
-        )
-        self.assertEqual(variables["outcome"], "needs_input")
-        self.assertEqual(variables["outcome_details"], "Pending question: which file?")
-
-    def test_needs_input_is_not_failure(self):
-        self.assertFalse(self._node()._is_failure(self._needs_input_state()))
-
-    def test_needs_input_fallback_asks_question(self):
-        answer = self._node()._fallback_answer(self._needs_input_state())
-        self.assertIn("which file?", answer)
-
     def test_success_persists_deliverable_artefact(self):
         update = self._node()._update_state(
             AnswerSchema(answer="here you go"), self._state(), LLMNodeContext()
@@ -153,12 +138,6 @@ class TestAnswerFromResults(unittest.TestCase):
     def test_failure_does_not_persist_artefact(self):
         update = self._node()._update_state(
             AnswerSchema(answer="failed"), self._failed_state(), LLMNodeContext()
-        )
-        assert "artefacts" not in update
-
-    def test_needs_input_does_not_persist_artefact(self):
-        update = self._node()._update_state(
-            AnswerSchema(answer="question"), self._needs_input_state(), LLMNodeContext()
         )
         assert "artefacts" not in update
 

@@ -9,8 +9,8 @@
 ## Inputs you will receive
 
 * `query`: the user's original request
-* `outcome`: `success`, `failure`, or `needs_input`
-* `outcome_details`: the failure reason (when `outcome` is `failure`) or the pending question (when `outcome` is `needs_input`); empty on success
+* `outcome`: `success` or `failure`
+* `outcome_details`: the failure reason (when `outcome` is `failure`); empty on success
 * `goal` and its success criteria
 * `plan`: the steps with their statuses and success criteria
 * `plan_history` (optional): a context-free signal that the final plan followed
@@ -25,13 +25,6 @@ When `plan_history` is present, the plan was revised and/or reviewed before it
 ran. Do not claim it was executed without the user's involvement, and do not
 narrate the internal iterations in detail -- the reply is still a result
 summary.
-
----
-
-## If the outcome is needs_input
-
-* Do not claim the task is done or failed. Ask the pending question from `outcome_details` clearly and concisely, so the user can answer it in their next message.
-* Keep it short and put the reply text in `answer`.
 
 ---
 

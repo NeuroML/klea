@@ -43,13 +43,15 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     """Synthesise the final user-facing reply (ADR-0035).
 
     Separate from the Evaluator by design: evaluation judges, this node
-    generates.  It runs once at the end of a run -- on success (``plan_done``),
-    on failure (``abort``/``unplannable``/``failure_reason``), or on
-    ``needs_input`` (present the pending question) -- and turns the goal, the
-    plan and the observations into a reply.  On failure it explains concisely
-    what was attempted and why it could not be completed.  In scientific mode a
-    grounded/cited variant replaces it; the Evaluator contract (judge only)
-    stays the same.
+    generates.  It runs once at the end of a run -- on success (``plan_done``)
+    or on failure (``abort``/``unplannable``/``failure_reason``) -- and turns
+    the goal, the plan and the observations into a reply.  On failure it
+    explains concisely what was attempted and why it could not be completed.
+    In scientific mode a grounded/cited variant replaces it; the Evaluator
+    contract (judge only) stays the same.
+
+    A draft plan with pending questions (``needs_input``) never reaches this
+    node: it is paused at the HITL input node (ADR-0046).
     """
 
     model_role = "chat"
@@ -97,23 +99,16 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
 
     @staticmethod
     def _outcome(state: KleaAgentState) -> str:
-        """Return the run outcome: ``success`` | ``failure`` | ``needs_input``.
-
-        ``needs_input`` is the failure answer's sibling: the task is not
-        complete, but it can proceed once the user answers the pending
-        question (``plan.status == needs_input``).
-        """
-        if state.plan.status == "needs_input" or state.pending_question:
-            return "needs_input"
+        """Return the run outcome: ``success`` | ``failure``."""
         return "failure" if AnswerFromResults._is_failure(state) else "success"
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the outcome, goal, plan, observations and query.
 
-        The failure reason and pending question are mutually exclusive and are
-        folded into one ``outcome_details`` block that is empty on success, so
-        the prompt never carries an empty label (prompt conventions).  The
+        The failure reason is folded into an ``outcome_details`` block that is
+        empty on success, so the prompt never carries an empty label (prompt
+        conventions).  The
         ``plan_history_block`` is a context-free signal (counts only) that the
         final plan followed iterations/human review; the raw feedback is
         deliberately not included (see :meth:`PlanSchema.revision_summary`).
@@ -137,19 +132,12 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         return variables
 
     def _outcome_details(self, state: KleaAgentState) -> str:
-        """Return the outcome-specific detail block, or ``""`` on success.
+        """Return the failure detail block, or ``""`` on success.
 
-        Only the relevant detail renders, with its own label, so a successful
-        run's prompt contains no empty ``Failure reason:`` or
-        ``Pending question:`` line.
+        Only the failure reason renders, with its own label, so a successful
+        run's prompt contains no empty ``Failure reason:`` line.
         """
-        outcome = self._outcome(state)
-        if outcome == "needs_input":
-            question = (
-                state.pending_question or "More information is needed to continue."
-            )
-            return f"Pending question: {question}"
-        if outcome == "failure":
+        if self._outcome(state) == "failure":
             return f"Failure reason: {state.failure_reason}"
         return ""
 
@@ -163,8 +151,8 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         answer) is written to the session-scoped ``artefacts`` so a later task
         in the same session can build on it.  The full user-facing reply stays
         in ``message_for_user`` and ``messages`` (lossy continuity); the
-        artefact is the concise, addressable record.  On failure or
-        ``needs_input`` nothing is persisted -- there is no deliverable yet.
+        artefact is the concise, addressable record.  On failure nothing is
+        persisted -- there is no deliverable yet.
         """
         answer = result.answer.strip() or self._fallback_answer(state)
         update: dict[str, Any] = {"message_for_user": answer}
@@ -198,18 +186,11 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     def _fallback_answer(self, state: KleaAgentState) -> str:
         """Return a non-empty answer when synthesis produced nothing.
 
-        On ``needs_input``, asks the pending question.  On failure, reports
-        that the task could not be completed and why.  On success, prefers the
-        latest tool outputs (which are often the answer, e.g. a command's
-        output), then the completed step description.
+        On failure, reports that the task could not be completed and why.  On
+        success, prefers the latest tool outputs (which are often the answer,
+        e.g. a command's output), then the completed step description.
         """
-        outcome = self._outcome(state)
-        if outcome == "needs_input":
-            question = (
-                state.pending_question or "More information is needed to continue."
-            )
-            return f"I need more information to continue: {question}"
-        if outcome == "failure":
+        if self._outcome(state) == "failure":
             reason = state.failure_reason or "the task could not be completed"
             return f"I could not complete this task: {reason}."
         if state.tool_results:
