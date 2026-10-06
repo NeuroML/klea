@@ -110,6 +110,185 @@ def thread_id_for(user_id: str, chat_id: str) -> str:
     return f"user_{user_id}:chat_{chat_id}"
 
 
+async def _pending_interrupts(graph: Any, thread_id: str) -> tuple[Any, ...]:
+    """Return the interrupt objects a paused thread is waiting on (ADR-0046).
+
+    Reads the thread's checkpoint state and collects every pending task's
+    interrupts.  Returns an empty tuple when the graph has no checkpointer,
+    the thread has no checkpoint, or the state cannot be read.
+
+    :param graph: The :class:`~klea_utils.graph.base.BaseLangGraph` instance.
+    :param thread_id: The checkpoint thread identifier.
+    :returns: The pending interrupt objects (empty when none).
+    """
+    compiled = getattr(graph, "graph", None)
+    if compiled is None or getattr(graph, "checkpointer", None) is None:
+        return ()
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        snapshot = await compiled.aget_state(config)
+    except Exception:  # noqa: BLE001 - a state read must never break a request
+        logger.debug("Could not read checkpoint state for thread=%s", thread_id)
+        return ()
+    tasks = getattr(snapshot, "tasks", None)
+    if not isinstance(tasks, (list, tuple)):
+        return ()
+    interrupts: list[Any] = []
+    for task in tasks:
+        interrupts.extend(getattr(task, "interrupts", ()) or ())
+    return tuple(interrupts)
+
+
+def _interrupt_question(intr: Any) -> str:
+    """Render an ``Interrupt`` payload as the question text for the transcript.
+
+    :param intr: A ``langgraph.types.Interrupt``.
+    :returns: The blocked steps' questions, joined by newlines.
+    """
+    value = getattr(intr, "value", None)
+    if isinstance(value, Mapping):
+        questions = value.get("questions")
+        if isinstance(questions, list):
+            return "\n".join(
+                str(question.get("question", ""))
+                for question in questions
+                if isinstance(question, Mapping)
+            )
+        return str(value.get("question", "")) or json.dumps(dict(value), default=str)
+    return str(value)
+
+
+def _interrupt_event_question(event: Mapping[str, Any]) -> str:
+    """Render an ``interrupt`` stream event as the question text."""
+    data = event.get("data")
+    if not isinstance(data, Mapping):
+        return ""
+    questions = data.get("questions")
+    if isinstance(questions, list):
+        return "\n".join(
+            str(question.get("question", ""))
+            for question in questions
+            if isinstance(question, Mapping)
+        )
+    return str(data.get("question", ""))
+
+
+def _render_interrupt_response(value: Mapping[str, Any]) -> str:
+    """Render an interrupt resume mapping as the user turn for the transcript."""
+    answers = value.get("answers")
+    if isinstance(answers, list):
+        return "; ".join(str(answer) for answer in answers)
+    parts = [str(value[key]) for key in ("decision", "feedback") if value.get(key)]
+    if parts:
+        return ": ".join(parts)
+    return json.dumps(dict(value), default=str)
+
+
+def _resolve_request_action(
+    *,
+    resume: bool,
+    interrupt_response: Mapping[str, Any] | None,
+    interrupt_cancel: bool,
+) -> str:
+    """Return the request action: ``query`` | ``resume`` | ``answer`` | ``cancel``.
+
+    Exactly one of ``resume``, ``interrupt_response`` and ``interrupt_cancel``
+    may be set.
+
+    :raises HTTPException: 400 when more than one action is set.
+    """
+    chosen = [
+        name
+        for name, flag in (
+            ("resume", resume),
+            ("interrupt_response", interrupt_response is not None),
+            ("interrupt_cancel", interrupt_cancel),
+        )
+        if flag
+    ]
+    if len(chosen) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="provide only one of resume, interrupt_response, interrupt_cancel",
+        )
+    if interrupt_cancel:
+        return "cancel"
+    if interrupt_response is not None:
+        return "answer"
+    if resume:
+        return "resume"
+    return "query"
+
+
+async def _prepare_chat_request(
+    graph: Any,
+    *,
+    thread_id: str,
+    query: str | None,
+    resume: bool,
+    interrupt_response: Mapping[str, Any] | None,
+    interrupt_cancel: bool,
+    interrupt_id: str | None,
+) -> tuple[str, Any, str | None]:
+    """Validate a chat request against the thread's checkpoint state.
+
+    Enforces the HITL invariant: while a thread is paused at an interrupt,
+    only an answer or a cancel may continue it (a plain query or a failure
+    resume is rejected).  Returns the action, the graph input (a query string,
+    ``None`` for a failure resume, or a :class:`~langgraph.types.Command` for an
+    answer/cancel), and the user turn to persist (or ``None``).
+
+    :raises HTTPException: 400 on a malformed request; 409 when the request
+        conflicts with the thread's paused state.
+    """
+    # Lazy: only the interrupt path needs ``Command``.
+    from langgraph.types import Command
+
+    action = _resolve_request_action(
+        resume=resume,
+        interrupt_response=interrupt_response,
+        interrupt_cancel=interrupt_cancel,
+    )
+    pending = await _pending_interrupts(graph, thread_id)
+
+    text = (query or "").strip()
+    if action == "query":
+        if pending:
+            raise HTTPException(
+                status_code=409, detail="This chat is awaiting your answer."
+            )
+        if not text:
+            raise HTTPException(status_code=400, detail="query is required")
+        return "query", text, text
+
+    # resume / answer / cancel carry no query.
+    if text:
+        raise HTTPException(
+            status_code=400,
+            detail="query must be empty for resume/interrupt actions",
+        )
+
+    if action == "resume":
+        if pending:
+            raise HTTPException(
+                status_code=409, detail="This chat is awaiting your answer."
+            )
+        return "resume", None, None
+
+    # answer / cancel
+    if not pending:
+        raise HTTPException(status_code=409, detail="Nothing to answer for this chat.")
+    if interrupt_id is not None and interrupt_id not in {
+        getattr(intr, "id", None) for intr in pending
+    }:
+        raise HTTPException(status_code=409, detail="Stale interrupt answer.")
+
+    if action == "cancel":
+        return "cancel", Command(resume={"action": "cancel"}), None
+    value = {"action": "answer", **dict(interrupt_response or {})}
+    return "answer", Command(resume=value), _render_interrupt_response(value)
+
+
 def cancel_run(request: Request, user_id: str, chat_id: str) -> bool:
     """Cancel the active run for a chat's thread, if any.
 
@@ -252,6 +431,9 @@ async def run_query(
     user_id: str,
     chat_id: str,
     resume: bool = False,
+    interrupt_response: Mapping[str, Any] | None = None,
+    interrupt_cancel: bool = False,
+    interrupt_id: str | None = None,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
 ) -> str:
@@ -270,6 +452,12 @@ async def run_query(
     :param chat_id: Chat conversation identifier
     :param resume: Resume the thread's last failed run from its checkpoint
         (invoked with ``None``; no user turn is written)
+    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046); the
+        mapping is passed as ``Command(resume=...)`` and recorded as the user
+        turn.
+    :param interrupt_cancel: Cancel a pending HITL interrupt (a terminal run).
+    :param interrupt_id: Optional id of the interrupt being answered; a
+        mismatch with the pending interrupt is rejected as stale.
     :param extra_state: Optional app-specific initial state fields passed
         to the graph invocation (e.g. the agent's operating ``mode``
         request).  Ignored on resume.
@@ -310,21 +498,21 @@ async def run_query(
         list((context_fields or {}).keys()),
     )
 
-    user_message = (query or "").strip()
-    if resume and user_message:
-        raise HTTPException(
-            status_code=400, detail="query must be empty when resume is true"
-        )
-    if not resume and not user_message:
-        raise HTTPException(
-            status_code=400, detail="query is required unless resume is true"
-        )
+    _action, graph_input, user_turn = await _prepare_chat_request(
+        graph,
+        thread_id=thread_id,
+        query=query,
+        resume=resume,
+        interrupt_response=interrupt_response,
+        interrupt_cancel=interrupt_cancel,
+        interrupt_id=interrupt_id,
+    )
 
     store.create_chat(user_id, chat_id)
-    if not resume:
+    if user_turn:
         # Record the user turn when the run starts (not only on success), so
         # a turn that fails mid-run is still visible and retryable.
-        store.add_message(user_id, chat_id, "user", user_message)
+        store.add_message(user_id, chat_id, "user", user_turn)
 
     # Per-run runtime context (ADR-0033): the framework provides the stored
     # per-chat ``model_overrides`` slice; apps may add their own fields via
@@ -350,11 +538,23 @@ async def run_query(
         registry.register(thread_id, task)
     try:
         result = await graph.run_graph_invoke(
-            None if resume else user_message,
+            graph_input,
             thread_id,
             extra_state=extra_state,
             context=context,
         )
+        pending = await _pending_interrupts(graph, thread_id)
+        if pending:
+            # The run paused for human input: persist the question and return
+            # it (there is no final answer yet).
+            question = _interrupt_question(pending[0])
+            store.add_message(user_id, chat_id, "assistant", question)
+            logger.info(
+                "run_query(user_id=%s chat_id=%s): paused for input",
+                user_id,
+                chat_id,
+            )
+            return question
         message = result if isinstance(result, str) else str(result)
         store.add_message(user_id, chat_id, "assistant", message)
         logger.info(
@@ -407,13 +607,16 @@ def _error_frame(message: str, error_type: str, *, resumable: bool) -> str:
     )
 
 
-def stream_response(
+async def stream_response(
     request: Request,
     *,
     query: str | None = None,
     user_id: str,
     chat_id: str,
     resume: bool = False,
+    interrupt_response: Mapping[str, Any] | None = None,
+    interrupt_cancel: bool = False,
+    interrupt_id: str | None = None,
     enrich: Callable[[AsyncIterator[dict]], AsyncIterator[dict]] | None = None,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
@@ -434,6 +637,12 @@ def stream_response(
     :param resume: Resume the thread's last failed run from its checkpoint.
         The graph is invoked with ``None`` (no query) and the failed node is
         re-run; no user turn is written.
+    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046); the
+        mapping is passed as ``Command(resume=...)`` and recorded as the user
+        turn.
+    :param interrupt_cancel: Cancel a pending HITL interrupt (a terminal run).
+    :param interrupt_id: Optional id of the interrupt being answered; a
+        mismatch with the pending interrupt is rejected as stale.
     :param enrich: Optional async-generator wrapper applied to the raw
         ``run_graph_astream_events`` event stream before framing.  Apps
         use it to inject app-specific events (e.g. a ``context`` event
@@ -471,22 +680,22 @@ def stream_response(
         list((context_fields or {}).keys()),
     )
 
-    user_message = (query or "").strip()
-    if resume and user_message:
-        raise HTTPException(
-            status_code=400, detail="query must be empty when resume is true"
-        )
-    if not resume and not user_message:
-        raise HTTPException(
-            status_code=400, detail="query is required unless resume is true"
-        )
+    _action, graph_input, user_turn = await _prepare_chat_request(
+        graph,
+        thread_id=thread_id,
+        query=query,
+        resume=resume,
+        interrupt_response=interrupt_response,
+        interrupt_cancel=interrupt_cancel,
+        interrupt_id=interrupt_id,
+    )
 
     store.create_chat(user_id, chat_id)
-    if not resume:
+    if user_turn:
         # Record the user turn when the run starts (not on completion), so a
         # turn that fails mid-run is still visible and retryable; the
         # assistant row is written on ``complete``.
-        store.add_message(user_id, chat_id, "user", user_message)
+        store.add_message(user_id, chat_id, "user", user_turn)
 
     # Per-run runtime context (ADR-0033): same assembly as run_query -- the
     # framework's ``model_overrides`` slice plus any app ``context_fields``,
@@ -515,7 +724,7 @@ def stream_response(
             registry.register(thread_id, task)
         try:
             raw_events = graph.run_graph_astream_events(
-                None if resume else user_message,
+                graph_input,
                 thread_id,
                 extra_state=extra_state,
                 context=context,
@@ -523,7 +732,21 @@ def stream_response(
             events = raw_events if enrich is None else enrich(raw_events)
             async for event in events:
                 t = event.get("type")
-                if t == "complete":
+                if t == "interrupt":
+                    # The run paused for human input: persist the question so a
+                    # reloaded chat shows it (the answer is a later user turn).
+                    store.add_message(
+                        user_id,
+                        chat_id,
+                        "assistant",
+                        _interrupt_event_question(event),
+                    )
+                    logger.info(
+                        "stream_response(user_id=%s chat_id=%s): paused for input",
+                        user_id,
+                        chat_id,
+                    )
+                elif t == "complete":
                     store.add_message(
                         user_id,
                         chat_id,

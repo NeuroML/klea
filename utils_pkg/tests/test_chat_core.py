@@ -25,6 +25,7 @@ from klea_utils.api import chat_core
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import LLMModel
+from langgraph.types import Command
 
 
 def _make_request(store: SessionStore, graph) -> Request:
@@ -62,6 +63,50 @@ def graph():
     _graph = AsyncMock()
     _graph.run_graph_invoke.return_value = "answer"
     return _graph
+
+
+class _FakeInterrupt:
+    """Minimal stand-in for ``langgraph.types.Interrupt``."""
+
+    def __init__(self, value, id_):
+        self.value = value
+        self.id = id_
+
+
+class _FakeTask:
+    def __init__(self, interrupts):
+        self.interrupts = tuple(interrupts)
+
+
+class _FakeSnapshot:
+    def __init__(self, interrupts):
+        self.tasks = [_FakeTask(interrupts)] if interrupts else []
+
+
+class _FakeCompiled:
+    """A compiled-graph stand-in whose ``aget_state`` reports interrupts."""
+
+    def __init__(self, interrupts=()):
+        self.interrupts = list(interrupts)
+
+    async def aget_state(self, config):
+        return _FakeSnapshot(self.interrupts)
+
+
+def _hitl_graph(*, before=(), after=None, result="answer"):
+    """A graph whose checkpoint reports ``before`` and, after a run, ``after``."""
+    graph = AsyncMock()
+    graph.checkpointer = object()
+    compiled = _FakeCompiled(before)
+    graph.graph = compiled
+
+    async def _run(*args, **kwargs):
+        if after is not None:
+            compiled.interrupts = list(after)
+        return result
+
+    graph.run_graph_invoke.side_effect = _run
+    return graph, compiled
 
 
 class TestRunQueryContext:
@@ -130,7 +175,7 @@ class TestRunQueryContext:
 
         graph.run_graph_astream_events = _capture
 
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             _make_request(store, graph),
             query="q",
             user_id="u",
@@ -151,7 +196,7 @@ class TestStreamResponseResume:
     async def test_requires_query_unless_resume(self, store, graph):
         """An empty query without ``resume`` is a 400."""
         with pytest.raises(HTTPException):
-            chat_core.stream_response(
+            await chat_core.stream_response(
                 _make_request(store, graph), query="  ", user_id="u", chat_id="c"
             )
 
@@ -163,7 +208,7 @@ class TestStreamResponseResume:
             yield  # pragma: no cover
 
         graph.run_graph_astream_events = _boom
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             _make_request(store, graph), query="hello", user_id="u", chat_id="c"
         )
         chunks = await self._collect(response)
@@ -182,7 +227,7 @@ class TestStreamResponseResume:
             yield {"type": "complete", "message_for_user": "answer"}
 
         graph.run_graph_astream_events = _capture
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             _make_request(store, graph), user_id="u", chat_id="c", resume=True
         )
         await self._collect(response)
@@ -199,7 +244,7 @@ class TestStreamResponseResume:
             yield  # pragma: no cover
 
         graph.run_graph_astream_events = _empty
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             _make_request(store, graph), user_id="u", chat_id="c", resume=True
         )
         chunks = await self._collect(response)
@@ -209,7 +254,7 @@ class TestStreamResponseResume:
     async def test_rejects_query_with_resume(self, store, graph):
         """A resume must not carry a query."""
         with pytest.raises(HTTPException):
-            chat_core.stream_response(
+            await chat_core.stream_response(
                 _make_request(store, graph),
                 query="x",
                 user_id="u",
@@ -283,6 +328,139 @@ class TestRunQueryResume:
             )
 
         assert excinfo.value.status_code == 400
+
+
+class TestHitlInterrupts:
+    """HITL interrupt guard, resume and persistence (ADR-0046)."""
+
+    async def _collect(self, response):
+        return [chunk async for chunk in response.body_iterator]
+
+    @staticmethod
+    def _blocked() -> _FakeInterrupt:
+        return _FakeInterrupt(
+            {
+                "kind": "input",
+                "questions": [{"step_number": 1, "question": "which file?"}],
+            },
+            "i1",
+        )
+
+    async def test_plain_query_while_paused_is_409(self, store):
+        """A new query is refused while the thread awaits an answer."""
+        graph, _ = _hitl_graph(before=[self._blocked()], after=())
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph), query="hello", user_id="u", chat_id="c"
+            )
+        assert excinfo.value.status_code == 409
+        graph.run_graph_invoke.assert_not_awaited()
+
+    async def test_query_that_pauses_persists_the_question(self, store):
+        """A run that pauses returns and persists the question."""
+        graph, _ = _hitl_graph(before=(), after=[self._blocked()], result="")
+        result = await chat_core.run_query(
+            _make_request(store, graph), query="do x", user_id="u", chat_id="c"
+        )
+        assert result == "which file?"
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user", "assistant"]
+        assert messages[1]["content"] == "which file?"
+
+    async def test_answer_resumes_with_command_and_writes_user_row(self, store):
+        graph, _ = _hitl_graph(before=[self._blocked()], after=())
+        await chat_core.run_query(
+            _make_request(store, graph),
+            user_id="u",
+            chat_id="c",
+            interrupt_response={"answers": ["a.txt"]},
+        )
+        sent = graph.run_graph_invoke.await_args.args[0]
+        assert isinstance(sent, Command)
+        assert sent.resume == {"action": "answer", "answers": ["a.txt"]}
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user", "assistant"]
+        assert messages[0]["content"] == "a.txt"
+
+    async def test_cancel_resumes_with_cancel_sentinel(self, store):
+        graph, _ = _hitl_graph(before=[self._blocked()], after=())
+        await chat_core.run_query(
+            _make_request(store, graph),
+            user_id="u",
+            chat_id="c",
+            interrupt_cancel=True,
+        )
+        sent = graph.run_graph_invoke.await_args.args[0]
+        assert sent.resume == {"action": "cancel"}
+        assert [m["role"] for m in store.get_messages("u", "c")] == ["assistant"]
+
+    async def test_stale_interrupt_id_is_409(self, store):
+        graph, _ = _hitl_graph(before=[self._blocked()], after=())
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph),
+                user_id="u",
+                chat_id="c",
+                interrupt_response={"answers": ["x"]},
+                interrupt_id="stale",
+            )
+        assert excinfo.value.status_code == 409
+
+    async def test_answer_without_pending_is_409(self, store):
+        graph, _ = _hitl_graph(before=(), after=())
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph),
+                user_id="u",
+                chat_id="c",
+                interrupt_response={"answers": ["x"]},
+            )
+        assert excinfo.value.status_code == 409
+
+    async def test_stream_interrupt_persists_question(self, store):
+        graph, _ = _hitl_graph(before=(), after=[])
+
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            yield {
+                "type": "interrupt",
+                "node": "Awaiting input",
+                "data": {
+                    "kind": "input",
+                    "questions": [{"step_number": 1, "question": "which file?"}],
+                },
+            }
+
+        graph.run_graph_astream_events = _stream
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="do x", user_id="u", chat_id="c"
+        )
+        chunks = await self._collect(response)
+        assert any('"type": "interrupt"' in str(chunk) for chunk in chunks)
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user", "assistant"]
+        assert messages[1]["content"] == "which file?"
+
+    async def test_stream_answer_writes_user_row(self, store):
+        graph, _ = _hitl_graph(before=[self._blocked()], after=[])
+        seen: dict = {}
+
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            seen["input"] = query
+            yield {"type": "complete", "message_for_user": "done"}
+
+        graph.run_graph_astream_events = _stream
+        response = await chat_core.stream_response(
+            _make_request(store, graph),
+            user_id="u",
+            chat_id="c",
+            interrupt_response={"answers": ["a.txt"]},
+        )
+        await self._collect(response)
+        assert isinstance(seen["input"], Command)
+        messages = store.get_messages("u", "c")
+        assert [m["role"] for m in messages] == ["user", "assistant"]
+        assert messages[0]["content"] == "a.txt"
+        assert messages[1]["content"] == "done"
 
 
 class TestModelOverrideResolution:
@@ -470,7 +648,7 @@ class TestSingleFlightAndCancel:
         graph.run_graph_astream_events = _events
         request = _shared_request(store, graph)
 
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             request, query="one", user_id="u", chat_id="c"
         )
         first_chunk: list[str | bytes | memoryview] = []
@@ -483,7 +661,9 @@ class TestSingleFlightAndCancel:
         drain = asyncio.create_task(_drain_one())
         await started.wait()
         with pytest.raises(HTTPException) as excinfo:
-            chat_core.stream_response(request, query="two", user_id="u", chat_id="c")
+            await chat_core.stream_response(
+                request, query="two", user_id="u", chat_id="c"
+            )
         assert excinfo.value.status_code == 409
         release.set()
         await drain
@@ -501,7 +681,7 @@ class TestSingleFlightAndCancel:
         graph.run_graph_astream_events = _events
         request = _shared_request(store, graph)
 
-        response = chat_core.stream_response(
+        response = await chat_core.stream_response(
             request, query="one", user_id="u", chat_id="c"
         )
 
