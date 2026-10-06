@@ -138,6 +138,12 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
             )
         return "tool"
 
+    if t == "interrupt":
+        # The run paused for HITL input (ADR-0046): store the ask so the
+        # status region can render the form; cleared when the next turn starts.
+        chat["interrupt"] = event.get("data", {})
+        return "interrupt"
+
     if t == "error":
         return "error"
 
@@ -167,22 +173,39 @@ def stop_stream(ctx: PageContext) -> None:
 
 
 async def run_stream(
-    ctx: PageContext, query: str, chat_id: str, resume: bool = False
+    ctx: PageContext,
+    query: str,
+    chat_id: str,
+    resume: bool = False,
+    interrupt_response: dict[str, Any] | None = None,
+    interrupt_id: str | None = None,
+    interrupt_cancel: bool = False,
 ) -> None:
     """Stream a query's events into the UI for *chat_id*.
 
     Shows a progress row while streaming, commits the final answer and
     inspector data on completion, and surfaces errors inline (with a Retry
-    action when the run can be resumed from its checkpoint).
+    action when the run can be resumed from its checkpoint).  When the run
+    pauses for human input it renders the ask (the status region builds the
+    form) and stops streaming until the user answers or cancels.
 
     :param ctx: The shared page context.
-    :param query: The user's query text (unused when resuming).
+    :param query: The user's query text (unused when resuming/answering).
     :param chat_id: Chat conversation identifier.
     :param resume: Resume the chat's last failed run instead of starting a
         new turn (the query is not resent).
+    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046).
+    :param interrupt_id: Id of the interrupt being answered.
+    :param interrupt_cancel: Cancel the pending interrupt instead of answering.
     """
     current_chat = ensure_chat(ctx.user_id, chat_id)
-    logger.debug("Streaming query for chat %s (resume=%s)", chat_id, resume)
+    is_query = not resume and interrupt_response is None and not interrupt_cancel
+    logger.debug(
+        "Streaming chat %s (resume=%s interrupt=%s)",
+        chat_id,
+        resume,
+        "cancel" if interrupt_cancel else interrupt_response is not None,
+    )
     ctx.is_streaming = True
     ctx.streaming_chat_id = chat_id
     ctx.stream_task = asyncio.current_task()

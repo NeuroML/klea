@@ -72,16 +72,90 @@ def render_stream_status(ctx: PageContext, retry_cb=None) -> None:
                     )
         elif kind == "stopped":
             ui.label("Stopped").classes("text-xs text-grey-5 italic p-2")
+        elif kind == "awaiting_input":
+            _render_interrupt_form(ctx)
 
 
-def _current_status(ctx: PageContext) -> StatusData:
+def _current_turn_status(ctx: PageContext) -> TurnStatus:
     """Return the active chat's status dict, or ``{"kind": "idle"}``."""
     if not ctx.chat_id:
         return {"kind": "idle"}
     chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
     if not chat:
         return {"kind": "idle"}
-    return chat.get("status") or {"kind": "idle"}
+    return chat.get("turn_status") or {"kind": "idle"}
+
+
+def _interrupt_ask(ctx: PageContext) -> dict[str, Any]:
+    """Return the active chat's pending HITL ask, or ``{}``."""
+    if not ctx.chat_id:
+        return {}
+    chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}")
+    return (chat or {}).get("interrupt") or {}
+
+
+def _render_interrupt_form(ctx: PageContext) -> None:
+    """Render the HITL ask form in the turn status region (ADR-0046).
+
+    A ``review`` ask gets Approve / Request changes / Cancel; an ``input``
+    ask gets one text field per question plus Answer / Cancel.  Submitting
+    calls :attr:`PageContext.submit_interrupt` (registered by the input area).
+    """
+    ask = _interrupt_ask(ctx)
+    kind = ask.get("kind", "input")
+    interrupt_id = ask.get("interrupt_id")
+    with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
+        ui.label("The agent needs your input").classes("text-sm font-bold")
+        if kind == "review":
+            feedback = (
+                ui.textarea(placeholder="Feedback (required to request changes)")
+                .props("outlined autogrow")
+                .classes("w-full")
+            )
+            with ui.row().classes("gap-2"):
+                ui.button(
+                    "Approve",
+                    on_click=lambda: ctx.submit_interrupt(
+                        {"decision": "approve"}, interrupt_id, False
+                    ),
+                ).props("unelevated color=primary")
+                ui.button(
+                    "Request changes",
+                    on_click=lambda: ctx.submit_interrupt(
+                        {"decision": "revise", "feedback": feedback.value or ""},
+                        interrupt_id,
+                        False,
+                    ),
+                ).props("outline")
+                ui.button(
+                    "Cancel",
+                    on_click=lambda: ctx.submit_interrupt(None, interrupt_id, True),
+                ).props("flat color=negative")
+            return
+
+        # input kind: one text field per question.
+        questions = ask.get("questions")
+        if not isinstance(questions, list) or not questions:
+            fallback = ask.get("question") or "More information is needed to continue."
+            questions = [{"question": fallback}]
+        fields = []
+        for question in questions:
+            ui.label(str(question.get("question", ""))).classes("text-sm")
+            fields.append(ui.input().props("outlined dense").classes("w-full"))
+
+        def _submit() -> None:
+            ctx.submit_interrupt(
+                {"answers": [field.value or "" for field in fields]},
+                interrupt_id,
+                False,
+            )
+
+        with ui.row().classes("gap-2"):
+            ui.button("Answer", on_click=_submit).props("unelevated color=primary")
+            ui.button(
+                "Cancel",
+                on_click=lambda: ctx.submit_interrupt(None, interrupt_id, True),
+            ).props("flat color=negative")
 
 
 def _render_messages(ctx: PageContext) -> None:
