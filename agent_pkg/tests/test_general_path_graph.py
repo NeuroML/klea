@@ -55,6 +55,8 @@ async def test_general_path_work_loop(monkeypatch):
         "Deciding route",
         "Planning",
         "Awaiting review",
+        "Awaiting input",
+        "Cancelled",
         "Selecting tools",
         "Running tools",
         "Reasoning",
@@ -77,8 +79,13 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
     assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
 
-    # Human review loops back to the Planner (ADR-0035).
+    # Human-in-the-loop (ADR-0046): both await nodes loop back to the Planner;
+    # a cancel routes to the terminal "Cancelled" node.
     assert ("Awaiting review", "Planning") in edges
+    assert ("Planning", "Awaiting input") in edges  # needs_input
+    assert ("Awaiting input", "Planning") in edges
+    assert ("Awaiting review", "Cancelled") in edges
+    assert ("Awaiting input", "Cancelled") in edges
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
     assert ("Selecting tools", "Running tools") in edges  # dispatch (incl. empty round)

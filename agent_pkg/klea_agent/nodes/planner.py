@@ -117,7 +117,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the query, current plan state and tool catalogue.
 
-        The three conditional feedback fields are composed into one optional
+        The conditional feedback fields are composed into one optional
         ``feedback_block`` so the prompt omits them entirely when there is
         nothing to say (prompt conventions).
         """
@@ -128,6 +128,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             section
             for section in (
                 self._optional_section("Review feedback", state.human_feedback),
+                self._optional_section("User input", state.human_input),
                 self._optional_section("Replan reason", state.replan_reason),
                 self._optional_section("Validation feedback", ctx.validation_feedback),
             )
@@ -219,7 +220,16 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         the remaining statuses to the state plan.  ``result.reason`` is also
         recorded with the plan in ``messages`` for continuity.
         """
-        update: dict[str, Any] = {"human_feedback": "", "replan_reason": ""}
+        # The transient human/feedback inputs are consumed on this pass: the
+        # prompt just read them, so clear them (and any stale pending question)
+        # from state.  The ``needs_input`` branch below re-sets
+        # ``pending_question`` when it asks a new question.
+        update: dict[str, Any] = {
+            "human_feedback": "",
+            "human_input": "",
+            "replan_reason": "",
+            "pending_question": "",
+        }
 
         # --- Plan-history counters (durable run signal) -------------------
         # ``plan_version`` increments on every authoring; ``human_feedback_rounds``

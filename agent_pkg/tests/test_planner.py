@@ -259,6 +259,37 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan"].status, "in_progress")
         self.assertEqual(update["plan"].human_feedback_rounds, 1)
 
+    def test_human_input_is_exposed_and_consumed(self):
+        """A needs_input answer reaches the prompt, then is cleared and not
+        counted as a review round."""
+        state = KleaAgentState(
+            human_input="the file is models/cell.nml",
+            pending_question="which file?",
+            plan=PlanSchema(status="needs_input"),
+        )
+        planner = self._planner()
+
+        variables = planner._get_prompt_variables(state, LLMNodeContext())
+        self.assertIn("## User input", variables["feedback_block"])
+        self.assertIn("models/cell.nml", variables["feedback_block"])
+
+        update = planner._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ],
+                    status="in_progress",
+                )
+            ),
+            state,
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["human_input"], "")
+        self.assertEqual(update["pending_question"], "")
+        self.assertEqual(update["plan"].human_feedback_rounds, 0)
+        self.assertEqual(update["plan"].automated_plan_revisions, 0)
+
     def test_replan_reason_is_exposed(self):
         """The unified replan reason reaches the Planner on a replan."""
         state = KleaAgentState(replan_reason="no progress")

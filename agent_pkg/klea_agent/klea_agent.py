@@ -583,12 +583,19 @@ class KleaAgent(BaseLangGraph):
         )
         # Human-in-the-loop (ADR-0046): pause the run for human input and
         # resume the same execution.  The review instance captures plan
-        # review; a needs_input instance is added with the input wiring.
+        # review; the input instance answers a Planner ``needs_input``
+        # question.
         self._await_review_node = AwaitHuman(
             logger=self.logger,
             label="Awaiting review",
             kind="review",
             answer_field="human_feedback",
+        )
+        self._await_input_node = AwaitHuman(
+            logger=self.logger,
+            label="Awaiting input",
+            kind="input",
+            answer_field="human_input",
         )
         self._cancelled_answer_node = FixedAnswer(
             logger=self.logger,
@@ -621,6 +628,9 @@ class KleaAgent(BaseLangGraph):
         )
         self.workflow.add_node(
             self._await_review_node.label, self._await_review_node.execute
+        )
+        self.workflow.add_node(
+            self._await_input_node.label, self._await_input_node.execute
         )
         self.workflow.add_node(
             self._cancelled_answer_node.label, self._cancelled_answer_node.execute
@@ -680,17 +690,26 @@ class KleaAgent(BaseLangGraph):
             {
                 "failure": self._answer_from_results_node.label,
                 "review": self._await_review_node.label,
-                "needs_input": self._answer_from_results_node.label,
+                "needs_input": self._await_input_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
             },
         )
-        # Human review (ADR-0046): an answer loops back to the Planner, which
-        # interprets the feedback and owns the in_review <-> in_progress
-        # transition; a cancel is terminal and never runs the plan.
+        # Human-in-the-loop (ADR-0046): an answer loops back to the Planner,
+        # which interprets the review feedback (``human_feedback``) or the
+        # supplied fact (``human_input``); a cancel is terminal and never runs
+        # the plan.
         self.workflow.add_conditional_edges(
             self._await_review_node.label,
+            self._await_human_router,
+            {
+                "planner": self._planner_node.label,
+                "cancelled": self._cancelled_answer_node.label,
+            },
+        )
+        self.workflow.add_conditional_edges(
+            self._await_input_node.label,
             self._await_human_router,
             {
                 "planner": self._planner_node.label,

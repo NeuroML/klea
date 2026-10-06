@@ -21,8 +21,10 @@
 * `tools`: the tools you may use
 * `observations`: working memory for the current plan (tool outputs and
   reasoning conclusions; cleared when you author a new plan)
-* `human_feedback` / `replan_reason` / `validation_feedback` (optional): user
-  review, why an automatic replan happened, or why a previous plan was rejected
+* `human_feedback` / `human_input` / `replan_reason` / `validation_feedback`
+  (optional): user review, the fact supplied in answer to a `needs_input`
+  question, why an automatic replan happened, or why a previous plan was
+  rejected
 
 ---
 
@@ -78,7 +80,8 @@
   consequential); on `human_feedback`, approve to `in_progress`, or revise and
   keep `in_review`.
 * `needs_input`: blocked on a fact only the user can supply; put the question in
-  `reason` (a partial plan is allowed).
+  `reason` (a partial plan is allowed).  The user's answer arrives as
+  `human_input` on the resumed run; incorporate it and finalise the plan.
 * `unplannable`: no workable plan with the available tools (return no steps).
   Marking a task impossible or dependency-missing is as valuable as completing
   it; do not use this to avoid a hard step.
