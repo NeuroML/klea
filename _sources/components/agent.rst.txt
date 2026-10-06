@@ -45,9 +45,11 @@ state machine.  In outline:
    takes this short path; everything else is planned.
 2. **Plan** -- the Planner writes the goal and an ordered plan, and never
    answers the user directly.
-3. **Review** -- the plan can pause for human review.  The review step
-   currently auto-approves (a canned approval); real interactivity
-   (LangGraph interrupt/resume) is pending.
+3. **Review and clarification** -- the run can pause for human input and
+   resume the same run with its state intact (LangGraph interrupt/resume).
+   A plan can be presented for an explicit approve/revision decision (a
+   revision returns the feedback to the Planner), and a plan that needs a
+   missing fact asks the questions its blocked step carries.
 4. **Work loop** -- the plan is a dependency graph: independent steps run
    together in a batch, while a step that needs an earlier step's result waits
    for it.  The tools picker binds the arguments for the batch, the tool caller
@@ -101,8 +103,7 @@ The agent is unreleased.  Notably still in progress:
 
 * the Scientific mode knowledge source (retrieval, ADR-0029);
 * grounding/assurance enforcement -- answers are labelled ``unverified``
-  until this lands;
-* interactive human plan review (currently auto-approving).
+  until this lands.
 
 .. seealso::
 

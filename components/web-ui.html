@@ -338,6 +338,14 @@ keys) are configured; the first run opens a <strong>Choose models</strong> promp
 them.  If a run fails with a recoverable error, an inline <strong>Retry</strong> action
 resumes it from its checkpoint – re-running only the failed step – instead
 of starting the query over.</p>
+<p>In the agent, a run can pause for your input.  The ask appears in a per-turn
+region under the transcript (the <em>turn status</em> region, distinct from the
+right-drawer status pane): a plan awaiting review shows the plan with
+<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, and a plan blocked
+on a missing fact shows one field per question.  The main input box is
+disabled until you answer or cancel, and reloading the page re-shows a
+pending ask.  Answering (or requesting a revision) resumes the same run with
+its state intact.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>

@@ -445,6 +445,10 @@
 </li>
         <li><a href="api/utils/stores.html#klea_utils.stores.retrieval.base.BaseKleaRetriever.can_inc_k">can_inc_k() (klea_utils.stores.retrieval.base.BaseKleaRetriever method)</a>
 </li>
+        <li><a href="api/utils/api.html#klea_utils.api.chat_common.cancel_run">cancel_run() (in module klea_utils.api.chat_common)</a>
+</li>
+        <li><a href="api/utils/api.html#klea_utils.api.chat_common.CancelPayload">CancelPayload (class in klea_utils.api.chat_common)</a>
+</li>
         <li><a href="api/utils/api.html#klea_utils.api.sse.CATALOGUE_FETCH_TIMEOUT_SECONDS">CATALOGUE_FETCH_TIMEOUT_SECONDS (in module klea_utils.api.sse)</a>
 </li>
         <li><a href="glossary.html#term-Chat-model"><strong>Chat model</strong></a>
@@ -513,10 +517,10 @@
 </li>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.client.clear_session_model_override">clear_session_model_override() (in module klea_utils.ui.web.nicegui.client)</a>
 </li>
-        <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_session_override">clear_session_override() (klea_utils.api.sessions_db.SessionStore method)</a>
-</li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_session_override">clear_session_override() (klea_utils.api.sessions_db.SessionStore method)</a>
+</li>
         <li><a href="api/utils/api.html#klea_utils.api.sessions_db.SessionStore.clear_session_overrides">clear_session_overrides() (klea_utils.api.sessions_db.SessionStore method)</a>
 </li>
         <li><a href="api/utils/llm.html#klea_utils.llm.clear_structured_output_cache">clear_structured_output_cache() (in module klea_utils.llm)</a>
@@ -1087,6 +1091,13 @@
 </li>
         </ul></li>
         <li>
+    klea_utils.api.chat_common
+
+        <ul>
+          <li><a href="api/utils/api.html#module-klea_utils.api.chat_common">module</a>
+</li>
+        </ul></li>
+        <li>
     klea_utils.api.chat_core
 
         <ul>
@@ -1115,6 +1126,13 @@
 </li>
         </ul></li>
         <li>
+    klea_utils.api.hitl
+
+        <ul>
+          <li><a href="api/utils/api.html#module-klea_utils.api.hitl">module</a>
+</li>
+        </ul></li>
+        <li>
     klea_utils.api.messages
 
         <ul>
@@ -1126,6 +1144,13 @@
 
         <ul>
           <li><a href="api/utils/api.html#module-klea_utils.api.models">module</a>
+</li>
+        </ul></li>
+        <li>
+    klea_utils.api.overrides
+
+        <ul>
+          <li><a href="api/utils/api.html#module-klea_utils.api.overrides">module</a>
 </li>
         </ul></li>
         <li>
@@ -1436,6 +1461,8 @@
           <li><a href="api/utils/mcp.html#module-klea_utils.mcp.tool_impls.session">module</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     klea_utils.mcp.tool_impls.sqlite_query
 
@@ -1450,8 +1477,6 @@
           <li><a href="api/utils/mcp.html#module-klea_utils.mcp.tool_impls.ssrf">module</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li>
     klea_utils.mcp.tool_impls.walk
 
@@ -1966,6 +1991,8 @@
 </li>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.ChatData.messages">messages (klea_utils.ui.web.nicegui.state.ChatData attribute)</a>
 </li>
+        <li><a href="api/utils/api.html#klea_utils.api.overrides.migrate_legacy_overrides">migrate_legacy_overrides() (in module klea_utils.api.overrides)</a>
+</li>
         <li><a href="api/utils/stores.html#klea_utils.stores.postcheck.MIN_CHUNK_CHARS">MIN_CHUNK_CHARS (in module klea_utils.stores.postcheck)</a>
 </li>
         <li><a href="api/utils/nodes.html#klea_utils.nodes.base.MIN_OUTPUT_TOKENS">MIN_OUTPUT_TOKENS (in module klea_utils.nodes.base)</a>
@@ -1980,9 +2007,11 @@
 </li>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.ChatData.mode_pref">mode_pref (klea_utils.ui.web.nicegui.state.ChatData attribute)</a>
 </li>
-        <li><a href="api/utils/api.html#klea_utils.api.credentials.CredentialPayload.model_config">model_config (klea_utils.api.credentials.CredentialPayload attribute)</a>
+        <li><a href="api/utils/api.html#klea_utils.api.chat_common.CancelPayload.model_config">model_config (klea_utils.api.chat_common.CancelPayload attribute)</a>
 
         <ul>
+          <li><a href="api/utils/api.html#klea_utils.api.credentials.CredentialPayload.model_config">(klea_utils.api.credentials.CredentialPayload attribute)</a>
+</li>
           <li><a href="api/utils/api.html#klea_utils.api.models.ModelPayload.model_config">(klea_utils.api.models.ModelPayload attribute)</a>
 </li>
           <li><a href="api/utils/api.html#klea_utils.api.sessions.CreateChatPayload.model_config">(klea_utils.api.sessions.CreateChatPayload attribute)</a>
@@ -2084,6 +2113,8 @@
         <ul>
           <li><a href="api/utils/api.html#module-klea_utils.api.app">klea_utils.api.app</a>
 </li>
+          <li><a href="api/utils/api.html#module-klea_utils.api.chat_common">klea_utils.api.chat_common</a>
+</li>
           <li><a href="api/utils/api.html#module-klea_utils.api.chat_core">klea_utils.api.chat_core</a>
 </li>
           <li><a href="api/utils/api.html#module-klea_utils.api.context">klea_utils.api.context</a>
@@ -2092,9 +2123,13 @@
 </li>
           <li><a href="api/utils/api.html#module-klea_utils.api.health">klea_utils.api.health</a>
 </li>
+          <li><a href="api/utils/api.html#module-klea_utils.api.hitl">klea_utils.api.hitl</a>
+</li>
           <li><a href="api/utils/api.html#module-klea_utils.api.messages">klea_utils.api.messages</a>
 </li>
           <li><a href="api/utils/api.html#module-klea_utils.api.models">klea_utils.api.models</a>
+</li>
+          <li><a href="api/utils/api.html#module-klea_utils.api.overrides">klea_utils.api.overrides</a>
 </li>
           <li><a href="api/utils/api.html#module-klea_utils.api.server">klea_utils.api.server</a>
 </li>
@@ -2493,6 +2528,8 @@
 </li>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.inspector_code.render_inspector_code">render_inspector_code() (in module klea_utils.ui.web.nicegui.components.inspector_code)</a>
 </li>
+        <li><a href="api/utils/api.html#klea_utils.api.hitl.render_interrupt_response">render_interrupt_response() (in module klea_utils.api.hitl)</a>
+</li>
         <li><a href="api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.chat_area.render_turn_status">render_turn_status() (in module klea_utils.ui.web.nicegui.components.chat_area)</a>
 </li>
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.edit_replacers.Replacer">Replacer (in module klea_utils.mcp.tool_impls.edit_replacers)</a>
@@ -2544,6 +2581,8 @@
         <li><a href="api/utils/llm.html#klea_utils.llm.resolve_langchain_endpoint">resolve_langchain_endpoint() (in module klea_utils.llm)</a>
 </li>
         <li><a href="api/utils/plogging.html#klea_utils.plogging.resolve_log_level">resolve_log_level() (in module klea_utils.plogging)</a>
+</li>
+        <li><a href="api/utils/api.html#klea_utils.api.overrides.resolve_model_overrides">resolve_model_overrides() (in module klea_utils.api.overrides)</a>
 </li>
         <li><a href="api/utils/llm.html#klea_utils.llm.resolve_output_token_limit">resolve_output_token_limit() (in module klea_utils.llm)</a>
 </li>
@@ -2748,6 +2787,8 @@
         <li><a href="api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.TextFile">TextFile (class in klea_utils.mcp.tool_impls.file_ops)</a>
 </li>
         <li><a href="api/utils/tools.html#klea_utils.tools.textualize_tool_results">textualize_tool_results() (in module klea_utils.tools)</a>
+</li>
+        <li><a href="api/utils/api.html#klea_utils.api.chat_common.thread_id_for">thread_id_for() (in module klea_utils.api.chat_common)</a>
 </li>
         <li><a href="api/utils/stores.html#klea_utils.stores.filters.to_chroma_filter">to_chroma_filter() (in module klea_utils.stores.filters)</a>
 </li>

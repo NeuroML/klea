@@ -352,9 +352,11 @@ state machine.  In outline:</p>
 takes this short path; everything else is planned.</p></li>
 <li><p><strong>Plan</strong> – the Planner writes the goal and an ordered plan, and never
 answers the user directly.</p></li>
-<li><p><strong>Review</strong> – the plan can pause for human review.  The review step
-currently auto-approves (a canned approval); real interactivity
-(LangGraph interrupt/resume) is pending.</p></li>
+<li><p><strong>Review and clarification</strong> – the run can pause for human input and
+resume the same run with its state intact (LangGraph interrupt/resume).
+A plan can be presented for an explicit approve/revision decision (a
+revision returns the feedback to the Planner), and a plan that needs a
+missing fact asks the questions its blocked step carries.</p></li>
 <li><p><strong>Work loop</strong> – the plan is a dependency graph: independent steps run
 together in a batch, while a step that needs an earlier step’s result waits
 for it.  The tools picker binds the arguments for the batch, the tool caller
@@ -404,8 +406,7 @@ tools.</p>
 <ul class="simple">
 <li><p>the Scientific mode knowledge source (retrieval, ADR-0029);</p></li>
 <li><p>grounding/assurance enforcement – answers are labelled <code class="docutils literal notranslate"><span class="pre">unverified</span></code>
-until this lands;</p></li>
-<li><p>interactive human plan review (currently auto-approving).</p></li>
+until this lands.</p></li>
 </ul>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>

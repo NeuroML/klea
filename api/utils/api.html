@@ -498,9 +498,9 @@ expose whichever fields the app contract needs (e.g. the agent’s
 stream (for example a <code class="docutils literal notranslate"><span class="pre">context</span></code> event carrying the agent operating
 mode), while the shared framing stays here.</p>
 <p>Supporting helpers live in focused modules:
-<code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_common</span></code> (app-state, thread identity, cancel),
-<code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.overrides</span></code> (model overrides/credentials), and
-<code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.hitl</span></code> (human-in-the-loop, ADR-0046).</p>
+<a class="reference internal" href="#module-klea_utils.api.chat_common" title="klea_utils.api.chat_common"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_common</span></code></a> (app-state, thread identity, cancel),
+<a class="reference internal" href="#module-klea_utils.api.overrides" title="klea_utils.api.overrides"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.overrides</span></code></a> (model overrides/credentials), and
+<a class="reference internal" href="#module-klea_utils.api.hitl" title="klea_utils.api.hitl"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.hitl</span></code></a> (human-in-the-loop, ADR-0046).</p>
 <p>File: klea_utils/api/chat_core.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -607,6 +607,126 @@ payload fields through this generic hook instead of forking
 <dd class="field-even"><p>A <code class="xref py py-class docutils literal notranslate"><span class="pre">fastapi.responses.StreamingResponse</span></code> SSE stream</p>
 </dd>
 </dl>
+</dd></dl>
+
+<p id="module-klea_utils.api.chat_common">Shared chat request identity and app-state helpers.</p>
+<p>These are the pieces every chat endpoint needs regardless of its contract:
+resolving the graph/session store from <code class="docutils literal notranslate"><span class="pre">app.state</span></code>, deriving a chat’s
+checkpoint thread id, the per-thread single-flight registry, and cancelling
+an in-flight run.  The endpoint runners themselves live in
+<a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a>.</p>
+<p>File: klea_utils/api/chat_common.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.api.chat_common.CancelPayload">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.api.chat_common.</span></span><span class="sig-name descname"><span class="pre">CancelPayload</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.14)"><span class="pre">Annotated</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">_PydanticGeneralMetadata</span><span class="p"><span class="pre">(</span></span><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="s"><span class="pre">'^[^:]+$'</span></span><span class="p"><span class="pre">)</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Annotated" title="(in Python v3.14)"><span class="pre">Annotated</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">_PydanticGeneralMetadata</span><span class="p"><span class="pre">(</span></span><span class="n"><span class="pre">pattern</span></span><span class="o"><span class="pre">=</span></span><span class="s"><span class="pre">'^[^:]*$'</span></span><span class="p"><span class="pre">)</span></span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/api/chat_common.html#CancelPayload"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.chat_common.CancelPayload" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<p>Identity payload for <code class="docutils literal notranslate"><span class="pre">POST</span> <span class="pre">/query/cancel</span></code> (shared by both apps).</p>
+<p>Cancellation addresses a chat’s thread, so it needs only the same
+<code class="docutils literal notranslate"><span class="pre">(user_id,</span> <span class="pre">chat_id)</span></code> identity the query payloads carry.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.api.chat_common.CancelPayload.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.api.chat_common.CancelPayload.model_config" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.chat_common.cancel_run">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.chat_common.</span></span><span class="sig-name descname"><span class="pre">cancel_run</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">request</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Request</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/api/chat_common.html#cancel_run"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.chat_common.cancel_run" title="Link to this definition">¶</a></dt>
+<dd><p>Cancel the active run for a chat’s thread, if any.</p>
+<p>Idempotent: an absent or already-completed run is a no-op.  Cancelling
+the driving task raises <code class="docutils literal notranslate"><span class="pre">CancelledError</span></code> at the node’s next <code class="docutils literal notranslate"><span class="pre">await</span></code>,
+leaving the checkpoint resumable at the failed node; no assistant turn
+is persisted (only the <code class="docutils literal notranslate"><span class="pre">complete</span></code> event writes one).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>request</strong> – The incoming request; carries the active-run registry.</p></li>
+<li><p><strong>user_id</strong> – Persistent user identifier.</p></li>
+<li><p><strong>chat_id</strong> – Chat conversation identifier.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True when a live run was found and cancellation requested.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.chat_common.thread_id_for">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.chat_common.</span></span><span class="sig-name descname"><span class="pre">thread_id_for</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/api/chat_common.html#thread_id_for"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.chat_common.thread_id_for" title="Link to this definition">¶</a></dt>
+<dd><p>Return the checkpoint thread id for a <code class="docutils literal notranslate"><span class="pre">{user_id}:{chat_id}</span></code> pair.</p>
+</dd></dl>
+
+<p id="module-klea_utils.api.overrides">Per-run model override and credential resolution.</p>
+<p>Assembles the <code class="docutils literal notranslate"><span class="pre">model_overrides</span></code> slice the endpoint runners pass to the
+graph as per-run runtime context (ADR-0033), and migrates legacy inline
+plaintext keys into the credential store.  Kept separate from the endpoint
+runners (<a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a>) because the concern is
+credential/override management, not request handling.</p>
+<p>File: klea_utils/api/overrides.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.overrides.migrate_legacy_overrides">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.overrides.</span></span><span class="sig-name descname"><span class="pre">migrate_legacy_overrides</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">store</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.api.sessions_db.SessionStore" title="klea_utils.api.sessions_db.SessionStore"><span class="pre">SessionStore</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/api/overrides.html#migrate_legacy_overrides"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.overrides.migrate_legacy_overrides" title="Link to this definition">¶</a></dt>
+<dd><p>Move legacy per-chat plaintext <code class="docutils literal notranslate"><span class="pre">api_key</span></code> values into credentials.</p>
+<p>Pre-credential deployments stored the key inline in a chat’s role
+override.  Move each into <code class="docutils literal notranslate"><span class="pre">user_credentials</span></code> (scoped to the model’s
+provider) and strip it from the override, so the unused-key TTL
+applies and override payloads no longer carry secrets.  Returns the
+number of roles migrated.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.overrides.resolve_model_overrides">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.overrides.</span></span><span class="sig-name descname"><span class="pre">resolve_model_overrides</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">graph</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">store</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.api.sessions_db.SessionStore" title="klea_utils.api.sessions_db.SessionStore"><span class="pre">SessionStore</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/api/overrides.html#resolve_model_overrides"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.overrides.resolve_model_overrides" title="Link to this definition">¶</a></dt>
+<dd><p>Assemble the per-run <code class="docutils literal notranslate"><span class="pre">model_overrides</span></code> slice.</p>
+<p>Merges the per-session default overrides with the per-chat overrides
+(role-level: a chat’s role dict wins entirely), then injects the
+user’s provider credential (looked up by the model’s provider/endpoint
+scope) as <code class="docutils literal notranslate"><span class="pre">api_key</span></code> for every modifiable role with a resolved model.
+Locked roles are left to the graph/env so admin-managed models are not
+affected by per-user credentials.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>graph</strong> – The graph, whose <code class="docutils literal notranslate"><span class="pre">llm_models</span></code> supply the role set and
+locked (<code class="docutils literal notranslate"><span class="pre">modifiable=False</span></code>) flags, plus env-default models.</p></li>
+<li><p><strong>store</strong> – Session store with the override and credential layers.</p></li>
+<li><p><strong>user_id</strong> – Persistent user identifier.</p></li>
+<li><p><strong>chat_id</strong> – Chat conversation identifier.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The effective <code class="docutils literal notranslate"><span class="pre">{role:</span> <span class="pre">config}</span></code> for the runtime context.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-klea_utils.api.hitl">Human-in-the-loop interrupt helpers for the chat endpoints (ADR-0046).</p>
+<p>These read a thread’s pending interrupt from its checkpoint, render the
+question(s) and the user’s answer for the transcript, and validate an
+incoming request against the thread’s paused state (a paused thread may
+only be continued by an answer or a cancel).  The endpoint runners in
+<a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a> call <code class="xref py py-func docutils literal notranslate"><span class="pre">_prepare_chat_request()</span></code> before
+invoking the graph.</p>
+<p>File: klea_utils/api/hitl.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.api.hitl.render_interrupt_response">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.hitl.</span></span><span class="sig-name descname"><span class="pre">render_interrupt_response</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.14)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.14)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/api/hitl.html#render_interrupt_response"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.hitl.render_interrupt_response" title="Link to this definition">¶</a></dt>
+<dd><p>Render an interrupt resume mapping as the user turn for the transcript.</p>
+<p>Input answers (<code class="docutils literal notranslate"><span class="pre">answers</span></code>) are joined; a review <code class="docutils literal notranslate"><span class="pre">decision</span></code> is shown in
+human-readable form (<code class="docutils literal notranslate"><span class="pre">approve</span></code> -&gt; “Plan approved”, <code class="docutils literal notranslate"><span class="pre">revise</span></code> -&gt;
+“Revision requested: &lt;feedback&gt;”).  This is display only: the wire values
+are unchanged.</p>
+<p>Shared by <code class="docutils literal notranslate"><span class="pre">chat_core</span></code> (the persisted user row) and the web UI (the live
+transcript) so the two cannot drift.</p>
 </dd></dl>
 
 <p id="module-klea_utils.api.health">Shared health check endpoint factory for Klea packages.</p>
@@ -1461,6 +1581,15 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 <li><a class="reference internal" href="#module-klea_utils.api.chat_core">Chat endpoints</a><ul>
 <li><a class="reference internal" href="#klea_utils.api.chat_core.run_query"><code class="docutils literal notranslate"><span class="pre">run_query()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.chat_core.stream_response"><code class="docutils literal notranslate"><span class="pre">stream_response()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.chat_common.CancelPayload"><code class="docutils literal notranslate"><span class="pre">CancelPayload</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.api.chat_common.CancelPayload.model_config"><code class="docutils literal notranslate"><span class="pre">CancelPayload.model_config</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.api.chat_common.cancel_run"><code class="docutils literal notranslate"><span class="pre">cancel_run()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.chat_common.thread_id_for"><code class="docutils literal notranslate"><span class="pre">thread_id_for()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.overrides.migrate_legacy_overrides"><code class="docutils literal notranslate"><span class="pre">migrate_legacy_overrides()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.overrides.resolve_model_overrides"><code class="docutils literal notranslate"><span class="pre">resolve_model_overrides()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.hitl.render_interrupt_response"><code class="docutils literal notranslate"><span class="pre">render_interrupt_response()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.health.create_health_router"><code class="docutils literal notranslate"><span class="pre">create_health_router()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.messages.create_messages_router"><code class="docutils literal notranslate"><span class="pre">create_messages_router()</span></code></a></li>
 </ul>
