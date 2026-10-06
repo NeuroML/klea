@@ -93,14 +93,33 @@ def _interrupt_event_question(event: Mapping[str, Any]) -> str:
     return str(data.get("question", ""))
 
 
-def _render_interrupt_response(value: Mapping[str, Any]) -> str:
-    """Render an interrupt resume mapping as the user turn for the transcript."""
+#: Human-readable labels for the review decision literals (ADR-0046).  The
+#: wire values stay ``approve`` / ``revise``; only the transcript text differs.
+_REVIEW_DECISION_LABELS = {
+    "approve": "Plan approved",
+    "revise": "Revision requested",
+}
+
+
+def render_interrupt_response(value: Mapping[str, Any]) -> str:
+    """Render an interrupt resume mapping as the user turn for the transcript.
+
+    Input answers (``answers``) are joined; a review ``decision`` is shown in
+    human-readable form (``approve`` -> "Plan approved", ``revise`` ->
+    "Revision requested: <feedback>").  This is display only: the wire values
+    are unchanged.
+
+    Shared by ``chat_core`` (the persisted user row) and the web UI (the live
+    transcript) so the two cannot drift.
+    """
     answers = value.get("answers")
     if isinstance(answers, list):
         return "; ".join(str(answer) for answer in answers)
-    parts = [str(value[key]) for key in ("decision", "feedback") if value.get(key)]
-    if parts:
-        return ": ".join(parts)
+    decision = str(value.get("decision", ""))
+    if decision:
+        label = _REVIEW_DECISION_LABELS.get(decision, decision)
+        feedback = str(value.get("feedback", ""))
+        return f"{label}: {feedback}" if feedback else label
     return json.dumps(dict(value), default=str)
 
 
@@ -206,4 +225,4 @@ async def _prepare_chat_request(
     if action == "cancel":
         return "cancel", Command(resume={"action": "cancel"}), None
     value = {"action": "answer", **dict(interrupt_response or {})}
-    return "answer", Command(resume=value), _render_interrupt_response(value)
+    return "answer", Command(resume=value), render_interrupt_response(value)

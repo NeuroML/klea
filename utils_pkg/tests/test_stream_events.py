@@ -304,8 +304,11 @@ class TestInterruptDisplay:
     def test_review_decision_with_feedback(self):
         assert (
             interrupt_display({"decision": "revise", "feedback": "use v2"})
-            == "revise: use v2"
+            == "Revision requested: use v2"
         )
+
+    def test_review_approval(self):
+        assert interrupt_display({"decision": "approve"}) == "Plan approved"
 
     def test_cancel_and_empty(self):
         assert interrupt_display(None, cancel=True) == "(cancelled)"

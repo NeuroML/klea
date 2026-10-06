@@ -382,6 +382,18 @@ class TestHitlInterrupts:
         assert [m["role"] for m in messages] == ["user", "assistant"]
         assert messages[0]["content"] == "a.txt"
 
+    async def test_review_answer_user_row_is_human_readable(self, store):
+        """A review decision is persisted as prose, not the wire literal."""
+        graph, _ = _hitl_graph(before=[self._blocked()], after=())
+        await chat_core.run_query(
+            _make_request(store, graph),
+            user_id="u",
+            chat_id="c",
+            interrupt_response={"decision": "approve"},
+        )
+        messages = store.get_messages("u", "c")
+        assert messages[0]["content"] == "Plan approved"
+
     async def test_cancel_resumes_with_cancel_sentinel(self, store):
         graph, _ = _hitl_graph(before=[self._blocked()], after=())
         await chat_core.run_query(

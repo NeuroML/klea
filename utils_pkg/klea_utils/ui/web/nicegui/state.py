@@ -16,6 +16,8 @@ from collections.abc import Container, Mapping
 from datetime import datetime
 from typing import Any, NotRequired, TypedDict
 
+from klea_utils.api.hitl import render_interrupt_response
+
 logger = logging.getLogger(__name__)
 
 
@@ -198,9 +200,10 @@ def interrupt_display(
 ) -> str:
     """Render a HITL answer/cancel as the user turn shown in the transcript.
 
-    Mirrors the server-side transcript rendering in ``chat_core``: an
-    ``answers`` list is joined, a review decision/feedback is shown, and a
-    cancel is marked.
+    Delegates to :func:`klea_utils.api.hitl.render_interrupt_response` (the
+    same renderer the server uses for the persisted row) so the live and
+    reloaded text cannot drift; a cancel is marked locally (the server writes
+    no user row for a cancel).
 
     :param response: The resume mapping sent to the server, or ``None``.
     :param cancel: Whether the user cancelled the interrupt.
@@ -208,13 +211,7 @@ def interrupt_display(
     """
     if cancel or not response:
         return "(cancelled)"
-    answers = response.get("answers")
-    if isinstance(answers, list):
-        return "; ".join(str(answer) for answer in answers)
-    parts = [
-        str(response[key]) for key in ("decision", "feedback") if response.get(key)
-    ]
-    return ": ".join(parts) if parts else "(answered)"
+    return render_interrupt_response(response)
 
 
 def resolve_choice(
