@@ -148,7 +148,8 @@ TASKS: list[E2ETask] = [
         tags=["reasoning"],
         setup=_seed_project,
     ),
-    # --- review path (AwaitReview stub auto-approves) ---
+    # --- review path (AwaitHuman pauses for approve/revise; the harness
+    # must answer the interrupt, ADR-0046) ---
     E2ETask(
         id="review",
         query=(
