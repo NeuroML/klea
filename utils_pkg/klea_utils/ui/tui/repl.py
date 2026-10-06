@@ -9,6 +9,51 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 
+def _prompt_interrupt(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
+    """Prompt for a HITL ask and return ``(interrupt_response, cancel)``.
+
+    A ``review`` ask offers approve / request changes / cancel; an ``input``
+    ask prompts one answer per question.  ``(None, True)`` means cancel.
+
+    :param ask: The interrupt ``data`` (``kind``, ``question``/``questions``).
+    :param app_prefix: Prefix for the input prompts.
+    :returns: The resume mapping to send, and whether the user cancelled.
+    """
+    kind = ask.get("kind", "input")
+    print("*** The agent needs your input ***")
+    if kind == "review":
+        while True:
+            choice = (
+                input(
+                    f"{app_prefix} (REVIEW) [a]pprove / [r]equest changes / "
+                    "[c]ancel >>> "
+                )
+                .strip()
+                .lower()
+            )
+            if choice in ("a", "approve"):
+                return {"decision": "approve"}, False
+            if choice in ("r", "revise", "request changes"):
+                feedback = input(f"{app_prefix} (REVIEW) feedback >>> ").strip()
+                return {"decision": "revise", "feedback": feedback}, False
+            if choice in ("c", "cancel"):
+                return None, True
+            print("Please choose a, r, or c.")
+
+    questions = ask.get("questions")
+    if not isinstance(questions, list) or not questions:
+        questions = [{"question": ask.get("question") or "More information is needed."}]
+    answers: list[str] = []
+    for question in questions:
+        answer = input(
+            f"{app_prefix} (INPUT) {question.get('question', '')} (or 'cancel') >>> "
+        ).strip()
+        if answer.lower() == "cancel":
+            return None, True
+        answers.append(answer)
+    return {"answers": answers}, False
+
+
 async def run_repl(
     url: str,
     title: str,
@@ -57,28 +102,59 @@ async def run_repl(
         await check_api_is_ready(f"{url}/health/ready")
 
     async def _query_one(query: str) -> None:
-        full_response = ""
-        error_msg = ""
-        print()
+        """Stream one turn, answering any HITL interrupt it pauses on."""
+        resume = False
+        interrupt_response: dict | None = None
+        interrupt_id: str | None = None
+        interrupt_cancel = False
+        while True:
+            full_response = ""
+            error_msg = ""
+            ask: dict | None = None
+            print()
 
-        with yaspin(text="Working ...", timer=True) as spinner:
-            async for event in stream_events(query, chat_id, url):
-                if event["type"] == "progress":
-                    spinner.text = (event.get("data") or {}).get("heading") or event[
-                        "node"
-                    ]
-                elif event["type"] == "complete":
-                    full_response = event.get("message_for_user", "")
-                    spinner.ok("[OK]")
-                elif event["type"] == "error":
-                    error_msg = event.get("message", "Unknown server error")
-                    spinner.fail("[ERROR]")
-                    break
+            with yaspin(text="Working ...", timer=True) as spinner:
+                async for event in stream_events(
+                    query,
+                    chat_id,
+                    url,
+                    resume=resume,
+                    interrupt_response=interrupt_response,
+                    interrupt_id=interrupt_id,
+                    interrupt_cancel=interrupt_cancel,
+                ):
+                    etype = event["type"]
+                    if etype == "progress":
+                        spinner.text = (event.get("data") or {}).get(
+                            "heading"
+                        ) or event["node"]
+                    elif etype == "interrupt":
+                        ask = event.get("data") or {}
+                        break
+                    elif etype == "complete":
+                        full_response = event.get("message_for_user", "")
+                        spinner.ok("[OK]")
+                    elif etype == "error":
+                        error_msg = event.get("message", "Unknown server error")
+                        spinner.fail("[ERROR]")
+                        break
 
-        output = error_msg or full_response
-        label = "(ERROR)" if error_msg else "(AI)"
-        print(f"{app_prefix} {label} >>> {output}")
-        print("\n" + "-" * 40 + "\n")
+            if ask is not None:
+                # Paused for human input: prompt, then stream the answer (which
+                # may itself pause again) in the same turn.
+                interrupt_response, interrupt_cancel = _prompt_interrupt(
+                    ask, app_prefix
+                )
+                interrupt_id = ask.get("interrupt_id")
+                query = ""
+                resume = False
+                continue
+
+            output = error_msg or full_response
+            label = "(ERROR)" if error_msg else "(AI)"
+            print(f"{app_prefix} {label} >>> {output}")
+            print("\n" + "-" * 40 + "\n")
+            return
 
     if single_query:
         print(f"{app_prefix} (USER) >>> {single_query}")
