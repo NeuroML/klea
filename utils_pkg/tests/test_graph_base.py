@@ -649,6 +649,29 @@ class TestContextEventForwarding:
         assert [e for e in events if e.get("type") == "complete"], "expected complete"
 
 
+class _FakeRunStream:
+    """Stand-in for ``AsyncGraphRunStream`` used by the fake graphs.
+
+    Iterates raw events and exposes the documented interrupt projection
+    (``interrupted``/``interrupts``) as async methods, matching the async
+    lane of the installed ``langgraph``.
+    """
+
+    def __init__(self, events: list[dict], interrupts: list | None = None):
+        self._events = list(events)
+        self._interrupts = list(interrupts or [])
+
+    async def __aiter__(self):
+        for event in self._events:
+            yield event
+
+    async def interrupted(self) -> bool:
+        return bool(self._interrupts)
+
+    async def interrupts(self) -> list:
+        return list(self._interrupts)
+
+
 class _CaptureCompiled:
     """Fake compiled graph that records the ``context`` kwarg per run call."""
 
@@ -669,11 +692,7 @@ class _CaptureCompiled:
     async def astream_events(self, *args, **kwargs):
         self.calls.append(("astream_events", kwargs))
         self.inputs.append(args[0] if args else kwargs.get("input"))
-        return self._empty()
-
-    async def _empty(self):
-        if False:  # pragma: no cover
-            yield
+        return _FakeRunStream([])
 
 
 class _ContextCaptureGraph(BaseLangGraph):
@@ -706,15 +725,12 @@ class _ContextCaptureGraph(BaseLangGraph):
 class _ProgressEventCompiled:
     """Fake compiled graph yielding a fixed list of ``astream_events`` dicts."""
 
-    def __init__(self, events: list[dict]):
+    def __init__(self, events: list[dict], interrupts: list | None = None):
         self._events = events
+        self._interrupts = list(interrupts or [])
 
     async def astream_events(self, *args, **kwargs):
-        return self._iter()
-
-    async def _iter(self):
-        for event in self._events:
-            yield event
+        return _FakeRunStream(self._events, self._interrupts)
 
 
 class TestProgressStreaming:
@@ -783,16 +799,21 @@ class TestProgressStreaming:
 class TestInterruptStreaming:
     """A paused run emits an ``interrupt`` event and suppresses ``complete``.
 
-    Under ``astream_events`` v3 a pause is reported on the ``values``
-    channel via a non-empty ``params["interrupts"]``; the runner surfaces
-    it as an ``interrupt`` event and must not emit a terminal ``complete``.
+    The runner detects a pause via the documented projection
+    (``stream.interrupted`` / ``stream.interrupts``) and surfaces each
+    interrupt as an ``interrupt`` event; it must not emit a terminal
+    ``complete``.
     """
 
     def setup_method(self):
         self.logger = logging.getLogger("test_graph_base.interrupt")
 
-    def _graph(self, events: list[dict]) -> _ContextCaptureGraph:
-        return _ContextCaptureGraph(cast(Any, _ProgressEventCompiled(events)))
+    def _graph(
+        self, events: list[dict], interrupts: list | None = None
+    ) -> _ContextCaptureGraph:
+        return _ContextCaptureGraph(
+            cast(Any, _ProgressEventCompiled(events, interrupts))
+        )
 
     async def _stream(self, graph) -> list[dict]:
         return [e async for e in graph.run_graph_astream_events("q")]
@@ -802,16 +823,8 @@ class TestInterruptStreaming:
 
         intr = Interrupt(value={"kind": "input", "question": "Which file?"}, id="i-1")
         graph = self._graph(
-            [
-                {
-                    "method": "values",
-                    "params": {"data": {"query": "q"}, "interrupts": ()},
-                },
-                {
-                    "method": "values",
-                    "params": {"data": {"query": "q"}, "interrupts": (intr,)},
-                },
-            ]
+            [{"method": "values", "params": {"data": {"query": "q"}}}],
+            interrupts=[intr],
         )
 
         events = await self._stream(graph)
@@ -830,12 +843,8 @@ class TestInterruptStreaming:
 
         intr = Interrupt(value="Need a path", id="i-2")
         graph = self._graph(
-            [
-                {
-                    "method": "values",
-                    "params": {"data": {"query": "q"}, "interrupts": (intr,)},
-                }
-            ]
+            [{"method": "values", "params": {"data": {"query": "q"}}}],
+            interrupts=[intr],
         )
 
         events = await self._stream(graph)
@@ -848,10 +857,7 @@ class TestInterruptStreaming:
             [
                 {
                     "method": "values",
-                    "params": {
-                        "data": {"query": "q", "message_for_user": "done"},
-                        "interrupts": (),
-                    },
+                    "params": {"data": {"query": "q", "message_for_user": "done"}},
                 }
             ]
         )

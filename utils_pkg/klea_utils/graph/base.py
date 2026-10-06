@@ -1104,6 +1104,7 @@ class BaseLangGraph(ABC):
         flow through.
 
         Reference: https://docs.langchain.com/oss/python/langgraph/event-streaming
+        Interrupts: https://docs.langchain.com/oss/python/langgraph/interrupts
 
         :param query: User query string, ``None`` to **resume** the thread
             from its last checkpoint (see the fault-tolerance note), or a
@@ -1155,8 +1156,6 @@ class BaseLangGraph(ABC):
         last_values: dict = {}
         # Last emitted session-context snapshot, for change-dedup.
         last_context: dict[str, Any] | None = None
-        # A paused run (interrupt) must not emit a terminal ``complete``.
-        interrupt_seen = False
 
         async for event in stream:
             method = event["method"]
@@ -1235,18 +1234,6 @@ class BaseLangGraph(ABC):
 
             elif method == "values":
                 last_values = event["params"]["data"]
-                # A paused run reports its pending interrupts on the
-                # ``values`` event; surface each as an ``interrupt`` event so
-                # the client can present the ask and resume with a Command.
-                interrupts = event["params"].get("interrupts") or ()
-                for intr in interrupts:
-                    interrupt_seen = True
-                    self.logger.info(
-                        "Graph paused at interrupt %s (node %s)",
-                        getattr(intr, "id", None),
-                        current_node,
-                    )
-                    yield _interrupt_event(intr, current_node)
                 # ``values`` snapshots arrive as a dict (TypedDict state) or
                 # as the pydantic state instance; ``_normalise_state_snapshot``
                 # gives ``context_snapshot`` a plain dict in the stream path --
@@ -1272,8 +1259,25 @@ class BaseLangGraph(ABC):
                 current_node,
                 time.monotonic() - node_start,
             )
-        if interrupt_seen:
-            # The run is paused, not finished: no terminal ``complete``.
+        # Documented v3 interrupt projection (ADR-0046): after the stream
+        # drains, ``stream.interrupted`` says whether the run paused and
+        # ``stream.interrupts`` carries the payloads.  On the async lane these
+        # are async methods; on the sync lane they are properties -- handle
+        # both.  A pause must not emit a terminal ``complete``.
+        interrupted = getattr(stream, "interrupted", None)
+        if callable(interrupted):
+            interrupted = await interrupted()
+        if interrupted:
+            interrupts = getattr(stream, "interrupts", None)
+            if callable(interrupts):
+                interrupts = await interrupts()
+            for intr in interrupts or ():
+                self.logger.info(
+                    "Graph paused at interrupt %s (node %s)",
+                    getattr(intr, "id", None),
+                    current_node,
+                )
+                yield _interrupt_event(intr, current_node)
             self.logger.info("Graph paused at an interrupt after %.2fs", total_elapsed)
             return
         self.logger.info("Graph completed in %.2fs", total_elapsed)
