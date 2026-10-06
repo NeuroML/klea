@@ -243,6 +243,7 @@ class TestPlanSchemaRuntime:
             "completed",
             "failed",
             "aborted",
+            "user_cancelled",
             "unplannable",
         }
 

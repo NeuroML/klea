@@ -308,6 +308,7 @@ class PlanSchema(PlannerPlanSchema):
         "completed",
         "failed",
         "aborted",
+        "user_cancelled",
         "unplannable",
     ] = Field(default="not_started", validate_default=True)
 
@@ -587,9 +588,16 @@ class KleaAgentState(BaseGraphSchema):
     # prompts.  The plan's counters are the durable history signal instead.
     #
     #: Latest human review input (empty unless a plan is under review).  Written
-    #: by ``AwaitReview``; read and cleared by the Planner, which interprets it
-    #: and records the round on ``plan.human_feedback_rounds``.
+    #: by the ``AwaitHuman`` review instance; read and cleared by the Planner,
+    #: which interprets it and records the round on
+    #: ``plan.human_feedback_rounds``.
     human_feedback: str = ""
+    #: Answer supplied by the user to resume a ``needs_input`` interrupt
+    #: (HITL, ADR-0046).  Written by the ``AwaitHuman`` input instance on
+    #: resume; read and cleared by the Planner, which incorporates the missing
+    #: fact and finalises the partial plan.  Distinct from ``human_feedback``
+    #: so a supplied fact is not counted as a review round.
+    human_input: str = ""
     #: Why the Planner is being re-entered for an automated replan: set by the
     #: Evaluator on ``need_replan`` and by the tool-round recorder when a batch
     #: had a failed call; read and cleared by the Planner.  Empty on the first

@@ -29,7 +29,7 @@ from mcp.types import TextContent
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
-from klea_agent.nodes.await_review import AwaitReview
+from klea_agent.nodes.await_human import AwaitHuman
 from klea_agent.nodes.init_graph import InitGraphState
 from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
@@ -217,6 +217,16 @@ class KleaAgent(BaseLangGraph):
         if state.plan.current_step() is None:
             return "failure"
         return self._step_kind(state)
+
+    async def _await_human_router(self, state: KleaAgentState) -> str:
+        """Route after a HITL pause: back to the Planner, or cancel (ADR-0046).
+
+        A cancel sets ``plan.status == "user_cancelled"``; anything else is an
+        answer that resumes the same run at the Planner.
+        """
+        if state.plan.status == "user_cancelled":
+            return "cancelled"
+        return "planner"
 
     @staticmethod
     def _step_kind(state: KleaAgentState) -> str:
@@ -571,9 +581,20 @@ class KleaAgent(BaseLangGraph):
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
-        # Human plan review (ADR-0035): stub until the interrupt/resume stage.
-        self._await_review_node = AwaitReview(
-            logger=self.logger, label="Awaiting review"
+        # Human-in-the-loop (ADR-0046): pause the run for human input and
+        # resume the same execution.  The review instance captures plan
+        # review; a needs_input instance is added with the input wiring.
+        self._await_review_node = AwaitHuman(
+            logger=self.logger,
+            label="Awaiting review",
+            kind="review",
+            answer_field="human_feedback",
+        )
+        self._cancelled_answer_node = FixedAnswer(
+            logger=self.logger,
+            label="Cancelled",
+            state_attr="message_for_user",
+            message="Run cancelled.",
         )
         # Work-loop nodes: the shared picker/caller (ADR-0020) plus the
         # deterministic TriageRouter and the operational OperationalEvaluator
@@ -600,6 +621,9 @@ class KleaAgent(BaseLangGraph):
         )
         self.workflow.add_node(
             self._await_review_node.label, self._await_review_node.execute
+        )
+        self.workflow.add_node(
+            self._cancelled_answer_node.label, self._cancelled_answer_node.execute
         )
 
         if self.memory:
@@ -662,9 +686,18 @@ class KleaAgent(BaseLangGraph):
                 "reasoning": self._reasoning_node.label,
             },
         )
-        # Human review loops back to the Planner, which interprets the
-        # feedback and owns the in_review <-> in_progress transition.
-        self.workflow.add_edge(self._await_review_node.label, self._planner_node.label)
+        # Human review (ADR-0046): an answer loops back to the Planner, which
+        # interprets the feedback and owns the in_review <-> in_progress
+        # transition; a cancel is terminal and never runs the plan.
+        self.workflow.add_conditional_edges(
+            self._await_review_node.label,
+            self._await_human_router,
+            {
+                "planner": self._planner_node.label,
+                "cancelled": self._cancelled_answer_node.label,
+            },
+        )
+        self.workflow.add_edge(self._cancelled_answer_node.label, END)
         # The picker binds arguments; a deliberate failure (no usable call but
         # a reason) or an exhausted empty-selection retry escalates to the
         # Planner, bypassing the caller (which would dispatch nothing).
