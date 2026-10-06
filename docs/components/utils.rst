@@ -30,7 +30,7 @@ Alongside the base graph, ``klea_utils`` provides the pieces the
 applications share:
 
 * shared LangGraph nodes (guard, memory summarisation, tool picker and
-  caller, general answering);
+  caller, general answering, and the human-in-the-loop await node);
 * configurable LLM setup with runtime model switching and provider
   handling;
 * the vector and BM25 store abstraction (see :doc:`rag`) and the document

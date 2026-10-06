@@ -19,6 +19,18 @@ Chat endpoints
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.api.chat_common
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.api.overrides
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.api.hitl
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.api.health
    :members:
    :show-inheritance:

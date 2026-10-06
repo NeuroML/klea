@@ -170,6 +170,9 @@ Last updated: 2026-10-05.
   single-turn persistence (one user row, one assistant row).  (A run *is*
   stopped externally by cancelling its `asyncio.Task` -- see ADR-0043 -- but
   that is cancellation, not the failed-node resume this hook targets.)
+- E2E review task must drive the HITL interrupt (ADR-0046): the `review` task
+  in `agent_pkg/e2e/tasks.py` now pauses at `AwaitHuman`, so the harness must
+  answer (approve/revise) or cancel and assert the resumed run.
 - Add a NiceGUI element-rendering test harness (e.g. `nicegui.testing.User`
   / `Screen` fixtures) so UI wiring can be asserted without a browser:
   dialogs rebuilding on credential/model change, the chat-area welcome CTA

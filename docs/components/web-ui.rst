@@ -32,6 +32,15 @@ them.  If a run fails with a recoverable error, an inline **Retry** action
 resumes it from its checkpoint -- re-running only the failed step -- instead
 of starting the query over.
 
+In the agent, a run can pause for your input.  The ask appears in a per-turn
+region under the transcript (the *turn status* region, distinct from the
+right-drawer status pane): a plan awaiting review shows the plan with
+**Approve** / **Request changes** / **Cancel** controls, and a plan blocked
+on a missing fact shows one field per question.  The main input box is
+disabled until you answer or cancel, and reloading the page re-shows a
+pending ask.  Answering (or requesting a revision) resumes the same run with
+its state intact.
+
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer
    :width: 80%
