@@ -28,7 +28,7 @@ from fastapi import APIRouter, Request
 from langgraph.types import RunnableConfig
 from pydantic import Field
 
-from klea_utils.api.chat_core import _graph_and_store, thread_id_for
+from klea_utils.api.chat_common import _graph_and_store, thread_id_for
 from klea_utils.graph.base import BaseLangGraph, _normalise_state_snapshot
 
 logger = logging.getLogger(__name__)

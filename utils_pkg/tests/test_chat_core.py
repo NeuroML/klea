@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException, Request
-from klea_utils.api import chat_core
+from klea_utils.api import chat_common, chat_core, overrides
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.llm import LLMModel
@@ -464,7 +464,7 @@ class TestHitlInterrupts:
 
 
 class TestModelOverrideResolution:
-    """chat_core.resolve_model_overrides merges layers + injects credentials."""
+    """overrides.resolve_model_overrides merges layers + injects credentials."""
 
     def test_chat_override_wins_role_level(self, store):
         """A chat override replaces the session default for that role."""
@@ -472,14 +472,14 @@ class TestModelOverrideResolution:
         store.set_session_override("u", "chat", {"model": "openai:a"})
         store.set_override("u", "c", "chat", {"model": "openai:b"})
         graph = SimpleNamespace(llm_models={})
-        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        result = overrides.resolve_model_overrides(graph, store, "u", "c")
         assert result["chat"]["model"] == "openai:b"
 
     def test_inherits_session_default(self, store):
         """With no chat override, the session default applies."""
         store.set_session_override("u", "chat", {"model": "openai:a"})
         graph = SimpleNamespace(llm_models={})
-        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        result = overrides.resolve_model_overrides(graph, store, "u", "c")
         assert result["chat"]["model"] == "openai:a"
 
     def test_injects_credential_for_override(self, store):
@@ -487,7 +487,7 @@ class TestModelOverrideResolution:
         store.set_session_override("u", "chat", {"model": "openai:gpt-4o"})
         store.set_credential("u", "openai", "", "sk-secret")
         graph = SimpleNamespace(llm_models={})
-        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        result = overrides.resolve_model_overrides(graph, store, "u", "c")
         assert result["chat"]["api_key"] == "sk-secret"
 
     def test_injects_credential_for_env_default(self, store):
@@ -496,7 +496,7 @@ class TestModelOverrideResolution:
             llm_models={"chat": LLMModel(instance=None, model_name="openai:gpt-4o")}
         )
         store.set_credential("u", "openai", "", "sk-secret")
-        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        result = overrides.resolve_model_overrides(graph, store, "u", "c")
         assert result["chat"] == {"api_key": "sk-secret"}
 
     def test_skips_locked_role(self, store):
@@ -510,7 +510,7 @@ class TestModelOverrideResolution:
                 )
             }
         )
-        result = chat_core.resolve_model_overrides(graph, store, "u", "c")
+        result = overrides.resolve_model_overrides(graph, store, "u", "c")
         assert result["guard"] == {"model": "openai:gpt-4o"}
 
     def test_migrate_legacy_overrides(self, store):
@@ -519,7 +519,7 @@ class TestModelOverrideResolution:
         store.set_override(
             "u", "c", "chat", {"model": "openai:gpt-4o", "api_key": "sk-legacy"}
         )
-        migrated = chat_core.migrate_legacy_overrides(store)
+        migrated = overrides.migrate_legacy_overrides(store)
         assert migrated == 1
         assert store.get_overrides("u", "c")["chat"] == {"model": "openai:gpt-4o"}
         assert store.get_credential("u", "openai") == "sk-legacy"
@@ -531,7 +531,7 @@ class TestModelOverrideResolution:
             "u", "c", "chat", {"model": "openai:gpt-4o", "api_key": "sk-legacy"}
         )
         store.set_credential("u", "openai", "", "sk-new")
-        chat_core.migrate_legacy_overrides(store)
+        overrides.migrate_legacy_overrides(store)
         assert store.get_credential("u", "openai") == "sk-new"
         assert "api_key" not in store.get_overrides("u", "c")["chat"]
 
@@ -615,7 +615,7 @@ class TestSingleFlightAndCancel:
             chat_core.run_query(request, query="one", user_id="u", chat_id="c")
         )
         await started.wait()
-        assert chat_core.cancel_run(request, "u", "c") is True
+        assert chat_common.cancel_run(request, "u", "c") is True
         with pytest.raises(asyncio.CancelledError):
             await first
 
@@ -633,7 +633,7 @@ class TestSingleFlightAndCancel:
     async def test_cancel_missing_run_is_noop(self, store, graph):
         """Cancelling a chat with no active run returns False."""
         request = _shared_request(store, graph)
-        assert chat_core.cancel_run(request, "u", "nope") is False
+        assert chat_common.cancel_run(request, "u", "nope") is False
 
     async def test_stream_guard_rejects_concurrent_run(self, store, graph):
         """A second streamed run for a busy thread -> 409 before streaming."""
@@ -691,7 +691,7 @@ class TestSingleFlightAndCancel:
 
         task = asyncio.create_task(_drain())
         await started.wait()
-        assert chat_core.cancel_run(request, "u", "c") is True
+        assert chat_common.cancel_run(request, "u", "c") is True
         with pytest.raises(asyncio.CancelledError):
             await task
         # No assistant row on cancel; thread is free for a new run.

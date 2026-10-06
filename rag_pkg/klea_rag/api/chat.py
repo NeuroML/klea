@@ -15,7 +15,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from fastapi import APIRouter, Request, Response
-from klea_utils.api import chat_core
+from klea_utils.api import chat_common, chat_core
 from pydantic import BaseModel, Field
 
 
@@ -47,7 +47,7 @@ def create_chat_router() -> APIRouter:
 
     @router.post("/query/stream")
     async def query_stream(request: Request, payload: ChatPayload):
-        return chat_core.stream_response(
+        return await chat_core.stream_response(
             request,
             query=payload.query,
             user_id=payload.user_id,
@@ -56,10 +56,10 @@ def create_chat_router() -> APIRouter:
 
     @router.post("/query/cancel", status_code=204)
     async def query_cancel(
-        request: Request, payload: chat_core.CancelPayload
+        request: Request, payload: chat_common.CancelPayload
     ) -> Response:
         """Cancel the chat's active run (idempotent; 204 always)."""
-        chat_core.cancel_run(request, payload.user_id, payload.chat_id)
+        chat_common.cancel_run(request, payload.user_id, payload.chat_id)
         return Response(status_code=204)
 
     return router

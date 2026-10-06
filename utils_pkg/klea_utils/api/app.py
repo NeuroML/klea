@@ -16,7 +16,7 @@ from fastapi import APIRouter, FastAPI
 
 logger = logging.getLogger(__name__)
 
-from klea_utils.api.chat_core import migrate_legacy_overrides
+from klea_utils.api.overrides import migrate_legacy_overrides
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.graph.base import BaseLangGraph
