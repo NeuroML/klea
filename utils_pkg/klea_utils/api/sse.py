@@ -31,14 +31,24 @@ def _stream_payload(
     user_id: str,
     resume: bool,
     extra: dict | None,
+    interrupt_response: dict | None = None,
+    interrupt_id: str | None = None,
+    interrupt_cancel: bool = False,
 ) -> dict:
     """Build the ``/query/stream`` POST body.
 
-    On *resume* the ``query`` is omitted (the server resumes the thread's
-    last failed run from its checkpoint); otherwise it is required.
+    Exactly one action is sent: an interrupt answer (``interrupt_response``,
+    optionally with the ``interrupt_id`` it answers), an interrupt cancel
+    (``interrupt_cancel``), a failure resume (``resume``), or the ``query``.
     """
     payload: dict = {"chat_id": chat_id, "user_id": user_id}
-    if resume:
+    if interrupt_cancel:
+        payload["interrupt_cancel"] = True
+    elif interrupt_response is not None:
+        payload["interrupt_response"] = interrupt_response
+        if interrupt_id is not None:
+            payload["interrupt_id"] = interrupt_id
+    elif resume:
         payload["resume"] = True
     else:
         payload["query"] = query
@@ -54,6 +64,9 @@ async def stream_events(
     user_id: str = "",
     extra: dict | None = None,
     resume: bool = False,
+    interrupt_response: dict | None = None,
+    interrupt_id: str | None = None,
+    interrupt_cancel: bool = False,
 ) -> AsyncGenerator[dict, None]:
     """POST to ``/query/stream`` and yield parsed SSE event dicts.
 
@@ -67,6 +80,11 @@ async def stream_events(
                     (only for opted-in free-text nodes)
         usage       {"type": "usage", "node": "<label>", "data": {...}}
         context     {"type": "context", "data": {...}}  (graph-level session context)
+        interrupt   {"type": "interrupt", "node": "<label>", "data": {...}}
+                    (the run paused for human input; ``data`` carries ``kind``,
+                    the ``question``/``questions``, the ``interrupt_id`` and a
+                    ``hitl_response_schema`` when the node supplied one.  No
+                    ``complete`` follows a pause.)
         complete    {"type": "complete", "message_for_user": "<text>"}
         error       {"type": "error", "message": "<text>", "error_type": "<class>",
                      "node": "<label>", "resumable": <bool>}
@@ -81,9 +99,23 @@ async def stream_events(
         (e.g. an app-specific ``mode`` request, ADR-0030).
     :param resume: Resume the chat's last failed run from its checkpoint
         instead of starting a new turn (the query is not sent).
+    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046); the
+        resume mapping (e.g. ``{"answers": [...]}`` or
+        ``{"decision": "approve", "feedback": "..."}``).  Pass an empty query.
+    :param interrupt_id: Id of the interrupt being answered.
+    :param interrupt_cancel: Cancel the pending interrupt instead of answering.
     """
     url = f"{server_url}/query/stream"
-    payload = _stream_payload(query, chat_id, user_id, resume, extra)
+    payload = _stream_payload(
+        query,
+        chat_id,
+        user_id,
+        resume,
+        extra,
+        interrupt_response,
+        interrupt_id,
+        interrupt_cancel,
+    )
     async with (
         httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(
@@ -376,6 +408,9 @@ def stream_events_sync(
     user_id: str = "",
     extra: dict | None = None,
     resume: bool = False,
+    interrupt_response: dict | None = None,
+    interrupt_id: str | None = None,
+    interrupt_cancel: bool = False,
 ) -> Generator[dict, None, None]:
     """Synchronous counterpart of :func:`stream_events`.
 
@@ -390,9 +425,22 @@ def stream_events_sync(
         (e.g. an app-specific ``mode`` request, ADR-0030).
     :param resume: Resume the chat's last failed run from its checkpoint
         instead of starting a new turn (the query is not sent).
+    :param interrupt_response: Answer a pending HITL interrupt (ADR-0046); the
+        resume mapping (e.g. ``{"answers": [...]}``).  Pass an empty query.
+    :param interrupt_id: Id of the interrupt being answered.
+    :param interrupt_cancel: Cancel the pending interrupt instead of answering.
     """
     url = f"{server_url}/query/stream"
-    payload = _stream_payload(query, chat_id, user_id, resume, extra)
+    payload = _stream_payload(
+        query,
+        chat_id,
+        user_id,
+        resume,
+        extra,
+        interrupt_response,
+        interrupt_id,
+        interrupt_cancel,
+    )
     with (
         httpx.Client(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
         client.stream(

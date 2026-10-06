@@ -361,6 +361,65 @@ class TestStreamEventsClient:
         body = json.loads(sse_transport[0].content)
         assert body == {"chat_id": "c", "user_id": "", "resume": True}
 
+    async def test_interrupt_answer_body(self, sse_transport):
+        """An interrupt answer sends ``interrupt_response`` (and the id)."""
+        await stream_events(
+            "",
+            "c",
+            "http://backend",
+            interrupt_response={"answers": ["a.txt"]},
+            interrupt_id="i1",
+        ).__anext__()
+        body = json.loads(sse_transport[0].content)
+        assert body == {
+            "chat_id": "c",
+            "user_id": "",
+            "interrupt_response": {"answers": ["a.txt"]},
+            "interrupt_id": "i1",
+        }
+
+    async def test_interrupt_cancel_body(self, sse_transport):
+        """An interrupt cancel sends only the ``interrupt_cancel`` flag."""
+        await stream_events(
+            "", "c", "http://backend", interrupt_cancel=True
+        ).__anext__()
+        body = json.loads(sse_transport[0].content)
+        assert body == {"chat_id": "c", "user_id": "", "interrupt_cancel": True}
+
+    def test_interrupt_cancel_body_sync(self, sse_transport):
+        """The synchronous variant sends the interrupt action too."""
+        next(stream_events_sync("", "c", "http://backend", interrupt_cancel=True))
+        body = json.loads(sse_transport[0].content)
+        assert body == {"chat_id": "c", "user_id": "", "interrupt_cancel": True}
+
+    async def test_interrupt_frame_is_yielded(self, monkeypatch):
+        """The client surfaces the interrupt frame (question/id) unchanged."""
+        frame = (
+            'data: {"type": "interrupt", "node": "Awaiting input", "data": '
+            '{"kind": "input", "questions": [{"step_number": 1, '
+            '"question": "which file?"}], "interrupt_id": "i1"}}\n\n'
+        )
+        response = httpx.Response(200, text=frame)
+        real_client = httpx.AsyncClient
+
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(lambda request: response)
+            return real_client(*args, **kwargs)
+
+        monkeypatch.setattr("klea_utils.api.sse.httpx.AsyncClient", _factory)
+        events = [e async for e in stream_events("q", "c", "http://backend")]
+        assert events == [
+            {
+                "type": "interrupt",
+                "node": "Awaiting input",
+                "data": {
+                    "kind": "input",
+                    "questions": [{"step_number": 1, "question": "which file?"}],
+                    "interrupt_id": "i1",
+                },
+            }
+        ]
+
 
 @pytest.fixture
 def catalogue_transport(monkeypatch):
