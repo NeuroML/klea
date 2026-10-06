@@ -88,6 +88,7 @@ async def test_review_approve_runs_the_plan():
 
     intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
     assert intr.value["kind"] == "review"
+    assert "plan" in intr.value  # the form carries the rendered plan
     assert intr.response_schema is not None  # typed review form
 
     result = await graph.ainvoke(

@@ -105,9 +105,16 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     ask = _interrupt_ask(ctx)
     kind = ask.get("kind", "input")
     interrupt_id = ask.get("interrupt_id")
+    heading = "Plan review" if kind == "review" else "User input"
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
-        ui.label("The agent needs your input").classes("text-sm font-bold")
+        ui.label(heading).classes("text-sm font-bold")
         if kind == "review":
+            if plan := ask.get("plan"):
+                ui.code(plan, language=None).classes(
+                    "text-xs w-full nicegui-code-noformat"
+                )
+            if question := ask.get("question"):
+                ui.label(question).classes("text-sm")
             feedback = (
                 ui.textarea(placeholder="Feedback (required to request changes)")
                 .props("outlined autogrow")

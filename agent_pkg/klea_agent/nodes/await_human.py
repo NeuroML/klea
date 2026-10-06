@@ -82,6 +82,9 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         return {
             "kind": "review",
             "question": "Review the plan: approve it, request changes, or cancel.",
+            # Carry the rendered plan so the form is self-contained (the same
+            # payload is re-presented on reload via checkpoint hydration).
+            "plan": state.plan.render(markdown=True),
         }
 
     @override
