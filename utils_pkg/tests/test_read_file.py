@@ -152,3 +152,37 @@ def test_missing_file_is_still_an_error(tmp_path):
 
     assert result["error"] != ""
     assert to_result(result).is_error is True
+
+
+def test_default_limit_is_a_page(tmp_path):
+    """The default read is one page (the ``limit`` default), not the whole file."""
+    f = _write(tmp_path, 5000)
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["line_end"] == 500
+    assert result["truncated"] is True
+    assert result["next_offset"] == 501
+
+
+def test_server_budget_caps_a_large_read(tmp_path):
+    """Even ``limit=None`` is bounded by the server-side character budget."""
+    from klea_utils.mcp.tool_impls import read_file as read_file_module
+
+    f = _write(tmp_path, 5000)
+    result = read_file(str(f), limit=None, project_root=str(tmp_path))
+
+    assert len(result["content"]) <= read_file_module._MAX_CHARS
+    assert result["truncated"] is True
+    assert result["next_offset"] is not None
+
+
+def test_tool_schema_hides_the_character_budget():
+    """The model sees offset/limit/char_offset, not the server budget."""
+    import inspect
+
+    from klea_utils.mcp.server import bundled_tools
+
+    params = inspect.signature(bundled_tools.read_file).parameters
+    assert "max_chars" not in params
+    assert "char_offset" in params
+    assert params["limit"].default == 500

@@ -57,6 +57,17 @@ _FALLBACK_ANYDOC_SUFFIXES = frozenset(
 #: memory or converted (which would also be wasteful for LLM input).
 _DEFAULT_MAX_BYTES = 100 * 1024 * 1024
 
+#: Server-owned character budget for a single read.  This is deliberately not
+#: exposed to the model: it bounds the response (and token cost) regardless of
+#: what the caller asks for, so a large file is read by paging
+#: (``offset``/``limit``, or ``char_offset`` for a single over-long line)
+#: rather than pulled in one call.
+_MAX_CHARS = 20_000
+
+#: Default number of lines returned per read (a page).  ``None`` still means
+#: "to the end", bounded by :data:`_MAX_CHARS`.
+_DEFAULT_LIMIT = 500
+
 #: Maximum number of converted documents held in the in-memory cache.
 _MAX_CACHE_ENTRIES = 4
 
@@ -79,8 +90,8 @@ def read_file(
     path: str = ".",
     offset: int = 1,
     char_offset: int = 0,
-    limit: int | None = 2000,
-    max_chars: int = 100_000,
+    limit: int | None = _DEFAULT_LIMIT,
+    max_chars: int = _MAX_CHARS,
     max_bytes: int = _DEFAULT_MAX_BYTES,
     line_numbers: bool = True,
     project_root: str | None = None,
@@ -107,8 +118,8 @@ def read_file(
         resume position.
     :param limit: Maximum number of lines to return.  ``None`` reads to the
         end of the file.
-    :param max_chars: Hard cap on characters returned, applied after the
-        line slice.
+    :param max_chars: Character budget for the response (server-owned backstop;
+        not exposed to the model), applied after the line slice.
     :param max_bytes: Maximum file size in bytes to read; larger files are
         refused with an error.
     :param line_numbers: Prefix each returned line with its line number

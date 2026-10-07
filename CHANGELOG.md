@@ -34,6 +34,7 @@
 
 ### Changed
 
+- `read_file` returns one bounded page by default and enforces a server-side character budget; the `max_chars` parameter is no longer exposed to the model, so a large file is read by paging (via the result's `next_offset`/`next_char_offset`) instead of in a single call.
 - The RAG embedding model is now fixed (not user-modifiable): vector stores are embedded once at startup, so a per-request/chat embedding override could not be honoured; the model dialog shows the role as locked.
 - The tool caller node is skipped entirely when there is nothing to dispatch (no tool calls, or no MCP client): it no longer emits progress/inspection events or writes an empty tool-results update for a skipped round, consistent with the other nodes.
 - Destructive tool results are now surfaced in the chat: `run_command` renders one shell block with the command, its full stdout/stderr and exit status (shown when there is output or a non-zero exit; the UI collapses long blocks), and `download_file` shows the saved path or failure. A destructive third-party MCP tool that declares no display convention gets a minimal `tool(arg=...)` shell block, so a risky call is never silently invisible.

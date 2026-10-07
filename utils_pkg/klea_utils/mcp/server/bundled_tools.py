@@ -280,11 +280,7 @@ async def read_file(
             description="Maximum number of lines to return (>=1). 'None' for end of file",
             ge=1,
         ),
-    ] = 2000,
-    max_chars: Annotated[
-        int,
-        Field(description="Hard cap on characters of content to return", ge=1),
-    ] = 100_000,
+    ] = 500,
     line_numbers: Annotated[
         bool,
         Field(
@@ -316,10 +312,15 @@ async def read_file(
             current directory ('.'), which is not a file, so an omitted path
             yields the nearby-entries fallback instead of a validation error.
         offset: 1-indexed line to start reading from.
+        char_offset: 0-indexed character position within the start line; used
+            only to continue inside a single line longer than the character
+            cap (see ``next_char_offset`` in the result).
         limit: Maximum number of lines to return. None reads to the end.
-        max_chars: Hard cap on characters of content to return.
         line_numbers: Prefix each line with its line number; set false for raw
             text to copy into an edit.
+
+    The response size is capped server-side; a large file is read by paging
+    (``offset``/``limit``) rather than returned in one call.
 
     Returns:
         Dictionary with content, line range, total_lines, truncated,
@@ -337,7 +338,6 @@ async def read_file(
         offset=offset,
         char_offset=char_offset,
         limit=limit,
-        max_chars=max_chars,
         line_numbers=line_numbers,
     )
     return to_result(result)
