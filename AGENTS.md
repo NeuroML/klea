@@ -139,6 +139,10 @@ cross-package imports.
   `pytest -m "not localonly"` locally for a quick run without an LLM.
 - `utils_pkg/tests/test_stores_retrieval.py` reads `STORES_TEST_CONFIG` env var (default `stores-tests.json`).
 - MCP tests are asyncio + single-process; do **not** run with `-n auto` (uses `addopts = -n 1` in `pyproject.toml`).
+- Web (NiceGUI) tests use NiceGUI's in-process user simulation (no
+  browser/Selenium) with a canned fake backend; they live in
+  `<pkg>/tests/ui/web/` and run under `-n auto` like the rest of the suite.
+  See `devdocs/system/web-ui-testing.md`.
 - All packages ignore `F403` and `F405` in ruff.
 
 ## Key references

@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-05.
+Last updated: 2026-10-07.
 
 ## Cancellation / concurrency
 
@@ -173,13 +173,16 @@ Last updated: 2026-10-05.
 - E2E review task must drive the HITL interrupt (ADR-0046): the `review` task
   in `agent_pkg/e2e/tasks.py` now pauses at `AwaitHuman`, so the harness must
   answer (approve/revise) or cancel and assert the resumed run.
-- Add a NiceGUI element-rendering test harness (e.g. `nicegui.testing.User`
-  / `Screen` fixtures) so UI wiring can be asserted without a browser:
-  dialogs rebuilding on credential/model change, the chat-area welcome CTA
-  appearing/disappearing, status-pane refresh, send-button gating, and the
-  send/Stop button toggle while streaming.  Today only pure helpers
-  (`utils_pkg/tests/test_ui_state.py`) and registration smoke tests
-  (`agent_pkg/tests/test_access_ui.py`) exist.
+- Web UI (NiceGUI) tests: tier 1 (in-process user simulation + fake backend,
+  `*/tests/ui/web/`; see `devdocs/system/web-ui-testing.md`) is implemented --
+  page render, chat empty-state, hydration, mode/access controls, send flow,
+  resumable-error Retry, and the HITL form.  Remaining tier-1 coverage:
+  model-dialog rebuild on credential/model change, send<->Stop toggle while
+  streaming, and inspector/status-pane refresh detail.  Tier 2 (API/
+  orchestrator scenario scripts with multi-turn + HITL and metrics) belongs to
+  the `eval_pkg` harness; tier 3 (browser-level `nicegui.testing.Screen` /
+  Selenium) is deferred.  The interactive `agent_pkg/e2e/` suite stays a CLI
+  smoke runner.
 - `rag_pkg/klea_rag/nodes/generate_retrieval_query.py`:
   `_get_default_error_result` returns an all-default `RetrievalQueryOutput()`
   (empty `search_query`); decide whether that should degrade to a clear

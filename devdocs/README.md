@@ -45,6 +45,7 @@ Structure:
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |
 | `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |
 | `system/api-sse-sequence.md` | API/SSE interaction sequences (C4 dynamic): bootstrap, `POST /query/stream`, and the RAG vs agent lifecycles with HITL/resume/cancel |
+| `system/web-ui-testing.md` | Web (NiceGUI) UI testing: in-process user simulation, fake backend, per-package `tests/ui/web/` |
 | `system/graph-resume.md` | Confirmed LangGraph fault-tolerance/resume semantics: what a node error preserves, `None`-input resume, edge cases |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
