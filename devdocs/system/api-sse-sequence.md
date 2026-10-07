@@ -35,6 +35,15 @@ SSE framing, error frames) and `BaseLangGraph.run_graph_astream_events`
 (emission).  What differs is the request body and the event/lifecycle branches,
 shown per app below.
 
+Each turn is one independent `POST /query/stream` that returns a single SSE
+stream.  That stream is long-lived for the turn (graph supersteps stream frames
+as they happen) and ends at a terminal `complete` or `error` -- or at
+`interrupt`, which pauses the run and ends the response with no `complete`.
+There is no persistent API connection between turns: an interrupt answer, a
+`resume`, and a cancel are each separate requests, and conversation continuity
+comes from the server-side checkpoint thread (`thread_id` via
+`chat_common.thread_id_for`) plus the session store, not from the socket.
+
 ```mermaid
 sequenceDiagram
     autonumber

@@ -8,6 +8,11 @@ clients.  The decision record is ADR-0040 (which amends ADR-0013).  The
 transport layer additionally injects a periodic `ping` heartbeat to keep the
 connection alive during long-running nodes; it is not a graph event.
 
+A stream covers exactly one turn and terminates at `complete`/`error` (or
+`interrupt`); there is no persistent API connection across turns -- continuity
+is server-side (the checkpoint `thread_id`).  The request/lifecycle view is
+`system/api-sse-sequence.md`.
+
 ## Channels
 
 LangGraph's `astream_events(version="v3")` exposes three channels the runner
