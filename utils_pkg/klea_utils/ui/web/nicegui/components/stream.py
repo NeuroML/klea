@@ -263,6 +263,10 @@ async def run_stream(
         ):
             t = event.get("type", "?")
             logger.debug("chat=%s stream event type=%s", chat_id, t)
+            if t == "ping":
+                # Periodic server heartbeat while a long-running node emits no
+                # events: the connection is alive, nothing to render.
+                continue
             if t == "progress":
                 heading = (event.get("data") or {}).get("heading") or event.get(
                     "node", ""
@@ -322,12 +326,26 @@ async def run_stream(
         ctx.refresh_turn_status()
         _reset_streaming_state()
         raise
+    except httpx.HTTPStatusError as e:
+        # The backend rejected the streaming request (e.g. 409 while a run is
+        # still active, or 400 for a resume with nothing to continue).  Surface
+        # the status instead of letting it escape the background task.
+        logger.debug("chat=%s HTTP status error: %s", chat_id, e)
+        current_chat["turn_status"] = {
+            "kind": "error",
+            "message": f"Request failed ({e.response.status_code}): {e}",
+            "resumable": False,
+        }
+        ctx.refresh_turn_status()
+        _reset_streaming_state()
     except httpx.RequestError as e:
+        # Transport failure: a dropped connection or idle timeout.  The run is
+        # checkpointed server-side, so offer a resume.
         logger.debug("chat=%s request error: %s", chat_id, e)
         current_chat["turn_status"] = {
             "kind": "error",
             "message": f"Connection error: {e}",
-            "resumable": False,
+            "resumable": True,
         }
         ctx.refresh_turn_status()
         _reset_streaming_state()
