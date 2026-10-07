@@ -27,6 +27,13 @@ from ..llm import parse_model_name
 
 logger = logging.getLogger(__name__)
 
+#: Idle read timeout for the streaming request, in seconds.  Must comfortably
+#: exceed the server's SSE heartbeat interval
+#: (``klea_utils.api.chat_core.HEARTBEAT_INTERVAL_SECONDS``, 15 s) so a
+#: heartbeat arrives and resets the timer well before it fires while a
+#: long-running node emits no events.
+STREAM_READ_TIMEOUT_SECONDS = 300.0
+
 
 def _stream_payload(
     query: str,
@@ -91,6 +98,10 @@ async def stream_events(
         complete    {"type": "complete", "message_for_user": "<text>"}
         error       {"type": "error", "message": "<text>", "error_type": "<class>",
                      "node": "<label>", "resumable": <bool>}
+        ping        {"type": "ping"}  (periodic server heartbeat while a
+                     long-running node emits no events; consumers may ignore
+                     it -- its only purpose is to keep the SSE connection and
+                     any intermediaries from timing out)
 
     This async generator is intended for NiceGUI and TUI frontends.
 
@@ -120,7 +131,9 @@ async def stream_events(
         interrupt_cancel,
     )
     async with (
-        httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
+        httpx.AsyncClient(
+            timeout=httpx.Timeout(STREAM_READ_TIMEOUT_SECONDS, connect=10.0)
+        ) as client,
         client.stream(
             "POST",
             url,
@@ -445,7 +458,9 @@ def stream_events_sync(
         interrupt_cancel,
     )
     with (
-        httpx.Client(timeout=httpx.Timeout(300.0, connect=10.0)) as client,
+        httpx.Client(
+            timeout=httpx.Timeout(STREAM_READ_TIMEOUT_SECONDS, connect=10.0)
+        ) as client,
         client.stream(
             "POST",
             url,
