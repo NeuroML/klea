@@ -174,3 +174,13 @@ def test_unified_diff_and_counts():
 def test_unified_diff_identical_is_empty():
     assert file_ops.unified_diff("same\n", "same\n") == ""
     assert file_ops.diff_counts("same\n", "same\n") == (0, 0)
+
+
+def test_split_lines_definition():
+    """The shared line definition: LF only, trailing newline not a line."""
+    assert file_ops.split_lines("") == []
+    assert file_ops.split_lines("a\nb") == ["a", "b"]
+    assert file_ops.split_lines("a\nb\n") == ["a", "b"]
+    # CRLF and lone CR are normalised; a form feed is not a line break.
+    assert file_ops.split_lines("a\r\nb\rc") == ["a", "b", "c"]
+    assert file_ops.split_lines("a\fb\n") == ["a\fb"]

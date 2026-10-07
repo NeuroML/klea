@@ -80,6 +80,28 @@ def apply_newline(text: str, newline: str) -> str:
     return text.replace("\n", newline)
 
 
+def split_lines(text: str) -> list[str]:
+    """Split *text* into lines using the shared tool definition.
+
+    Lines end at ``\\n`` after normalising CRLF and lone-CR endings, and a
+    single trailing newline does not add an empty line (matching editors and
+    ``wc -l``).  This deliberately avoids :meth:`str.splitlines`, which also
+    breaks on form feeds, vertical tabs, the ``\\x1c``-``\\x1e`` separators and
+    Unicode line separators, so its line numbers disagree with the rest of the
+    file toolchain.
+
+    :param text: File text (any newline convention).
+    :returns: The lines, without line endings.
+    """
+    normalized = normalize_newlines(text).replace("\r", "\n")
+    if not normalized:
+        return []
+    lines = normalized.split("\n")
+    if lines[-1] == "":
+        lines.pop()
+    return lines
+
+
 def split_bom(text: str) -> tuple[str, bool]:
     """Split a leading BOM off *text*.
 
