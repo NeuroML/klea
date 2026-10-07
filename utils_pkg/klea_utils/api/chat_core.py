@@ -31,10 +31,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import traceback
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -57,6 +58,13 @@ from klea_utils.api.sessions_db import SessionStore
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
+
+#: Idle gap, in seconds, after which :func:`_heartbeat` emits a ``ping`` SSE
+#: frame.  A long-running tool (e.g. ``run_command``) emits no graph events
+#: while it runs, so without a heartbeat the client's idle read timeout (300 s
+#: in ``sse.py``) and intermediary proxies drop the stream.  15 s is well below
+#: both.
+HEARTBEAT_INTERVAL_SECONDS = 15.0
 
 
 # ---------------------------------------------------------------------------
@@ -84,6 +92,57 @@ def _error_frame(message: str, error_type: str, *, resumable: bool) -> str:
         )
         + "\n\n"
     )
+
+
+async def _heartbeat(
+    events: AsyncIterator[dict], interval: float
+) -> AsyncGenerator[dict, None]:
+    """Yield *events*, interleaving ``ping`` frames during idle gaps.
+
+    The graph emits nothing while a long-running node (e.g. a tool) is
+    executing, so the client's idle read timeout would drop the stream.  This
+    wrapper keeps the connection warm: it reads the next graph event in a
+    separate task and, when none arrives within *interval* seconds, yields a
+    ``{"type": "ping"}`` frame before waiting again.
+
+    The in-flight ``__anext__`` task is preserved across timeouts and never
+    cancelled by the heartbeat itself (so the running node/tool is not
+    interrupted); ``asyncio.wait`` is used rather than ``asyncio.wait_for``/
+    ``asyncio.timeout``, which would cancel it.  On early close (client
+    disconnect or Stop) the pending read is cancelled and the source generator
+    is closed, so cancellation still propagates into the graph.
+
+    :param events: The graph's (or ``enrich``-wrapped) event async iterator.
+    :param interval: Seconds of inactivity before a ``ping`` is emitted.
+    :yields: The source events, plus periodic ``ping`` events.
+    """
+    aiter = events.__aiter__()
+    pending = asyncio.ensure_future(aiter.__anext__())
+    try:
+        while True:
+            done, _ = await asyncio.wait({pending}, timeout=interval)
+            if not done:
+                logger.debug(
+                    "SSE heartbeat: no event for %.1fs, emitting ping", interval
+                )
+                yield {"type": "ping"}
+                continue
+            try:
+                event = pending.result()
+            except StopAsyncIteration:
+                break
+            yield event
+            pending = asyncio.ensure_future(aiter.__anext__())
+    finally:
+        if not pending.done():
+            pending.cancel()
+        with contextlib.suppress(asyncio.CancelledError, StopAsyncIteration):
+            await pending
+        aclose = getattr(aiter, "aclose", None)
+        if aclose is not None:
+            # Best-effort: never let a failing close mask the real outcome.
+            with contextlib.suppress(Exception):
+                await aclose()
 
 
 # ---------------------------------------------------------------------------
@@ -375,35 +434,45 @@ async def stream_response(
                 context=context,
             )
             events = raw_events if enrich is None else enrich(raw_events)
-            async for event in events:
-                t = event.get("type")
-                if t == "interrupt":
-                    # The run paused for human input: persist the question so a
-                    # reloaded chat shows it (the answer is a later user turn).
-                    store.add_message(
-                        user_id,
-                        chat_id,
-                        "assistant",
-                        _interrupt_event_question(event),
-                    )
-                    logger.info(
-                        "stream_response(user_id=%s chat_id=%s): paused for input",
-                        user_id,
-                        chat_id,
-                    )
-                elif t == "complete":
-                    store.add_message(
-                        user_id,
-                        chat_id,
-                        "assistant",
-                        event.get("message_for_user", ""),
-                    )
-                    logger.info(
-                        "stream_response(user_id=%s chat_id=%s): complete",
-                        user_id,
-                        chat_id,
-                    )
-                yield f"data: {json.dumps(event)}\n\n"
+            # Keep the SSE connection warm while a long-running node (e.g. a
+            # tool) emits nothing, so the client's idle read timeout does not
+            # drop the stream mid-task.
+            events = _heartbeat(events, HEARTBEAT_INTERVAL_SECONDS)
+            # ``aclosing`` guarantees the heartbeat wrapper (and the graph
+            # generator beneath it) is closed on every exit path, including the
+            # generator finalisation Starlette performs after a client
+            # disconnect.
+            async with contextlib.aclosing(events) as stream_events:
+                async for event in stream_events:
+                    t = event.get("type")
+                    if t == "interrupt":
+                        # The run paused for human input: persist the question
+                        # so a reloaded chat shows it (the answer is a later
+                        # user turn).
+                        store.add_message(
+                            user_id,
+                            chat_id,
+                            "assistant",
+                            _interrupt_event_question(event),
+                        )
+                        logger.info(
+                            "stream_response(user_id=%s chat_id=%s): paused for input",
+                            user_id,
+                            chat_id,
+                        )
+                    elif t == "complete":
+                        store.add_message(
+                            user_id,
+                            chat_id,
+                            "assistant",
+                            event.get("message_for_user", ""),
+                        )
+                        logger.info(
+                            "stream_response(user_id=%s chat_id=%s): complete",
+                            user_id,
+                            chat_id,
+                        )
+                    yield f"data: {json.dumps(event)}\n\n"
         except EmptyInputError as e:
             logger.warning(
                 "stream_response: resume requested but nothing to resume for "
