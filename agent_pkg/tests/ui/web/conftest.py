@@ -64,6 +64,14 @@ class FakeBackend:
             return self._chat_response(parts, method)
         return httpx.Response(200, json={})
 
+    def stream_bodies(self) -> list[dict]:
+        """Return the parsed JSON bodies of recorded ``/query/stream`` POSTs."""
+        return [
+            json.loads(request.content)
+            for request in self.requests
+            if request.method == "POST" and request.url.path.endswith("/query/stream")
+        ]
+
     def _chat_response(self, parts: list[str], method: str) -> httpx.Response:
         """Resolve ``/chat/...`` read endpoints from the configured state."""
         # ["chat", <user>]

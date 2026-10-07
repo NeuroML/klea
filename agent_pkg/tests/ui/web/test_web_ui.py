@@ -23,3 +23,14 @@ async def test_agent_page_renders(agent_user):
     # banner is cleared only after they complete, so this also proves the
     # patched transport served the bootstrap calls.
     await agent_user.should_not_see("Backend is starting")
+
+
+async def test_mode_and_access_selectors_render(agent_user):
+    """The agent status pane carries both the mode and access selectors."""
+    await agent_user.open("/")
+    await agent_user.should_see("Mode:")
+    await agent_user.should_see("General")
+    await agent_user.should_see("Scientific")
+    await agent_user.should_see("Access:")
+    await agent_user.should_see("Full")
+    await agent_user.should_see("Read-only")
