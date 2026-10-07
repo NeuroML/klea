@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Shared fixtures for the agent NiceGUI tests.
+Shared fixtures for the shared-component NiceGUI tests.
 
-The agent page is driven in-process with NiceGUI's user simulation.  A
-:class:`FakeBackend` supplies canned responses for every backend call the
-frontend makes (bootstrap, hydration, model/credential lookup), and a
-scriptable ``/query/stream`` response, so no server and no model are
-needed.  The frontend's ``httpx.AsyncClient`` is patched to route through
-the fake backend's transport.
+Builds a minimal page from the reusable
+``klea_utils.ui.web.nicegui.components`` and drives it in-process with
+NiceGUI's user simulation.  A :class:`FakeBackend` supplies canned
+responses for every backend call, so no server and no model are needed.
 
-File: tests/conftest.py
+File: tests/ui/web/conftest.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
@@ -105,20 +103,58 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 
 
 @pytest.fixture
-async def agent_user(fake_backend: FakeBackend):
-    """A simulated user on the real agent page, backed by *fake_backend*."""
+async def utils_user(fake_backend: FakeBackend):
+    """A simulated user on a page composing the shared components."""
     pytest.importorskip("nicegui")
 
-    from klea_agent.ui.web.page import setup_layout
+    from klea_utils.ui.web.nicegui.components import (
+        chat_area,
+        chat_list,
+        footer,
+        header,
+        initial_load,
+        input_area,
+        inspector,
+        model_dialog,
+        status_pane,
+        theme,
+    )
+    from klea_utils.ui.web.nicegui.components.context import PageContext
+    from klea_utils.ui.web.nicegui.state import chats
+    from nicegui import ui
     from nicegui.testing.user_simulation import user_simulation
 
-    def root() -> None:
-        setup_layout(
+    def _build_page() -> None:
+        """Compose the shared components, mirroring an app's page layout."""
+        ctx = PageContext(
             chat_id="",
             server_url="http://backend",
             user_id="u",
             title="Klea Test",
         )
+        theme.install_theme(ctx)
+        header.attach_header(ctx)
+        chat_list.attach_chat_list(ctx)
+        model_dialog.attach_model_info(ctx)
+        status_pane.attach_status_pane(ctx)
+        with ui.column().classes("w-full"):
+            with ui.row() as ctx.loading_row:
+                ui.spinner(type="dots")
+                ui.label("Backend is starting, please wait...")
+            with ui.tabs() as center_tabs:
+                chat_tab = ui.tab(name="chat", label="chat")
+                inspect_tab = ui.tab(name="inspect", label="inspect")
+            with ui.tab_panels(center_tabs, value="chat") as center_panels:
+                ctx.center_panels = center_panels
+                with ui.tab_panel(chat_tab):
+                    chat_area.attach_chat_area(ctx)
+                    input_area.attach_input(ctx)
+                with ui.tab_panel(inspect_tab):
+                    inspector.attach_inspector_panel(ctx)
+        initial_load.attach_initial_load(ctx)
+        footer.attach_footer(ctx)
 
-    async with user_simulation(root=root) as user:
+    chats.clear()
+    async with user_simulation(root=_build_page) as user:
         yield user
+    chats.clear()

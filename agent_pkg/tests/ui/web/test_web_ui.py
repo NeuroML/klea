@@ -6,9 +6,9 @@ The page is driven without a browser: ``nicegui.testing.user_simulation``
 runs :func:`klea_agent.ui.web.page.setup_layout` in-process, while a patched
 ``httpx.AsyncClient`` routes the frontend's backend calls to a canned fake
 backend, so no server or model is needed.  The fixtures live in
-``tests/conftest.py``.
+``tests/ui/web/conftest.py``.
 
-File: tests/test_web_ui.py
+File: tests/ui/web/test_web_ui.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
