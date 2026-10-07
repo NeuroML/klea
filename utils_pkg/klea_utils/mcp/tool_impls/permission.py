@@ -5,6 +5,12 @@ Path permission checking for file-accessing MCP tools.
 See ``devdocs/system/mcp-permissions.md`` and
 ``devdocs/adr/0007-mcp-permissions.md``.
 
+Containment is path-based and taken as a snapshot.  Two known limitations:
+a *hard link* inside the root to an inode whose other names are outside it is
+not detectable path-wise and is allowed; and a path swapped for an external
+symlink after the check (TOCTOU) could still be opened.  Hardening would need
+a per-open check (``openat``/``O_NOFOLLOW``).
+
 File: klea_utils/mcp/tool_impls/permission.py
 
 Copyright 2026 Ankur Sinha
@@ -40,17 +46,33 @@ def check_path_access(
     :param path: File or directory path the tool wants to access.
     :param project_root: Boundary directory inside which access is allowed.
         Defaults to the current working directory.
-    :raises PermissionDeniedError: when *path* resolves outside the boundary.
+    :raises PermissionDeniedError: when *path* resolves outside the boundary,
+        or cannot be resolved at all (for example a symlink loop).
     """
     if not str(path).strip():
         logger.warning("Permission denied: empty path")
         raise PermissionDeniedError("Empty path is not allowed")
-    the_path = Path(path).expanduser().resolve()
-    root = (
-        Path(project_root).expanduser().resolve()
-        if project_root
-        else Path.cwd().resolve()
-    )
+    try:
+        base_path = Path(path).expanduser()
+        try:
+            # ``strict=True`` makes a symlink loop (ELOOP) or an unreadable
+            # parent raise here instead of being silently returned as-is by
+            # the non-strict resolve.
+            the_path = base_path.resolve(strict=True)
+        except FileNotFoundError:
+            # A missing target is allowed through so the tool can report nearby
+            # entries; the boundary check below still applies to its location.
+            the_path = base_path.resolve(strict=False)
+        root = (
+            Path(project_root).expanduser().resolve()
+            if project_root
+            else Path.cwd().resolve()
+        )
+    except (OSError, RuntimeError) as exc:
+        # A symlink loop, unreadable parent, etc. must deny rather than crash
+        # the tool: fail closed.
+        logger.warning(f"Permission denied: cannot resolve {path!r}: {exc}")
+        raise PermissionDeniedError(f"Cannot resolve path: {path}") from None
 
     try:
         the_path.relative_to(root)

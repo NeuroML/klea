@@ -129,3 +129,27 @@ def test_check_tool_arguments_missing_arg(tmp_path):
 def test_check_tool_arguments_skips_non_string(tmp_path):
     meta = {"checkpaths": ["limit"]}
     assert check_tool_arguments_permissions(meta, {"limit": 3}, tmp_path) == []
+
+
+def test_denies_symlink_loop(tmp_path):
+    """A self-referential symlink cannot be resolved, so it is denied."""
+    root, _ = _root_and_outside(tmp_path)
+    loop = root / "loop"
+    loop.symlink_to("loop")
+
+    with pytest.raises(PermissionDeniedError):
+        check_path_access(loop, root)
+
+
+def test_symlink_loop_is_a_non_halting_denial(tmp_path):
+    """The client-side gate reports a symlink loop as a denial, not a crash."""
+    root, _ = _root_and_outside(tmp_path)
+    loop = root / "loop"
+    loop.symlink_to("loop")
+
+    denials = check_tool_arguments_permissions(
+        {"checkpaths": ["path"]}, {"path": str(loop)}, str(root)
+    )
+
+    assert denials
+    assert "resolve" in denials[0].lower()

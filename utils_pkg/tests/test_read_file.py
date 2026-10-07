@@ -13,6 +13,9 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import os
+
+import pytest
 from klea_utils.mcp.tool_impls.read_file import read_file
 from klea_utils.mcp.tool_result import to_result
 
@@ -197,6 +200,30 @@ def test_raw_delimited_file_gets_a_note(tmp_path, monkeypatch):
     result = read_file(str(f), project_root=str(tmp_path))
 
     assert "physical lines" in result["note"]
+
+
+def test_symlink_loop_is_denied(tmp_path):
+    """An unresolvable (self-referential) symlink is a permission error."""
+    loop = tmp_path / "loop"
+    loop.symlink_to("loop")
+
+    result = read_file(str(loop), project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert result["error"] != ""
+    assert to_result(result).is_error is True
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is not available")
+def test_fifo_is_not_a_file(tmp_path):
+    """A FIFO is not a regular file and is reported as such (not opened)."""
+    fifo = tmp_path / "pipe"
+    os.mkfifo(fifo)
+
+    result = read_file(str(fifo), project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert "not a file" in result["error"].lower()
 
 
 def test_binary_file_is_refused(tmp_path):
