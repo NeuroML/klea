@@ -160,4 +160,8 @@ class PageContext:
     # ADR-0037).  Each app UI appends its own render callable; the status
     # pane calls them in registration order.
     status_extras: list[Callable[[], Any]] = field(default_factory=list)
+    #: Hooks invoked with a chat's data dict when it is first created, so an
+    #: app context control can carry a selection made before the first message
+    #: (e.g. operating mode / access level in ``query_extra``) onto that chat.
+    chat_created_hooks: list[Callable[[Any], None]] = field(default_factory=list)
     switch_chat: Callable[[str], None] = field(default=_noop_arg)

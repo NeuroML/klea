@@ -122,7 +122,9 @@ def attach_chat_list(ctx: PageContext) -> None:
         """Create a new chat and switch to it."""
         chat_id = coolname.generate_slug(2)
         logger.debug("creating chat_id=%s", chat_id)
-        ensure_chat(ctx.user_id, chat_id)
+        new_chat = ensure_chat(ctx.user_id, chat_id)
+        for hook in ctx.chat_created_hooks:
+            hook(new_chat)
         _switch_chat(chat_id)
         background_tasks.create(
             create_chat_on_server(ctx.server_url, ctx.user_id, chat_id)

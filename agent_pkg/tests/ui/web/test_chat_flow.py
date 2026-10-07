@@ -14,7 +14,6 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-import pytest
 from nicegui import ui
 
 
@@ -55,25 +54,19 @@ async def test_selected_mode_and_access_are_sent(fake_backend, agent_user):
     assert body["access_level"] == "read_only"
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Selecting a mode/access level before the first message is lost: the "
-        "chat is created on send, then run_stream refreshes the status pane, "
-        "which resolves the new chat's default and overwrites query_extra "
-        "before the request is sent."
-    ),
-    strict=True,
-)
-async def test_first_message_carries_a_preselected_mode(fake_backend, agent_user):
-    """A mode chosen before the first message should ride on that first query."""
+async def test_first_message_carries_preselected_controls(fake_backend, agent_user):
+    """A mode and access level chosen before the first message ride on it."""
     fake_backend.stream_events = [{"type": "complete", "message_for_user": "done"}]
     await agent_user.open("/")
     await agent_user.should_not_see("Backend is starting")
     agent_user.find("Scientific").click()
+    agent_user.find("Read-only").click()
     _send(agent_user, "Hello")
     await agent_user.should_see("done", retries=50)
 
-    assert fake_backend.stream_bodies()[-1]["mode"] == "scientific"
+    body = fake_backend.stream_bodies()[-1]
+    assert body["mode"] == "scientific"
+    assert body["access_level"] == "read_only"
 
 
 async def test_resumable_error_renders_retry(fake_backend, agent_user):

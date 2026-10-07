@@ -140,7 +140,9 @@ def attach_input(ctx: PageContext) -> None:
                 current = coolname.generate_slug(2)
                 ctx.chat_id = current
                 safe_set_user("chat_id", current)
-                ensure_chat(ctx.user_id, current)
+                new_chat = ensure_chat(ctx.user_id, current)
+                for hook in ctx.chat_created_hooks:
+                    hook(new_chat)
                 background_tasks.create(
                     create_chat_on_server(ctx.server_url, ctx.user_id, current)
                 )

@@ -104,4 +104,12 @@ def attach_access_ui(ctx: PageContext) -> None:
             tooltips={value: tip for value, (_label, tip) in ACCESS_LEVELS.items()},
         )
 
+    def _adopt_pending(chat: dict) -> None:
+        """Carry a level chosen before this chat existed onto the new chat."""
+        pending = ctx.query_extra.get("access_level")
+        if pending in ACCESS_LEVELS and not chat.get("access_pref"):
+            chat["access_pref"] = pending
+            logger.debug("adopted pending access_level=%s for new chat", pending)
+
     ctx.status_extras.append(_render)
+    ctx.chat_created_hooks.append(_adopt_pending)

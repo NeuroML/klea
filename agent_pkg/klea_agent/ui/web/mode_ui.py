@@ -109,4 +109,12 @@ def attach_mode_ui(ctx: PageContext) -> None:
             info=note,
         )
 
+    def _adopt_pending(chat: dict) -> None:
+        """Carry a mode chosen before this chat existed onto the new chat."""
+        pending = ctx.query_extra.get("mode")
+        if pending in MODES and not chat.get("mode_pref"):
+            chat["mode_pref"] = pending
+            logger.debug("adopted pending mode=%s for new chat", pending)
+
     ctx.status_extras.append(_render)
+    ctx.chat_created_hooks.append(_adopt_pending)
