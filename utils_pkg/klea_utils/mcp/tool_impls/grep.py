@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.errors import PermissionDeniedError
+from klea_utils.mcp.tool_impls.file_ops import is_binary, split_lines
 from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.rg_backend import resolve_rg, rg_grep
 from klea_utils.mcp.tool_impls.walk import iter_files
@@ -175,12 +176,12 @@ def grep_inhouse(
             except OSError as exc:
                 logger.warning(f"Could not read {candidate}: {exc}")
                 continue
-            if b"\x00" in data:
+            if is_binary(data):
                 logger.debug(f"Skipping binary file {candidate}")
                 continue
 
             text = data.decode("utf-8", errors="replace")
-            for line_number, line in enumerate(text.splitlines(), start=1):
+            for line_number, line in enumerate(split_lines(text), start=1):
                 if not regex.search(line):
                     continue
                 display = line
