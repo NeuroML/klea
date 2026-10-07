@@ -17,6 +17,7 @@
 ## Checklist
 - [ ] PR is open against the `development` branch
 - [ ] New code includes tests
+- [ ] `devdocs/` updated for architectural, API, streaming, or prompt changes (see the code -> devdocs map in `AGENTS.md`)
 - [ ] CI passes (lint, typecheck, tests)
 - [ ] Commit messages follow good practices: https://chris.beams.io/git-commit
 - [ ] Conventional commits used: https://www.conventionalcommits.org/en/v1.0.0/

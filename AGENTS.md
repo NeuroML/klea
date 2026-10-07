@@ -33,6 +33,9 @@ Verification in step 2 covers:
 
 - Only touch files directly relevant to the current micro-step (no drive-by refactoring).
 - Do not modify existing tests to force a pass unless the review explicitly requests a test update.
+- If a change touches the API contract, streaming events, graph wiring, node
+  prompts, tool access, or web theming, update the matching `devdocs/system/*.md`
+  in the same step (code -> devdocs map under Key references).
 
 ## Git conventions
 
@@ -164,6 +167,17 @@ is `devdocs/backlog.md` -- add deferred items there (not only in `.agents/`
 session logs) so they survive across sessions.  Keep work-in-progress notes
 out of the public `docs/` site; update `docs/` and `CHANGELOG.md` only when
 the work is implemented.
+
+When the code below changes, update the matching devdoc in the same change:
+
+| Source of truth (code) | devdoc to keep in sync |
+|------------------------|------------------------|
+| `utils_pkg/klea_utils/api/{chat_core,sse,chat_common,runs,hitl}.py`, `{agent,rag}_pkg/*/api/chat.py` | `system/api-sse-sequence.md`, `system/streams.md` |
+| `graph/base.py` (`run_graph_astream_events`, `context_snapshot`), `nodes/abstract.py`, `nodes/tools_caller.py` | `system/streams.md` |
+| graph wiring in `{agent,rag}_pkg/*/{klea_agent,rag}.py` | `system/c4-component-{agent,rag}.md` (+ regenerated `.mmd`) |
+| node prompts / `_optional_section` | `system/prompt-conventions.md` |
+| `mcp/access.py` and MCP tool annotations | `system/mcp-permissions.md`, ADR-0037 |
+| web UI theme tokens | `system/web-theming.md` |
 
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
 semantic classes): `devdocs/system/web-theming.md`.
