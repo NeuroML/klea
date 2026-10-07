@@ -103,6 +103,9 @@ today; it exists for a future live-typing UI.
 
 ## Pointers
 
+* Ordered request/lifecycle view: `system/api-sse-sequence.md` (C4 dynamic:
+  bootstrap, `POST /query/stream`, interrupt/resume/cancel) -- this file is the
+  event catalogue those sequences draw from.
 * Emission: `klea_utils/graph/base.py` (`run_graph_astream_events`,
   `_CustomChannelEnabler`), `klea_utils/nodes/abstract.py`
   (`NodeStreamData`, `NodeStreamEvent`, `_get_inspect`, `stream_tokens`),
