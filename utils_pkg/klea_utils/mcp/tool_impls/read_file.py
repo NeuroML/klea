@@ -78,6 +78,7 @@ _ANYDOC_AVAILABLE: bool | None = None
 def read_file(
     path: str = ".",
     offset: int = 1,
+    char_offset: int = 0,
     limit: int | None = 2000,
     max_chars: int = 100_000,
     max_bytes: int = _DEFAULT_MAX_BYTES,
@@ -100,6 +101,10 @@ def read_file(
         (``"."``), which is not a file, so a missing path yields the
         nearby-entries fallback.
     :param offset: 1-indexed line to start reading from.
+    :param char_offset: 0-indexed character position within *offset*'s line to
+        start from (default 0).  Only needed to continue inside a single line
+        longer than ``max_chars``: the returned ``next_char_offset`` gives the
+        resume position.
     :param limit: Maximum number of lines to return.  ``None`` reads to the
         end of the file.
     :param max_chars: Hard cap on characters returned, applied after the
@@ -176,9 +181,17 @@ def read_file(
     if offset < 1:
         logger.warning(f"Invalid offset {offset}; starting from line 1")
         offset = 1
+    if char_offset < 0:
+        logger.warning(f"Invalid char_offset {char_offset}; starting at 0")
+        char_offset = 0
+    # ``limit`` is a maximum line count: ``None`` means "to the end", and a
+    # non-positive value is coerced to 1 rather than reading the whole file.
     if limit is not None and limit < 1:
-        logger.warning(f"Invalid limit {limit}; reading to end of file")
-        limit = None
+        logger.warning(f"Invalid limit {limit}; reading a single line")
+        limit = 1
+    if max_chars < 1:
+        logger.warning(f"Invalid max_chars {max_chars}; using 1")
+        max_chars = 1
 
     suffix = the_path.suffix.lower()
     try:
@@ -230,37 +243,63 @@ def read_file(
     end = None if limit is None else start + limit
     sliced = lines[start:end]
 
-    if line_numbers:
-        rendered = [
-            f"{line_no}: {line}"
-            for line_no, line in zip(range(start + 1, start + len(sliced) + 1), sliced)
-        ]
-    else:
-        rendered = list(sliced)
-
-    # Apply the character cap at line boundaries so a page never ends
-    # mid-line: a partial final line would make offset-based continuation
-    # ambiguous (the caller could skip the rest of the line, or re-read it).
-    kept, char_limited, partial = _cap_lines_at_chars(rendered, max_chars)
-    content = "\n".join(kept)
+    # The first segment may be a suffix of ``offset``'s line when continuing
+    # inside an over-long line (``char_offset`` > 0); the rest are whole lines.
+    segments: list[str] = []
+    if sliced:
+        first = sliced[0][char_offset:] if char_offset else sliced[0]
+        segments = [first, *sliced[1:]]
 
     line_start = start + 1
+    if line_numbers:
+        rendered = [
+            f"{line_no}: {segment}"
+            for line_no, segment in zip(
+                range(line_start, line_start + len(segments)), segments
+            )
+        ]
+        first_prefix_len = len(f"{line_start}: ")
+    else:
+        rendered = list(segments)
+        first_prefix_len = 0
+
+    # Apply the character cap to the *rendered* text (line-number prefixes and
+    # joining newlines included) so the returned content respects max_chars.
+    if rendered:
+        kept, next_offset, next_char_offset, char_limited = _cap_segments(
+            rendered,
+            max_chars,
+            start_line=line_start,
+            start_char=char_offset,
+            first_prefix_len=first_prefix_len,
+        )
+    else:
+        kept, next_offset, next_char_offset, char_limited = [], None, 0, False
     line_end = start + len(kept)
-    truncated = line_end < total_lines or char_limited
+    truncated = char_limited or line_end < total_lines
+    if truncated and next_offset is None:
+        # Truncation came from the ``limit`` slice, not the character cap.
+        next_offset = line_end + 1
+        next_char_offset = 0
+
+    content = "\n".join(kept)
 
     note = ""
-    next_offset: int | None = None
-    if partial:
-        note = (
-            f"Line {line_start} is longer than max_chars ({max_chars}); "
-            "returned a truncated prefix and cannot page within a line."
-        )
-    elif truncated:
-        next_offset = line_end + 1
-        note = (
-            f"Output truncated: showing lines {line_start}-{line_end} of "
-            f"{total_lines}. Continue with offset={next_offset}."
-        )
+    if truncated and next_offset is not None:
+        if next_char_offset:
+            note = (
+                f"Output truncated mid-line: showing line {line_start} from "
+                f"char {char_offset} to line {line_end} char {next_char_offset} "
+                f"of {total_lines}. Continue with offset={next_offset}, "
+                f"char_offset={next_char_offset}."
+            )
+        else:
+            note = (
+                f"Output truncated: showing lines {line_start}-{line_end} of "
+                f"{total_lines}. Continue with offset={next_offset}."
+            )
+    elif not segments and total_lines:
+        note = f"offset {offset} is past the end of the file ({total_lines} lines)."
 
     logger.debug(
         f"Read file\n"
@@ -270,7 +309,8 @@ def read_file(
         f"{total_lines = }\n"
         f"{len(content) = }\n"
         f"{truncated = }\n"
-        f"{next_offset = }"
+        f"{next_offset = }\n"
+        f"{next_char_offset = }"
     )
     return {
         "path": str(the_path),
@@ -280,40 +320,62 @@ def read_file(
         "total_lines": total_lines,
         "truncated": truncated,
         "next_offset": next_offset,
+        "next_char_offset": next_char_offset,
         "error": "",
         "note": note,
     }
 
 
-def _cap_lines_at_chars(
-    rendered: list[str], max_chars: int
-) -> tuple[list[str], bool, bool]:
-    """Fit whole rendered lines within *max_chars*.
+def _cap_segments(
+    segments: list[str],
+    max_chars: int,
+    *,
+    start_line: int,
+    start_char: int,
+    first_prefix_len: int,
+) -> tuple[list[str], int | None, int, bool]:
+    """Fit whole rendered segments within *max_chars*, splitting an oversized first.
 
-    Lines are added whole until the next one would exceed the cap, so the
-    returned text never ends mid-line and offset-based continuation is
-    unambiguous.  A single line longer than the cap cannot be paged this way;
-    then the first line is clipped to the cap and reported as ``partial``.
+    Segments (already rendered, so the character count includes any line-number
+    prefix and the joining newlines) are added whole until the next would
+    exceed the cap, so the returned text normally ends on a line boundary and
+    line-based continuation is unambiguous.  When the *first* segment alone
+    exceeds the cap (a single line longer than the cap), a character chunk of
+    it is returned instead and the continuation is expressed in characters on
+    the same line.
 
-    :param rendered: The rendered lines (numbered or raw).
+    :param segments: The rendered segments to return; the first may be a
+        partial line when ``start_char`` > 0.
     :param max_chars: The character cap.
-    :returns: ``(kept, truncated, partial)`` -- the whole lines that fit,
-        whether anything was dropped, and whether no whole line fit (the first
-        line was clipped).
+    :param start_line: 1-indexed line number of ``segments[0]``.
+    :param start_char: Character offset of ``segments[0]`` within its (raw) line.
+    :param first_prefix_len: Length of the line-number prefix prepended to
+        ``segments[0]`` (0 when line numbers are not rendered); subtracted when
+        mapping a chunk back to a character position in the raw line.
+    :returns: ``(kept, next_offset, next_char_offset, truncated)``.  On
+        truncation, ``next_offset`` is the line to resume from; when the page
+        ends mid-line, ``next_offset`` is the last line shown and
+        ``next_char_offset`` is the resume column.
     """
     kept: list[str] = []
     length = 0
-    for line in rendered:
-        added = len(line) + (1 if kept else 0)  # include the joining newline
-        if length + added > max_chars:
-            break
-        kept.append(line)
-        length += added
-    if kept:
-        return kept, len(kept) < len(rendered), False
-    if rendered:
-        return [rendered[0][:max_chars]], True, True
-    return [], False, False
+    for index, segment in enumerate(segments):
+        segment_char = start_char if index == 0 else 0
+        added = len(segment) + (1 if kept else 0)  # include the joining newline
+        if length + added <= max_chars:
+            kept.append(segment)
+            length += added
+            continue
+        if kept:
+            # Stop before this whole segment; resume at its start.
+            return kept, start_line + index, 0, True
+        # The first segment alone exceeds the cap: return a character chunk.
+        # ``max(1, ...)`` guarantees forward progress even when the cap is
+        # smaller than the prefix (an absurd request).
+        chunk = segment[:max_chars]
+        raw_consumed = max(1, len(chunk) - first_prefix_len)
+        return [chunk], start_line, segment_char + raw_consumed, True
+    return kept, None, 0, False
 
 
 def _anydoc_available() -> bool:

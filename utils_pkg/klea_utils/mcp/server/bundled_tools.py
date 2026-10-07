@@ -264,9 +264,22 @@ async def read_file(
         int,
         Field(description="1-indexed line to start reading from", ge=1),
     ] = 1,
+    char_offset: Annotated[
+        int,
+        Field(
+            description=(
+                "0-indexed character position within the start line; only "
+                "needed to continue inside a line longer than the character cap"
+            ),
+            ge=0,
+        ),
+    ] = 0,
     limit: Annotated[
         int | None,
-        Field(description="Maximum number of lines to return. 'None' for end of file"),
+        Field(
+            description="Maximum number of lines to return (>=1). 'None' for end of file",
+            ge=1,
+        ),
     ] = 2000,
     max_chars: Annotated[
         int,
@@ -310,16 +323,19 @@ async def read_file(
 
     Returns:
         Dictionary with content, line range, total_lines, truncated,
-        next_offset, error and note.  A truncated read is a success (empty
-        ``error``) that ends on a line boundary and carries ``next_offset``
-        (and an explanatory ``note``) so the caller can continue reading.  On a
-        missing/not-a-file error, ``nearby`` (entries in the nearest existing
-        directory) and ``note`` are populated so the caller can see what exists
-        instead.
+        next_offset, next_char_offset, error and note.  A truncated read is a
+        success (empty ``error``) that normally ends on a line boundary and
+        carries ``next_offset`` (and an explanatory ``note``) so the caller can
+        continue.  A single line longer than the character cap is paged by
+        characters: continue with the same ``offset`` and the returned
+        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``
+        (entries in the nearest existing directory) and ``note`` are populated
+        so the caller can see what exists instead.
     """
     result = read_file_impl(
         path=path,
         offset=offset,
+        char_offset=char_offset,
         limit=limit,
         max_chars=max_chars,
         line_numbers=line_numbers,

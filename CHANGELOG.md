@@ -64,7 +64,7 @@
 
 ### Fixed
 
-- `read_file` truncates at a line boundary and reports where to continue: a truncated read is a partial success (empty `error`) whose `line_end` is the last line actually returned, with a `next_offset` and a `note` telling the caller how to page on. Previously the character cap cut mid-line and `line_end` still reported the full slice end, so a truncated read looked complete.
+- `read_file` paging is now accurate and resumable: a truncated read is a partial success (empty `error`) whose `line_end` is the last line actually returned, with a `next_offset` and a `note` telling the caller how to continue. A single line longer than the character cap is paged by characters via a new `char_offset`/`next_char_offset`. Previously the cap cut mid-line while `line_end` still reported the full slice end (so a truncated read looked complete and could not be resumed), a non-positive `limit` read the whole file, and an offset past the end produced an unexplained inverted range.
 - A query whose tool runs for several minutes no longer fails with a connection error: the stream is kept alive with a heartbeat while a node is busy, and a genuinely lost connection is now reported as resumable (Retry).
 - Web UI: an operating mode or tool access level chosen before the first message is carried onto the new chat and sent with it, instead of being reset to the defaults when the chat is created.
 - RAG retrieval query generation no longer fails with `INVALID_PROMPT_INPUT`: a literal `{"gte": ..., "lte": ...}` range example in the prompt was being parsed as a template variable and is now escaped.
