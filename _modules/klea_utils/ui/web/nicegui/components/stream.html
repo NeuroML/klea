@@ -573,6 +573,10 @@
         <span class="p">):</span>
             <span class="n">t</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">,</span> <span class="s2">"?"</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream event type=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">t</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"ping"</span><span class="p">:</span>
+                <span class="c1"># Periodic server heartbeat while a long-running node emits no</span>
+                <span class="c1"># events: the connection is alive, nothing to render.</span>
+                <span class="k">continue</span>
             <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
                 <span class="n">heading</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
                     <span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span>
@@ -632,12 +636,26 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span>
         <span class="k">raise</span>
+    <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">HTTPStatusError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># The backend rejected the streaming request (e.g. 409 while a run is</span>
+        <span class="c1"># still active, or 400 for a resume with nothing to continue).  Surface</span>
+        <span class="c1"># the status instead of letting it escape the background task.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> HTTP status error: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+        <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
+            <span class="s2">"message"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Request failed (</span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+        <span class="n">_reset_streaming_state</span><span class="p">()</span>
     <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">RequestError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="c1"># Transport failure: a dropped connection or idle timeout.  The run is</span>
+        <span class="c1"># checkpointed server-side, so offer a resume.</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> request error: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
         <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"error"</span><span class="p">,</span>
             <span class="s2">"message"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Connection error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-            <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
         <span class="p">}</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span></div>

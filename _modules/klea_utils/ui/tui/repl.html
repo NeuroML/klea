@@ -393,8 +393,10 @@
         <span class="n">log_dir</span><span class="o">=</span><span class="n">PlatformDirs</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span><span class="o">.</span><span class="n">user_data_dir</span><span class="p">,</span>
     <span class="p">)</span>
 
-    <span class="c1"># Lazy: avoids importing yaspin (and its deps) at module level</span>
+    <span class="c1"># Lazy: avoids importing yaspin (and its deps) at module level; httpx is</span>
+    <span class="c1"># only needed to catch a dropped/timed-out or rejected stream below.</span>
     <span class="kn">import</span><span class="w"> </span><span class="nn">coolname</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">yaspin</span><span class="w"> </span><span class="kn">import</span> <span class="n">yaspin</span>
 
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream_events</span>
@@ -418,30 +420,40 @@
             <span class="nb">print</span><span class="p">()</span>
 
             <span class="k">with</span> <span class="n">yaspin</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="s2">"Working ..."</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">spinner</span><span class="p">:</span>
-                <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream_events</span><span class="p">(</span>
-                    <span class="n">query</span><span class="p">,</span>
-                    <span class="n">chat_id</span><span class="p">,</span>
-                    <span class="n">url</span><span class="p">,</span>
-                    <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
-                    <span class="n">interrupt_response</span><span class="o">=</span><span class="n">interrupt_response</span><span class="p">,</span>
-                    <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
-                    <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">interrupt_cancel</span><span class="p">,</span>
-                <span class="p">):</span>
-                    <span class="n">etype</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
-                    <span class="k">if</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
-                        <span class="n">spinner</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
-                            <span class="s2">"heading"</span>
-                        <span class="p">)</span> <span class="ow">or</span> <span class="n">event</span><span class="p">[</span><span class="s2">"node"</span><span class="p">]</span>
-                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
-                        <span class="n">ask</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-                        <span class="k">break</span>
-                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
-                        <span class="n">full_response</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-                        <span class="n">spinner</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="s2">"[OK]"</span><span class="p">)</span>
-                    <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
-                        <span class="n">error_msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">,</span> <span class="s2">"Unknown server error"</span><span class="p">)</span>
-                        <span class="n">spinner</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"[ERROR]"</span><span class="p">)</span>
-                        <span class="k">break</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream_events</span><span class="p">(</span>
+                        <span class="n">query</span><span class="p">,</span>
+                        <span class="n">chat_id</span><span class="p">,</span>
+                        <span class="n">url</span><span class="p">,</span>
+                        <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+                        <span class="n">interrupt_response</span><span class="o">=</span><span class="n">interrupt_response</span><span class="p">,</span>
+                        <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
+                        <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">interrupt_cancel</span><span class="p">,</span>
+                    <span class="p">):</span>
+                        <span class="n">etype</span> <span class="o">=</span> <span class="n">event</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"ping"</span><span class="p">:</span>
+                            <span class="c1"># Server heartbeat: nothing to display.</span>
+                            <span class="k">continue</span>
+                        <span class="k">if</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
+                            <span class="n">spinner</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                                <span class="s2">"heading"</span>
+                            <span class="p">)</span> <span class="ow">or</span> <span class="n">event</span><span class="p">[</span><span class="s2">"node"</span><span class="p">]</span>
+                        <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
+                            <span class="n">ask</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+                            <span class="k">break</span>
+                        <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
+                            <span class="n">full_response</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                            <span class="n">spinner</span><span class="o">.</span><span class="n">ok</span><span class="p">(</span><span class="s2">"[OK]"</span><span class="p">)</span>
+                        <span class="k">elif</span> <span class="n">etype</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
+                            <span class="n">error_msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">,</span> <span class="s2">"Unknown server error"</span><span class="p">)</span>
+                            <span class="n">spinner</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"[ERROR]"</span><span class="p">)</span>
+                            <span class="k">break</span>
+                <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">HTTPError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                    <span class="c1"># A dropped/timed-out stream or a rejected request (e.g.</span>
+                    <span class="c1"># HTTP 409): report it as the turn's error instead of</span>
+                    <span class="c1"># letting the exception crash the REPL.</span>
+                    <span class="n">error_msg</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Request failed: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="n">spinner</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"[ERROR]"</span><span class="p">)</span>
 
             <span class="k">if</span> <span class="n">ask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="c1"># Paused for human input: prompt, then stream the answer (which</span>

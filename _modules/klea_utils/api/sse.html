@@ -329,6 +329,13 @@
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
+<span class="c1">#: Idle read timeout for the streaming request, in seconds.  Must comfortably</span>
+<span class="c1">#: exceed the server's SSE heartbeat interval</span>
+<span class="c1">#: (``klea_utils.api.chat_core.HEARTBEAT_INTERVAL_SECONDS``, 15 s) so a</span>
+<span class="c1">#: heartbeat arrives and resets the timer well before it fires while a</span>
+<span class="c1">#: long-running node emits no events.</span>
+<span class="n">STREAM_READ_TIMEOUT_SECONDS</span> <span class="o">=</span> <span class="mf">300.0</span>
+
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_stream_payload</span><span class="p">(</span>
     <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -395,6 +402,10 @@
 <span class="sd">        complete    {"type": "complete", "message_for_user": "&lt;text&gt;"}</span>
 <span class="sd">        error       {"type": "error", "message": "&lt;text&gt;", "error_type": "&lt;class&gt;",</span>
 <span class="sd">                     "node": "&lt;label&gt;", "resumable": &lt;bool&gt;}</span>
+<span class="sd">        ping        {"type": "ping"}  (periodic server heartbeat while a</span>
+<span class="sd">                     long-running node emits no events; consumers may ignore</span>
+<span class="sd">                     it -- its only purpose is to keep the SSE connection and</span>
+<span class="sd">                     any intermediaries from timing out)</span>
 
 <span class="sd">    This async generator is intended for NiceGUI and TUI frontends.</span>
 
@@ -424,7 +435,9 @@
         <span class="n">interrupt_cancel</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">async</span> <span class="k">with</span> <span class="p">(</span>
-        <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="mf">300.0</span><span class="p">,</span> <span class="n">connect</span><span class="o">=</span><span class="mf">10.0</span><span class="p">))</span> <span class="k">as</span> <span class="n">client</span><span class="p">,</span>
+        <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="n">STREAM_READ_TIMEOUT_SECONDS</span><span class="p">,</span> <span class="n">connect</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+        <span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">,</span>
         <span class="n">client</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span>
             <span class="s2">"POST"</span><span class="p">,</span>
             <span class="n">url</span><span class="p">,</span>
@@ -788,7 +801,9 @@
         <span class="n">interrupt_cancel</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">with</span> <span class="p">(</span>
-        <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="mf">300.0</span><span class="p">,</span> <span class="n">connect</span><span class="o">=</span><span class="mf">10.0</span><span class="p">))</span> <span class="k">as</span> <span class="n">client</span><span class="p">,</span>
+        <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="n">httpx</span><span class="o">.</span><span class="n">Timeout</span><span class="p">(</span><span class="n">STREAM_READ_TIMEOUT_SECONDS</span><span class="p">,</span> <span class="n">connect</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+        <span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">,</span>
         <span class="n">client</span><span class="o">.</span><span class="n">stream</span><span class="p">(</span>
             <span class="s2">"POST"</span><span class="p">,</span>
             <span class="n">url</span><span class="p">,</span>

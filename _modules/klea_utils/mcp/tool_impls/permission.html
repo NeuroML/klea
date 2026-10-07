@@ -307,6 +307,12 @@
 <span class="sd">See ``devdocs/system/mcp-permissions.md`` and</span>
 <span class="sd">``devdocs/adr/0007-mcp-permissions.md``.</span>
 
+<span class="sd">Containment is path-based and taken as a snapshot.  Two known limitations:</span>
+<span class="sd">a *hard link* inside the root to an inode whose other names are outside it is</span>
+<span class="sd">not detectable path-wise and is allowed; and a path swapped for an external</span>
+<span class="sd">symlink after the check (TOCTOU) could still be opened.  Hardening would need</span>
+<span class="sd">a per-open check (``openat``/``O_NOFOLLOW``).</span>
+
 <span class="sd">File: klea_utils/mcp/tool_impls/permission.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
@@ -344,17 +350,33 @@
 <span class="sd">    :param path: File or directory path the tool wants to access.</span>
 <span class="sd">    :param project_root: Boundary directory inside which access is allowed.</span>
 <span class="sd">        Defaults to the current working directory.</span>
-<span class="sd">    :raises PermissionDeniedError: when *path* resolves outside the boundary.</span>
+<span class="sd">    :raises PermissionDeniedError: when *path* resolves outside the boundary,</span>
+<span class="sd">        or cannot be resolved at all (for example a symlink loop).</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Permission denied: empty path"</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span><span class="s2">"Empty path is not allowed"</span><span class="p">)</span>
-    <span class="n">the_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">project_root</span>
-        <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">base_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># ``strict=True`` makes a symlink loop (ELOOP) or an unreadable</span>
+            <span class="c1"># parent raise here instead of being silently returned as-is by</span>
+            <span class="c1"># the non-strict resolve.</span>
+            <span class="n">the_path</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+            <span class="c1"># A missing target is allowed through so the tool can report nearby</span>
+            <span class="c1"># entries; the boundary check below still applies to its location.</span>
+            <span class="n">the_path</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">project_root</span>
+            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="c1"># A symlink loop, unreadable parent, etc. must deny rather than crash</span>
+        <span class="c1"># the tool: fail closed.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied: cannot resolve </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot resolve path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="n">the_path</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>

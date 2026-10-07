@@ -577,14 +577,23 @@
         <span class="nb">int</span><span class="p">,</span>
         <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"1-indexed line to start reading from"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
     <span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">char_offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"0-indexed character position within the start line; only "</span>
+                <span class="s2">"needed to continue inside a line longer than the character cap"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
     <span class="n">limit</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of lines to return. 'None' for end of file"</span><span class="p">),</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">,</span>
-    <span class="n">max_chars</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
-        <span class="nb">int</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Hard cap on characters of content to return"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
-    <span class="p">]</span> <span class="o">=</span> <span class="mi">100_000</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of lines to return (&gt;=1). 'None' for end of file"</span><span class="p">,</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
     <span class="n">line_numbers</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">bool</span><span class="p">,</span>
         <span class="n">Field</span><span class="p">(</span>
@@ -616,22 +625,32 @@
 <span class="sd">            current directory ('.'), which is not a file, so an omitted path</span>
 <span class="sd">            yields the nearby-entries fallback instead of a validation error.</span>
 <span class="sd">        offset: 1-indexed line to start reading from.</span>
+<span class="sd">        char_offset: 0-indexed character position within the start line; used</span>
+<span class="sd">            only to continue inside a single line longer than the character</span>
+<span class="sd">            cap (see ``next_char_offset`` in the result).</span>
 <span class="sd">        limit: Maximum number of lines to return. None reads to the end.</span>
-<span class="sd">        max_chars: Hard cap on characters of content to return.</span>
 <span class="sd">        line_numbers: Prefix each line with its line number; set false for raw</span>
 <span class="sd">            text to copy into an edit.</span>
 
+<span class="sd">    The response size is capped server-side; a large file is read by paging</span>
+<span class="sd">    (``offset``/``limit``) rather than returned in one call.</span>
+
 <span class="sd">    Returns:</span>
-<span class="sd">        Dictionary with content, line range, total_lines, truncated, error.</span>
-<span class="sd">        On a missing/not-a-file error, ``nearby`` (entries in the nearest</span>
-<span class="sd">        existing directory) and ``note`` are populated so the caller can see</span>
-<span class="sd">        what exists instead.</span>
+<span class="sd">        Dictionary with content, line range, total_lines, truncated,</span>
+<span class="sd">        next_offset, next_char_offset, error and note.  A truncated read is a</span>
+<span class="sd">        success (empty ``error``) that normally ends on a line boundary and</span>
+<span class="sd">        carries ``next_offset`` (and an explanatory ``note``) so the caller can</span>
+<span class="sd">        continue.  A single line longer than the character cap is paged by</span>
+<span class="sd">        characters: continue with the same ``offset`` and the returned</span>
+<span class="sd">        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``</span>
+<span class="sd">        (entries in the nearest existing directory) and ``note`` are populated</span>
+<span class="sd">        so the caller can see what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">read_file_impl</span><span class="p">(</span>
         <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
         <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+        <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
         <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-        <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
         <span class="n">line_numbers</span><span class="o">=</span><span class="n">line_numbers</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>

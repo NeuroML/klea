@@ -394,6 +394,31 @@
 
 
 
+<div class="viewcode-block" id="split_lines">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.split_lines">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_lines</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Split *text* into lines using the shared tool definition.</span>
+
+<span class="sd">    Lines end at ``\\n`` after normalising CRLF and lone-CR endings, and a</span>
+<span class="sd">    single trailing newline does not add an empty line (matching editors and</span>
+<span class="sd">    ``wc -l``).  This deliberately avoids :meth:`str.splitlines`, which also</span>
+<span class="sd">    breaks on form feeds, vertical tabs, the ``\\x1c``-``\\x1e`` separators and</span>
+<span class="sd">    Unicode line separators, so its line numbers disagree with the rest of the</span>
+<span class="sd">    file toolchain.</span>
+
+<span class="sd">    :param text: File text (any newline convention).</span>
+<span class="sd">    :returns: The lines, without line endings.</span>
+<span class="sd">    """</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">normalize_newlines</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\r</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">normalized</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">normalized</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s2">""</span><span class="p">:</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">lines</span></div>
+
+
+
 <div class="viewcode-block" id="split_bom">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.file_ops.split_bom">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">split_bom</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
