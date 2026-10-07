@@ -68,6 +68,7 @@ sequenceDiagram
     loop graph supersteps
         Graph-->>Core: progress / inspect / state / tool / context
         Core-->>UI: data: JSON event
+        Core-->>UI: data: ping (only while a node runs >15s with no event)
     end
     alt success
         Core->>Store: persist assistant turn
@@ -86,6 +87,10 @@ Notes:
 * `POST /query/cancel` is a separate, idempotent request (always 204) that
   reaches the registered asyncio task via `ActiveRunRegistry.cancel`; the
   graph leaves a resumable checkpoint.
+* `chat_core.stream_response` injects a periodic `ping` frame whenever no graph
+  event arrives for `HEARTBEAT_INTERVAL_SECONDS` (15 s), so a long-running node
+  (e.g. `run_command`) does not let the client's idle read timeout (300 s) or a
+  proxy drop the SSE stream.  Clients ignore `ping`; see `streams.md`.
 
 ## RAG lifecycle (`klea_rag`)
 

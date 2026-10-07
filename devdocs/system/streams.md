@@ -4,7 +4,9 @@ Status: implemented.  Governs the events the graph streams to clients over the
 `/query/stream` SSE endpoint (`klea_utils/api/sse.py`), emitted by
 `BaseLangGraph.run_graph_astream_events` (`klea_utils/graph/base.py`) and
 consumed by the web (`klea_utils/ui/web/nicegui/components/stream.py`) and TUI
-clients.  The decision record is ADR-0040 (which amends ADR-0013).
+clients.  The decision record is ADR-0040 (which amends ADR-0013).  The
+transport layer additionally injects a periodic `ping` heartbeat to keep the
+connection alive during long-running nodes; it is not a graph event.
 
 ## Channels
 
@@ -28,6 +30,7 @@ exception.
 | Event | Source | Shape | Web consumer | TUI |
 |-------|--------|-------|--------------|-----|
 | `progress` | node (custom) | `{type, node, data{heading}}` | streaming spinner label (`data.heading`) | spinner text |
+| `ping` | `chat_core` (heartbeat) | `{type}` | ignored (keeps the SSE alive) | ignored |
 | `inspect` | node (custom) | `{type, node, data{heading, summary, details}}` | inspection pane entry (summary shown, `details` collapsed) | ignored |
 | `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | ignored |
 | `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | ignored |
@@ -45,6 +48,23 @@ runs (it defaults to the label).  A same-node heading change - an LLM invoke
 retry - is forwarded without resetting the node timer, so retries appear as
 `<label> (retry n/m: <reason>)` on the spinner (`_emit_progress` on
 `AbstractLangGraphNode`, `_emit_retry` on `BaseLLMNode`).
+
+### `ping` (heartbeat)
+
+Injected by `chat_core.stream_response` (not by a node or the graph runner).
+A long-running node (e.g. `run_command` with a large timeout) emits no graph
+events while it runs, so `_heartbeat` wraps the event stream and, whenever no
+event arrives within `HEARTBEAT_INTERVAL_SECONDS` (15 s), forwards a
+`{"type": "ping"}` frame.  This keeps the client's idle read timeout
+(`STREAM_READ_TIMEOUT_SECONDS`, 300 s, in `sse.py`) and intermediary proxies
+from dropping the stream mid-task.  Consumers ignore `ping`; it carries no
+payload and is not persisted.
+
+The heartbeat reads the next graph event in a separate task and waits with
+`asyncio.wait`, so the timeout never cancels the running node/tool (unlike
+`asyncio.wait_for`/`asyncio.timeout`, which would).  The wrapped stream is
+closed via `contextlib.aclosing`, so a client disconnect or Stop still cancels
+the graph run.
 
 ### `inspect` (replaces `info`/`debug`)
 
