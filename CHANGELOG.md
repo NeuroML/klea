@@ -64,6 +64,7 @@
 
 ### Fixed
 
+- A query whose tool runs for several minutes no longer fails with a connection error: the stream is kept alive with a heartbeat while a node is busy, and a genuinely lost connection is now reported as resumable (Retry).
 - Web UI: an operating mode or tool access level chosen before the first message is carried onto the new chat and sent with it, instead of being reset to the defaults when the chat is created.
 - RAG retrieval query generation no longer fails with `INVALID_PROMPT_INPUT`: a literal `{"gte": ..., "lte": ...}` range example in the prompt was being parsed as a template variable and is now escaped.
 - RAG retrieval depth (`k`) is now tracked per conversation instead of on the shared retriever, so growing `k` in one chat no longer affects concurrent chats or the next query on the same thread.
