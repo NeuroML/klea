@@ -15,7 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.errors import DocumentConversionError, PermissionDeniedError
-from klea_utils.mcp.tool_impls.file_ops import is_binary, split_bom
+from klea_utils.mcp.tool_impls.file_ops import (
+    detect_newline,
+    is_binary,
+    split_bom,
+    split_lines,
+)
 from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
 from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.web_fetch import _html_to_text
@@ -111,7 +116,10 @@ def read_file(
 
     Plain text must be valid UTF-8 (a leading UTF-8 BOM is stripped).  A
     binary file (containing a NUL byte) or a file that is not valid UTF-8 is
-    refused with an error instead of being returned as garbled text.
+    refused with an error instead of being returned as garbled text.  Lines
+    are delimited by ``\\n`` after normalising CRLF and lone-CR endings, so the
+    line numbers match editors and ``wc -l`` (``str.splitlines`` would also
+    break on form feeds and Unicode separators).
 
     :param path: File path to read.  Defaults to the current directory
         (``"."``), which is not a file, so a missing path yields the
@@ -211,6 +219,7 @@ def read_file(
 
     suffix = the_path.suffix.lower()
     had_bom = False
+    delimited_raw = False
     try:
         if suffix in (".html", ".htm"):
             # HTML is web content and may not be UTF-8; decode leniently.
@@ -236,6 +245,7 @@ def read_file(
             # Strict UTF-8: report invalid bytes rather than returning
             # replacement-character garbage.  A UTF-8 BOM is stripped.
             content, had_bom = split_bom(data.decode("utf-8"))
+            delimited_raw = suffix in {".csv", ".tsv"}
     except UnicodeDecodeError:
         logger.warning(f"Not valid UTF-8 text: {path}")
         return {
@@ -281,8 +291,9 @@ def read_file(
             "error": str(exc),
         }
 
-    lines = content.splitlines()
+    lines = split_lines(content)
     total_lines = len(lines)
+    logger.debug(f"Line definition: {detect_newline(content) = }\n{total_lines = }")
     start = offset - 1
     end = None if limit is None else start + limit
     sliced = lines[start:end]
@@ -346,6 +357,8 @@ def read_file(
         note = f"offset {offset} is past the end of the file ({total_lines} lines)."
     elif had_bom:
         note = "Stripped a UTF-8 BOM."
+    elif delimited_raw:
+        note = "Delimited file read as physical lines; quoted fields may span lines."
 
     logger.debug(
         f"Read file\n"

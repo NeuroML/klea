@@ -154,6 +154,51 @@ def test_missing_file_is_still_an_error(tmp_path):
     assert to_result(result).is_error is True
 
 
+def test_form_feed_is_not_a_line_break(tmp_path):
+    """A form feed stays in the line (unlike ``str.splitlines``)."""
+    f = tmp_path / "ff.txt"
+    f.write_text("a\fb\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["total_lines"] == 1
+    assert result["content"] == "1: a\fb"
+
+
+def test_crlf_and_lone_cr_are_normalised(tmp_path):
+    """CRLF and lone CR line endings split like LF, without stray \\r."""
+    f = tmp_path / "crlf.txt"
+    f.write_bytes(b"a\r\nb\rc\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["total_lines"] == 3
+    assert result["content"] == "1: a\n2: b\n3: c"
+
+
+def test_trailing_newline_is_not_an_extra_line(tmp_path):
+    """A single trailing newline does not add a blank final line."""
+    f = tmp_path / "trail.txt"
+    f.write_text("a\nb\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["total_lines"] == 2
+
+
+def test_raw_delimited_file_gets_a_note(tmp_path, monkeypatch):
+    """A raw (unconverted) delimited file warns that fields may span lines."""
+    from klea_utils.mcp.tool_impls import read_file as read_file_module
+
+    monkeypatch.setattr(read_file_module, "_should_convert", lambda _suffix: False)
+    f = tmp_path / "data.tsv"
+    f.write_text('a\tb\n"x\ny"\t2\n')
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert "physical lines" in result["note"]
+
+
 def test_binary_file_is_refused(tmp_path):
     """A file with a NUL byte is refused, not returned as text."""
     f = tmp_path / "b.bin"
