@@ -89,8 +89,10 @@ async def run_repl(
         log_dir=PlatformDirs(app_name).user_data_dir,
     )
 
-    # Lazy: avoids importing yaspin (and its deps) at module level
+    # Lazy: avoids importing yaspin (and its deps) at module level; httpx is
+    # only needed to catch a dropped/timed-out or rejected stream below.
     import coolname
+    import httpx
     from yaspin import yaspin
 
     from klea_utils.api.sse import stream_events
@@ -114,30 +116,40 @@ async def run_repl(
             print()
 
             with yaspin(text="Working ...", timer=True) as spinner:
-                async for event in stream_events(
-                    query,
-                    chat_id,
-                    url,
-                    resume=resume,
-                    interrupt_response=interrupt_response,
-                    interrupt_id=interrupt_id,
-                    interrupt_cancel=interrupt_cancel,
-                ):
-                    etype = event["type"]
-                    if etype == "progress":
-                        spinner.text = (event.get("data") or {}).get(
-                            "heading"
-                        ) or event["node"]
-                    elif etype == "interrupt":
-                        ask = event.get("data") or {}
-                        break
-                    elif etype == "complete":
-                        full_response = event.get("message_for_user", "")
-                        spinner.ok("[OK]")
-                    elif etype == "error":
-                        error_msg = event.get("message", "Unknown server error")
-                        spinner.fail("[ERROR]")
-                        break
+                try:
+                    async for event in stream_events(
+                        query,
+                        chat_id,
+                        url,
+                        resume=resume,
+                        interrupt_response=interrupt_response,
+                        interrupt_id=interrupt_id,
+                        interrupt_cancel=interrupt_cancel,
+                    ):
+                        etype = event["type"]
+                        if etype == "ping":
+                            # Server heartbeat: nothing to display.
+                            continue
+                        if etype == "progress":
+                            spinner.text = (event.get("data") or {}).get(
+                                "heading"
+                            ) or event["node"]
+                        elif etype == "interrupt":
+                            ask = event.get("data") or {}
+                            break
+                        elif etype == "complete":
+                            full_response = event.get("message_for_user", "")
+                            spinner.ok("[OK]")
+                        elif etype == "error":
+                            error_msg = event.get("message", "Unknown server error")
+                            spinner.fail("[ERROR]")
+                            break
+                except httpx.HTTPError as e:
+                    # A dropped/timed-out stream or a rejected request (e.g.
+                    # HTTP 409): report it as the turn's error instead of
+                    # letting the exception crash the REPL.
+                    error_msg = f"Request failed: {e}"
+                    spinner.fail("[ERROR]")
 
             if ask is not None:
                 # Paused for human input: prompt, then stream the answer (which
