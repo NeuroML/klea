@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.errors import DocumentConversionError, PermissionDeniedError
+from klea_utils.mcp.tool_impls.file_ops import is_binary, split_bom
 from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
 from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.web_fetch import _html_to_text
@@ -107,6 +108,10 @@ def read_file(
     For document formats the offsets/limits apply to that *converted* text,
     and the returned ``line_end``/``total_lines`` let the caller continue
     reading a large document in pages.
+
+    Plain text must be valid UTF-8 (a leading UTF-8 BOM is stripped).  A
+    binary file (containing a NUL byte) or a file that is not valid UTF-8 is
+    refused with an error instead of being returned as garbled text.
 
     :param path: File path to read.  Defaults to the current directory
         (``"."``), which is not a file, so a missing path yields the
@@ -205,15 +210,43 @@ def read_file(
         max_chars = 1
 
     suffix = the_path.suffix.lower()
+    had_bom = False
     try:
         if suffix in (".html", ".htm"):
-            content = _html_to_text(
-                the_path.read_text(encoding="utf-8", errors="replace")
+            # HTML is web content and may not be UTF-8; decode leniently.
+            text, had_bom = split_bom(
+                the_path.read_bytes().decode("utf-8", errors="replace")
             )
+            content = _html_to_text(text)
         elif _should_convert(suffix):
             content = _converted_text(the_path)
         else:
-            content = the_path.read_text(encoding="utf-8", errors="replace")
+            data = the_path.read_bytes()
+            if is_binary(data):
+                logger.warning(f"Refusing to read binary file: {path}")
+                return {
+                    "path": str(the_path),
+                    "content": "",
+                    "line_start": 1,
+                    "line_end": 0,
+                    "total_lines": 0,
+                    "truncated": False,
+                    "error": f"Cannot read binary file: {the_path}",
+                }
+            # Strict UTF-8: report invalid bytes rather than returning
+            # replacement-character garbage.  A UTF-8 BOM is stripped.
+            content, had_bom = split_bom(data.decode("utf-8"))
+    except UnicodeDecodeError:
+        logger.warning(f"Not valid UTF-8 text: {path}")
+        return {
+            "path": str(the_path),
+            "content": "",
+            "line_start": 1,
+            "line_end": 0,
+            "total_lines": 0,
+            "truncated": False,
+            "error": f"File is not valid UTF-8 text: {the_path}",
+        }
     except OSError as exc:
         logger.warning(f"Could not read {path}: {exc}")
         return {
@@ -311,6 +344,8 @@ def read_file(
             )
     elif not segments and total_lines:
         note = f"offset {offset} is past the end of the file ({total_lines} lines)."
+    elif had_bom:
+        note = "Stripped a UTF-8 BOM."
 
     logger.debug(
         f"Read file\n"

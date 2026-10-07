@@ -154,6 +154,42 @@ def test_missing_file_is_still_an_error(tmp_path):
     assert to_result(result).is_error is True
 
 
+def test_binary_file_is_refused(tmp_path):
+    """A file with a NUL byte is refused, not returned as text."""
+    f = tmp_path / "b.bin"
+    f.write_bytes(b"\x00\x01\x02abc")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert "binary" in result["error"].lower()
+    assert to_result(result).is_error is True
+
+
+def test_invalid_utf8_is_refused(tmp_path):
+    """Text that is not valid UTF-8 is an error, not replacement garbage."""
+    f = tmp_path / "latin.txt"
+    f.write_bytes(b"caf\xe9\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert "utf-8" in result["error"].lower()
+    assert to_result(result).is_error is True
+
+
+def test_utf8_bom_is_stripped(tmp_path):
+    """A leading UTF-8 BOM is stripped and reported in the note."""
+    f = tmp_path / "bom.txt"
+    f.write_bytes(b"\xef\xbb\xbfhello\nworld\n")
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["content"] == "1: hello\n2: world"
+    assert result["error"] == ""
+    assert "BOM" in result["note"]
+
+
 def test_default_limit_is_a_page(tmp_path):
     """The default read is one page (the ``limit`` default), not the whole file."""
     f = _write(tmp_path, 5000)
