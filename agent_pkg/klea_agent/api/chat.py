@@ -9,6 +9,9 @@ model overrides, SSE framing).  Agent-specific state (e.g. an operating
 ``mode`` field on the payload) will be added here, not in klea_utils
 (ADR-0031).
 
+The agent's chat lifecycle (HITL interrupt/resume, mode context event) is
+documented in ``devdocs/system/api-sse-sequence.md``.
+
 File: klea_agent/api/chat.py
 
 Copyright 2026 Ankur Sinha

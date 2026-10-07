@@ -2,6 +2,8 @@
 """
 Main API script
 
+See ``devdocs/system/api-sse-sequence.md``.
+
 File: rag_pkg/klea_rag/api/main.py
 
 Copyright 2026 Ankur Sinha

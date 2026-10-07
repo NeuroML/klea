@@ -2,6 +2,9 @@
 """
 Path permission checking for file-accessing MCP tools.
 
+See ``devdocs/system/mcp-permissions.md`` and
+``devdocs/adr/0007-mcp-permissions.md``.
+
 File: klea_utils/mcp/tool_impls/permission.py
 
 Copyright 2026 Ankur Sinha

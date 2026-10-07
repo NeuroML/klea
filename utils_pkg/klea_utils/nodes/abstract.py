@@ -2,6 +2,10 @@
 """
 Abstract node classes for LangGraph processing nodes
 
+See ``devdocs/system/streams.md`` (``NodeStreamData``/``_get_inspect``) and
+``devdocs/system/prompt-conventions.md`` (node prompt fields); ADRs 0019,
+0040 and 0045.
+
 File: klea_utils/nodes/abstract.py
 
 Copyright 2026 Ankur Sinha

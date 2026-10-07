@@ -9,6 +9,9 @@ methods accept a ``context=`` value forwarded to ``ainvoke``/``astream``/
 hand-rolled ``model_overrides_ctx`` contextvar removed in ADR-0033; the
 LLM's per-invocation ``RunnableConfig`` merge is unchanged (ADR-0014).
 
+See ``devdocs/system/streams.md`` (``context`` event) and
+``devdocs/system/api-sse-sequence.md``.
+
 File: klea_utils/graph/context.py
 
 Copyright 2026 Ankur Sinha

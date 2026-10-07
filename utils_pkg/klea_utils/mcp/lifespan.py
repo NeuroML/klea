@@ -2,6 +2,8 @@
 """
 Shared FastMCP lifespan helpers.
 
+See ``devdocs/adr/0005-httpx-single-stack.md``.
+
 File: klea_utils/mcp/lifespan.py
 
 Copyright 2026 Ankur Sinha

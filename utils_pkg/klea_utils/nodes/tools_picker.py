@@ -2,6 +2,9 @@
 """
 Shared MCP tools picker node.
 
+See ``devdocs/system/mcp-permissions.md`` and ``devdocs/system/streams.md``;
+ADRs 0020, 0034 and 0044.
+
 File: klea_utils/nodes/tools_picker.py
 
 Copyright 2026 Ankur Sinha

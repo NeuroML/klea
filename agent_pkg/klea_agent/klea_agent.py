@@ -2,6 +2,10 @@
 """
 Klea agent framework implementation
 
+See ``devdocs/system/c4-component-agent.md`` and
+``devdocs/system/agent-general-path-control-flow.md``; ADRs 0029, 0030,
+0032 and 0035.
+
 File: klea_agent.py
 
 Copyright 2026 Ankur Sinha

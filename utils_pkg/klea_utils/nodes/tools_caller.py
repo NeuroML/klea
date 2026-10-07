@@ -2,6 +2,9 @@
 """
 Shared MCP tools caller node.
 
+See ``devdocs/system/streams.md`` (chat-renderable ``tool`` events) and
+``devdocs/system/mcp-permissions.md``; ADRs 0020, 0034 and 0040.
+
 File: klea_utils/nodes/tools_caller.py
 
 Copyright 2026 Ankur Sinha

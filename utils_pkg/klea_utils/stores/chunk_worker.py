@@ -2,6 +2,8 @@
 """
 Subprocess chunking workers -- isolate Docling's per-conversion memory leak
 
+See ``devdocs/system/store-create.md``; ADRs 0001 and 0002.
+
 File: klea_utils/stores/chunk_worker.py
 
 Copyright 2026 Ankur Sinha

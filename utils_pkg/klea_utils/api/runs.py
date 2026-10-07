@@ -14,6 +14,9 @@ worker, and cancelling an ``asyncio.Task`` is only possible in the process
 that owns it.  Multi-worker deployments would need sticky routing or a
 distributed cancellation signal.
 
+See ``devdocs/system/api-sse-sequence.md``, ``devdocs/system/graph-resume.md``
+and ``devdocs/adr/0043-graph-fault-tolerance-and-resume.md``.
+
 File: klea_utils/api/runs.py
 
 Copyright 2026 Ankur Sinha

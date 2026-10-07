@@ -2,6 +2,9 @@
 """
 Configurations for the API server
 
+See ``devdocs/adr/0015-profile-env-config.md`` and
+``devdocs/system/c4-component-agent.md``.
+
 File: klea_agent/config.py
 
 Copyright 2026 Ankur Sinha

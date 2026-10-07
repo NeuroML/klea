@@ -2,6 +2,9 @@
 """
 DOI resolution via Crossref, OpenAlex and Semantic Scholar
 
+See ``devdocs/adr/0027-doi-bibliographic-resolver.md`` and
+``devdocs/system/store-create.md``.
+
 File: klea_utils/biblio/doi.py
 
 Copyright 2026 Ankur Sinha

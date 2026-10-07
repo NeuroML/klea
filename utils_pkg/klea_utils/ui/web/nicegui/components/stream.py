@@ -7,6 +7,8 @@ unit-testable without NiceGUI) and the UI-driving coroutine
 (:func:`run_stream`) that consumes the backend's ``/query/stream``
 events and updates the chat panel, status pane and inspector.
 
+See ``devdocs/system/streams.md`` and ``devdocs/system/api-sse-sequence.md``.
+
 File: klea_utils/ui/web/nicegui/components/stream.py
 
 Copyright 2026 Ankur Sinha

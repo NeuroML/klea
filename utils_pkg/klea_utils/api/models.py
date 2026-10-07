@@ -13,6 +13,9 @@ provider-scoped credential store (``/credentials``) and are resolved
 separately.  Any legacy plaintext ``api_key`` still present in stored
 overrides is masked before it is returned.
 
+See ``devdocs/system/api-sse-sequence.md``; ADRs 0014 (runtime model
+switching) and 0042 (session model defaults).
+
 File: klea_utils/api/models.py
 
 Copyright 2026 Ankur Sinha

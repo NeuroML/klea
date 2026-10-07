@@ -8,6 +8,9 @@ the shared ``klea_utils.api.chat_core`` plumbing (session persistence,
 model overrides, SSE framing).  RAG-specific contract changes (if any)
 live here, not in klea_utils (ADR-0031).
 
+The RAG chat lifecycle is documented in
+``devdocs/system/api-sse-sequence.md``.
+
 File: klea_rag/api/chat.py
 
 Copyright 2026 Ankur Sinha

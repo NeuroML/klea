@@ -2,6 +2,8 @@
 """
 Exact search/replace edit implementation for the Klea MCP tools (ADR-0039).
 
+See ``devdocs/system/edit-format-strategy.md``.
+
 File: klea_utils/mcp/tool_impls/edit_file.py
 
 Copyright 2026 Ankur Sinha

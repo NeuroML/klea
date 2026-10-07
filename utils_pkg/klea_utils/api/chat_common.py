@@ -8,6 +8,8 @@ checkpoint thread id, the per-thread single-flight registry, and cancelling
 an in-flight run.  The endpoint runners themselves live in
 :mod:`klea_utils.api.chat_core`.
 
+See ``devdocs/system/api-sse-sequence.md`` and ``devdocs/system/streams.md``.
+
 File: klea_utils/api/chat_common.py
 
 Copyright 2026 Ankur Sinha

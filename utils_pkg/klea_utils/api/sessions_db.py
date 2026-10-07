@@ -14,6 +14,9 @@ via ``graph.aget_state(thread_id)`` -- the checkpoint DB is the
 canonical source and already stores the full deserialised state with no
 serialization round-trip.
 
+See ``devdocs/adr/0023-sqlite-checkpointer.md`` and
+``devdocs/system/api-sse-sequence.md``; ADR-0042 (credentials/defaults).
+
 File: klea_utils/api/sessions_db.py
 
 Copyright 2026 Ankur Sinha

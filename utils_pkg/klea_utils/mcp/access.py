@@ -7,7 +7,8 @@ Classification is derived from the standard MCP ``ToolAnnotations``
 optional operator override (``ToolAccessOverride``).  Levels are
 ``read_only`` (only explicitly read-only, non-destructive tools) and
 ``full`` (every tool); an unannotated tool fails closed in ``read_only``.
-See ``devdocs/adr/0037-tool-access-levels.md``.
+See ``devdocs/system/mcp-permissions.md`` and
+``devdocs/adr/0037-tool-access-levels.md``.
 
 File: klea_utils/mcp/access.py
 

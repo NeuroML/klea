@@ -2,6 +2,8 @@
 """
 Summarise conversation history node
 
+See ``devdocs/adr/0018-message-memory.md``.
+
 File: klea_utils/nodes/summarise_memory.py
 
 Copyright 2026 Ankur Sinha

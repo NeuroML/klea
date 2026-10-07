@@ -2,6 +2,9 @@
 """
 Shared FastAPI app factory for Klea packages.
 
+See ``devdocs/system/api-sse-sequence.md`` and ``devdocs/system/c4-container.md``;
+ADR-0031.
+
 File: klea_utils/api/app.py
 
 Copyright 2026 Ankur Sinha

@@ -2,6 +2,9 @@
 """
 Answer-from-results node
 
+See ``devdocs/system/agent-general-path-control-flow.md`` and
+``devdocs/system/c4-component-agent.md``; ADR-0035.
+
 File: klea_agent/nodes/answer_from_results.py
 
 Copyright 2026 Ankur Sinha

@@ -2,6 +2,9 @@
 """
 Operational evaluator node
 
+See ``devdocs/system/agent-general-path-control-flow.md`` and
+``devdocs/system/c4-component-agent.md``; ADR-0035.
+
 File: klea_agent/nodes/operational_evaluator.py
 
 Copyright 2026 Ankur Sinha

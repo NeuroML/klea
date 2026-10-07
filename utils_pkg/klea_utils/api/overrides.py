@@ -8,6 +8,8 @@ plaintext keys into the credential store.  Kept separate from the endpoint
 runners (:mod:`klea_utils.api.chat_core`) because the concern is
 credential/override management, not request handling.
 
+See ``devdocs/system/api-sse-sequence.md``; ADRs 0033 and 0042.
+
 File: klea_utils/api/overrides.py
 
 Copyright 2026 Ankur Sinha

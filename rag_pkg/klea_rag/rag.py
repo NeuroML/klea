@@ -2,6 +2,9 @@
 """
 General RAG implementation
 
+See ``devdocs/system/c4-component-rag.md``; ADRs 0008 (always retrieve),
+0011 (multiple query domains) and 0012 (BM25 hybrid).
+
 File: rag.py
 
 Copyright 2026 Ankur Sinha

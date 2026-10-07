@@ -2,6 +2,8 @@
 """
 File listing implementation for Klea MCP tools.
 
+See ``devdocs/system/mcp-permissions.md``.
+
 File: klea_utils/mcp/tool_impls/list_files.py
 
 Copyright 2026 Ankur Sinha

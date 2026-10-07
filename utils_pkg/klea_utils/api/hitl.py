@@ -9,6 +9,8 @@ only be continued by an answer or a cancel).  The endpoint runners in
 :mod:`klea_utils.api.chat_core` call :func:`_prepare_chat_request` before
 invoking the graph.
 
+See ``devdocs/system/api-sse-sequence.md``; ADR-0046.
+
 File: klea_utils/api/hitl.py
 
 Copyright 2026 Ankur Sinha

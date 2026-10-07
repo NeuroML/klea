@@ -2,6 +2,8 @@
 """
 Whole-file write implementation for the Klea MCP tools.
 
+See ``devdocs/system/edit-format-strategy.md``; ADR-0039.
+
 File: klea_utils/mcp/tool_impls/write_file.py
 
 Copyright 2026 Ankur Sinha

@@ -6,6 +6,9 @@ Decides the operating mode (Scientific vs General) and the resulting
 assurance level at task entry, and informs the user when a requested
 mode cannot run instead of silently downgrading.
 
+See ``devdocs/system/agent-general-path-control-flow.md`` and
+``devdocs/system/api-sse-sequence.md``; ADRs 0030 and 0032.
+
 File: klea_agent/nodes/mode_router.py
 
 Copyright 2026 Ankur Sinha

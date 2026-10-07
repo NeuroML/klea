@@ -2,6 +2,8 @@
 """
 Shell command execution implementation for Klea MCP tools (ADR-0038).
 
+See ``devdocs/system/mcp-permissions.md``.
+
 File: klea_utils/mcp/tool_impls/run_command.py
 
 Copyright 2026 Ankur Sinha

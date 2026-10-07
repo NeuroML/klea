@@ -2,6 +2,8 @@
 """
 Generate an answer from provided reference material
 
+See ``devdocs/system/c4-component-rag.md``; ADR-0009 and ADR-0036.
+
 File: rag_pkg/klea_rag/nodes/answer_from_context.py
 
 Copyright 2026 Ankur Sinha

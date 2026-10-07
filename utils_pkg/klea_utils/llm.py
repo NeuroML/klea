@@ -2,6 +2,9 @@
 """
 LLM related utils
 
+See ``devdocs/system/structured-output-fallback.md``; ADRs 0014 (runtime
+model switching), 0017 (invoke retry) and 0028 (prompt cache).
+
 File: klea_rag/llm.py
 
 Copyright 2026 Ankur Sinha

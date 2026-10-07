@@ -2,6 +2,8 @@
 """
 Reasoning node
 
+See ``devdocs/system/agent-general-path-control-flow.md``.
+
 File: klea_agent/nodes/reasoning.py
 
 Copyright 2026 Ankur Sinha

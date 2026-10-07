@@ -2,6 +2,8 @@
 """
 Route decision node
 
+See ``devdocs/system/agent-general-path-control-flow.md``; ADR-0035.
+
 File: klea_agent/nodes/route_decision.py
 
 Copyright 2026 Ankur Sinha

@@ -2,6 +2,9 @@
 """
 Base node classes for LangGraph processing nodes
 
+See ``devdocs/system/structured-output-fallback.md`` and
+``devdocs/system/prompt-conventions.md``; ADRs 0017 and 0044.
+
 File: klea_utils/nodes/base.py
 
 Copyright 2026 Ankur Sinha

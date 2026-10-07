@@ -7,6 +7,8 @@ custom / explicit-URL models), and are never returned raw: the API only
 reports a masked suffix and, when no credential is stored, whether the
 provider's environment variable is set.
 
+See ``devdocs/adr/0042-session-model-defaults-and-provider-credentials.md``.
+
 File: klea_utils/api/credentials.py
 
 Copyright 2026 Ankur Sinha

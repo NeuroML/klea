@@ -2,6 +2,8 @@
 """
 Initialise graph state node
 
+See ``devdocs/system/c4-component-agent.md``.
+
 File: klea_agent/nodes/init_graph.py
 
 Copyright 2026 Ankur Sinha

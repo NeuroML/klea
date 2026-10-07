@@ -2,6 +2,8 @@
 """
 Guard node for safety checking
 
+See ``devdocs/adr/0010-guard-node.md``.
+
 File: klea_utils/nodes/guard.py
 
 Copyright 2026 Ankur Sinha

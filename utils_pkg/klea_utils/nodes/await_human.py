@@ -2,6 +2,9 @@
 """
 Generic human-in-the-loop await node
 
+See ``devdocs/adr/0046-hitl-interrupt-resume.md`` and
+``devdocs/system/api-sse-sequence.md``.
+
 File: klea_utils/nodes/await_human.py
 
 Copyright 2026 Ankur Sinha

@@ -2,6 +2,12 @@
 """
 Base class for LangGraph-based orchestrators
 
+See ``devdocs/system/streams.md`` (event emission via
+``run_graph_astream_events`` and ``context_snapshot``),
+``devdocs/system/graph-resume.md`` (fault tolerance and resume), and the
+generated graph topology embedded in ``devdocs/system/c4-component-*.md``;
+ADRs 0016, 0032, 0033 and 0043.
+
 File: klea_utils/graph/base.py
 
 Copyright 2026 Ankur Sinha

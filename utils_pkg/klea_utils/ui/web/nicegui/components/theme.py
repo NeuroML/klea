@@ -2,6 +2,8 @@
 """
 Page theme component: CSS overrides and persistent dark mode.
 
+See ``devdocs/system/web-theming.md``.
+
 File: klea_utils/ui/web/nicegui/components/theme.py
 
 Copyright 2026 Ankur Sinha

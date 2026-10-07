@@ -6,6 +6,9 @@ Provides both an async generator (for NiceGUI and TUI) and a synchronous
 generator (for Streamlit) that consume the ``/query/stream`` SSE endpoint
 and yield parsed event dicts.
 
+The ordered request/lifecycle view is ``devdocs/system/api-sse-sequence.md``;
+the event catalogue is ``devdocs/system/streams.md``.
+
 File: klea_utils/api/sse.py
 
 Copyright 2026 Ankur Sinha

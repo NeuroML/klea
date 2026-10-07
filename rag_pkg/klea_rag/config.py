@@ -2,6 +2,9 @@
 """
 Config schema for the app
 
+See ``devdocs/adr/0015-profile-env-config.md`` and
+``devdocs/system/c4-component-rag.md``.
+
 File: rag_pkg/klea_rag/config.py
 
 Copyright 2026 Ankur Sinha

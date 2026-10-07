@@ -2,6 +2,8 @@
 """
 BM25 keyword retriever manager
 
+See ``devdocs/adr/0012-bm25-hybrid.md`` and ``devdocs/system/store-create.md``.
+
 File: klea_utils/stores/retrieval/bm25.py
 
 Copyright 2026 Ankur Sinha

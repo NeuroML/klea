@@ -2,6 +2,8 @@
 """
 Triage router node
 
+See ``devdocs/system/agent-general-path-control-flow.md``; ADR-0035.
+
 File: klea_agent/nodes/triage_router.py
 
 Copyright 2026 Ankur Sinha

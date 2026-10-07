@@ -2,6 +2,8 @@
 """
 Planner node for KleaAgent
 
+See ``devdocs/system/agent-general-path-control-flow.md``; ADR-0041.
+
 File: klea_agent/nodes/planner.py
 
 Copyright 2026 Ankur Sinha

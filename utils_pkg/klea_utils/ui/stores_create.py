@@ -2,6 +2,8 @@
 """
 CLI for creating stores from documents
 
+See ``devdocs/system/store-create.md``.
+
 File: klea_utils/ui/stores_create.py
 
 Copyright 2026 Ankur Sinha

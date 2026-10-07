@@ -2,6 +2,9 @@
 """
 Retrieve information node
 
+See ``devdocs/system/c4-component-rag.md`` and
+``devdocs/system/store-create.md``; ADR-0012.
+
 File: rag_pkg/klea_rag/nodes/retrieve_info.py
 
 Copyright 2026 Ankur Sinha

@@ -2,6 +2,8 @@
 """
 Classify question domain node
 
+See ``devdocs/system/c4-component-rag.md``; ADR-0011.
+
 File: rag_pkg/klea_rag/nodes/classify_question.py
 
 Copyright 2026 Ankur Sinha

@@ -15,6 +15,10 @@ The ``enrich`` hook lets an app inject app-level events into the SSE
 stream (for example a ``context`` event carrying the agent operating
 mode), while the shared framing stays here.
 
+The ordered request/lifecycle view of this module is documented in
+``devdocs/system/api-sse-sequence.md``; the emitted event catalogue is
+``devdocs/system/streams.md``.  Keep both in sync when the contract changes.
+
 Supporting helpers live in focused modules:
 :mod:`klea_utils.api.chat_common` (app-state, thread identity, cancel),
 :mod:`klea_utils.api.overrides` (model overrides/credentials), and

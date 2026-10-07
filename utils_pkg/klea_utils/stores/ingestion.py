@@ -2,6 +2,8 @@
 """
 Store ingestion -- convert documents, chunk, embed, and write to stores
 
+See ``devdocs/system/store-create.md``; ADRs 0001, 0002, 0021 and 0022.
+
 File: klea_utils/stores/ingestion.py
 
 Copyright 2026 Ankur Sinha
