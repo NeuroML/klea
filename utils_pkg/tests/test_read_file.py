@@ -202,6 +202,18 @@ def test_raw_delimited_file_gets_a_note(tmp_path, monkeypatch):
     assert "physical lines" in result["note"]
 
 
+def test_read_bounded_helper(tmp_path):
+    """The bounded reader never returns more than max_bytes."""
+    from klea_utils.mcp.tool_impls import read_file as read_file_module
+
+    f = tmp_path / "x.bin"
+    f.write_bytes(b"0123456789")
+
+    assert read_file_module._read_bounded(f, 10) == b"0123456789"
+    assert read_file_module._read_bounded(f, 100) == b"0123456789"
+    assert read_file_module._read_bounded(f, 9) is None
+
+
 def test_symlink_loop_is_denied(tmp_path):
     """An unresolvable (self-referential) symlink is a permission error."""
     loop = tmp_path / "loop"

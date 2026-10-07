@@ -223,14 +223,17 @@ def read_file(
     try:
         if suffix in (".html", ".htm"):
             # HTML is web content and may not be UTF-8; decode leniently.
-            text, had_bom = split_bom(
-                the_path.read_bytes().decode("utf-8", errors="replace")
-            )
+            data = _read_bounded(the_path, max_bytes)
+            if data is None:
+                return _too_large_result(the_path, max_bytes)
+            text, had_bom = split_bom(data.decode("utf-8", errors="replace"))
             content = _html_to_text(text)
         elif _should_convert(suffix):
             content = _converted_text(the_path)
         else:
-            data = the_path.read_bytes()
+            data = _read_bounded(the_path, max_bytes)
+            if data is None:
+                return _too_large_result(the_path, max_bytes)
             if is_binary(data):
                 logger.warning(f"Refusing to read binary file: {path}")
                 return {
@@ -435,6 +438,36 @@ def _cap_segments(
         raw_consumed = max(1, len(chunk) - first_prefix_len)
         return [chunk], start_line, segment_char + raw_consumed, True
     return kept, None, 0, False
+
+
+def _read_bounded(path: Path, max_bytes: int) -> bytes | None:
+    """Read at most *max_bytes* bytes, or return ``None`` if the file exceeds it.
+
+    Reading a bounded amount (instead of ``read_bytes``) both caps memory and
+    closes the stat/read race: a file that grows after the size check cannot
+    make this read unbounded.
+
+    :param path: File to read.
+    :param max_bytes: Maximum number of bytes to accept.
+    :returns: The file bytes, or ``None`` when the file is larger than
+        *max_bytes*.
+    """
+    with path.open("rb") as handle:
+        data = handle.read(max_bytes + 1)
+    return None if len(data) > max_bytes else data
+
+
+def _too_large_result(path: Path, max_bytes: int) -> dict[str, Any]:
+    """Return the standard "file too large" error result."""
+    return {
+        "path": str(path),
+        "content": "",
+        "line_start": 1,
+        "line_end": 0,
+        "total_lines": 0,
+        "truncated": False,
+        "error": f"File too large to read: over {max_bytes} bytes",
+    }
 
 
 def _anydoc_available() -> bool:

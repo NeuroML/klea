@@ -77,6 +77,10 @@ Last updated: 2026-10-07.
   Precedent: `klea_utils/mcp/tool_impls/ssrf.py:88`.
 - Prompt tidy-up: `Planner_system.md` still says "Do not invent tools or
   arbitrary shell commands" (the picker prompt was clarified separately).
+- Large-file paging: `read_file` still reads the whole file (bounded by
+  `max_bytes`, default 100 MB) and splits it in memory before slicing.  Reading
+  incrementally (seek/iterate) would let files larger than `max_bytes` be paged
+  without loading them, and lower the memory bound.
 
 ## Scientific mode / correctness / evaluation
 
