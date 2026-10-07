@@ -112,8 +112,11 @@ def read_file(
     :param project_root: Boundary directory for the permission check.
         Defaults to the current working directory.
     :returns: dict with path, content, line_start, line_end, total_lines,
-        truncated, error, nearby, note.  ``nearby``/``note`` are populated on a
-        missing/not-a-file error so the caller can see what exists instead.
+        truncated, next_offset, error, note (plus ``nearby`` on a missing-file
+        error).  A truncated result is a success (``error`` empty) that carries
+        the line range actually returned and ``next_offset`` for continuing;
+        ``nearby``/``note`` are populated on a missing/not-a-file error so the
+        caller can see what exists instead.
     """
     logger.debug(
         f"Reading file\n"
@@ -233,15 +236,31 @@ def read_file(
             for line_no, line in zip(range(start + 1, start + len(sliced) + 1), sliced)
         ]
     else:
-        rendered = sliced
-    content = "\n".join(rendered)
+        rendered = list(sliced)
+
+    # Apply the character cap at line boundaries so a page never ends
+    # mid-line: a partial final line would make offset-based continuation
+    # ambiguous (the caller could skip the rest of the line, or re-read it).
+    kept, char_limited, partial = _cap_lines_at_chars(rendered, max_chars)
+    content = "\n".join(kept)
 
     line_start = start + 1
-    line_end = start + len(sliced)
-    truncated = line_end < total_lines
-    if len(content) > max_chars:
-        content = content[:max_chars]
-        truncated = True
+    line_end = start + len(kept)
+    truncated = line_end < total_lines or char_limited
+
+    note = ""
+    next_offset: int | None = None
+    if partial:
+        note = (
+            f"Line {line_start} is longer than max_chars ({max_chars}); "
+            "returned a truncated prefix and cannot page within a line."
+        )
+    elif truncated:
+        next_offset = line_end + 1
+        note = (
+            f"Output truncated: showing lines {line_start}-{line_end} of "
+            f"{total_lines}. Continue with offset={next_offset}."
+        )
 
     logger.debug(
         f"Read file\n"
@@ -250,7 +269,8 @@ def read_file(
         f"{line_end = }\n"
         f"{total_lines = }\n"
         f"{len(content) = }\n"
-        f"{truncated = }"
+        f"{truncated = }\n"
+        f"{next_offset = }"
     )
     return {
         "path": str(the_path),
@@ -259,8 +279,41 @@ def read_file(
         "line_end": line_end,
         "total_lines": total_lines,
         "truncated": truncated,
+        "next_offset": next_offset,
         "error": "",
+        "note": note,
     }
+
+
+def _cap_lines_at_chars(
+    rendered: list[str], max_chars: int
+) -> tuple[list[str], bool, bool]:
+    """Fit whole rendered lines within *max_chars*.
+
+    Lines are added whole until the next one would exceed the cap, so the
+    returned text never ends mid-line and offset-based continuation is
+    unambiguous.  A single line longer than the cap cannot be paged this way;
+    then the first line is clipped to the cap and reported as ``partial``.
+
+    :param rendered: The rendered lines (numbered or raw).
+    :param max_chars: The character cap.
+    :returns: ``(kept, truncated, partial)`` -- the whole lines that fit,
+        whether anything was dropped, and whether no whole line fit (the first
+        line was clipped).
+    """
+    kept: list[str] = []
+    length = 0
+    for line in rendered:
+        added = len(line) + (1 if kept else 0)  # include the joining newline
+        if length + added > max_chars:
+            break
+        kept.append(line)
+        length += added
+    if kept:
+        return kept, len(kept) < len(rendered), False
+    if rendered:
+        return [rendered[0][:max_chars]], True, True
+    return [], False, False
 
 
 def _anydoc_available() -> bool:

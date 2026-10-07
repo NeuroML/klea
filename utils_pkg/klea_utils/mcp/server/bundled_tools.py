@@ -309,10 +309,13 @@ async def read_file(
             text to copy into an edit.
 
     Returns:
-        Dictionary with content, line range, total_lines, truncated, error.
-        On a missing/not-a-file error, ``nearby`` (entries in the nearest
-        existing directory) and ``note`` are populated so the caller can see
-        what exists instead.
+        Dictionary with content, line range, total_lines, truncated,
+        next_offset, error and note.  A truncated read is a success (empty
+        ``error``) that ends on a line boundary and carries ``next_offset``
+        (and an explanatory ``note``) so the caller can continue reading.  On a
+        missing/not-a-file error, ``nearby`` (entries in the nearest existing
+        directory) and ``note`` are populated so the caller can see what exists
+        instead.
     """
     result = read_file_impl(
         path=path,
