@@ -270,6 +270,12 @@ class TestApplyStreamEvent:
         """Unknown event types mutate nothing and return None."""
         assert apply_stream_event(chat, {"type": "mystery"}) is None
 
+    def test_ping_ignored(self, chat):
+        """A server heartbeat ping mutates nothing and returns None."""
+        result = apply_stream_event(chat, {"type": "ping"})
+        assert result is None
+        assert chat["messages"] == []
+
     def test_error_action(self, chat):
         """error events map to the error action without mutation."""
         assert apply_stream_event(chat, {"type": "error", "message": "boom"}) == "error"
@@ -458,6 +464,20 @@ class TestStreamEventsClient:
                 },
             }
         ]
+
+    async def test_ping_frame_is_yielded(self, monkeypatch):
+        """The client forwards a heartbeat ping frame unchanged."""
+        frame = 'data: {"type": "ping"}\n\n'
+        response = httpx.Response(200, text=frame)
+        real_client = httpx.AsyncClient
+
+        def _factory(*args, **kwargs):
+            kwargs["transport"] = httpx.MockTransport(lambda request: response)
+            return real_client(*args, **kwargs)
+
+        monkeypatch.setattr("klea_utils.api.sse.httpx.AsyncClient", _factory)
+        events = [e async for e in stream_events("q", "c", "http://backend")]
+        assert events == [{"type": "ping"}]
 
 
 @pytest.fixture

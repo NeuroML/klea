@@ -15,6 +15,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import asyncio
+import json
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -261,6 +262,58 @@ class TestStreamResponseResume:
                 chat_id="c",
                 resume=True,
             )
+
+
+class TestStreamResponseHeartbeat:
+    """``stream_response`` keeps the SSE connection warm with ``ping`` frames."""
+
+    async def _collect(self, response):
+        return [chunk async for chunk in response.body_iterator]
+
+    @staticmethod
+    def _frame_type(chunk: str) -> str:
+        """Return the ``type`` of an SSE ``data:`` frame."""
+        return json.loads(chunk.removeprefix("data: ").strip())["type"]
+
+    async def test_ping_interleaved_during_idle_gap(self, store, graph, monkeypatch):
+        """A slow node yields pings, then ``complete``; no event is lost."""
+        monkeypatch.setattr(chat_core, "HEARTBEAT_INTERVAL_SECONDS", 0.05)
+
+        async def _slow(query, thread_id, *, extra_state=None, context=None):
+            yield {
+                "type": "progress",
+                "node": "Running tools",
+                "data": {"heading": "Running tools"},
+            }
+            await asyncio.sleep(0.18)
+            yield {"type": "complete", "message_for_user": "done"}
+
+        graph.run_graph_astream_events = _slow
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="q", user_id="u", chat_id="c"
+        )
+        types = [self._frame_type(chunk) for chunk in await self._collect(response)]
+
+        assert types[0] == "progress"
+        assert types[-1] == "complete"
+        assert types.count("ping") >= 2
+        # The heartbeat adds frames but never drops or reorders the real events.
+        assert [t for t in types if t != "ping"] == ["progress", "complete"]
+
+    async def test_no_ping_when_events_are_prompt(self, store, graph, monkeypatch):
+        """A node that completes quickly emits no heartbeat."""
+        monkeypatch.setattr(chat_core, "HEARTBEAT_INTERVAL_SECONDS", 10.0)
+
+        async def _fast(query, thread_id, *, extra_state=None, context=None):
+            yield {"type": "complete", "message_for_user": "done"}
+
+        graph.run_graph_astream_events = _fast
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="q", user_id="u", chat_id="c"
+        )
+        types = [self._frame_type(chunk) for chunk in await self._collect(response)]
+
+        assert types == ["complete"]
 
 
 class TestRunQueryResume:
