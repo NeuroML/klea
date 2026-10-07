@@ -315,6 +315,8 @@
 <section id="module-klea_utils.api.app">
 <span id="core-app-server"></span><h2>Core app &amp; server<a class="headerlink" href="#module-klea_utils.api.app" title="Link to this heading">¶</a></h2>
 <p>Shared FastAPI app factory for Klea packages.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code> and <code class="docutils literal notranslate"><span class="pre">devdocs/system/c4-container.md</span></code>;
+ADR-0031.</p>
 <p>File: klea_utils/api/app.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -497,6 +499,9 @@ expose whichever fields the app contract needs (e.g. the agent’s
 <p>The <code class="docutils literal notranslate"><span class="pre">enrich</span></code> hook lets an app inject app-level events into the SSE
 stream (for example a <code class="docutils literal notranslate"><span class="pre">context</span></code> event carrying the agent operating
 mode), while the shared framing stays here.</p>
+<p>The ordered request/lifecycle view of this module is documented in
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>; the emitted event catalogue is
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code>.  Keep both in sync when the contract changes.</p>
 <p>Supporting helpers live in focused modules:
 <a class="reference internal" href="#module-klea_utils.api.chat_common" title="klea_utils.api.chat_common"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_common</span></code></a> (app-state, thread identity, cancel),
 <a class="reference internal" href="#module-klea_utils.api.overrides" title="klea_utils.api.overrides"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.overrides</span></code></a> (model overrides/credentials), and
@@ -615,6 +620,7 @@ resolving the graph/session store from <code class="docutils literal notranslate
 checkpoint thread id, the per-thread single-flight registry, and cancelling
 an in-flight run.  The endpoint runners themselves live in
 <a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a>.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code> and <code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code>.</p>
 <p>File: klea_utils/api/chat_common.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -667,6 +673,7 @@ graph as per-run runtime context (ADR-0033), and migrates legacy inline
 plaintext keys into the credential store.  Kept separate from the endpoint
 runners (<a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a>) because the concern is
 credential/override management, not request handling.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>; ADRs 0033 and 0042.</p>
 <p>File: klea_utils/api/overrides.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -714,6 +721,7 @@ incoming request against the thread’s paused state (a paused thread may
 only be continued by an answer or a cancel).  The endpoint runners in
 <a class="reference internal" href="#module-klea_utils.api.chat_core" title="klea_utils.api.chat_core"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.api.chat_core</span></code></a> call <code class="xref py py-func docutils literal notranslate"><span class="pre">_prepare_chat_request()</span></code> before
 invoking the graph.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>; ADR-0046.</p>
 <p>File: klea_utils/api/hitl.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -824,6 +832,8 @@ tool_status, …) is read directly from the latest LangGraph checkpoint
 via <code class="docutils literal notranslate"><span class="pre">graph.aget_state(thread_id)</span></code> – the checkpoint DB is the
 canonical source and already stores the full deserialised state with no
 serialization round-trip.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0023-sqlite-checkpointer.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>; ADR-0042 (credentials/defaults).</p>
 <p>File: klea_utils/api/sessions_db.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -1106,6 +1116,8 @@ ran a query) or the graph uses no checkpointer.</p>
 provider-scoped credential store (<code class="docutils literal notranslate"><span class="pre">/credentials</span></code>) and are resolved
 separately.  Any legacy plaintext <code class="docutils literal notranslate"><span class="pre">api_key</span></code> still present in stored
 overrides is masked before it is returned.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>; ADRs 0014 (runtime model
+switching) and 0042 (session model defaults).</p>
 <p>File: klea_utils/api/models.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -1161,6 +1173,7 @@ unless <code class="docutils literal notranslate"><span class="pre">promote_defa
 custom / explicit-URL models), and are never returned raw: the API only
 reports a masked suffix and, when no credential is stored, whether the
 provider’s environment variable is set.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0042-session-model-defaults-and-provider-credentials.md</span></code>.</p>
 <p>File: klea_utils/api/credentials.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -1227,6 +1240,8 @@ Providers that need no key (e.g. Ollama) report <code class="docutils literal no
 <p>Provides both an async generator (for NiceGUI and TUI) and a synchronous
 generator (for Streamlit) that consume the <code class="docutils literal notranslate"><span class="pre">/query/stream</span></code> SSE endpoint
 and yield parsed event dicts.</p>
+<p>The ordered request/lifecycle view is <code class="docutils literal notranslate"><span class="pre">devdocs/system/api-sse-sequence.md</span></code>;
+the event catalogue is <code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code>.</p>
 <p>File: klea_utils/api/sse.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>

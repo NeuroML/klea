@@ -315,6 +315,9 @@
 <section id="module-klea_utils.nodes.abstract">
 <span id="abstract-base-classes"></span><h2>Abstract base classes<a class="headerlink" href="#module-klea_utils.nodes.abstract" title="Link to this heading">¶</a></h2>
 <p>Abstract node classes for LangGraph processing nodes</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code> (<code class="docutils literal notranslate"><span class="pre">NodeStreamData</span></code>/<code class="docutils literal notranslate"><span class="pre">_get_inspect</span></code>) and
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/prompt-conventions.md</span></code> (node prompt fields); ADRs 0019,
+0040 and 0045.</p>
 <p>File: klea_utils/nodes/abstract.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -475,6 +478,8 @@ which edge to follow next. Used with <code class="docutils literal notranslate">
 <section id="module-klea_utils.nodes.base">
 <span id="concrete-base-class"></span><h2>Concrete base class<a class="headerlink" href="#module-klea_utils.nodes.base" title="Link to this heading">¶</a></h2>
 <p>Base node classes for LangGraph processing nodes</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/structured-output-fallback.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/prompt-conventions.md</span></code>; ADRs 0017 and 0044.</p>
 <p>File: klea_utils/nodes/base.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -708,6 +713,7 @@ run’s hooks; it is never stored on the shared node instance.</p>
 <section id="module-klea_utils.nodes.guard">
 <span id="guard-safety-nodes"></span><h2>Guard / safety nodes<a class="headerlink" href="#module-klea_utils.nodes.guard" title="Link to this heading">¶</a></h2>
 <p>Guard node for safety checking</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0010-guard-node.md</span></code>.</p>
 <p>File: klea_utils/nodes/guard.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -838,6 +844,8 @@ this node uses.  Must match a key set up by the orchestrator in
 <section id="module-klea_utils.nodes.tools_picker">
 <span id="tool-nodes"></span><h2>Tool nodes<a class="headerlink" href="#module-klea_utils.nodes.tools_picker" title="Link to this heading">¶</a></h2>
 <p>Shared MCP tools picker node.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code> and <code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code>;
+ADRs 0020, 0034 and 0044.</p>
 <p>File: klea_utils/nodes/tools_picker.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -898,6 +906,8 @@ this node uses.  Must match a key set up by the orchestrator in
 </dd></dl>
 
 <p id="module-klea_utils.nodes.tools_caller">Shared MCP tools caller node.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/streams.md</span></code> (chat-renderable <code class="docutils literal notranslate"><span class="pre">tool</span></code> events) and
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code>; ADRs 0020, 0034 and 0040.</p>
 <p>File: klea_utils/nodes/tools_caller.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -940,6 +950,7 @@ survives.</p>
 <section id="module-klea_utils.nodes.summarise_memory">
 <span id="memory"></span><h2>Memory<a class="headerlink" href="#module-klea_utils.nodes.summarise_memory" title="Link to this heading">¶</a></h2>
 <p>Summarise conversation history node</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0018-message-memory.md</span></code>.</p>
 <p>File: klea_utils/nodes/summarise_memory.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>

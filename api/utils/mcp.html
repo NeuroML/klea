@@ -583,7 +583,8 @@ while a non-positive value disables the backstop.</p>
 optional operator override (<code class="docutils literal notranslate"><span class="pre">ToolAccessOverride</span></code>).  Levels are
 <code class="docutils literal notranslate"><span class="pre">read_only</span></code> (only explicitly read-only, non-destructive tools) and
 <code class="docutils literal notranslate"><span class="pre">full</span></code> (every tool); an unannotated tool fails closed in <code class="docutils literal notranslate"><span class="pre">read_only</span></code>.
-See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0037-tool-access-levels.md</span></code>.</p>
+See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">devdocs/adr/0037-tool-access-levels.md</span></code>.</p>
 <p>File: klea_utils/mcp/access.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -884,6 +885,7 @@ legacy tools may use <code class="docutils literal notranslate"><span class="pre
 <section id="module-klea_utils.mcp.lifespan">
 <span id="http-session-lifespan"></span><h2>HTTP session lifespan<a class="headerlink" href="#module-klea_utils.mcp.lifespan" title="Link to this heading">¶</a></h2>
 <p>Shared FastMCP lifespan helpers.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0005-httpx-single-stack.md</span></code>.</p>
 <p>File: klea_utils/mcp/lifespan.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -910,6 +912,8 @@ Lifespans are composable with the <code class="docutils literal notranslate"><sp
 <p>Framework-agnostic tool bodies that apps wrap into FastMCP tools, passing
 their httpx session via the lifespan context.</p>
 <p id="module-klea_utils.mcp.tool_impls.permission">Path permission checking for file-accessing MCP tools.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">devdocs/adr/0007-mcp-permissions.md</span></code>.</p>
 <p>File: klea_utils/mcp/tool_impls/permission.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -1080,6 +1084,7 @@ download_truncated, error.</p>
 </dd></dl>
 
 <p id="module-klea_utils.mcp.tool_impls.list_files">File listing implementation for Klea MCP tools.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code>.</p>
 <p>File: klea_utils/mcp/tool_impls/list_files.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -1751,6 +1756,7 @@ fails.</p>
 </dd></dl>
 
 <p id="module-klea_utils.mcp.tool_impls.write_file">Whole-file write implementation for the Klea MCP tools.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/edit-format-strategy.md</span></code>; ADR-0039.</p>
 <p>File: klea_utils/mcp/tool_impls/write_file.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -1782,6 +1788,7 @@ diff, error.</p>
 </dd></dl>
 
 <p id="module-klea_utils.mcp.tool_impls.edit_file">Exact search/replace edit implementation for the Klea MCP tools (ADR-0039).</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/edit-format-strategy.md</span></code>.</p>
 <p>File: klea_utils/mcp/tool_impls/edit_file.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
@@ -2062,6 +2069,7 @@ lines.</p>
 </dd></dl>
 
 <p id="module-klea_utils.mcp.tool_impls.download_file">File download implementation for Klea MCP tools.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code>.</p>
 <p>File: klea_utils/mcp/tool_impls/download_file.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
@@ -2178,6 +2186,7 @@ treated as failed to avoid OOM.</p></li>
 </dd></dl>
 
 <p id="module-klea_utils.mcp.tool_impls.run_command">Shell command execution implementation for Klea MCP tools (ADR-0038).</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/system/mcp-permissions.md</span></code>.</p>
 <p>File: klea_utils/mcp/tool_impls/run_command.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
