@@ -139,6 +139,22 @@ Last updated: 2026-10-07.
 
 ## Streaming / tool UX
 
+- Durable / resumable SSE stream (architecture).  The graph run currently
+  lives inside the HTTP `StreamingResponse` generator
+  (`chat_core.stream_response`), so a genuine disconnect (network drop, server
+  restart, closed tab) loses the stream; the 15 s `ping` heartbeat only
+  prevents idle-timeout/proxy drops during long-running nodes, and retrying
+  mid-run can hit the 409 single-flight guard.  Robust long-running tasks need
+  the run decoupled from the connection: start the graph as a background task
+  keyed by thread, append events to an id-stamped buffer, and make the SSE
+  response a subscriber carrying `id:` (`Last-Event-ID`) so a reconnect replays
+  from `since` and then continues live.  Also enables attaching to an
+  in-progress run from another tab and connection-independent cancel.
+  Deferred: sizable change (event buffer + subscription + replay + reconnect
+  logic in both frontends).  Buffer/pub-sub backend options: in-process
+  (single-worker only; cf. the multi-worker item above), Valkey (the
+  open-source Redis fork -- not Redis itself), or a log/broker such as Kafka
+  or RabbitMQ.  The heartbeat landed as the interim mitigation.
 - Exact live per-tool status (to think about - UX, optional).  A coarse
   `running` status is now emitted at the round start and replaced by
   `ok`/`error` at the end (status pane), so a same-resource call that is
