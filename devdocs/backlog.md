@@ -137,6 +137,38 @@ Last updated: 2026-10-07.
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
 
+## Sessions / working directory
+
+- Per-session project root (needs an ADR).  Today there is no project-root
+  concept: the file-tool permission boundary and the bundled MCP subprocess
+  both inherit the API server's process cwd, so a session can only target the
+  folder `klea web` / `klea-serve` was started in.  Parallel sessions should be
+  able to target different project folders.
+  - Surface (code map): `check_path_access` / `check_tool_arguments_permissions`
+    are already parameterised by `project_root`, but production never supplies
+    it -- the bundled tool wrappers omit it and `ToolsCallerNode` /
+    `dispatch_tool_calls` pass `None`; the bundled MCP subprocess is spawned
+    once per server with no cwd; and two boundary layers (the client-side
+    pre-dispatch gate in the API process and the author-side gate in the MCP
+    process) must both receive the root or they disagree.
+  - Constraint: the MCP client/subprocess is process-level, so a per-session
+    root must be conveyed per tool call (or via a per-session server).  It
+    touches tool schemas / `checkpaths`, the picker/caller, dispatch, tool
+    impls, discovery (`AGENTS.md`), and cwd-relative config/env and
+    vector-store paths.
+  - Central ADR question: what a "session root" means -- a per-chat
+    user-selected folder (with an operator-configured base/allowlist for
+    safety) versus one global base directory with per-chat subfolders.
+  - Security: `check_path_access` is the only non-OS confinement for Klea file
+    tools; `run_command` is advisory, not a sandbox.  A per-session root must
+    let the operator bound what a session may choose, not let the model name an
+    arbitrary root.
+- Slash-command input (general session-command framework).  Introduce
+  `/`-commands handled in the web (and TUI) frontends as an extensible
+  framework -- `/cd` for the session root above, plus potential `/mode`,
+  `/access`, `/model`, etc. -- rather than a one-off command.  The framework is
+  frontend work; `/cd` depends on the session-root capability.
+
 ## Streaming / tool UX
 
 - Durable / resumable SSE stream (architecture).  The graph run currently
