@@ -181,6 +181,7 @@ When the code below changes, update the matching devdoc in the same change:
 | graph wiring in `{agent,rag}_pkg/*/{klea_agent,rag}.py` | `system/c4-component-{agent,rag}.md` (+ regenerated `.mmd`) |
 | node prompts / `_optional_section` | `system/prompt-conventions.md` |
 | `mcp/access.py` and MCP tool annotations | `system/mcp-permissions.md`, ADR-0037 |
+| `mcp/tool_impls/*.py` and `mcp/server/bundled_tools.py` | `system/file-tools.md`, `system/mcp-permissions.md` |
 | web UI theme tokens | `system/web-theming.md` |
 
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,

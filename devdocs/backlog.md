@@ -100,7 +100,7 @@ Last updated: 2026-10-07.
   (TOCTOU) could still be opened; and a file that grows between the `max_bytes`
   stat and the read can exceed that cap.  Hardening would need a per-open check
   (`openat`/`O_NOFOLLOW`) and a bounded read; documented as known limits in
-  `permission.py` and (planned) `devdocs/system/file-tools.md`.
+  `permission.py` and `devdocs/system/file-tools.md`.
 - Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
   carry per-node counts, but no consumer aggregates them per node (CLI drops
   `usage`; web UI sums one total; graph state keeps a run-level total).

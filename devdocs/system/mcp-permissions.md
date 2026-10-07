@@ -9,6 +9,9 @@ evolves.
 Last updated: 2026-09-14 (invocation axis / tool access level implemented,
 ADR-0037; path layers decision at ADR-0007).
 
+See also `file-tools.md` for the file-tool text/binary/encoding contract and
+the `read_file` paging contract, which sit on top of this boundary.
+
 ## Current state
 
 `klea_utils.mcp.tool_impls.permission` provides `check_path_access(path,
