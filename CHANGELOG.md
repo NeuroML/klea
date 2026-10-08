@@ -66,6 +66,7 @@
 
 ### Fixed
 
+- Web UI: the chat-list running/awaiting indicator and the active-chat marker now show when the sidebar is collapsed to its icon rail (the avatar cell is the only item section Quasar keeps in mini mode).
 - `read_file` refuses binary files and text that is not valid UTF-8 with a clear error (instead of returning replacement-character garbage) and strips a leading UTF-8 BOM.
 - The file tools share one line definition: lines end at `\n` after normalising CRLF and lone-CR endings (matching editors and `wc -l`), so `read_file` and `grep` no longer count form feeds, vertical tabs or Unicode separators as line breaks.
 - Path checks now deny an unresolvable target (for example a symlink loop) instead of letting the tool crash; the client-side gate reports it as a non-halting denial.
