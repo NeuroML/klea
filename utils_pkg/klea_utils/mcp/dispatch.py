@@ -12,16 +12,23 @@ import asyncio
 import logging
 import math
 import os
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, cast
 
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
+from klea_utils.mcp.path_detect import PathRequest, detect_path_requests
+from klea_utils.mcp.permission_hitl import PermissionResolution
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
-from klea_utils.mcp.tool_impls.permission import check_tool_arguments_permissions
 
 logger = logging.getLogger(__name__)
+
+#: Resolves detected outside-path requests to allow/deny decisions.  The app
+#: supplies one that pauses the run for user approval (``interrupt``, ADR-0046);
+#: with no resolver (the default) every request is denied.
+PermissionResolver = Callable[[list[PathRequest]], PermissionResolution]
 
 #: Default per-call wall-clock cap for tool calls.  A generous backstop that
 #: only fires when a tool hangs; individual tools own their semantic timeouts
@@ -146,25 +153,74 @@ def resource_key(
     return frozenset(resources)
 
 
+def _as_tool_call(call: Any) -> ToolCallSchema:
+    """Normalize a dispatch input to a :class:`ToolCallSchema`."""
+    if isinstance(call, ToolCallSchema):
+        return call
+    name, args = call
+    return ToolCallSchema(tool=str(name), args=dict(args or {}))
+
+
+def _dedupe_requests(requests: Sequence[PathRequest]) -> list[PathRequest]:
+    """Deduplicate requests by directory, keeping the first (strongest) tier."""
+    by_directory: dict[str, PathRequest] = {}
+    for request in requests:
+        by_directory.setdefault(request.directory, request)
+    return sorted(by_directory.values(), key=lambda request: request.directory)
+
+
+def _permission_denied_result(
+    tool: str, requests: Sequence[PathRequest], denied: set[str]
+) -> CallToolResult:
+    """Build the non-halting result for a call blocked by the permission gate.
+
+    A path the user explicitly denied gets a "denied by the user" message; an
+    unapproved outside path gets the standard outside-project message.
+    """
+    user_denied = [request for request in requests if request.directory in denied]
+    if user_denied:
+        paths = ", ".join(sorted({request.directory for request in user_denied}))
+        text = (
+            f"Access to {paths} was denied by the user. Do not retry it; choose "
+            "another approach or ask the user."
+        )
+    else:
+        paths = ", ".join(sorted({str(request.path) for request in requests}))
+        text = f"Access to path outside the project directory is denied: {paths}"
+    logger.warning(f"Permission denied\n{tool = }\n{paths = }\n{user_denied = }")
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=None,
+        meta=None,
+        is_error=True,
+    )
+
+
 async def dispatch_tool_calls(
     mcp_client: Any,
-    tool_calls: list[tuple[str, dict[str, Any]]],
+    tool_calls: Sequence[ToolCallSchema | tuple[str, Mapping[str, Any]]],
     tool_infos: dict[str, ToolInfo] | None = None,
     project_root: str | None = None,
     access_level: AccessLevel = DEFAULT_ACCESS_LEVEL,
     call_timeout: float | None = None,
+    *,
+    allowed_dirs: Sequence[str] | None = None,
+    permission_resolver: PermissionResolver | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
-    For each ``(tool name, arguments)`` pair a gate runs before the call
-    reaches the server, each producing a synthetic non-halting error when
-    rejected:
+    For each call a gate runs before it reaches the server, each producing a
+    synthetic non-halting error when rejected:
 
     * an invalid tool name (empty, or -- when *tool_infos* is given -- not in
       the disclosed catalogue) is rejected without contacting the server, so
       a hallucinated name cannot be dispatched; and
-    * the path gate (:func:`check_tool_arguments_permissions`), reading a
-      tool's ``checkpaths`` from ``ToolInfo.meta``; and
+    * the permission gate
+      (:func:`klea_utils.mcp.path_detect.detect_path_requests`), which finds
+      the outside-project paths a call would touch (declared ``checkpaths``,
+      picker-declared paths, and heuristics); *permission_resolver* turns
+      those into allow/deny decisions (the app pauses for user approval) and
+      any request left unapproved blocks the call; and
     * the tool access level (ADR-0037): a tool the level does not permit
       (``read_only`` permits only explicitly read-only, non-destructive tools)
       is rejected by :func:`check_tool_access`.
@@ -178,7 +234,8 @@ async def dispatch_tool_calls(
         ``arguments``, keyword-only ``raise_on_error``, ``CallToolResult |
         ToolTask`` return) that a structural protocol would not cleanly
         match; tests substitute a fake implementing the subset used here.
-    :param tool_calls: ``(tool name, arguments)`` pairs to invoke.
+    :param tool_calls: The calls to invoke, as :class:`ToolCallSchema` (so the
+        picker's declared ``paths`` travel) or legacy ``(name, args)`` pairs.
     :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, carrying
         both the annotated ``read_only``/``destructive`` capability and (in
         ``meta``) the ``checkpaths`` declarations.  ``None`` disables both
@@ -192,68 +249,101 @@ async def dispatch_tool_calls(
         :data:`TOOL_CALL_TIMEOUT_ENV_VAR` / :data:`DEFAULT_TOOL_CALL_TIMEOUT_SECONDS`;
         ``0`` or less disables the backstop.  A timed-out call becomes a
         synthetic non-halting error.
+    :param allowed_dirs: Directories already approved for the session
+        (``BaseGraphSchema.allowed_dirs``), checked alongside *project_root*.
+    :param permission_resolver: Called with the detected outside-path requests
+        before dispatch; returns a :class:`PermissionResolution`.  The app
+        supplies one that pauses for user approval; ``None`` denies every
+        request (the pre-ADR-0007 behaviour).
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
-    n = len(tool_calls)
+    calls = [_as_tool_call(call) for call in tool_calls]
+    n = len(calls)
     results: list[CallToolResult | None] = [None] * n
-    pending: list[tuple[int, str, dict[str, Any], Any]] = []
     timeout = call_timeout if call_timeout is not None else tool_call_timeout_seconds()
     if timeout is not None and timeout <= 0:
         timeout = None
+    base_allowed = [str(entry) for entry in (allowed_dirs or [])]
     logger.debug(
-        f"{len(tool_calls) = }\n"
-        f"{[name for name, _ in tool_calls] = }\n"
+        f"{len(calls) = }\n"
+        f"{[call.tool for call in calls] = }\n"
         f"{access_level = }\n"
         f"tool_gate_enabled = {tool_infos is not None}\n"
-        f"{timeout = }"
+        f"{timeout = }\n"
+        f"{base_allowed = }"
     )
 
-    async with mcp_client:
-        for i, (tool_name, args) in enumerate(tool_calls):
-            # Reject empty/unknown names before any gate or server call.  A
-            # known-name check is only possible when the catalogue is given;
-            # with ``tool_infos=None`` only the empty-name case is caught.
-            stripped = tool_name.strip()
-            if not stripped or (tool_infos is not None and stripped not in tool_infos):
-                logger.warning(
-                    f"Rejecting invalid tool name before dispatch\n{tool_name = }"
-                )
-                results[i] = _unknown_tool_error(tool_name)
-                continue
-            tool_info = tool_infos.get(tool_name) if tool_infos is not None else None
-            denials = check_tool_arguments_permissions(
-                tool_info.meta if tool_info else None, args, project_root
+    # 1. Static gates (name, access level): no server needed.  Calls that pass
+    # are candidates for the permission gate and dispatch.
+    gated: list[int] = []
+    for i, call in enumerate(calls):
+        # Reject empty/unknown names before any gate or server call.  A
+        # known-name check is only possible when the catalogue is given; with
+        # ``tool_infos=None`` only the empty-name case is caught.
+        stripped = call.tool.strip()
+        if not stripped or (tool_infos is not None and stripped not in tool_infos):
+            logger.warning(
+                f"Rejecting invalid tool name before dispatch\n{call.tool = }"
             )
-            if tool_infos is not None:
-                read_only = tool_info.read_only if tool_info else None
-                destructive = tool_info.destructive if tool_info else None
-                denial = check_tool_access(
-                    tool_name, read_only, destructive, access_level
-                )
-                if denial:
-                    denials.append(denial)
-            if denials:
-                logger.warning(
-                    f"Denied tool call before dispatch\n{tool_name = }\n{denials = }"
-                )
-                results[i] = _denied_result(denials)
-            else:
-                logger.debug(f"Dispatching tool call\n{tool_name = }\n{args = }")
-                pending.append(
-                    (
-                        i,
-                        tool_name,
-                        args,
-                        mcp_client.call_tool(
-                            name=tool_name,
-                            arguments=args,
-                            raise_on_error=False,
-                            timeout=timeout,
-                        ),
-                    )
-                )
+            results[i] = _unknown_tool_error(call.tool)
+            continue
+        if tool_infos is not None:
+            info = tool_infos.get(call.tool)
+            denial = check_tool_access(
+                call.tool,
+                info.read_only if info else None,
+                info.destructive if info else None,
+                access_level,
+            )
+            if denial:
+                logger.warning(f"Denied tool call before dispatch\n{call.tool = }")
+                results[i] = _denied_result([denial])
+                continue
+        gated.append(i)
 
-        if pending:
+    # 2. Permission gate: detect the outside paths each call would touch,
+    # resolve them (an interrupt for user approval when a resolver is given),
+    # then enforce per call.  Detection is layered (declared checkpaths +
+    # picker-declared paths + heuristics); see ``klea_utils.mcp.path_detect``.
+    call_requests: dict[int, list[PathRequest]] = {}
+    if tool_infos is not None:
+        for i in gated:
+            call = calls[i]
+            call_requests[i] = detect_path_requests(
+                call.tool,
+                call.args,
+                tool_infos.get(call.tool),
+                project_root=project_root,
+                allowed_dirs=base_allowed,
+                picker_paths=call.paths,
+            )
+    all_requests = _dedupe_requests(
+        [request for requests in call_requests.values() for request in requests]
+    )
+    resolution: PermissionResolution | None = None
+    if all_requests and permission_resolver is not None:
+        resolution = permission_resolver(all_requests)
+    effective = set(base_allowed)
+    denied: set[str] = set()
+    if resolution is not None:
+        effective.update(resolution.effective_dirs())
+        denied = set(resolution.denied)
+
+    pending: list[tuple[int, ToolCallSchema]] = []
+    for i in gated:
+        leftover = [
+            request
+            for request in call_requests.get(i, [])
+            if request.directory not in effective
+        ]
+        if leftover:
+            results[i] = _permission_denied_result(calls[i].tool, leftover, denied)
+        else:
+            pending.append((i, calls[i]))
+
+    # 3. Dispatch the permitted calls (needs the MCP client).
+    if pending:
+        async with mcp_client:
             # Dispatch concurrently, but run calls that target the same
             # resource sequentially in call order (ADR-0041): two writes to one
             # file must not race, so a missed dependency edge costs parallelism,
@@ -262,8 +352,14 @@ async def dispatch_tool_calls(
             # the dispatch order stays stable.
             groups: dict[frozenset[str], list[tuple[int, Any]]] = {}
             ordered: list[tuple[int, Any, frozenset[str]]] = []
-            for idx, name, args, coro in pending:
-                key = resource_key(ToolCallSchema(tool=name, args=args), tool_infos)
+            for idx, call in pending:
+                coro = mcp_client.call_tool(
+                    name=call.tool,
+                    arguments=call.args,
+                    raise_on_error=False,
+                    timeout=timeout,
+                )
+                key = resource_key(call, tool_infos)
                 ordered.append((idx, coro, key))
                 if key:
                     groups.setdefault(key, []).append((idx, coro))
@@ -298,13 +394,14 @@ async def dispatch_tool_calls(
                 pairs = item if isinstance(item, list) else [item]
                 for idx, res in pairs:
                     if isinstance(res, BaseException):
-                        tool_name, args = tool_calls[idx]
+                        call = calls[idx]
                         logger.warning(
-                            f"Tool call failed\n{tool_name = }\n{idx = }\n{args = }\n{res = }"
+                            f"Tool call failed\n{call.tool = }\n{idx = }\n"
+                            f"{call.args = }\n{res = }"
                         )
                         if _is_timeout_error(res) and timeout is not None:
                             text = (
-                                f"Tool '{tool_name}' timed out after {timeout:g} s "
+                                f"Tool '{call.tool}' timed out after {timeout:g} s "
                                 "and was cancelled; the server-side operation may "
                                 "still be running."
                             )
@@ -321,7 +418,7 @@ async def dispatch_tool_calls(
 
     if any(r is None for r in results):
         missing = [i for i, r in enumerate(results) if r is None]
-        offending = [(i, tool_calls[i]) for i in missing]
+        offending = [(i, calls[i].tool) for i in missing]
         logger.error(f"dispatch left unfilled slots\n{offending = }")
         raise RuntimeError(f"dispatch internal error: unfilled results at {missing}")
 

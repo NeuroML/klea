@@ -31,20 +31,23 @@ defense layer:
   - `download_file_to_cache` scopes its boundary to its own cache
     directory, so per-app cache helpers keep working unmodified.
 
-`check_tool_arguments_permissions(tool_meta, arguments, project_root)`
-(`klea_utils/mcp/tool_impls/permission.py`) is the client-side counterpart: it
-reads the `checkpaths` key from a tool's MCP `meta` dict and checks each
-declared path argument without raising.  It never touches a server it does
-not control, so the gate is:
+The client-side counterpart is the pre-dispatch gate in
+`klea_utils.mcp.dispatch.dispatch_tool_calls`, built on
+`klea_utils.mcp.path_detect.detect_path_requests` (see below) and an optional
+`permission_resolver`:
 
 - **Author-side (in-tool):** the checks above, run inside the tool
   implementation.
-- **Client-side (pre-dispatch):** `klea_utils.mcp.dispatch.dispatch_tool_calls`
-  runs `check_tool_arguments_permissions` on every call before it reaches
-  the MCP server.  Denied calls never reach the server; they become a
-  synthetic, non-halting error result so the LLM can adapt.  The gate runs
-  in the shared `ToolsCallerNode` (`klea_utils/nodes/tools_caller.py`) used
-  by both Klea Agent and Klea RAG.
+- **Client-side (pre-dispatch):** every call's paths are detected before it
+  reaches the MCP server.  With a `permission_resolver` the run pauses for
+  the user's per-path *allow now* / *allow for session* / *deny* decision
+  (ADR-0007 update 2026-10-08) via the shared HITL interrupt (ADR-0046); a
+  request left unapproved blocks the call -- it never reaches the server and
+  becomes a synthetic, non-halting error result so the LLM can adapt.  With
+  no resolver, every outside path is denied (the pre-ADR-0007 behaviour).
+  The gate runs in the shared `ToolsCallerNode`
+  (`klea_utils/nodes/tools_caller.py`) used by both Klea Agent and Klea RAG;
+  the agent opts into `permission_policy="ask"`, RAG keeps `"deny"`.
 
 Both agents/RAG are expected to run from the directory the user is working
 in, so the client-side gate uses `project_root=None` (the current working
@@ -75,9 +78,11 @@ path at runtime); OS sandboxing remains the only hard boundary.
 flowchart TD
     LLM[LLM selects tool call] --> Picker[ToolsPicker]
     Picker --> Caller[ToolsCallerNode]
-    Caller --> PreCheck{"check_tool_arguments_permissions\n(checkpaths?)"}
-    PreCheck -- allowed / no declaration --> Server[MCP server]
-    PreCheck -- denied --> Synth1[Synthetic error\nnever reaches server]
+    Caller --> PreCheck{"detect_path_requests\n(outside paths?)"}
+    PreCheck -- none / approved --> Server[MCP server]
+    PreCheck -- denied / unapproved --> Synth1[Synthetic error\nnever reaches server]
+    PreCheck -- "outside + ask" --> Approval["interrupt (per path):\nallow now / session / deny"]
+    Approval --> PreCheck
     Server --> InTool[Tool impl\ncheck_path_access]
     InTool -- allowed --> Exec[Execute]
     InTool -- denied --> Synth2[Error result]

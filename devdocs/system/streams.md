@@ -42,8 +42,16 @@ exception.
 | `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | ignored |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored |
 | `context` | runner (values) | `{type, data}` | status pane (mode/access) | ignored |
+| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, question/questions, interrupt_id, hitl_response_schema}}` | chat ask form | prompt |
 | `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | printed |
 | `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | spinner fail |
+
+`interrupt` is the HITL pause (ADR-0046): the stream ends at the pause and is
+continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
+`kind` is authored by the interrupting node: `review`/`input` (the agent's
+`AwaitHuman` nodes) or `permission` (the shared `ToolsCallerNode`, pausing
+before a call that would touch a path outside the permitted roots; ADR-0007
+update 2026-10-08).
 
 ### `progress`
 
@@ -134,7 +142,8 @@ today; it exists for a future live-typing UI.
 * Emission: `klea_utils/graph/base.py` (`run_graph_astream_events`,
   `_CustomChannelEnabler`), `klea_utils/nodes/abstract.py`
   (`NodeStreamData`, `NodeStreamEvent`, `_get_inspect`, `stream_tokens`),
-  `klea_utils/nodes/tools_caller.py` (`tool` entries).
+  `klea_utils/nodes/tools_caller.py` (`tool` entries and the `permission`
+  interrupt).
 * Transport: `klea_utils/api/sse.py`, `klea_utils/api/chat_core.py`.
 * Consumers: `klea_utils/ui/web/nicegui/components/{stream,chat_area,chat_bubble,status_pane,inspector}.py`.
 * Decisions: ADR-0013 (amended), ADR-0040, ADR-0019, ADR-0020, ADR-0031,

@@ -79,3 +79,7 @@ class ToolCallerContext(NodeContext):
     tool_results: list[CallToolResult] = field(default_factory=list)
     #: Per-result display flag, aligned with :attr:`tool_results`.
     display_flags: list[bool] = field(default_factory=list)
+    #: Directories the user approved for the session while resolving a
+    #: permission interrupt (``allow for session``); persisted to
+    #: ``state.allowed_dirs`` by the node (ADR-0007 update 2026-10-08).
+    allowed_session_dirs: list[str] = field(default_factory=list)

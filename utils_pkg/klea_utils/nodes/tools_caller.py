@@ -13,9 +13,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
+from langgraph.types import interrupt
 from mcp.types import (
     AudioContent,
     BlobResourceContents,
@@ -27,6 +28,13 @@ from pydantic import BaseModel
 
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.dispatch import dispatch_tool_calls
+from klea_utils.mcp.path_detect import PathRequest
+from klea_utils.mcp.permission_hitl import (
+    PermissionResolution,
+    PermissionResponse,
+    build_permission_payload,
+    resolve_decisions,
+)
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.abstract import (
     AbstractLangGraphNode,
@@ -61,6 +69,7 @@ class ToolsCallerNode(
         project_root: str | None = None,
         post_dispatch: Callable[[Any, list[CallToolResult], list[bool]], dict[str, Any]]
         | None = None,
+        permission_policy: Literal["deny", "ask"] = "deny",
     ):
         """Initialise the tools caller node.
 
@@ -83,12 +92,17 @@ class ToolsCallerNode(
             state is passed untyped so app-specific state schemas fit, and
             ``displayed`` is a per-result flag (aligned with *results*) for
             results the node streamed a display event for.
+        :param permission_policy: ``deny`` (default) rejects a call that
+            touches a path outside the permitted roots; ``ask`` pauses the run
+            for a per-path allow-now / allow-session / deny decision via the
+            shared HITL interrupt (ADR-0007).  RAG keeps the default.
         """
         super().__init__(logger=logger, label=label)
         self._mcp_client = mcp_client
         self._tool_infos = tool_infos
         self._project_root = project_root
         self._post_dispatch = post_dispatch
+        self._permission_policy = permission_policy
 
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
@@ -127,12 +141,22 @@ class ToolsCallerNode(
                     type="state", node=self.label, data=running
                 ).model_dump()
             )
+        allowed_dirs = [
+            str(directory) for directory in (getattr(state, "allowed_dirs", []) or [])
+        ]
+        resolver = (
+            self._make_permission_resolver(ctx)
+            if self._permission_policy == "ask"
+            else None
+        )
         results = await dispatch_tool_calls(
             self._mcp_client,
-            [(tc.tool, tc.args) for tc in tool_calls],
+            tool_calls,
             self._tool_infos,
             self._project_root,
             access_level=access_level,
+            allowed_dirs=allowed_dirs,
+            permission_resolver=resolver,
         )
         self.logger.debug(f"{results =}")
         ctx.tool_results = results
@@ -140,9 +164,38 @@ class ToolsCallerNode(
         self._post_exec_stream(state, ctx)
 
         updates: dict[str, Any] = {"tool_results": results}
+        if ctx.allowed_session_dirs:
+            merged = list(dict.fromkeys([*allowed_dirs, *ctx.allowed_session_dirs]))
+            self.logger.info(
+                f"Session directories approved\n{ctx.allowed_session_dirs = }"
+            )
+            updates["allowed_dirs"] = merged
         if self._post_dispatch:
             updates.update(self._post_dispatch(state, results, ctx.display_flags))
         return updates
+
+    def _make_permission_resolver(
+        self, ctx: ToolCallerContext
+    ) -> Callable[[list[PathRequest]], PermissionResolution]:
+        """Return a resolver that pauses the run for per-path user approval.
+
+        Injected into :func:`dispatch_tool_calls`: it issues the shared HITL
+        ``interrupt`` (ADR-0046), records session-approved directories on
+        *ctx* (persisted by :meth:`execute`), and returns the resolution so
+        dispatch can enforce it.
+        """
+
+        def resolver(requests: list[PathRequest]) -> PermissionResolution:
+            self.logger.info(f"Requesting path permission\n{len(requests) = }")
+            response = interrupt(
+                build_permission_payload(requests),
+                response_schema=PermissionResponse,
+            )
+            resolution = resolve_decisions(requests, response)
+            ctx.allowed_session_dirs = list(resolution.allowed_session)
+            return resolution
+
+        return resolver
 
     def _pre_exec(self, state: BaseModel, ctx: ToolCallerContext) -> bool:
         """Run only when there are tool calls and a client to dispatch to."""

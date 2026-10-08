@@ -19,6 +19,7 @@ from klea_utils.mcp.dispatch import (
     resource_key,
     tool_call_timeout_seconds,
 )
+from klea_utils.mcp.permission_hitl import PermissionResolution
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from mcp.types import TextContent
 
@@ -107,6 +108,133 @@ async def test_dispatch_mixed_keeps_order(tmp_path):
         ("list_files", {"path": str(root)}),
         ("other", {"n": 1}),
     ]
+
+
+async def test_dispatch_resolver_allows(tmp_path):
+    """A resolver that allows the request lets the call reach the server."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+    seen: list = []
+
+    def resolver(requests):
+        seen.append(requests)
+        return PermissionResolution(
+            allowed_now=[request.directory for request in requests]
+        )
+
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("list_files", {"path": str(outside)})]
+    assert seen and seen[0][0].directory == str(outside)
+
+
+async def test_dispatch_resolver_session_approval_allows(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+    resolver = lambda requests: PermissionResolution(
+        allowed_session=[request.directory for request in requests]
+    )
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("list_files", {"path": str(outside)})]
+
+
+async def test_dispatch_resolver_denial_blocks(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+    resolver = lambda requests: PermissionResolution(
+        denied=[request.directory for request in requests]
+    )
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert results[0].is_error
+    assert "denied by the user" in str(results[0].content)
+    assert client.calls == []
+
+
+async def test_dispatch_allowed_dirs_skip_resolver(tmp_path):
+    """A session-approved directory needs no resolver and reaches the server."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+
+    def resolver(requests):  # pragma: no cover - must not be called
+        raise AssertionError("resolver called for an approved directory")
+
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+        tools,
+        str(root),
+        allowed_dirs=[str(outside)],
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("list_files", {"path": str(outside)})]
+
+
+async def test_dispatch_picker_declared_path_triggers_gate(tmp_path):
+    """A tool with no checkpaths is still gated on a picker-declared path."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"other": ToolInfo()}
+    resolver = lambda requests: PermissionResolution(
+        denied=[request.directory for request in requests]
+    )
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="other", args={}, paths=[str(outside)])],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert results[0].is_error
+    assert client.calls == []
 
 
 async def test_dispatch_without_meta_skips_gate(tmp_path):

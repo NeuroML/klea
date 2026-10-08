@@ -9,9 +9,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from fastmcp.client.client import CallToolResult
+from klea_utils.mcp.permission_hitl import PathDecision, PermissionResponse
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import ToolCallerContext
 from klea_utils.nodes.tools_caller import ToolsCallerNode
@@ -23,6 +24,7 @@ class MiniState(BaseModel):
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
     access_level: str = "full"
+    allowed_dirs: list[str] = Field(default_factory=list)
 
 
 class FakeMCPClient:
@@ -47,6 +49,7 @@ def _make_node(
     tool_infos: dict | None = None,
     project_root: str | None = None,
     post_dispatch=None,
+    permission_policy: Literal["deny", "ask"] = "deny",
 ) -> ToolsCallerNode:
     return ToolsCallerNode(
         logger=logging.getLogger("test"),
@@ -55,6 +58,7 @@ def _make_node(
         tool_infos=tool_infos,
         project_root=project_root,
         post_dispatch=post_dispatch,
+        permission_policy=permission_policy,
     )
 
 
@@ -184,6 +188,170 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     assert result.is_error
     assert "denied" in str(result.content)
     assert client.calls == []
+
+
+def _approve(directory: str, decision: Literal["once", "session", "deny"] = "session"):
+    def _interrupt(payload, response_schema=None):
+        return PermissionResponse(
+            decisions=[PathDecision(directory=directory, decision=decision)]
+        )
+
+    return _interrupt
+
+
+def _outside_dirs(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    return root, outside
+
+
+async def test_ask_policy_session_approval_persists(tmp_path, monkeypatch):
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt", _approve(str(outside), "session")
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error is False
+    assert updates["allowed_dirs"] == [str(outside)]
+    assert client.calls == [("list_files", {"path": str(outside)})]
+
+
+async def test_ask_policy_once_is_not_persisted(tmp_path, monkeypatch):
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt", _approve(str(outside), "once")
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error is False
+    assert "allowed_dirs" not in updates
+    assert client.calls == [("list_files", {"path": str(outside)})]
+
+
+async def test_ask_policy_denial_blocks_call(tmp_path, monkeypatch):
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt", _approve(str(outside), "deny")
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+    )
+    updates = await node.execute(state)
+
+    result = updates["tool_results"][0]
+    assert result.is_error
+    assert "denied by the user" in str(result.content)
+    assert client.calls == []
+
+
+async def test_ask_policy_cancel_denies_call(tmp_path, monkeypatch):
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt",
+        lambda payload, response_schema=None: PermissionResponse(action="cancel"),
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error
+    assert client.calls == []
+
+
+async def test_ask_policy_no_request_skips_interrupt(tmp_path, monkeypatch):
+    root, _ = _outside_dirs(tmp_path)
+    (root / "inside.txt").touch()
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+
+    def _boom(payload, response_schema=None):  # pragma: no cover
+        raise AssertionError("interrupt called with no outside path")
+
+    monkeypatch.setattr("klea_utils.nodes.tools_caller.interrupt", _boom)
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(root)})]
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error is False
+    assert client.calls == [("list_files", {"path": str(root)})]
+
+
+async def test_ask_policy_preapproved_dir_skips_interrupt(tmp_path, monkeypatch):
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+
+    def _boom(payload, response_schema=None):  # pragma: no cover
+        raise AssertionError("interrupt called for an already-approved directory")
+
+    monkeypatch.setattr("klea_utils.nodes.tools_caller.interrupt", _boom)
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+        allowed_dirs=[str(outside)],
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error is False
+    assert client.calls == [("list_files", {"path": str(outside)})]
 
 
 async def test_invalid_tool_names_rejected_without_server_call():
