@@ -123,8 +123,9 @@ expose"; annotations answer "what effects the tool may have".
 ``run_command`` executes a shell command and is therefore marked
 ``destructive`` + ``open_world``: it is full-mode only (never offered or run
 under ``read_only``, see below), and its optional ``working_directory``
-argument is checked like any other path but does **not** confine the command
-(a shell can ``cd`` elsewhere or use absolute paths).  Commands default to a
+argument is gated like any other path (see Path permissions below) but does
+**not** confine the command (a shell can ``cd`` elsewhere or use absolute
+paths).  Commands default to a
 30-second timeout with a 600-second ceiling, overridable via
 ``KLEA_RUN_COMMAND_MAX_TIMEOUT``.  See ADR-0038 for the design and its
 limits.
@@ -259,6 +260,26 @@ This is a least-privilege guard for trustworthy tools, not a sandbox: a
 server that misreports its annotations cannot be confined this way.  For
 servers Klea does not author, run them under OS-level isolation (see the
 MCP permissions notes in the development documentation).
+
+Path permissions
+----------------
+
+The agent gates filesystem paths before a tool call is dispatched.  A call
+that would touch a path outside the project directory (the directory the
+server runs in), or a sensitive file inside it (env files, private keys,
+cloud config), pauses the run and asks the user, per path, to allow it
+**once**, allow it **for the session**, or **deny** it.  The ask is shown in
+the web UI and TUI; a session approval is remembered for the chat, and a
+denied path returns a non-halting error so the run continues.  Path discovery
+is layered -- a tool's declared ``checkpaths``, the paths the tool picker
+declares, and heuristics (including the tokens of a shell command) -- with
+each request labelled by its confidence.  The set of sensitive filenames can
+be extended with the comma-separated ``KLEA_SENSITIVE_PATTERNS`` environment
+variable.
+
+This is a consent mechanism, not a sandbox: a tool can ignore its arguments
+and touch any path at runtime, and a standalone ``klea-mcp`` server used by a
+non-Klea client has no gate.  See ADR-0007 for the design and its limits.
 
 .. seealso::
 

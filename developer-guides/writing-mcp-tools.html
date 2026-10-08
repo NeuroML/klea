@@ -450,6 +450,13 @@ repository tools, see <code class="docutils literal notranslate"><span class="pr
 a tool named after the function.  Helper functions without the decoration
 are ignored.  Validation constraints (e.g. <code class="docutils literal notranslate"><span class="pre">Field(min_length=1)</span></code>) may be
 added to parameter annotations and are preserved in the schema.</p>
+<p>A filesystem tool should declare its path arguments with <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code> on
+<code class="docutils literal notranslate"><span class="pre">ToolInfo</span></code> (for example <code class="docutils literal notranslate"><span class="pre">checkpaths=[&quot;path&quot;]</span></code>).  The client-side
+permission gate reads it to find the paths a call would touch before
+dispatch, so it can ask the user when a path is outside the project directory
+or a sensitive file (ADR-0007); it is also used to serialise calls that touch
+the same path.  The tool implementation does <strong>not</strong> check the boundary
+itself – the gate is the single enforcement point.</p>
 </section>
 <section id="sane-defaults">
 <h2>Sane defaults<a class="headerlink" href="#sane-defaults" title="Link to this heading">¶</a></h2>

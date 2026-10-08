@@ -422,8 +422,9 @@ expose”; annotations answer “what effects the tool may have”.</p>
 <p><code class="docutils literal notranslate"><span class="pre">run_command</span></code> executes a shell command and is therefore marked
 <code class="docutils literal notranslate"><span class="pre">destructive</span></code> + <code class="docutils literal notranslate"><span class="pre">open_world</span></code>: it is full-mode only (never offered or run
 under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>, see below), and its optional <code class="docutils literal notranslate"><span class="pre">working_directory</span></code>
-argument is checked like any other path but does <strong>not</strong> confine the command
-(a shell can <code class="docutils literal notranslate"><span class="pre">cd</span></code> elsewhere or use absolute paths).  Commands default to a
+argument is gated like any other path (see Path permissions below) but does
+<strong>not</strong> confine the command (a shell can <code class="docutils literal notranslate"><span class="pre">cd</span></code> elsewhere or use absolute
+paths).  Commands default to a
 30-second timeout with a 600-second ceiling, overridable via
 <code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code>.  See ADR-0038 for the design and its
 limits.</p>
@@ -542,6 +543,24 @@ trusted tool explicitly, which takes precedence over its annotations:</p>
 server that misreports its annotations cannot be confined this way.  For
 servers Klea does not author, run them under OS-level isolation (see the
 MCP permissions notes in the development documentation).</p>
+</section>
+<section id="path-permissions">
+<h2>Path permissions<a class="headerlink" href="#path-permissions" title="Link to this heading">¶</a></h2>
+<p>The agent gates filesystem paths before a tool call is dispatched.  A call
+that would touch a path outside the project directory (the directory the
+server runs in), or a sensitive file inside it (env files, private keys,
+cloud config), pauses the run and asks the user, per path, to allow it
+<strong>once</strong>, allow it <strong>for the session</strong>, or <strong>deny</strong> it.  The ask is shown in
+the web UI and TUI; a session approval is remembered for the chat, and a
+denied path returns a non-halting error so the run continues.  Path discovery
+is layered – a tool’s declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>, the paths the tool picker
+declares, and heuristics (including the tokens of a shell command) – with
+each request labelled by its confidence.  The set of sensitive filenames can
+be extended with the comma-separated <code class="docutils literal notranslate"><span class="pre">KLEA_SENSITIVE_PATTERNS</span></code> environment
+variable.</p>
+<p>This is a consent mechanism, not a sandbox: a tool can ignore its arguments
+and touch any path at runtime, and a standalone <code class="docutils literal notranslate"><span class="pre">klea-mcp</span></code> server used by a
+non-Klea client has no gate.  See ADR-0007 for the design and its limits.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <ul class="simple">
@@ -617,6 +636,7 @@ authoring Klea’s own MCP tools</p></li>
 </li>
 <li><a class="reference internal" href="#how-klea-uses-the-tools">How Klea uses the tools</a></li>
 <li><a class="reference internal" href="#tool-access-levels">Tool access levels</a></li>
+<li><a class="reference internal" href="#path-permissions">Path permissions</a></li>
 </ul>
 </li>
 </ul>

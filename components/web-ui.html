@@ -341,11 +341,13 @@ of starting the query over.</p>
 <p>In the agent, a run can pause for your input.  The ask appears in a per-turn
 region under the transcript (the <em>turn status</em> region, distinct from the
 right-drawer status pane): a plan awaiting review shows the plan with
-<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, and a plan blocked
-on a missing fact shows one field per question.  The main input box is
-disabled until you answer or cancel, and reloading the page re-shows a
-pending ask.  Answering (or requesting a revision) resumes the same run with
-its state intact.</p>
+<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked on a
+missing fact shows one field per question, and a tool call that would touch a
+path outside the project directory (or a sensitive file inside it, such as
+<code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.  The
+main input box is disabled until you answer or cancel, and reloading the page
+re-shows a pending ask.  Answering (or requesting a revision) resumes the
+same run with its state intact.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>

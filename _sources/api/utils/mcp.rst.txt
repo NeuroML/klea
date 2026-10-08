@@ -3,7 +3,8 @@ MCP utilities
 
 Shared machinery for building MCP servers and clients used by Klea apps:
 metadata schemas, tool registration, tool access levels, an httpx session
-lifespan, path permission checks, and the reusable bundled tools server.
+lifespan, path permission (discovery, the sensitive-file matcher, and the
+interactive-approval payload/schema), and the reusable bundled tools server.
 
 Schemas
 -------
@@ -30,6 +31,25 @@ Tool call dispatch
 ------------------
 
 .. automodule:: klea_utils.mcp.dispatch
+   :members:
+   :show-inheritance:
+
+Path permissions
+----------------
+
+Layered path discovery, the sensitive-file matcher, and the payload/response
+schema for the interactive allow / deny approval loop (ADR-0007).  The gate
+runs in :mod:`klea_utils.mcp.dispatch` before a tool call reaches the server.
+
+.. automodule:: klea_utils.mcp.path_detect
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.sensitive
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.permission_hitl
    :members:
    :show-inheritance:
 

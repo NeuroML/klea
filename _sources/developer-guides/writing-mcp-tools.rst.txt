@@ -151,6 +151,14 @@ a tool named after the function.  Helper functions without the decoration
 are ignored.  Validation constraints (e.g. ``Field(min_length=1)``) may be
 added to parameter annotations and are preserved in the schema.
 
+A filesystem tool should declare its path arguments with ``checkpaths`` on
+``ToolInfo`` (for example ``checkpaths=["path"]``).  The client-side
+permission gate reads it to find the paths a call would touch before
+dispatch, so it can ask the user when a path is outside the project directory
+or a sensitive file (ADR-0007); it is also used to serialise calls that touch
+the same path.  The tool implementation does **not** check the boundary
+itself -- the gate is the single enforcement point.
+
 Sane defaults
 -------------
 

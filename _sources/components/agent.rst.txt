@@ -57,7 +57,11 @@ state machine.  In outline:
    run in order), and a deterministic triage router plus an operational
    evaluator decide, per step, whether to retry the step, replan, or move on.
    If the picker finds no suitable tool, the plan is revised rather than
-   looping.
+   looping.  Before dispatch, a call that would touch a path outside the
+   project directory -- or a sensitive file inside it, such as ``.env`` --
+   pauses for a per-path allow-once / allow-for-session / deny decision; a
+   denied path returns a non-halting error and the run continues (see
+   :doc:`mcp-servers`).
 5. **Answer** -- once the plan is done, the answer is composed from the
    step results and delivered.
 
