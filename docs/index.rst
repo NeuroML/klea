@@ -58,9 +58,10 @@ Features
   planning, coding, pipeline execution, and analysis
 * General and Scientific operating modes, with chat-versus-task routing and a
   planner -- Scientific mode awaits a curated knowledge source
-* Human-in-the-loop: a run can pause for an explicit plan approval/revision
-  or a blocked step's questions, then resume the same run with its state
-  intact
+* Human-in-the-loop: a run can pause for an explicit plan approval/revision,
+  a blocked step's questions, or a per-path allow/deny decision before a tool
+  touches a file outside the project directory (or a sensitive file inside
+  it), then resume the same run with its state intact
 * Dependency-aware plan execution: independent steps run together in parallel,
   while a step that needs an earlier step's result waits for it
 * Capabilities supplied by MCP tools rather than hard-coded, so the agent
