@@ -16,6 +16,7 @@ from klea_utils.llm import (
     LLMModel,
     add_memory_to_prompt,
     credential_scope,
+    escape_prompt_braces,
     estimate_input_tokens,
     format_alert,
     get_last_n_conversations,
@@ -298,6 +299,29 @@ def test_add_memory_to_prompt_is_summary_only():
 def test_add_memory_to_prompt_empty_summary():
     """No summary produces an empty block."""
     assert add_memory_to_prompt("") == ""
+
+
+def test_escape_prompt_braces_doubles_braces():
+    assert escape_prompt_braces("a {b} c") == "a {{b}} c"
+    assert escape_prompt_braces("no braces") == "no braces"
+
+
+def test_add_memory_to_prompt_escapes_braces():
+    """A summary with braces must not be parsed as a template variable.
+
+    ``add_memory_to_prompt`` output is concatenated into the system prompt
+    *template*, so an unescaped ``{...}`` (e.g. JSON echoed from the
+    conversation) raises ``INVALID_PROMPT_INPUT`` at format time.
+    """
+    from langchain_core.prompts import ChatPromptTemplate
+
+    summary = "the user wrote {'a': 1} and {b}"
+    block = add_memory_to_prompt(summary)
+    template = ChatPromptTemplate([("system", "Base." + block), ("human", "{query}")])
+
+    assert template.input_variables == ["query"]
+    rendered = template.format_messages(query="q")[0].content
+    assert summary in rendered
 
 
 def test_estimate_input_tokens_is_conservative():

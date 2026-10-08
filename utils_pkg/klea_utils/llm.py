@@ -1939,6 +1939,22 @@ def get_recent_messages(
     return recent
 
 
+def escape_prompt_braces(text: str) -> str:
+    """Escape ``{`` and ``}`` for safe embedding in a prompt template.
+
+    ``ChatPromptTemplate`` parses ``{...}`` in its *template* strings as input
+    variables, so dynamic text concatenated into a template (a context
+    summary, a generated JSON schema, configured domain text) must be escaped
+    or a brace in it raises ``INVALID_PROMPT_INPUT``.  Text passed as a
+    template *variable value*, and message objects placed in the prompt, are
+    not templated and need no escaping.
+
+    :param text: Dynamic text to embed in a prompt template.
+    :returns: The text with braces doubled (``{`` -> ``{{``, ``}`` -> ``}}``).
+    """
+    return text.replace("{", "{{").replace("}", "}}")
+
+
 def add_memory_to_prompt(context_summary: str) -> str:
     """Add the context summary to the system prompt.
 
@@ -1946,6 +1962,11 @@ def add_memory_to_prompt(context_summary: str) -> str:
     conversation messages are no longer flattened into this block: they are
     injected as real message objects by the node's prompt assembly (see
     ``klea_utils.nodes.base``).
+
+    The summary is dynamic text concatenated into the system prompt *template*,
+    so its braces are escaped (:func:`escape_prompt_braces`); a summary that
+    echoes a JSON/code fragment from the conversation would otherwise be parsed
+    as a template variable.
 
     :param context_summary: Summary of the past conversation.
     :returns: Prompt text block, or ``""`` when there is no summary.
@@ -1969,7 +1990,7 @@ def add_memory_to_prompt(context_summary: str) -> str:
 
         Here is a concise summary of the past conversation to maintain continuity:
 
-        {context_summary}
+        {escape_prompt_braces(context_summary)}
 
         """)
 

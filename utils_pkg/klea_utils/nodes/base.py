@@ -40,6 +40,7 @@ from ..llm import (
     DEFAULT_MAX_OUTPUT_TOKENS,
     add_memory_to_prompt,
     classify_llm_invocation_error,
+    escape_prompt_braces,
     estimate_input_tokens,
     get_last_n_conversations,
     get_provider_allowed_fields,
@@ -1094,12 +1095,12 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
 
             Respond in JSON following this schema:
 
-            {json.dumps(sanitized).replace("{", "{{").replace("}", "}}")}
+            {escape_prompt_braces(json.dumps(sanitized))}
 
             The response must be a raw, valid JSON object like this example
             (replace the placeholder values with real content):
 
-            {json.dumps(example).replace("{", "{{").replace("}", "}}")}
+            {escape_prompt_braces(json.dumps(example))}
 
             Do not output the schema definition itself, or notes/comments, or
             the 'title'/'type'/'properties' keys.

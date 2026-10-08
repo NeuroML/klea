@@ -14,6 +14,7 @@ import logging
 from typing import Any, ClassVar, override
 
 from klea_utils.llm import (
+    escape_prompt_braces,
     extract_llm_output_content,
     prompt_value_to_messages,
 )
@@ -90,8 +91,12 @@ class ClassifyQuestion[TSchema: BaseModel](BaseLLMNode[RAGState, TSchema]):
         """Load base prompt, append domains, then rules, then optional memory."""
         system_prompt = self._load_prompt_file(f"{self.prompt_prefix}_system")
 
-        # additional logic
-        system_prompt += f"\n\n## Domains\n{self._build_domain_str()}\n\n"
+        # additional logic (escaped: configured domain text is embedded in the
+        # prompt template, so a brace in a name/description must not be parsed
+        # as a template variable)
+        system_prompt += (
+            f"\n\n## Domains\n{escape_prompt_braces(self._build_domain_str())}\n\n"
+        )
 
         if self.memory:
             memory_addition = self._get_memory_addition(state)

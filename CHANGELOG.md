@@ -68,6 +68,7 @@
 
 ### Fixed
 
+- Messages that contain `{...}` (for example a user query or an answer with JSON) no longer break a later run: dynamic text concatenated into a node's prompt template -- the conversation summary and configured domain text -- has its braces escaped, so it is not parsed as a template variable.
 - Web UI: the chat-list running indicator now stops spinning (or switches to the awaiting-input icon) as soon as a run finishes, pauses, or errors, instead of staying on the spinner until an unrelated refresh.
 - HITL answers in the chat transcript now render readably (for example `Allowed once: /tmp`) instead of raw JSON, and a path-permission answer no longer prints its wire mapping.
 - Web UI: the chat-list running/awaiting indicator and the active-chat marker now show when the sidebar is collapsed to its icon rail (the avatar cell is the only item section Quasar keeps in mini mode).
