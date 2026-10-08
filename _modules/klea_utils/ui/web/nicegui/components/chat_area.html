@@ -538,8 +538,9 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">current</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="n">msgs</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"messages"</span><span class="p">]</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="p">[]</span>
+            <span class="n">expanded</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"expanded"</span><span class="p">]</span> <span class="k">if</span> <span class="n">current_chat</span> <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
             <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">msg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">msgs</span><span class="p">):</span>
-                <span class="n">collapsed</span> <span class="o">=</span> <span class="n">idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span>
+                <span class="n">collapsed</span> <span class="o">=</span> <span class="n">idx</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">expanded</span>
                 <span class="n">text</span> <span class="o">=</span> <span class="n">msg</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
                 <span class="n">ChatBubble</span><span class="p">(</span>
                     <span class="n">text</span><span class="o">=</span><span class="n">linkify_md</span><span class="p">(</span><span class="n">text</span><span class="p">),</span>
@@ -556,11 +557,7 @@
                         <span class="sa">f</span><span class="s2">"navigator.clipboard.writeText(</span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">t</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
                     <span class="p">),</span>
                     <span class="n">on_expand</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="o">=</span><span class="n">idx</span><span class="p">:</span> <span class="p">(</span>
-                        <span class="p">(</span>
-                            <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-                            <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span>
-                            <span class="k">else</span> <span class="n">ctx</span><span class="o">.</span><span class="n">expanded</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
-                        <span class="p">)</span>
+                        <span class="p">(</span><span class="n">expanded</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">expanded</span> <span class="k">else</span> <span class="n">expanded</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
                         <span class="ow">or</span> <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
                     <span class="p">),</span>
                 <span class="p">)</span>
@@ -606,7 +603,7 @@
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">render_turn_status</span><span class="p">(</span>
-        <span class="n">ctx</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">turn_retry_cb</span>
+        <span class="n">ctx</span><span class="p">,</span> <span class="n">retry_cb</span><span class="o">=</span><span class="n">ctx</span><span class="o">.</span><span class="n">retry_cbs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_chat_bottom</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_scroll_to_bottom</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>

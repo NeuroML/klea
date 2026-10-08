@@ -383,15 +383,12 @@
     <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
     <span class="c1"># Mutable runtime state</span>
-    <span class="n">expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">set</span><span class="p">)</span>
-    <span class="n">is_streaming</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
-    <span class="c1">#: Chat currently being streamed, so the inspector can tell if it is</span>
-    <span class="c1">#: appending to the active chat.</span>
-    <span class="n">streaming_chat_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
-    <span class="c1">#: The background task driving the current NiceGUI stream, so the Stop</span>
-    <span class="c1">#: control can cancel it locally (belt-and-braces alongside the server</span>
-    <span class="c1">#: ``/query/cancel`` call).</span>
-    <span class="n">stream_task</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Per-chat run registry, keyed by ``"{user_id}:{chat_id}"``: the asyncio</span>
+    <span class="c1">#: task driving each chat's run and its Retry callback.  Page-scoped (the</span>
+    <span class="c1">#: tasks are bound to this page's event loop) and independent of the</span>
+    <span class="c1">#: process-global ``chats`` store, so several chats can run at once.</span>
+    <span class="n">stream_tasks</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">retry_cbs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">mini_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
 
     <span class="c1"># Extra request fields merged into the ``/query/stream`` POST body</span>
@@ -437,15 +434,9 @@
     <span class="c1">#: Registered by the chat-area component; the stream</span>
     <span class="c1">#: component calls it on each status transition.</span>
     <span class="n">refresh_turn_status</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
-    <span class="c1">#: Retry handler for a live failed run, invoked by the turn status region's</span>
-    <span class="c1">#: Retry button (set by the stream component when it renders an error).</span>
-    <span class="n">turn_retry_cb</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="c1">#: Flip the send control between Send and Stop based on ``is_streaming``</span>
-    <span class="c1">#: (registered by the input area; called by the stream component).</span>
+    <span class="c1">#: Flip the send control between Send and Stop based on the current chat's</span>
+    <span class="c1">#: run state (registered by the input area; called by the stream component).</span>
     <span class="n">refresh_stream_button</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
-    <span class="c1">#: Stop the active run for the given chat (registered by the stream</span>
-    <span class="c1">#: component; the input area's Stop control calls it).</span>
-    <span class="n">stop_streaming</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
     <span class="c1">#: Submit a HITL interrupt answer/cancel from the status-region form</span>
     <span class="c1">#: (``response``, ``interrupt_id``, ``cancel``); registered by the input</span>
     <span class="c1">#: area, called by the chat area's form (ADR-0046).</span>
@@ -468,7 +459,22 @@
     <span class="c1">#: app context control can carry a selection made before the first message</span>
     <span class="c1">#: (e.g. operating mode / access level in ``query_extra``) onto that chat.</span>
     <span class="n">chat_created_hooks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
-    <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span></div>
+    <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PageContext.chat_is_streaming">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.context.PageContext.chat_is_streaming">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">chat_is_streaming</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return whether *chat_id* has an active run on this page.</span>
+
+<span class="sd">        Reads the per-chat registry (the ``chat_id`` is scoped by this page's</span>
+<span class="sd">        ``user_id``), not the display state in the ``chats`` store.</span>
+
+<span class="sd">        :param chat_id: Chat conversation identifier.</span>
+<span class="sd">        :returns: True when a live run is registered for the chat.</span>
+<span class="sd">        """</span>
+        <span class="n">task</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">task</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">task</span><span class="o">.</span><span class="n">done</span><span class="p">()</span></div>
+</div>
 
 </pre></div>
         </article>

@@ -459,21 +459,24 @@
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Resume the chat's last failed run (Retry action)."""</span>
-    <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">run_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">resume</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">run_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">resume</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">task</span>
 
 
 <div class="viewcode-block" id="stop_stream">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.stream.stop_stream">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">stop_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Stop the active run: cancel locally and ask the server to cancel.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">stop_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Stop *chat_id*'s active run: cancel locally and ask the server to cancel.</span>
 
-<span class="sd">    Cancels the local ``run_stream`` task (closing the SSE connection) and</span>
+<span class="sd">    Cancels the chat's ``run_stream`` task (closing the SSE connection) and</span>
 <span class="sd">    fires a best-effort ``/query/cancel`` so the server stops the graph run</span>
-<span class="sd">    even if the disconnect alone would not.  Idempotent and safe to call</span>
-<span class="sd">    when nothing is streaming.</span>
+<span class="sd">    even if the disconnect alone would not.  Idempotent and safe to call when</span>
+<span class="sd">    the chat is not streaming.</span>
+
+<span class="sd">    :param ctx: The shared page context.</span>
+<span class="sd">    :param chat_id: Chat whose run should stop.</span>
 <span class="sd">    """</span>
-    <span class="n">chat_id</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span>
-    <span class="n">task</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">stream_task</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stop_stream(chat=</span><span class="si">%s</span><span class="s2">, task=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">task</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">task</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">task</span><span class="o">.</span><span class="n">done</span><span class="p">():</span>
         <span class="n">task</span><span class="o">.</span><span class="n">cancel</span><span class="p">()</span>
@@ -518,15 +521,26 @@
         <span class="n">resume</span><span class="p">,</span>
         <span class="s2">"cancel"</span> <span class="k">if</span> <span class="n">interrupt_cancel</span> <span class="k">else</span> <span class="n">interrupt_response</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">True</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="n">chat_id</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">stream_task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">current_task</span><span class="p">()</span>
-    <span class="c1"># The Stop control calls back into this context; register it here so the</span>
-    <span class="c1"># component needs no import of this module, and flip the button to Stop.</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">stop_streaming</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">stop_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_active</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Whether *chat_id* is the chat currently shown on the page.</span>
+
+<span class="sd">        Chat data is always updated; the DOM is only touched when the run's</span>
+<span class="sd">        chat is the visible one, so a background run cannot repaint the chat</span>
+<span class="sd">        the user is looking at.</span>
+<span class="sd">        """</span>
+        <span class="k">return</span> <span class="n">chat_id</span> <span class="o">==</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+
+    <span class="c1"># Per-chat run registry (page-scoped): the callers register the created</span>
+    <span class="c1"># task, so a run is visible for gating before this coroutine starts;</span>
+    <span class="c1"># ``setdefault`` keeps their handle when they raced ahead.</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">current_task</span><span class="p">())</span>
     <span class="c1"># Retry resumes this turn; the status region's Retry button invokes it.</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">turn_retry_cb</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
+    <span class="c1"># Kept after the run (below) so a failed run's Retry action survives.</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">retry_cbs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">query</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
     <span class="n">current_chat</span><span class="p">[</span><span class="s2">"state_sections"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="c1"># The status region is per-chat state (rendered by the chat-area</span>
     <span class="c1"># component), so it is replaced wholesale on every turn and switching</span>
@@ -537,7 +551,8 @@
         <span class="c1"># Continuing the same turn (resume or an interrupt answer/cancel):</span>
         <span class="c1"># keep the existing inspector section and re-activate it so appended</span>
         <span class="c1"># entries land in the right place.</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="c1"># Start a new inspector section for this query.  Entries are appended</span>
         <span class="c1"># live; sections (and their entries) are kept for the session.</span>
@@ -548,16 +563,16 @@
         <span class="p">}</span>
         <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">begin_inspector_section</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">marker</span><span class="p">)</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
-    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_reset_streaming_state</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Clear the streaming flags and refresh the status pane."""</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">is_streaming</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">streaming_chat_id</span> <span class="o">=</span> <span class="s2">""</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_task</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+<span class="w">        </span><span class="sd">"""Drop this chat's run entry and refresh the send control/status."""</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
 
     <span class="k">try</span><span class="p">:</span>
         <span class="k">async</span> <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">stream_events</span><span class="p">(</span>
@@ -583,32 +598,37 @@
                 <span class="p">)</span>
                 <span class="c1"># Update the live heading in place (no full re-render).</span>
                 <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">][</span><span class="s2">"heading"</span><span class="p">]</span> <span class="o">=</span> <span class="n">heading</span>
-                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">()</span> <span class="ow">and</span> <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
                     <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_label</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="n">action</span> <span class="o">=</span> <span class="n">apply_stream_event</span><span class="p">(</span><span class="n">current_chat</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">action</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">):</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"inspect"</span><span class="p">:</span>
                 <span class="n">entry</span> <span class="o">=</span> <span class="n">current_chat</span><span class="p">[</span><span class="s2">"inspector_entries"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
                 <span class="n">ctx</span><span class="o">.</span><span class="n">append_inspector</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">entry</span><span class="p">)</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
                 <span class="c1"># The run paused for HITL input: show the ask and stop</span>
                 <span class="c1"># streaming until the user answers or cancels (ADR-0046).</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> paused for input"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                 <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"awaiting_input"</span><span class="p">}</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
                 <span class="n">_reset_streaming_state</span><span class="p">()</span>
                 <span class="k">break</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream complete"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                 <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"idle"</span><span class="p">}</span>
                 <span class="n">current_chat</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"interrupt"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
                 <span class="n">_reset_streaming_state</span><span class="p">()</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
                 <span class="k">break</span>
             <span class="k">elif</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
                 <span class="n">error_msg</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">,</span> <span class="s2">"Unknown error"</span><span class="p">)</span>
@@ -624,7 +644,8 @@
                     <span class="s2">"message"</span><span class="p">:</span> <span class="n">error_msg</span><span class="p">,</span>
                     <span class="s2">"resumable"</span><span class="p">:</span> <span class="n">resumable</span><span class="p">,</span>
                 <span class="p">}</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
                 <span class="n">_reset_streaming_state</span><span class="p">()</span>
                 <span class="k">break</span>
     <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
@@ -633,7 +654,8 @@
         <span class="c1"># (NiceGUI's exception handler ignores it).</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"chat=</span><span class="si">%s</span><span class="s2"> stream cancelled by user"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="n">current_chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"stopped"</span><span class="p">}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span>
         <span class="k">raise</span>
     <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">HTTPStatusError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
@@ -646,7 +668,8 @@
             <span class="s2">"message"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Request failed (</span><span class="si">{</span><span class="n">e</span><span class="o">.</span><span class="n">response</span><span class="o">.</span><span class="n">status_code</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
         <span class="p">}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">_reset_streaming_state</span><span class="p">()</span>
     <span class="k">except</span> <span class="n">httpx</span><span class="o">.</span><span class="n">RequestError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
         <span class="c1"># Transport failure: a dropped connection or idle timeout.  The run is</span>
@@ -657,8 +680,14 @@
             <span class="s2">"message"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Connection error: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="s2">"resumable"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
         <span class="p">}</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
-        <span class="n">_reset_streaming_state</span><span class="p">()</span></div>
+        <span class="k">if</span> <span class="n">_active</span><span class="p">():</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+        <span class="n">_reset_streaming_state</span><span class="p">()</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># Clear this chat's run entry on every exit path (including an</span>
+        <span class="c1"># unexpected exception) so it never leaks a stale task handle.  The</span>
+        <span class="c1"># retry callback is kept so a failed run's Retry action survives.</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

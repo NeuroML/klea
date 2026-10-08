@@ -328,9 +328,15 @@
     <span class="n">delete_chat_on_server</span><span class="p">,</span>
     <span class="n">rename_chat_on_server</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chats</span><span class="p">,</span> <span class="n">ensure_chat</span><span class="p">,</span> <span class="n">get_chats_sorted</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">chat_indicator</span><span class="p">,</span>
+    <span class="n">chats</span><span class="p">,</span>
+    <span class="n">ensure_chat</span><span class="p">,</span>
+    <span class="n">get_chats_sorted</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -354,6 +360,7 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">reset_center_tab</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -371,6 +378,10 @@
             <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">,</span>
         <span class="p">)</span>
+        <span class="c1"># Stop an in-flight run for this chat before deleting it, so the graph</span>
+        <span class="c1"># run is cancelled both locally and server-side.</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_is_streaming</span><span class="p">(</span><span class="n">chat_id</span><span class="p">):</span>
+            <span class="n">stream</span><span class="o">.</span><span class="n">stop_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
             <span class="n">delete_chat_on_server</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
         <span class="p">)</span>
@@ -454,17 +465,33 @@
                 <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
                 <span class="o">.</span><span class="n">on</span><span class="p">(</span><span class="s2">"dblclick"</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">s</span><span class="o">=</span><span class="n">chat_id_</span><span class="p">:</span> <span class="n">_rename_chat</span><span class="p">(</span><span class="n">s</span><span class="p">))</span>
             <span class="p">):</span>
+                <span class="n">streaming</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_is_streaming</span><span class="p">(</span><span class="n">chat_id_</span><span class="p">)</span>
+                <span class="n">awaiting</span> <span class="o">=</span> <span class="n">sdata</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">][</span><span class="s2">"kind"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"awaiting_input"</span>
+                <span class="n">indicator</span> <span class="o">=</span> <span class="n">chat_indicator</span><span class="p">(</span>
+                    <span class="n">streaming</span><span class="o">=</span><span class="n">streaming</span><span class="p">,</span>
+                    <span class="n">awaiting</span><span class="o">=</span><span class="n">awaiting</span><span class="p">,</span>
+                    <span class="n">pinned</span><span class="o">=</span><span class="n">sdata</span><span class="p">[</span><span class="s2">"pinned"</span><span class="p">],</span>
+                    <span class="n">active</span><span class="o">=</span><span class="n">is_current</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="c1"># The avatar cell is the only section Quasar keeps when the</span>
+                <span class="c1"># drawer is in mini mode, so the run/awaiting/active state is</span>
+                <span class="c1"># shown there (the label below is hidden when collapsed).</span>
                 <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"avatar"</span><span class="p">):</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="s2">"push_pin"</span> <span class="k">if</span> <span class="n">sdata</span><span class="p">[</span><span class="s2">"pinned"</span><span class="p">]</span> <span class="k">else</span> <span class="s2">"history"</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">indicator</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"spinner"</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">spinner</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">indicator</span><span class="o">.</span><span class="n">classes</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="n">indicator</span><span class="o">.</span><span class="n">icon</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">indicator</span><span class="o">.</span><span class="n">classes</span><span class="p">)</span>
                 <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">():</span>
                     <span class="n">label_cls</span> <span class="o">=</span> <span class="s2">"text-xs font-bold"</span> <span class="k">if</span> <span class="n">is_current</span> <span class="k">else</span> <span class="s2">"text-xs"</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">sdata</span><span class="p">[</span><span class="s2">"name"</span><span class="p">])</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">label_cls</span><span class="p">)</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span>
-                    <span class="s2">"Created: "</span>
-                    <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">sdata</span><span class="p">[</span><span class="s2">"created"</span><span class="p">])</span>
-                    <span class="o">.</span><span class="n">astimezone</span><span class="p">()</span>
-                    <span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%a</span><span class="s2"> </span><span class="si">%d</span><span class="s2"> %b %Y at </span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
-                <span class="p">)</span>
+                <span class="n">tooltip</span> <span class="o">=</span> <span class="s2">"Created: "</span> <span class="o">+</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span>
+                    <span class="n">sdata</span><span class="p">[</span><span class="s2">"created"</span><span class="p">]</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%a</span><span class="s2"> </span><span class="si">%d</span><span class="s2"> %b %Y at </span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">streaming</span><span class="p">:</span>
+                    <span class="n">tooltip</span> <span class="o">+=</span> <span class="s2">" - running"</span>
+                <span class="k">elif</span> <span class="n">awaiting</span><span class="p">:</span>
+                    <span class="n">tooltip</span> <span class="o">+=</span> <span class="s2">" - awaiting your input"</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="n">tooltip</span><span class="p">)</span>
                 <span class="c1"># Three-dot context menu (right-aligned).</span>
                 <span class="k">with</span> <span class="p">(</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"side"</span><span class="p">),</span>
@@ -608,7 +635,12 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">left_drawer</span> <span class="o">=</span> <span class="n">left_drawer</span>
         <span class="c1"># Items use QItem + QItemSection(avatar) so that Quasar</span>
         <span class="c1"># automatically hides the label when the drawer is in mini mode.</span>
-        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">on_click</span><span class="o">=</span><span class="n">_new_chat</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"dense"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">):</span>
+        <span class="k">with</span> <span class="p">(</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">item</span><span class="p">(</span><span class="n">on_click</span><span class="o">=</span><span class="n">_new_chat</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"dense"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">mark</span><span class="p">(</span><span class="s2">"new-chat"</span><span class="p">)</span>
+        <span class="p">):</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"avatar"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">icon</span><span class="p">(</span><span class="s2">"add"</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Start a new conversation"</span><span class="p">)</span>

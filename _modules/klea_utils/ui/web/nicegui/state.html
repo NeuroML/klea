@@ -316,11 +316,59 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Container</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">NotRequired</span><span class="p">,</span> <span class="n">TypedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">NotRequired</span><span class="p">,</span> <span class="n">TypedDict</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.hitl</span><span class="w"> </span><span class="kn">import</span> <span class="n">render_interrupt_response</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ChatIndicator">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.ChatIndicator">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChatIndicator</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A chat row's avatar indicator (see :func:`chat_indicator`).</span>
+
+<span class="sd">    :param kind: ``"spinner"`` (a running run) or ``"icon"``.</span>
+<span class="sd">    :param icon: Material Icons name when :attr:`kind` is ``"icon"``.</span>
+<span class="sd">    :param classes: Extra CSS classes (sizing / colour) for the widget.</span>
+<span class="sd">    """</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"spinner"</span><span class="p">,</span> <span class="s2">"icon"</span><span class="p">]</span>
+    <span class="n">icon</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">classes</span><span class="p">:</span> <span class="nb">str</span></div>
+
+
+
+<div class="viewcode-block" id="chat_indicator">
+<a class="viewcode-back" href="../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.state.chat_indicator">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">chat_indicator</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span> <span class="n">streaming</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">awaiting</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">pinned</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">active</span><span class="p">:</span> <span class="nb">bool</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ChatIndicator</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the avatar indicator for a chat row.</span>
+
+<span class="sd">    The avatar cell is the only ``QItemSection`` Quasar keeps visible when the</span>
+<span class="sd">    chat drawer is collapsed to its mini rail, so the running / awaiting state</span>
+<span class="sd">    and the active marker live there (the row's name label is hidden when</span>
+<span class="sd">    collapsed).  All icon names are Material Icons (the set NiceGUI/Quasar</span>
+<span class="sd">    loads).</span>
+
+<span class="sd">    Precedence: streaming &gt; awaiting input &gt; pinned &gt; plain history.  The</span>
+<span class="sd">    currently shown chat is marked with the theme's primary colour.</span>
+
+<span class="sd">    :param streaming: Whether the chat has an active run.</span>
+<span class="sd">    :param awaiting: Whether the chat is paused at a HITL interrupt.</span>
+<span class="sd">    :param pinned: Whether the chat is pinned.</span>
+<span class="sd">    :param active: Whether this is the currently shown chat.</span>
+<span class="sd">    :returns: The :class:`ChatIndicator` to render.</span>
+<span class="sd">    """</span>
+    <span class="n">primary</span> <span class="o">=</span> <span class="s2">" text-primary"</span> <span class="k">if</span> <span class="n">active</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="n">streaming</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ChatIndicator</span><span class="p">(</span><span class="s2">"spinner"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"w-4 h-4</span><span class="si">{</span><span class="n">primary</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">awaiting</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ChatIndicator</span><span class="p">(</span><span class="s2">"icon"</span><span class="p">,</span> <span class="s2">"help_outline"</span><span class="p">,</span> <span class="s2">"text-amber"</span><span class="p">)</span>
+    <span class="n">icon</span> <span class="o">=</span> <span class="s2">"push_pin"</span> <span class="k">if</span> <span class="n">pinned</span> <span class="k">else</span> <span class="s2">"history"</span>
+    <span class="k">return</span> <span class="n">ChatIndicator</span><span class="p">(</span><span class="s2">"icon"</span><span class="p">,</span> <span class="n">icon</span><span class="p">,</span> <span class="n">primary</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span></div>
+
 
 
 <div class="viewcode-block" id="MessageData">
@@ -454,6 +502,8 @@
     <span class="n">pinned</span><span class="p">:</span> <span class="nb">bool</span>
     <span class="c1">#: Rendered transcript messages.</span>
     <span class="n">messages</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">MessageData</span><span class="p">]</span>
+    <span class="c1">#: Indices of transcript messages currently expanded in the UI.</span>
+    <span class="n">expanded</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
     <span class="c1">#: Inspector items for this chat, in order: a per-query</span>
     <span class="c1">#: :class:`InspectorMarker` followed by that query's entries.  Kept</span>
     <span class="c1">#: for the browser session (not persisted).</span>
@@ -506,6 +556,7 @@
             <span class="s2">"created"</span><span class="p">:</span> <span class="n">now</span><span class="o">.</span><span class="n">timestamp</span><span class="p">(),</span>
             <span class="s2">"pinned"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
             <span class="s2">"messages"</span><span class="p">:</span> <span class="p">[],</span>
+            <span class="s2">"expanded"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"inspector_entries"</span><span class="p">:</span> <span class="p">[],</span>
             <span class="s2">"inspector_expanded"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
             <span class="s2">"inspector_sections_collapsed"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
