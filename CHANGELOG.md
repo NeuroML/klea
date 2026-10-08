@@ -31,6 +31,7 @@
 - Resumable runs: `/query` and `/query/stream` accept `resume=true` (no query) to continue a failed run from its checkpoint, re-running only the failed node; the web UI shows a Retry action on a resumable error (ADR-0043).
 - Cancel a running query: `POST /query/cancel` stops the active run for a chat (the web UI's send button becomes a Stop button while streaming), leaving the thread clean for the next query; only one run may be active per chat, so a concurrent same-chat request is rejected with `409` (ADR-0043).
 - Human-in-the-loop pauses that resume the *same* run with its state intact (ADR-0046). The agent's plan review pauses for an explicit approve/revision decision (approval runs the plan, a revision returns the feedback to the Planner), and a `needs_input` plan pauses with the questions its blocked step carries. New chat payload fields `interrupt_response` / `interrupt_cancel` (and `interrupt_id`) are distinct from `resume`, and the backend rejects a plain query while a chat awaits an answer (`409`). The web UI and TUI render the ask and submit the answer, and reloading the page re-presents a pending ask.
+- Web UI: several chats in one page can now run at once. Each chat has its own run state (send / Stop / Retry apply per chat), the chat list shows a running / awaiting-input indicator, and deleting a chat cancels its run; a background chat's stream no longer blocks the input or repaints the active chat.
 
 ### Changed
 

@@ -318,7 +318,12 @@ def attach_chat_list(ctx: PageContext) -> None:
         ctx.left_drawer = left_drawer
         # Items use QItem + QItemSection(avatar) so that Quasar
         # automatically hides the label when the drawer is in mini mode.
-        with ui.item(on_click=_new_chat).props("dense").classes("w-full"):
+        with (
+            ui.item(on_click=_new_chat)
+            .props("dense")
+            .classes("w-full")
+            .mark("new-chat")
+        ):
             with ui.item_section().props("avatar"):
                 ui.icon("add")
                 ui.tooltip("Start a new conversation")

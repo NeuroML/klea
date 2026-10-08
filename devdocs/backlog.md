@@ -23,26 +23,11 @@ Last updated: 2026-10-07.
   cancellation and single-flight only work with one uvicorn worker.  A
   multi-worker setup would need sticky routing or a distributed cancel
   signal.  Not needed at current scale.
-- Parallel chats in one page: the server allows concurrent runs for
-  different threads (`active_runs` is keyed per `thread_id`), but the
-  NiceGUI frontend serialises one page to a single stream.  Stream state
-  (`is_streaming`, `stream_task`, `streaming_chat_id`, `turn_retry_cb`)
-  is page-scoped on `PageContext`, so while chat A streams the send/Stop
-  button and input gating apply page-wide and chat B cannot start; Stop
-  targets whichever run last started, and a finishing run clears the
-  shared flags.  Rendering is already per-chat (each `ChatData` carries its
-  own `status`, transcript, inspector, usage), so the remaining work is
-  frontend coordination: move the task/streaming/retry state into
-  `ChatData` (or derive "is this chat streaming" from `status.kind ==
-  "progress"`), gate the input and toggle the button per current chat,
-  cancel the current chat's task, add a chat-list running indicator, and
-  guard background-task renders so a hidden chat's updates do not repaint
-  the visible one.  Independent sessions require separate browser
-  windows/profiles (or incognito): `app.storage.user` is keyed by the
-  NiceGUI session cookie, which is shared across tabs of one profile, so
-  tabs share a `user_id` (and its chats) rather than getting their own.
-  This item is only about concurrent runs within one page; no server
-  change needed.
+- Independent UI sessions across tabs: `app.storage.user` is keyed by the
+  NiceGUI session cookie, which is shared across tabs of one browser profile,
+  so tabs share a `user_id` (and its chats) rather than getting their own.
+  Independent sessions need separate windows/profiles (or incognito).  (Parallel
+  chats *within* one page are implemented; see `system/web-ui-testing.md`.)
 
 ## Agent general path
 
