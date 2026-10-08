@@ -25,8 +25,8 @@ from klea_utils.llm import LLMModel
 from klea_utils.mcp.schemas import ToolCallSchema
 
 
-async def _compile(monkeypatch):
-    """Compile the agent graph with dummy models and no MCP client."""
+async def _build_agent(monkeypatch) -> KleaAgent:
+    """Build the agent with dummy models and no MCP client."""
     agent = KleaAgent(checkpoint="inmemory")
     agent.llm_models = {
         "chat": LLMModel(instance=None, model_name=""),
@@ -41,7 +41,22 @@ async def _compile(monkeypatch):
     monkeypatch.setattr(agent, "_export_graph_png", lambda filename: None)
     await agent._create_graph()
     assert agent.graph is not None
-    return agent.graph.get_graph()
+    return agent
+
+
+async def _compile(monkeypatch):
+    """Compile the agent graph with dummy models and no MCP client."""
+    agent = await _build_agent(monkeypatch)
+    graph = agent.graph
+    assert graph is not None
+    return graph.get_graph()
+
+
+@pytest.mark.asyncio
+async def test_tools_caller_asks_for_path_permission(monkeypatch):
+    """The agent opts into interactive path approval (ADR-0007 update 2026-10-08)."""
+    agent = await _build_agent(monkeypatch)
+    assert agent._tools_caller_node._permission_policy == "ask"
 
 
 @pytest.mark.asyncio

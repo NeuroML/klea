@@ -580,6 +580,10 @@ class KleaAgent(BaseLangGraph):
             mcp_client=self.mcp_client,
             tool_infos=self._tools_by_name(),
             post_dispatch=self._record_tool_round,
+            # Ask the user, per path, before a call touches a path outside the
+            # project root (ADR-0007 update 2026-10-08).  RAG keeps the default
+            # deny policy (it has no HITL interrupt path).
+            permission_policy="ask",
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
         self._op_evaluator_node = OperationalEvaluator(

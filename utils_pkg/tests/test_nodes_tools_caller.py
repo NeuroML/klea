@@ -16,6 +16,10 @@ from klea_utils.mcp.permission_hitl import PathDecision, PermissionResponse
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import ToolCallerContext
 from klea_utils.nodes.tools_caller import ToolsCallerNode
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 from mcp.types import ImageContent
 from pydantic import BaseModel, Field
 
@@ -824,3 +828,56 @@ def test_compute_displays_flags_aligned_with_results():
     assert flags == [True, False]
     assert len(entries) == 1
     assert entries[0]["mime"] == "text/x-diff"
+
+
+class _GraphState(BaseModel):
+    tool_calls: list[ToolCallSchema] = Field(default_factory=list)
+    tool_results: list[CallToolResult] = Field(default_factory=list)
+    allowed_dirs: list[str] = Field(default_factory=list)
+
+
+async def test_interrupt_resume_persists_session_directory(tmp_path):
+    """The ask policy pauses via interrupt, then resumes with a session allow."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    cast(Any, node).write_custom_stream = lambda ev: None
+
+    workflow = StateGraph(_GraphState)
+    workflow.add_node("caller", node.execute)
+    workflow.add_edge(START, "caller")
+    workflow.add_edge("caller", END)
+    compiled = workflow.compile(checkpointer=InMemorySaver())
+    config: RunnableConfig = {"configurable": {"thread_id": "t"}}
+
+    await compiled.ainvoke(
+        _GraphState(
+            tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        ),
+        config=config,
+    )
+    # Paused at the permission interrupt: nothing dispatched yet.
+    assert client.calls == []
+    snapshot = await compiled.aget_state(config)
+    interrupts = [intr for task in snapshot.tasks for intr in task.interrupts]
+    assert interrupts and interrupts[0].value["kind"] == "permission"
+
+    resumed = await compiled.ainvoke(
+        Command(
+            resume={"decisions": [{"directory": str(outside), "decision": "session"}]}
+        ),
+        config=config,
+    )
+
+    assert resumed["tool_results"][0].is_error is False
+    assert resumed["allowed_dirs"] == [str(outside)]
+    assert client.calls == [("list_files", {"path": str(outside)})]
