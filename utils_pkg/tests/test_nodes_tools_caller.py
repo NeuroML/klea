@@ -911,3 +911,37 @@ async def test_ask_policy_sensitive_session_persists_file(tmp_path, monkeypatch)
     assert updates["allowed_files"] == [resolved]
     assert "allowed_dirs" not in updates
     assert client.calls == [("read_file", {"path": ".env"})]
+
+
+async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):
+    """A resolved permission ask is recorded as an inspect entry."""
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    events: list[dict] = []
+    _record_stream(node, events)
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt", _approve(str(outside), "session")
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+    )
+    await node.execute(state)
+
+    permission = [
+        event
+        for event in events
+        if event.get("type") == "inspect"
+        and event["data"]["heading"] == "Path permission"
+    ]
+    assert len(permission) == 1
+    details = permission[0]["data"]["details"]
+    assert details["resolution"]["allowed_session"] == [str(outside)]
+    assert details["requests"][0]["key"] == str(outside)
+    assert details["requests"][0]["kind"] == "outside"

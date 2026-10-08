@@ -217,9 +217,44 @@ class ToolsCallerNode(
                 f"Permission resolved\n{resolution = }\n"
                 f"{ctx.allowed_session_dirs = }\n{ctx.allowed_session_files = }"
             )
+            self._emit_permission_inspect(requests, resolution)
             return resolution
 
         return resolver
+
+    def _emit_permission_inspect(
+        self, requests: list[PathRequest], resolution: PermissionResolution
+    ) -> None:
+        """Emit an ``inspect`` entry summarising a resolved permission ask.
+
+        Gives the inspection pane a record of what was asked and decided
+        (the chat form is transient), so the user can audit a path decision
+        after the run continues.
+        """
+        allowed = len(resolution.allowed_now) + len(resolution.allowed_session)
+        summary = f"Path permission: {allowed} allowed, {len(resolution.denied)} denied"
+        details = {
+            "requests": [
+                {
+                    "kind": request.kind,
+                    "key": request.approval_key,
+                    "confidence": request.confidence,
+                    "source": request.source,
+                    "tool": request.tool,
+                    "argument": request.argument,
+                }
+                for request in requests
+            ],
+            "resolution": resolution.model_dump(),
+        }
+        event = NodeStreamEvent(
+            type="inspect",
+            node=self.label,
+            data=NodeStreamData(
+                heading="Path permission", summary=summary, details=details
+            ),
+        )
+        self.write_custom_stream(event.model_dump())
 
     def _pre_exec(self, state: BaseModel, ctx: ToolCallerContext) -> bool:
         """Run only when there are tool calls and a client to dispatch to."""

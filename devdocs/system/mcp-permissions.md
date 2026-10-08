@@ -37,7 +37,11 @@ The single enforcement point is the pre-dispatch gate in
   no resolver, every outside path is denied (the pre-ADR-0007 behaviour).
   The gate runs in the shared `ToolsCallerNode`
   (`klea_utils/nodes/tools_caller.py`) used by both Klea Agent and Klea RAG;
-  the agent opts into `permission_policy="ask"`, RAG keeps `"deny"`.
+  the agent opts into `permission_policy="ask"`, RAG keeps `"deny"`.  A
+  resolved ask is also emitted as an `inspect` entry (heading "Path
+  permission": the requested keys and the allow/deny resolution) so the
+  inspection pane keeps an audit of the decision after the chat form is
+  gone.
 
 Both agents/RAG are expected to run from the directory the user is working
 in, so the client-side gate uses `project_root=None` (the current working
