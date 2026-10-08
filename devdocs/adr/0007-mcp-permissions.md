@@ -156,6 +156,47 @@ LangGraph pause/input design is settled.  ``kanban`` board + ``permission.py``
   ``tools_caller.py``; ``pytest -m "not localonly"`` still required for
   MCP tests (asyncio + single-process ``addopts = -n 1``).
 
+## Update (2026-10-08)
+
+The deferred interactive half of option 2 is now implemented, and the layer
+composition is revised.
+
+* **Single client-side gate.**  The author-side in-tool layer 1 (the
+  `check_path_access` call inside every tool impl) is removed.  `checkpaths`
+  and `check_path_access` are Klea conventions, not MCP, so no third-party
+  server implements them; keeping a duplicate check in each impl added no
+  portable guarantee and forced a second boundary to be kept in sync.  The
+  client-side pre-dispatch gate (`dispatch_tool_calls`, driven by the shared
+  `ToolsCallerNode`) is now the single enforcement point for every tool Klea
+  invokes.  `check_path_access` remains a utility used only by that gate.
+* **Layered path discovery.**  The gate no longer relies on declared
+  `checkpaths` alone.  Per call it unions: (1) declared `checkpaths` argument
+  values (*declared*); (2) paths the `ToolsPicker` declares for the call
+  (*expected*); and (3) heuristic names/values, including `shlex`-split tokens
+  of shell-command tools, with URLs/globs/flags/operators excluded (*guess*).
+  Each request carries a confidence tier, shown in the approval prompt so the
+  user can weigh a guess differently from a declared path.
+* **Interactive approval (graph pause + client input).**  A path outside
+  `project_root` (and any session-allowed directory) pauses the run via the
+  ADR-0046 HITL interrupt and asks, per path: *allow now* (this dispatch only),
+  *allow for session* (persisted in `BaseGraphSchema.allowed_dirs`,
+  thread-scoped), or *deny*.  A deny yields the existing non-halting
+  permission-denied result for that call; the run continues (deny does not
+  cancel the run).  The mechanism reuses `interrupt()` / `Command(resume=...)`,
+  the `chat_core` paused-thread validation, and the web/TUI interrupt forms (a
+  new `permission` kind).
+* **Still advisory.**  A tool can ignore its arguments and touch any path at
+  runtime, and the heuristics are best-effort; this remains a consent
+  mechanism, not confinement.  OS sandboxing (option 3) is unchanged as the
+  only hard boundary.
+* **Standalone gap.**  With the gate client-side, standalone `klea-mcp` /
+  `nml-mcp` servers used by non-Klea clients have no path gate.  There is no
+  MCP standard that enforces path access (`roots` and `elicitation` are
+  server-cooperative), so this is accepted and documented; a server-side
+  middleware reusing the detector is the follow-up if needed.
+* Deferred still: visibility filtering that hides denied tools from the prompt
+  (the opencode ``always`` model), and a cross-thread/global allowlist.
+
 ## Pros and Cons of the Options
 
 ### In-tool path checks only (layer 1, implemented)

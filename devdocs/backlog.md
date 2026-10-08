@@ -92,6 +92,16 @@ Last updated: 2026-10-08.
   stat and the read can exceed that cap.  Hardening would need a per-open check
   (`openat`/`O_NOFOLLOW`) and a bounded read; documented as known limits in
   `permission.py` and `devdocs/system/file-tools.md`.
+- Path-permission follow-ups after interactive approval (ADR-0007 update
+  2026-10-08): the client-side gate is now the single enforcement point and it
+  is advisory.  (a) Standalone `klea-mcp` / `nml-mcp` used by non-Klea clients
+  have no path gate; there is no MCP standard that enforces path access
+  (`roots`/`elicitation` are server-cooperative), so standalone containment
+  would need a server-side middleware reusing the detector.  (b) "allow for
+  session" is thread-scoped in `BaseGraphSchema.allowed_dirs`; a
+  cross-thread/global allowlist is not implemented.  (c) Visibility filtering
+  that hides denied tools from the prompt (opencode `always` model) is still
+  deferred.
 - Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
   carry per-node counts, but no consumer aggregates them per node (CLI drops
   `usage`; web UI sums one total; graph state keeps a run-level total).
