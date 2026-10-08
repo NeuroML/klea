@@ -601,12 +601,11 @@ class TestStopStream:
             await asyncio.sleep(10)
 
         ctx = PageContext(server_url="http://backend", user_id="u1", chat_id="chat-1")
-        ctx.streaming_chat_id = "chat-1"
         task = asyncio.create_task(_idle())
-        ctx.stream_task = task
+        ctx.stream_tasks["u1:chat-1"] = task
         await started.wait()
 
-        stop_stream(ctx)
+        stop_stream(ctx, "chat-1")
 
         assert task.cancelled() or task.cancelling()
         with pytest.raises(asyncio.CancelledError):
@@ -632,5 +631,5 @@ class TestStopStream:
         )
 
         ctx = PageContext(server_url="http://backend", user_id="")
-        stop_stream(ctx)
+        stop_stream(ctx, "")
         assert calls == []

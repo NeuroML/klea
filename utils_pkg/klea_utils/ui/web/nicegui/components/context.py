@@ -80,14 +80,6 @@ class PageContext:
 
     # Mutable runtime state
     expanded: set[int] = field(default_factory=set)
-    is_streaming: bool = False
-    #: Chat currently being streamed, so the inspector can tell if it is
-    #: appending to the active chat.
-    streaming_chat_id: str = ""
-    #: The background task driving the current NiceGUI stream, so the Stop
-    #: control can cancel it locally (belt-and-braces alongside the server
-    #: ``/query/cancel`` call).
-    stream_task: Any = None
     #: Per-chat run registry, keyed by ``"{user_id}:{chat_id}"``: the asyncio
     #: task driving each chat's run and its Retry callback.  Page-scoped (the
     #: tasks are bound to this page's event loop) and independent of the
@@ -139,15 +131,9 @@ class PageContext:
     #: Registered by the chat-area component; the stream
     #: component calls it on each status transition.
     refresh_turn_status: Callable[[], None] = field(default=_noop)
-    #: Retry handler for a live failed run, invoked by the turn status region's
-    #: Retry button (set by the stream component when it renders an error).
-    turn_retry_cb: Callable[[], Any] | None = None
-    #: Flip the send control between Send and Stop based on ``is_streaming``
-    #: (registered by the input area; called by the stream component).
+    #: Flip the send control between Send and Stop based on the current chat's
+    #: run state (registered by the input area; called by the stream component).
     refresh_stream_button: Callable[[], None] = field(default=_noop)
-    #: Stop the active run for the given chat (registered by the stream
-    #: component; the input area's Stop control calls it).
-    stop_streaming: Callable[..., Any] = field(default=_noop_args)
     #: Submit a HITL interrupt answer/cancel from the status-region form
     #: (``response``, ``interrupt_id``, ``cancel``); registered by the input
     #: area, called by the chat area's form (ADR-0046).

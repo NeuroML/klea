@@ -188,7 +188,7 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                 body = _render_section(section_idx, marker, items, collapsed_sections)
                 # Keep the last section's body open for live appends when the
                 # stream belongs to the active chat.
-                if ctx.streaming_chat_id and ctx.streaming_chat_id == ctx.chat_id:
+                if ctx.chat_is_streaming(ctx.chat_id):
                     active_body = body
                     active_chat_id = ctx.chat_id
         _scroll_bottom()

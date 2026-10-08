@@ -76,7 +76,7 @@ def attach_input(ctx: PageContext) -> None:
             response: dict | None, interrupt_id: str | None, cancel: bool
         ) -> None:
             """Send a HITL answer/cancel (the status-region form calls this)."""
-            if ctx.is_streaming:
+            if ctx.chat_is_streaming(ctx.chat_id):
                 return
             chat_id = ctx.chat_id
             if not chat_id:
@@ -126,7 +126,7 @@ def attach_input(ctx: PageContext) -> None:
                     close_button=True,
                 )
                 return
-            if ctx.is_streaming:
+            if ctx.chat_is_streaming(ctx.chat_id):
                 # A run is already active for this chat; the send control is
                 # a Stop button in that state, so ignore a stray Enter.
                 logger.debug("send ignored: a run is already streaming")
@@ -191,7 +191,7 @@ def attach_input(ctx: PageContext) -> None:
         def refresh_stream_button() -> None:
             """Flip the send control to Stop, or disable it while awaiting input."""
             try:
-                if ctx.is_streaming:
+                if ctx.chat_is_streaming(ctx.chat_id):
                     send_button.props("icon=stop")
                     send_button.enable()
                     text.enable()
@@ -210,10 +210,10 @@ def attach_input(ctx: PageContext) -> None:
         ctx.refresh_stream_button = refresh_stream_button
 
         def on_button_click() -> None:
-            """Route the button: send normally, stop while streaming."""
-            if ctx.is_streaming:
+            """Route the button: send normally, stop the current chat's run."""
+            if ctx.chat_is_streaming(ctx.chat_id):
                 logger.debug("stop requested from the send/stop button")
-                ctx.stop_streaming()
+                stream.stop_stream(ctx, ctx.chat_id)
             else:
                 send()
 

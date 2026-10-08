@@ -158,16 +158,18 @@ def _retry_stream(ctx: PageContext, query: str, chat_id: str) -> None:
     ctx.stream_tasks[f"{ctx.user_id}:{chat_id}"] = task
 
 
-def stop_stream(ctx: PageContext) -> None:
-    """Stop the active run: cancel locally and ask the server to cancel.
+def stop_stream(ctx: PageContext, chat_id: str) -> None:
+    """Stop *chat_id*'s active run: cancel locally and ask the server to cancel.
 
-    Cancels the local ``run_stream`` task (closing the SSE connection) and
+    Cancels the chat's ``run_stream`` task (closing the SSE connection) and
     fires a best-effort ``/query/cancel`` so the server stops the graph run
-    even if the disconnect alone would not.  Idempotent and safe to call
-    when nothing is streaming.
+    even if the disconnect alone would not.  Idempotent and safe to call when
+    the chat is not streaming.
+
+    :param ctx: The shared page context.
+    :param chat_id: Chat whose run should stop.
     """
-    chat_id = ctx.streaming_chat_id
-    task = ctx.stream_task
+    task = ctx.stream_tasks.get(f"{ctx.user_id}:{chat_id}")
     logger.debug("stop_stream(chat=%s, task=%s)", chat_id, task)
     if task is not None and not task.done():
         task.cancel()
@@ -210,19 +212,13 @@ async def run_stream(
         "cancel" if interrupt_cancel else interrupt_response is not None,
     )
     key = f"{ctx.user_id}:{chat_id}"
-    ctx.is_streaming = True
-    ctx.streaming_chat_id = chat_id
-    ctx.stream_task = asyncio.current_task()
     # Per-chat run registry (page-scoped): the callers register the created
     # task, so a run is visible for gating before this coroutine starts;
     # ``setdefault`` keeps their handle when they raced ahead.
     ctx.stream_tasks.setdefault(key, asyncio.current_task())
     # Retry resumes this turn; the status region's Retry button invokes it.
+    # Kept after the run (below) so a failed run's Retry action survives.
     ctx.retry_cbs[key] = lambda: _retry_stream(ctx, query, chat_id)
-    # The Stop control calls back into this context; register it here so the
-    # component needs no import of this module, and flip the button to Stop.
-    ctx.stop_streaming = lambda: stop_stream(ctx)
-    ctx.turn_retry_cb = lambda: _retry_stream(ctx, query, chat_id)
     ctx.refresh_stream_button()
     current_chat["state_sections"] = {}
     # The status region is per-chat state (rendered by the chat-area
@@ -249,10 +245,8 @@ async def run_stream(
     ctx.refresh_turn_status()
 
     def _reset_streaming_state() -> None:
-        """Clear the streaming flags and refresh the status pane."""
-        ctx.is_streaming = False
-        ctx.streaming_chat_id = ""
-        ctx.stream_task = None
+        """Drop this chat's run entry and refresh the send control/status."""
+        ctx.stream_tasks.pop(key, None)
         ctx.refresh_stream_button()
         ctx.refresh_status_pane()
 
@@ -357,7 +351,7 @@ async def run_stream(
         ctx.refresh_turn_status()
         _reset_streaming_state()
     finally:
-        # Clear this chat's run registry entry on every exit path (including an
-        # unexpected exception), so it never leaks a stale task handle.
+        # Clear this chat's run entry on every exit path (including an
+        # unexpected exception) so it never leaks a stale task handle.  The
+        # retry callback is kept so a failed run's Retry action survives.
         ctx.stream_tasks.pop(key, None)
-        ctx.retry_cbs.pop(key, None)

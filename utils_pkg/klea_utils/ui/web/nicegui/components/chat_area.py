@@ -299,7 +299,7 @@ def attach_chat_area(ctx: PageContext) -> None:
 
     ctx.render_chat_area = lambda: _render_messages(ctx)
     ctx.refresh_turn_status = lambda: render_turn_status(
-        ctx, retry_cb=ctx.turn_retry_cb
+        ctx, retry_cb=ctx.retry_cbs.get(f"{ctx.user_id}:{ctx.chat_id}")
     )
     ctx.scroll_chat_bottom = lambda: _scroll_to_bottom(ctx)
     _render_messages(ctx)

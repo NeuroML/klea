@@ -50,6 +50,7 @@ def attach_chat_list(ctx: PageContext) -> None:
         ctx.render_chat_area()
         ctx.refresh_chat_list()
         ctx.refresh_status_pane()
+        ctx.refresh_stream_button()
         ctx.reset_center_tab()
         ctx.refresh_inspector()
         if ctx.fetch_model_info is not None:
