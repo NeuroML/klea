@@ -378,3 +378,8 @@ async def run_stream(
         # unexpected exception) so it never leaks a stale task handle.  The
         # retry callback is kept so a failed run's Retry action survives.
         ctx.stream_tasks.pop(key, None)
+        # Re-render the chat list so its per-chat run indicator stops
+        # spinning (or switches to the awaiting-input icon) now that the run
+        # is no longer registered.  Unconditional: the indicator is per chat,
+        # so it must clear even while a different chat is active.
+        ctx.refresh_chat_list()

@@ -16,6 +16,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import asyncio
 
+import pytest
 from nicegui import ui
 
 
@@ -201,3 +202,17 @@ async def test_permission_interrupt_sensitive_renders_file(fake_backend, agent_u
     assert body["interrupt_response"]["decisions"] == [
         {"key": "/proj/.env", "decision": "deny"}
     ]
+
+
+async def test_chat_list_spinner_clears_after_run(fake_backend, agent_user):
+    """The chat-list run indicator stops spinning once the run completes."""
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "done"}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("done", retries=50)
+    await asyncio.sleep(0.1)
+
+    # No spinner should remain (the list re-renders to the idle icon).
+    with pytest.raises(AssertionError):
+        agent_user.find(ui.spinner)
