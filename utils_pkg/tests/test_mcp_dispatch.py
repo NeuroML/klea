@@ -542,3 +542,80 @@ async def test_dispatch_runs_different_resources_concurrently():
     )
 
     assert client.max_active == 2
+
+
+async def test_dispatch_sensitive_requires_approval(tmp_path):
+    """A sensitive file inside the root is prompted (second round)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / ".env").write_text("K=1")
+
+    client = FakeMCPClient()
+    tools = {"read_file": ToolInfo(meta={"checkpaths": ["path"]})}
+    seen: list = []
+
+    def resolver(requests):
+        seen.append(requests)
+        return PermissionResolution(
+            allowed_session=[request.approval_key for request in requests]
+        )
+
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="read_file", args={"path": ".env"})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("read_file", {"path": ".env"})]
+    assert seen and seen[0][0].kind == "sensitive"
+
+
+async def test_dispatch_sensitive_denial_blocks(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / ".env").write_text("K=1")
+
+    client = FakeMCPClient()
+    tools = {"read_file": ToolInfo(meta={"checkpaths": ["path"]})}
+    resolver = lambda requests: PermissionResolution(
+        denied=[request.approval_key for request in requests]
+    )
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="read_file", args={"path": ".env"})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert results[0].is_error
+    assert "denied by the user" in str(results[0].content)
+    assert client.calls == []
+
+
+async def test_dispatch_allowed_files_skip_resolver(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    env = root / ".env"
+    env.write_text("K=1")
+
+    client = FakeMCPClient()
+    tools = {"read_file": ToolInfo(meta={"checkpaths": ["path"]})}
+
+    def resolver(requests):  # pragma: no cover - must not be called
+        raise AssertionError("resolver called for an approved sensitive file")
+
+    results = await dispatch_tool_calls(
+        client,
+        [ToolCallSchema(tool="read_file", args={"path": ".env"})],
+        tools,
+        str(root),
+        allowed_files=[str(env)],
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("read_file", {"path": ".env"})]

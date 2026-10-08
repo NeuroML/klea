@@ -21,6 +21,9 @@ async def test_init_preserves_session_allowed_dirs(monkeypatch):
     node = InitRAGState(logging.getLogger("test"), "Initializing")
     monkeypatch.setattr(node, "write_custom_stream", lambda ev: None)
 
-    update = await node.execute(RAGState(allowed_dirs=["/tmp/approved"]))
+    update = await node.execute(
+        RAGState(allowed_dirs=["/tmp/approved"], allowed_files=["/tmp/approved/.env"])
+    )
 
     assert "allowed_dirs" not in update
+    assert "allowed_files" not in update

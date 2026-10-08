@@ -83,3 +83,6 @@ class ToolCallerContext(NodeContext):
     #: permission interrupt (``allow for session``); persisted to
     #: ``state.allowed_dirs`` by the node (ADR-0007 update 2026-10-08).
     allowed_session_dirs: list[str] = field(default_factory=list)
+    #: Sensitive files approved for the session (``allow for session`` on a
+    #: sensitive request); persisted to ``state.allowed_files``.
+    allowed_session_files: list[str] = field(default_factory=list)

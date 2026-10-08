@@ -102,6 +102,14 @@ Last updated: 2026-10-08.
   cross-thread/global allowlist is not implemented.  (c) Visibility filtering
   that hides denied tools from the prompt (opencode `always` model) is still
   deferred.
+- Sensitive-file prompting (ADR-0007 update 2026-10-08) is implemented as the
+  client-side second round (`klea_utils/mcp/sensitive.py`,
+  `BaseGraphSchema.allowed_files`).  Considered but not implemented: redacting
+  secret-looking content from tool *results* before they reach the model
+  (reuse `plogging.mask_sensitive` patterns).  Two concerns: it means
+  inspecting every tool output, and a user who approved a sensitive file has
+  arguably accepted that the model sees it.  Low priority unless a concrete
+  exfiltration case appears.
 - Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
   carry per-node counts, but no consumer aggregates them per node (CLI drops
   `usage`; web UI sums one total; graph state keeps a run-level total).

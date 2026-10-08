@@ -39,14 +39,15 @@ Decision = Literal["once", "session", "deny"]
 
 
 class PathDecision(BaseModel):
-    """A user's decision for one requested directory.
+    """A user's decision for one requested path.
 
-    ``directory`` matches a request's resolved directory; ``decision`` is
-    ``once`` (this dispatch), ``session`` (also persisted for the thread), or
-    ``deny``.
+    ``key`` matches a request's :attr:`~klea_utils.mcp.path_detect.PathRequest.approval_key`
+    (the directory for an ``outside`` request, the file for a ``sensitive``
+    one); ``decision`` is ``once`` (this dispatch), ``session`` (also
+    persisted for the thread), or ``deny``.
     """
 
-    directory: str
+    key: str
     decision: Decision = "deny"
 
 
@@ -65,17 +66,18 @@ class PermissionResponse(BaseModel):
 class PermissionResolution(BaseModel):
     """Resolved decisions for one permission ask.
 
-    :attr:`allowed_now` is allowed for this dispatch only;
-    :attr:`allowed_session` is also persisted for the thread; :attr:`denied`
-    is refused (the gate turns each into a non-halting denial).
+    Fields hold approval keys (a directory for an ``outside`` request, a file
+    for a ``sensitive`` one).  :attr:`allowed_now` is allowed for this
+    dispatch only; :attr:`allowed_session` is also persisted for the thread;
+    :attr:`denied` is refused (the gate turns each into a non-halting denial).
     """
 
     allowed_now: list[str] = Field(default_factory=list)
     allowed_session: list[str] = Field(default_factory=list)
     denied: list[str] = Field(default_factory=list)
 
-    def effective_dirs(self) -> list[str]:
-        """Return the directories allowed for the current dispatch."""
+    def effective_keys(self) -> list[str]:
+        """Return the approval keys allowed for the current dispatch."""
         return [*self.allowed_now, *self.allowed_session]
 
 
@@ -120,11 +122,12 @@ def _coerce_response(response: Any) -> PermissionResponse:
 def resolve_decisions(
     requests: Sequence[PathRequest], response: Any
 ) -> PermissionResolution:
-    """Resolve a resume value into allow-now / allow-session / deny sets.
+    """Resolve a resume value into allow-now / allow-session / deny key sets.
 
-    Uses each request's resolved directory as the key.  A cancel, an invalid
-    response, or a request with no matching decision denies that request (fail
-    closed).
+    Uses each request's :attr:`~klea_utils.mcp.path_detect.PathRequest.approval_key`
+    (the directory for an ``outside`` request, the file for a ``sensitive``
+    one).  A cancel, an invalid response, or a request with no matching
+    decision denies that request (fail closed).
 
     :param requests: The requests that were asked about.
     :param response: The value returned by the interrupt (a
@@ -132,22 +135,20 @@ def resolve_decisions(
     :returns: The :class:`PermissionResolution`.
     """
     parsed = _coerce_response(response)
-    requested = [request.directory for request in requests]
+    requested = [request.approval_key for request in requests]
     if parsed.action == "cancel":
         logger.info(f"Permission ask cancelled; denying all\n{requested = }")
         return PermissionResolution(denied=list(requested))
 
-    by_directory = {
-        decision.directory: decision.decision for decision in parsed.decisions
-    }
+    by_key = {decision.key: decision.decision for decision in parsed.decisions}
     resolution = PermissionResolution()
-    for directory in requested:
-        decision = by_directory.get(directory, "deny")
+    for key in requested:
+        decision = by_key.get(key, "deny")
         if decision == "session":
-            resolution.allowed_session.append(directory)
+            resolution.allowed_session.append(key)
         elif decision == "once":
-            resolution.allowed_now.append(directory)
+            resolution.allowed_now.append(key)
         else:
-            resolution.denied.append(directory)
+            resolution.denied.append(key)
     logger.debug(f"Resolved permission ask\n{resolution = }")
     return resolution

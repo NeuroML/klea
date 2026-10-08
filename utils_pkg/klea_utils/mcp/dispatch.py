@@ -162,11 +162,20 @@ def _as_tool_call(call: Any) -> ToolCallSchema:
 
 
 def _dedupe_requests(requests: Sequence[PathRequest]) -> list[PathRequest]:
-    """Deduplicate requests by directory, keeping the first (strongest) tier."""
-    by_directory: dict[str, PathRequest] = {}
+    """Deduplicate requests by approval key, keeping the first (strongest)."""
+    by_key: dict[str, PathRequest] = {}
     for request in requests:
-        by_directory.setdefault(request.directory, request)
-    return sorted(by_directory.values(), key=lambda request: request.directory)
+        by_key.setdefault(request.approval_key, request)
+    return sorted(by_key.values(), key=lambda request: request.approval_key)
+
+
+def _request_allowed(
+    request: PathRequest, approved_dirs: set[str], approved_files: set[str]
+) -> bool:
+    """Return whether an approval for *request* was granted for this dispatch."""
+    if request.kind == "sensitive":
+        return request.path in approved_files
+    return request.directory in approved_dirs
 
 
 def _permission_denied_result(
@@ -175,18 +184,21 @@ def _permission_denied_result(
     """Build the non-halting result for a call blocked by the permission gate.
 
     A path the user explicitly denied gets a "denied by the user" message; an
-    unapproved outside path gets the standard outside-project message.
+    unapproved outside path or sensitive file gets the standard message.
     """
-    user_denied = [request for request in requests if request.directory in denied]
+    user_denied = [request for request in requests if request.approval_key in denied]
     if user_denied:
-        paths = ", ".join(sorted({request.directory for request in user_denied}))
+        paths = ", ".join(sorted({request.approval_key for request in user_denied}))
         text = (
             f"Access to {paths} was denied by the user. Do not retry it; choose "
             "another approach or ask the user."
         )
     else:
         paths = ", ".join(sorted({str(request.path) for request in requests}))
-        text = f"Access to path outside the project directory is denied: {paths}"
+        text = (
+            "Access is denied by the client-side permission gate (outside the "
+            f"project directory or a sensitive file): {paths}"
+        )
     logger.warning(f"Permission denied\n{tool = }\n{paths = }\n{user_denied = }")
     return CallToolResult(
         content=[TextContent(type="text", text=text)],
@@ -205,6 +217,7 @@ async def dispatch_tool_calls(
     call_timeout: float | None = None,
     *,
     allowed_dirs: Sequence[str] | None = None,
+    allowed_files: Sequence[str] | None = None,
     permission_resolver: PermissionResolver | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
@@ -251,10 +264,13 @@ async def dispatch_tool_calls(
         synthetic non-halting error.
     :param allowed_dirs: Directories already approved for the session
         (``BaseGraphSchema.allowed_dirs``), checked alongside *project_root*.
-    :param permission_resolver: Called with the detected outside-path requests
-        before dispatch; returns a :class:`PermissionResolution`.  The app
-        supplies one that pauses for user approval; ``None`` denies every
-        request (the pre-ADR-0007 behaviour).
+    :param allowed_files: Sensitive files already approved for the session
+        (``BaseGraphSchema.allowed_files``).
+    :param permission_resolver: Called with the detected requests before
+        dispatch; returns a :class:`PermissionResolution`.  The app supplies
+        one that pauses for user approval; when it is ``None`` the outside
+        paths are denied (the pre-ADR-0007 behaviour) and the sensitive second
+        round is not run.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -264,13 +280,15 @@ async def dispatch_tool_calls(
     if timeout is not None and timeout <= 0:
         timeout = None
     base_allowed = [str(entry) for entry in (allowed_dirs or [])]
+    base_allowed_files = [str(entry) for entry in (allowed_files or [])]
     logger.debug(
         f"{len(calls) = }\n"
         f"{[call.tool for call in calls] = }\n"
         f"{access_level = }\n"
         f"tool_gate_enabled = {tool_infos is not None}\n"
         f"{timeout = }\n"
-        f"{base_allowed = }"
+        f"{base_allowed = }\n"
+        f"{base_allowed_files = }"
     )
 
     # 1. Static gates (name, access level): no server needed.  Calls that pass
@@ -301,10 +319,11 @@ async def dispatch_tool_calls(
                 continue
         gated.append(i)
 
-    # 2. Permission gate: detect the outside paths each call would touch,
-    # resolve them (an interrupt for user approval when a resolver is given),
-    # then enforce per call.  Detection is layered (declared checkpaths +
-    # picker-declared paths + heuristics); see ``klea_utils.mcp.path_detect``.
+    # 2. Permission gate: detect the paths each call would touch -- outside the
+    # roots, and (when a resolver is given) sensitive files inside them --
+    # resolve them (an interrupt for user approval), then enforce per call.
+    # Detection is layered (declared checkpaths + picker-declared paths +
+    # heuristics); see ``klea_utils.mcp.path_detect``.
     call_requests: dict[int, list[PathRequest]] = {}
     if tool_infos is not None:
         for i in gated:
@@ -315,7 +334,9 @@ async def dispatch_tool_calls(
                 tool_infos.get(call.tool),
                 project_root=project_root,
                 allowed_dirs=base_allowed,
+                allowed_files=base_allowed_files,
                 picker_paths=call.paths,
+                include_sensitive=permission_resolver is not None,
             )
     all_requests = _dedupe_requests(
         [request for requests in call_requests.values() for request in requests]
@@ -323,10 +344,16 @@ async def dispatch_tool_calls(
     resolution: PermissionResolution | None = None
     if all_requests and permission_resolver is not None:
         resolution = permission_resolver(all_requests)
-    effective = set(base_allowed)
+    approved_dirs = set(base_allowed)
+    approved_files = set(base_allowed_files)
     denied: set[str] = set()
     if resolution is not None:
-        effective.update(resolution.effective_dirs())
+        kind_by_key = {request.approval_key: request.kind for request in all_requests}
+        for key in resolution.effective_keys():
+            if kind_by_key.get(key) == "sensitive":
+                approved_files.add(key)
+            else:
+                approved_dirs.add(key)
         denied = set(resolution.denied)
 
     pending: list[tuple[int, ToolCallSchema]] = []
@@ -334,7 +361,7 @@ async def dispatch_tool_calls(
         leftover = [
             request
             for request in call_requests.get(i, [])
-            if request.directory not in effective
+            if not _request_allowed(request, approved_dirs, approved_files)
         ]
         if leftover:
             results[i] = _permission_denied_result(calls[i].tool, leftover, denied)

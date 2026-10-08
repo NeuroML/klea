@@ -55,3 +55,6 @@ class BaseGraphSchema(BaseModel):
     #: kept in the thread checkpoint across turns, so app init nodes must not
     #: reset it (see ``InitGraphState`` / ``InitRAGState``).
     allowed_dirs: list[str] = Field(default_factory=list)
+    #: Sensitive files (inside the permitted roots) the user approved for this
+    #: session.  File-granularity companion to ``allowed_dirs``.
+    allowed_files: list[str] = Field(default_factory=list)

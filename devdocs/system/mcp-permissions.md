@@ -63,14 +63,26 @@ source so the approval prompt can show a guess differently from a declared
 path.  Discovery is advisory (a tool can ignore its arguments and touch any
 path at runtime); OS sandboxing remains the only hard boundary.
 
+### Sensitive files (second round)
+
+Paths that resolve *inside* a permitted root are normally allowed.  When the
+agent asks (a resolver is present), a second round flags credential-bearing
+files via `klea_utils.mcp.sensitive.is_sensitive` -- env files, private keys,
+cloud config, and the `KLEA_SENSITIVE_PATTERNS` extras.  These become
+`sensitive` requests, approved per *file* (persisted in
+`BaseGraphSchema.allowed_files`), unlike `outside` requests (per directory).
+It is best-effort: a renamed secret, a secret inline in source, or a
+directory scan can slip past a filename matcher, and approval is consent, not
+redaction of what reaches the model.
+
 ```mermaid
 flowchart TD
     LLM[LLM selects tool call] --> Picker[ToolsPicker]
     Picker --> Caller[ToolsCallerNode]
-    Caller --> PreCheck{"detect_path_requests\n(outside paths?)"}
+    Caller --> PreCheck{"detect_path_requests\n(outside / sensitive?)"}
     PreCheck -- none / approved --> Server[MCP server]
     PreCheck -- denied / unapproved --> Synth1[Synthetic error\nnever reaches server]
-    PreCheck -- "outside + ask" --> Approval["interrupt (per path):\nallow now / session / deny"]
+    PreCheck -- "outside or sensitive + ask" --> Approval["interrupt (per path):\nallow now / session / deny"]
     Approval --> PreCheck
     Server --> Exec[Execute]
 ```

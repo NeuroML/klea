@@ -144,6 +144,9 @@ class ToolsCallerNode(
         allowed_dirs = [
             str(directory) for directory in (getattr(state, "allowed_dirs", []) or [])
         ]
+        allowed_files = [
+            str(path) for path in (getattr(state, "allowed_files", []) or [])
+        ]
         resolver = (
             self._make_permission_resolver(ctx)
             if self._permission_policy == "ask"
@@ -156,6 +159,7 @@ class ToolsCallerNode(
             self._project_root,
             access_level=access_level,
             allowed_dirs=allowed_dirs,
+            allowed_files=allowed_files,
             permission_resolver=resolver,
         )
         self.logger.debug(f"{results =}")
@@ -170,6 +174,12 @@ class ToolsCallerNode(
                 f"Session directories approved\n{ctx.allowed_session_dirs = }"
             )
             updates["allowed_dirs"] = merged
+        if ctx.allowed_session_files:
+            merged_files = list(
+                dict.fromkeys([*allowed_files, *ctx.allowed_session_files])
+            )
+            self.logger.info(f"Session files approved\n{ctx.allowed_session_files = }")
+            updates["allowed_files"] = merged_files
         if self._post_dispatch:
             updates.update(self._post_dispatch(state, results, ctx.display_flags))
         return updates
@@ -192,7 +202,17 @@ class ToolsCallerNode(
                 response_schema=PermissionResponse,
             )
             resolution = resolve_decisions(requests, response)
-            ctx.allowed_session_dirs = list(resolution.allowed_session)
+            kind_by_key = {request.approval_key: request.kind for request in requests}
+            ctx.allowed_session_dirs = [
+                key
+                for key in resolution.allowed_session
+                if kind_by_key.get(key) != "sensitive"
+            ]
+            ctx.allowed_session_files = [
+                key
+                for key in resolution.allowed_session
+                if kind_by_key.get(key) == "sensitive"
+            ]
             return resolution
 
         return resolver

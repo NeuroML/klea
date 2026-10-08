@@ -36,6 +36,7 @@ from urllib.parse import unquote, urlparse
 from pydantic import BaseModel
 
 from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.sensitive import is_sensitive
 from klea_utils.mcp.tool_impls.permission import path_is_allowed, permitted_roots
 
 logger = logging.getLogger(__name__)
@@ -64,13 +65,17 @@ _PATHY_NAME_WORDS = frozenset(
 
 
 class PathRequest(BaseModel):
-    """One outside-project path a tool call would touch, needing approval.
+    """One path a tool call would touch that needs approval.
 
     :attr:`raw` is the string as discovered; :attr:`path` is its resolved
     location; :attr:`directory` is the directory to approve (the path itself
     when it is a directory, else its parent).  :attr:`confidence` and
     :attr:`source` describe how it was found, so the prompt can show a guessed
     path differently from a declared one.
+
+    :attr:`kind` is ``outside`` (the path is outside the permitted roots) or
+    ``sensitive`` (a credential-bearing file inside them).  ``outside`` is
+    approved per directory, ``sensitive`` per file (:attr:`approval_key`).
     """
 
     tool: str
@@ -80,6 +85,16 @@ class PathRequest(BaseModel):
     directory: str
     confidence: Confidence
     source: str
+    kind: Literal["outside", "sensitive"] = "outside"
+
+    @property
+    def approval_key(self) -> str:
+        """Return the key a decision for this request is matched on.
+
+        The resolved file for a ``sensitive`` request, the resolved directory
+        for an ``outside`` one.
+        """
+        return self.path if self.kind == "sensitive" else self.directory
 
 
 def declared_checkpaths(tool_info: ToolInfo | None) -> list[str]:
@@ -213,22 +228,30 @@ def detect_path_requests(
     *,
     project_root: str | os.PathLike | None = None,
     allowed_dirs: Sequence[str] | None = None,
+    allowed_files: Sequence[str] | None = None,
     picker_paths: Sequence[str] | None = None,
+    include_sensitive: bool = False,
 ) -> list[PathRequest]:
-    """Return the outside-project paths a tool call would touch.
+    """Return the paths a tool call would touch that need approval.
 
     Layered discovery (see the module docstring) unions declared
-    ``checkpaths`` values, picker-declared paths, and heuristics.  Only paths
-    outside the permitted roots become requests; requests are de-duplicated by
-    resolved directory, keeping the strongest confidence tier.
+    ``checkpaths`` values, picker-declared paths, and heuristics.  Two rounds
+    become requests: paths outside the permitted roots (``kind="outside"``,
+    approved per directory) and, when *include_sensitive* is set, sensitive
+    files inside them (``kind="sensitive"``, approved per file).  Requests are
+    de-duplicated by :attr:`PathRequest.approval_key`, keeping the strongest
+    confidence tier.
 
     :param tool: Tool name (recorded on each request).
     :param arguments: The arguments the call would pass.
     :param tool_info: Tool metadata (for ``checkpaths``), or ``None``.
     :param project_root: Boundary directory; defaults to the current directory.
     :param allowed_dirs: Additional permitted directories (session approvals).
+    :param allowed_files: Sensitive files already approved for the session.
     :param picker_paths: Paths the picker declared for this call, or ``None``.
-    :returns: Outside-path requests, sorted by directory.
+    :param include_sensitive: Also request sensitive files inside the roots
+        (the permission second round).
+    :returns: Approval requests, sorted by approval key.
     """
     root = (
         Path(project_root).expanduser().resolve()
@@ -236,25 +259,45 @@ def detect_path_requests(
         else Path.cwd().resolve()
     )
     roots = permitted_roots(project_root, allowed_dirs)
+    approved_files = {
+        str(Path(entry).expanduser().resolve())
+        for entry in (allowed_files or [])
+        if str(entry).strip()
+    }
     requests: dict[str, PathRequest] = {}
 
     def consider(raw: Any, argument: str, confidence: Confidence, source: str) -> None:
         resolved = _resolve_against(str(raw), root)
-        if resolved is None or path_is_allowed(resolved, roots):
+        if resolved is None:
             return
-        directory = resolved if resolved.is_dir() else resolved.parent
-        key = str(directory)
+        if path_is_allowed(resolved, roots):
+            # Inside a permitted root: only a sensitive file needs approval,
+            # and not when it was already approved for the session.
+            if (
+                not include_sensitive
+                or not is_sensitive(resolved)
+                or str(resolved) in approved_files
+            ):
+                return
+            kind: Literal["outside", "sensitive"] = "sensitive"
+            key = str(resolved)
+            directory = resolved.parent
+        else:
+            kind = "outside"
+            directory = resolved if resolved.is_dir() else resolved.parent
+            key = str(directory)
         if key in requests:
-            # A stronger tier (encountered first) already covers this directory.
+            # A stronger tier (encountered first) already covers this path.
             return
         requests[key] = PathRequest(
             tool=tool,
             argument=argument,
             raw=str(raw),
             path=str(resolved),
-            directory=key,
+            directory=str(directory),
             confidence=confidence,
             source=source,
+            kind=kind,
         )
 
     declared = declared_checkpaths(tool_info)
@@ -278,15 +321,18 @@ def detect_path_requests(
         if _name_is_pathy(name):
             consider(value, name, "guess", f"name:{name}")
 
-    # 4. Path-like values, including tokens of shell command strings.
+    # 4. Path-like values, including tokens of shell command strings.  A bare
+    #    sensitive filename (``cat .env``) is not path-like but is considered.
     for name, value in arguments.items():
         if not isinstance(value, str):
             continue
         for token in _tokens_for_value(value):
             candidate = _normalize_token(token)
-            if _looks_pathlike(candidate):
+            if _looks_pathlike(candidate) or (
+                include_sensitive and is_sensitive(candidate)
+            ):
                 consider(candidate, name, "guess", f"value:{name}")
 
     if requests:
-        logger.debug(f"Detected outside-path requests\n{list(requests) = }")
-    return sorted(requests.values(), key=lambda request: request.directory)
+        logger.debug(f"Detected path requests\n{list(requests) = }")
+    return sorted(requests.values(), key=lambda request: request.approval_key)

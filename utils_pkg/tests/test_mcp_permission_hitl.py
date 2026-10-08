@@ -48,16 +48,16 @@ def test_resolve_once_session_deny():
     requests = [_request("/etc"), _request("/opt"), _request("/var")]
     response = PermissionResponse(
         decisions=[
-            PathDecision(directory="/etc", decision="once"),
-            PathDecision(directory="/opt", decision="session"),
-            PathDecision(directory="/var", decision="deny"),
+            PathDecision(key="/etc", decision="once"),
+            PathDecision(key="/opt", decision="session"),
+            PathDecision(key="/var", decision="deny"),
         ]
     )
     resolution = resolve_decisions(requests, response)
     assert resolution.allowed_now == ["/etc"]
     assert resolution.allowed_session == ["/opt"]
     assert resolution.denied == ["/var"]
-    assert resolution.effective_dirs() == ["/etc", "/opt"]
+    assert resolution.effective_keys() == ["/etc", "/opt"]
 
 
 def test_resolve_missing_decision_denies():
@@ -81,7 +81,7 @@ def test_resolve_accepts_raw_mapping():
         [_request("/etc")],
         {
             "action": "answer",
-            "decisions": [{"directory": "/etc", "decision": "session"}],
+            "decisions": [{"key": "/etc", "decision": "session"}],
         },
     )
     assert resolution.allowed_session == ["/etc"]

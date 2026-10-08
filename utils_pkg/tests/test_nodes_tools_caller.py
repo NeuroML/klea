@@ -29,6 +29,7 @@ class MiniState(BaseModel):
     tool_results: list[CallToolResult] = Field(default_factory=list)
     access_level: str = "full"
     allowed_dirs: list[str] = Field(default_factory=list)
+    allowed_files: list[str] = Field(default_factory=list)
 
 
 class FakeMCPClient:
@@ -197,7 +198,7 @@ async def test_denies_path_arg_without_server_call(tmp_path):
 def _approve(directory: str, decision: Literal["once", "session", "deny"] = "session"):
     def _interrupt(payload, response_schema=None):
         return PermissionResponse(
-            decisions=[PathDecision(directory=directory, decision=decision)]
+            decisions=[PathDecision(key=directory, decision=decision)]
         )
 
     return _interrupt
@@ -872,12 +873,41 @@ async def test_interrupt_resume_persists_session_directory(tmp_path):
     assert interrupts and interrupts[0].value["kind"] == "permission"
 
     resumed = await compiled.ainvoke(
-        Command(
-            resume={"decisions": [{"directory": str(outside), "decision": "session"}]}
-        ),
+        Command(resume={"decisions": [{"key": str(outside), "decision": "session"}]}),
         config=config,
     )
 
     assert resumed["tool_results"][0].is_error is False
     assert resumed["allowed_dirs"] == [str(outside)]
     assert client.calls == [("list_files", {"path": str(outside)})]
+
+
+async def test_ask_policy_sensitive_session_persists_file(tmp_path, monkeypatch):
+    """A sensitive file approved for the session is persisted to allowed_files."""
+    root = tmp_path / "root"
+    root.mkdir()
+    env = root / ".env"
+    env.write_text("K=1")
+    resolved = str(env.resolve())
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"read_file": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root),
+        permission_policy="ask",
+    )
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt", _approve(resolved, "session")
+    )
+
+    state = MiniState(
+        tool_calls=[ToolCallSchema(tool="read_file", args={"path": ".env"})]
+    )
+    updates = await node.execute(state)
+
+    assert updates["tool_results"][0].is_error is False
+    assert updates["allowed_files"] == [resolved]
+    assert "allowed_dirs" not in updates
+    assert client.calls == [("read_file", {"path": ".env"})]

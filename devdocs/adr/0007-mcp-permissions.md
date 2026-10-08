@@ -195,6 +195,14 @@ composition is revised.
   MCP standard that enforces path access (`roots` and `elicitation` are
   server-cooperative), so this is accepted and documented; a server-side
   middleware reusing the detector is the follow-up if needed.
+* **Sensitive second round.**  Inside the permitted roots, a curated,
+  best-effort matcher (`klea_utils/mcp/sensitive.py`; extendable via the
+  `KLEA_SENSITIVE_PATTERNS` env var) asks about credential-bearing files
+  (env files, private keys, cloud config) that would otherwise pass silently.
+  These are approved per *file* (`BaseGraphSchema.allowed_files`), unlike
+  outside paths (per directory).  Advisory: a renamed secret, a secret inline
+  in source, or a directory scan can slip past a filename matcher, and it is
+  consent only -- not redaction of what reaches the model.
 * Deferred still: visibility filtering that hides denied tools from the prompt
   (the opencode ``always`` model), and a cross-thread/global allowlist.
 

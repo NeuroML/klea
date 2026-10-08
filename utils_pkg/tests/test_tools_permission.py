@@ -272,3 +272,79 @@ def test_detect_dotdot_smuggling(tmp_path):
     )
     assert requests
     assert requests[0].directory == str(tmp_path)
+
+
+def test_detect_sensitive_inside_root(tmp_path):
+    """A sensitive file inside the root is a request when include_sensitive."""
+    root = _root_only(tmp_path)
+    env = root / ".env"
+    env.write_text("K=1")
+    requests = detect_path_requests(
+        "read_file",
+        {"path": ".env"},
+        ToolInfo(checkpaths=["path"]),
+        project_root=root,
+        include_sensitive=True,
+    )
+    assert len(requests) == 1
+    assert requests[0].kind == "sensitive"
+    assert requests[0].approval_key == str(env.resolve())
+
+
+def test_detect_sensitive_skipped_without_flag(tmp_path):
+    root = _root_only(tmp_path)
+    (root / ".env").write_text("K=1")
+    assert (
+        detect_path_requests(
+            "read_file",
+            {"path": ".env"},
+            ToolInfo(checkpaths=["path"]),
+            project_root=root,
+        )
+        == []
+    )
+
+
+def test_detect_sensitive_allowed_files_suppresses(tmp_path):
+    root = _root_only(tmp_path)
+    env = root / ".env"
+    env.write_text("K=1")
+    assert (
+        detect_path_requests(
+            "read_file",
+            {"path": ".env"},
+            ToolInfo(checkpaths=["path"]),
+            project_root=root,
+            include_sensitive=True,
+            allowed_files=[str(env)],
+        )
+        == []
+    )
+
+
+def test_detect_sensitive_bare_token_in_command(tmp_path):
+    """A bare sensitive filename in a command is caught without a separator."""
+    root = _root_only(tmp_path)
+    (root / ".env").write_text("K=1")
+    requests = detect_path_requests(
+        "run_command",
+        {"command": "cat .env"},
+        None,
+        project_root=root,
+        include_sensitive=True,
+    )
+    assert [request.kind for request in requests] == ["sensitive"]
+
+
+def test_detect_outside_beats_sensitive(tmp_path):
+    """A sensitive-looking file outside the root is an outside request."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    requests = detect_path_requests(
+        "read_file",
+        {"path": str(outside / ".env")},
+        ToolInfo(checkpaths=["path"]),
+        project_root=root,
+        include_sensitive=True,
+    )
+    assert requests[0].kind == "outside"
