@@ -173,9 +173,10 @@ composition is revised.
   `checkpaths` alone.  Per call it unions: (1) declared `checkpaths` argument
   values (*declared*); (2) paths the `ToolsPicker` declares for the call
   (*expected*); and (3) heuristic names/values, including `shlex`-split tokens
-  of shell-command tools, with URLs/globs/flags/operators excluded (*guess*).
-  Each request carries a confidence tier, shown in the approval prompt so the
-  user can weigh a guess differently from a declared path.
+  of shell-command tools, with non-``file`` URLs/globs/flags/operators
+  excluded and ``file:`` URIs unwrapped to their path (*guess*).  Each request
+  carries a confidence tier, shown in the approval prompt so the user can
+  weigh a guess differently from a declared path.
 * **Interactive approval (graph pause + client input).**  A path outside
   `project_root` (and any session-allowed directory) pauses the run via the
   ADR-0046 HITL interrupt and asks, per path: *allow now* (this dispatch only),

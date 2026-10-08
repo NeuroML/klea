@@ -1,12 +1,12 @@
 # MCP tool permissions: current state, limits, and options
 
-Status: design note.  In-tool path checks, the client-side per-path gate
-and the annotation-driven tool access level are implemented; the
-allow/deny/ask ruleset and interactive approval loop are deferred.
-Updates to this note should be reflected in the permission layer as it
-evolves.
+Status: design note.  The client-side per-path gate and the annotation-driven
+tool access level are implemented; the interactive allow/deny/ask approval
+loop is being implemented (ADR-0007 update 2026-10-08).  Updates to this note
+should be reflected in the permission layer as it evolves.
 
-Last updated: 2026-09-14 (invocation axis / tool access level implemented,
+Last updated: 2026-10-08 (layered path discovery added; interactive approval
+per ADR-0007 update 2026-10-08; invocation axis / tool access level at
 ADR-0037; path layers decision at ADR-0007).
 
 See also `file-tools.md` for the file-tool text/binary/encoding contract and
@@ -50,6 +50,26 @@ Both agents/RAG are expected to run from the directory the user is working
 in, so the client-side gate uses `project_root=None` (the current working
 directory) by default -- the same boundary the in-tool checks default to,
 so the two layers agree.
+
+### Layered path discovery
+
+`klea_utils.mcp.path_detect.detect_path_requests` is the client-side
+discovery function the gate uses to decide which paths a call would touch.
+It unions, per call, three confidence tiers:
+
+- `declared` -- the tool's declared `checkpaths` argument values;
+- `expected` -- paths the tools picker declared for the call;
+- `guess` -- heuristic: path-ish argument names, plus path-like values
+  (shell command strings are split with `shlex.split` first, and non-`file`
+  URLs, flags, operators and pure globs are skipped; `file:` URIs are
+  unwrapped to their path).
+
+Only paths that resolve outside `project_root` plus any session-approved
+`allowed_dirs` become requests; they are de-duplicated by resolved directory,
+keeping the strongest tier, and sorted.  Each request carries its tier and
+source so the approval prompt can show a guess differently from a declared
+path.  Discovery is advisory (a tool can ignore its arguments and touch any
+path at runtime); OS sandboxing remains the only hard boundary.
 
 ```mermaid
 flowchart TD
