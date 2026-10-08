@@ -71,3 +71,74 @@ def test_input_falls_back_to_single_question(monkeypatch):
     )
     assert response == {"answers": ["yes"]}
     assert cancel is False
+
+
+def test_permission_outside_once(monkeypatch):
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: "o")
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "permission",
+            "requests": [
+                {"kind": "outside", "directory": "/etc", "path": "/etc/hosts"}
+            ],
+        },
+        "klea",
+    )
+    assert response == {"decisions": [{"key": "/etc", "decision": "once"}]}
+    assert cancel is False
+
+
+def test_permission_sensitive_session_uses_file_key(monkeypatch):
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: "s")
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "permission",
+            "requests": [
+                {"kind": "sensitive", "path": "/proj/.env", "directory": "/proj"}
+            ],
+        },
+        "klea",
+    )
+    assert response == {"decisions": [{"key": "/proj/.env", "decision": "session"}]}
+
+
+def test_permission_multiple_decisions(monkeypatch):
+    answers = iter(["o", "d"])
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: next(answers))
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "permission",
+            "requests": [
+                {"kind": "outside", "directory": "/etc"},
+                {"kind": "outside", "directory": "/var"},
+            ],
+        },
+        "klea",
+    )
+    assert response == {
+        "decisions": [
+            {"key": "/etc", "decision": "once"},
+            {"key": "/var", "decision": "deny"},
+        ]
+    }
+    assert cancel is False
+
+
+def test_permission_retries_invalid_choice(monkeypatch):
+    answers = iter(["x", "s"])
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: next(answers))
+    response, cancel = repl._prompt_interrupt(
+        {"kind": "permission", "requests": [{"kind": "outside", "directory": "/etc"}]},
+        "klea",
+    )
+    assert response == {"decisions": [{"key": "/etc", "decision": "session"}]}
+
+
+def test_permission_cancel(monkeypatch):
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: "c")
+    response, cancel = repl._prompt_interrupt(
+        {"kind": "permission", "requests": [{"kind": "outside", "directory": "/etc"}]},
+        "klea",
+    )
+    assert response is None
+    assert cancel is True

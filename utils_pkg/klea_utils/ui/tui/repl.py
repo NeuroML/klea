@@ -9,18 +9,84 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 
+def _permission_target(request: dict) -> str:
+    """Return the approval key for a permission request (ADR-0007).
+
+    The resolved file for a ``sensitive`` request, the resolved directory for
+    an ``outside`` one.
+    """
+    if request.get("kind") == "sensitive":
+        return str(request.get("path", ""))
+    return str(request.get("directory", ""))
+
+
+def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
+    """Prompt for a path-permission ask, one decision per request.
+
+    Each request is shown as an outside-project directory or a sensitive file;
+    the user chooses once / session / deny, or cancels the whole ask.
+    ``(None, True)`` means cancel.
+
+    :param ask: The permission interrupt ``data`` (``requests``).
+    :param app_prefix: Prefix for the input prompts.
+    :returns: The resume mapping to send, and whether the user cancelled.
+    """
+    requests = ask.get("requests")
+    if not isinstance(requests, list) or not requests:
+        requests = [{"kind": "outside", "path": ask.get("question", "")}]
+
+    decisions: list[dict[str, str]] = []
+    for request in requests:
+        if not isinstance(request, dict):
+            continue
+        target = _permission_target(request)
+        label = (
+            f"sensitive file {target}"
+            if request.get("kind") == "sensitive"
+            else f"outside project {target}"
+        )
+        while True:
+            choice = (
+                input(
+                    f"{app_prefix} (PERMISSION) {label}: "
+                    "[o]nce / [s]ession / [d]eny / [c]ancel >>> "
+                )
+                .strip()
+                .lower()
+            )
+            if choice in ("o", "once"):
+                decision = "once"
+            elif choice in ("s", "session"):
+                decision = "session"
+            elif choice in ("d", "deny"):
+                decision = "deny"
+            elif choice in ("c", "cancel"):
+                return None, True
+            else:
+                print("Please choose o, s, d, or c.")
+                continue
+            decisions.append({"key": target, "decision": decision})
+            break
+    return {"decisions": decisions}, False
+
+
 def _prompt_interrupt(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
     """Prompt for a HITL ask and return ``(interrupt_response, cancel)``.
 
     A ``review`` ask offers approve / request changes / cancel; an ``input``
-    ask prompts one answer per question.  ``(None, True)`` means cancel.
+    ask prompts one answer per question; a ``permission`` ask prompts one
+    allow-once / allow-session / deny choice per requested path (ADR-0007).
+    ``(None, True)`` means cancel.
 
-    :param ask: The interrupt ``data`` (``kind``, ``question``/``questions``).
+    :param ask: The interrupt ``data`` (``kind``, ``question``/``questions``,
+        ``requests``).
     :param app_prefix: Prefix for the input prompts.
     :returns: The resume mapping to send, and whether the user cancelled.
     """
     kind = ask.get("kind", "input")
     print("*** The agent needs your input ***")
+    if kind == "permission":
+        return _prompt_permission(ask, app_prefix)
     if kind == "review":
         while True:
             choice = (
