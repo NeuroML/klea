@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.state import (
+    chat_indicator,
     missing_credentials,
     resolve_chat_choice,
     resolve_choice,
@@ -44,6 +45,40 @@ def test_chat_is_streaming_reads_the_registry():
     # Another chat's task does not make this chat look busy.
     ctx.stream_tasks["u:other"] = _FakeTask(done=False)
     assert ctx.chat_is_streaming("c") is False
+
+
+def test_chat_indicator_states_and_precedence():
+    """The avatar indicator shows running > awaiting > pinned > history."""
+    # Streaming wins over everything, and is a spinner (not an icon).
+    assert chat_indicator(streaming=True, awaiting=True, pinned=True, active=False) == (
+        "spinner",
+        "",
+        "w-4 h-4",
+    )
+    assert chat_indicator(
+        streaming=True, awaiting=False, pinned=False, active=True
+    ) == ("spinner", "", "w-4 h-4 text-primary")
+
+    # Awaiting input (amber) beats pinned.
+    assert chat_indicator(
+        streaming=False, awaiting=True, pinned=True, active=False
+    ) == ("icon", "help_outline", "text-amber")
+
+    # Pinned vs plain history.
+    assert chat_indicator(
+        streaming=False, awaiting=False, pinned=True, active=False
+    ) == ("icon", "push_pin", "")
+    assert chat_indicator(
+        streaming=False, awaiting=False, pinned=False, active=False
+    ) == ("icon", "history", "")
+
+    # The active chat is coloured, whatever the base icon.
+    assert chat_indicator(
+        streaming=False, awaiting=False, pinned=False, active=True
+    ) == ("icon", "history", "text-primary")
+    assert chat_indicator(
+        streaming=False, awaiting=False, pinned=True, active=True
+    ) == ("icon", "push_pin", "text-primary")
 
 
 def test_pending_wins():

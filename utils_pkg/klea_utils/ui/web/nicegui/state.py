@@ -14,11 +14,53 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from collections.abc import Container, Mapping
 from datetime import datetime
-from typing import Any, NotRequired, TypedDict
+from typing import Any, Literal, NamedTuple, NotRequired, TypedDict
 
 from klea_utils.api.hitl import render_interrupt_response
 
 logger = logging.getLogger(__name__)
+
+
+class ChatIndicator(NamedTuple):
+    """A chat row's avatar indicator (see :func:`chat_indicator`).
+
+    :param kind: ``"spinner"`` (a running run) or ``"icon"``.
+    :param icon: Material Icons name when :attr:`kind` is ``"icon"``.
+    :param classes: Extra CSS classes (sizing / colour) for the widget.
+    """
+
+    kind: Literal["spinner", "icon"]
+    icon: str
+    classes: str
+
+
+def chat_indicator(
+    *, streaming: bool, awaiting: bool, pinned: bool, active: bool
+) -> ChatIndicator:
+    """Return the avatar indicator for a chat row.
+
+    The avatar cell is the only ``QItemSection`` Quasar keeps visible when the
+    chat drawer is collapsed to its mini rail, so the running / awaiting state
+    and the active marker live there (the row's name label is hidden when
+    collapsed).  All icon names are Material Icons (the set NiceGUI/Quasar
+    loads).
+
+    Precedence: streaming > awaiting input > pinned > plain history.  The
+    currently shown chat is marked with the theme's primary colour.
+
+    :param streaming: Whether the chat has an active run.
+    :param awaiting: Whether the chat is paused at a HITL interrupt.
+    :param pinned: Whether the chat is pinned.
+    :param active: Whether this is the currently shown chat.
+    :returns: The :class:`ChatIndicator` to render.
+    """
+    primary = " text-primary" if active else ""
+    if streaming:
+        return ChatIndicator("spinner", "", f"w-4 h-4{primary}")
+    if awaiting:
+        return ChatIndicator("icon", "help_outline", "text-amber")
+    icon = "push_pin" if pinned else "history"
+    return ChatIndicator("icon", icon, primary.strip())
 
 
 class MessageData(TypedDict):
