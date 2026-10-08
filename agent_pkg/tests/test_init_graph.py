@@ -49,6 +49,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
         failure_reason="boom",
         evaluation=EvaluationSchema(overall="abort"),
         replan_reason="tool failed",
+        allowed_dirs=["/tmp/approved"],
     )
     update = await node.execute(state)
 
@@ -73,6 +74,8 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert "context_summary" not in update
     # Artefacts are session-scoped: never cleared by the per-run reset.
     assert "artefacts" not in update
+    # Session-approved directories survive across turns too (ADR-0007 update).
+    assert "allowed_dirs" not in update
     # The query is appended to the run history (messages is preserved + query).
     assert len(update["messages"]) == 1
     assert isinstance(update["messages"][-1], HumanMessage)

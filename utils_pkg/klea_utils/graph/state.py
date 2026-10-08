@@ -50,3 +50,8 @@ class BaseGraphSchema(BaseModel):
     )
     #: Tool invocation access level (ADR-0037); apps may override the default.
     access_level: AccessLevel = "full"
+    #: Directories the user approved for this session ("allow for session") in
+    #: addition to ``project_root`` (ADR-0007 update 2026-10-08).  Session-scoped:
+    #: kept in the thread checkpoint across turns, so app init nodes must not
+    #: reset it (see ``InitGraphState`` / ``InitRAGState``).
+    allowed_dirs: list[str] = Field(default_factory=list)
