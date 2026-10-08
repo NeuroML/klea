@@ -316,6 +316,20 @@ class TestInterruptDisplay:
     def test_review_approval(self):
         assert interrupt_display({"decision": "approve"}) == "Plan approved"
 
+    def test_permission_decisions(self):
+        assert (
+            interrupt_display(
+                {
+                    "decisions": [
+                        {"key": "/tmp", "decision": "once"},
+                        {"key": "/proj", "decision": "session"},
+                        {"key": "/proj/.env", "decision": "deny"},
+                    ]
+                }
+            )
+            == "Allowed once: /tmp; Allowed for session: /proj; Denied: /proj/.env"
+        )
+
     def test_cancel_and_empty(self):
         assert interrupt_display(None, cancel=True) == "(cancelled)"
         assert interrupt_display(None) == "(cancelled)"

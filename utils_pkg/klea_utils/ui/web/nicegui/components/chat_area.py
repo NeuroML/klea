@@ -21,6 +21,7 @@ from nicegui import ui
 from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
+from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.state import TurnStatus, chats, missing_credentials
 
@@ -99,12 +100,17 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     """Render the HITL ask form in the turn status region (ADR-0046).
 
     A ``review`` ask gets Approve / Request changes / Cancel; an ``input``
-    ask gets one text field per question plus Answer / Cancel.  Submitting
-    calls :attr:`PageContext.submit_interrupt` (registered by the input area).
+    ask gets one text field per question plus Answer / Cancel; a
+    ``permission`` ask (ADR-0007) gets one allow-once / allow-session / deny
+    choice per requested path.  Submitting calls
+    :attr:`PageContext.submit_interrupt` (registered by the input area).
     """
     ask = _interrupt_ask(ctx)
     kind = ask.get("kind", "input")
     interrupt_id = ask.get("interrupt_id")
+    if kind == "permission":
+        _render_permission_form(ctx, ask, interrupt_id)
+        return
     heading = "Plan review" if kind == "review" else "User input"
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
         ui.label(heading).classes("text-sm font-bold")
@@ -160,6 +166,100 @@ def _render_interrupt_form(ctx: PageContext) -> None:
 
         with ui.row().classes("gap-2"):
             ui.button("Answer", on_click=_submit).props("unelevated color=primary")
+            ui.button(
+                "Cancel",
+                on_click=lambda: ctx.submit_interrupt(None, interrupt_id, True),
+            ).props("flat color=negative")
+
+
+def _permission_key(request: dict[str, Any]) -> str:
+    """Return the approval key for a serialized path request (ADR-0007).
+
+    The resolved file for a ``sensitive`` request, the resolved directory for
+    an ``outside`` one.
+    """
+    if request.get("kind") == "sensitive":
+        return str(request.get("path", ""))
+    return str(request.get("directory", ""))
+
+
+def _render_permission_form(
+    ctx: PageContext, ask: dict[str, Any], interrupt_id: Any
+) -> None:
+    """Render a path-permission ask: one decision per requested path.
+
+    Each request gets an allow-once / allow-session / deny choice; selecting
+    one re-renders the rows so it shows its active state.  Submit sends the
+    per-key decisions to :meth:`PageContext.submit_interrupt` (ADR-0007 update
+    2026-10-08).  In-progress choices live on *ask* (the chat's stored
+    interrupt), so they survive a status-region re-render and are cleared with
+    the ask on resume.
+    """
+    requests = ask.get("requests")
+    if not isinstance(requests, list) or not requests:
+        requests = [{"kind": "outside", "path": ask.get("question", "")}]
+
+    logger.debug(f"Rendering permission form\n{len(requests) = }\n{interrupt_id = }")
+    decisions: dict[str, str] = ask.setdefault("choices", {})
+    for request in requests:
+        if isinstance(request, dict):
+            decisions.setdefault(_permission_key(request), "deny")
+
+    with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
+        ui.label("Permission required").classes("text-sm font-bold")
+        if question := ask.get("question"):
+            ui.label(str(question)).classes("text-xs text-grey-6")
+
+        # Re-render on select so the chosen option shows its active state
+        # (``choice_buttons`` computes it at build time).
+        @ui.refreshable
+        def _rows() -> None:
+            for request in requests:
+                if not isinstance(request, dict):
+                    continue
+                if request.get("kind") == "sensitive":
+                    title = f"Sensitive file: {request.get('path', '')}"
+                    hint = "Commonly holds credentials."
+                else:
+                    title = f"Outside project: {request.get('directory', '')}"
+                    hint = (
+                        f"{request.get('tool', '')} ({request.get('confidence', '')})"
+                    ).strip()
+                key = _permission_key(request)
+
+                def _set(value: str, k: str = key) -> None:
+                    decisions[k] = value
+                    _rows.refresh()
+
+                choice_buttons(
+                    title,
+                    {"once": "Once", "session": "Session", "deny": "Deny"},
+                    decisions.get(key, "deny"),
+                    _set,
+                    colors={"deny": "red-5"},
+                    label_width="20ch",
+                    group_width="12rem",
+                )
+                if hint:
+                    ui.label(hint).classes("text-xs text-grey-6")
+
+        _rows()
+
+        def _submit() -> None:
+            logger.debug(f"Submitting permission decisions\n{decisions = }")
+            ctx.submit_interrupt(
+                {
+                    "decisions": [
+                        {"key": key, "decision": value}
+                        for key, value in decisions.items()
+                    ]
+                },
+                interrupt_id,
+                False,
+            )
+
+        with ui.row().classes("gap-2"):
+            ui.button("Submit", on_click=_submit).props("unelevated color=primary")
             ui.button(
                 "Cancel",
                 on_click=lambda: ctx.submit_interrupt(None, interrupt_id, True),

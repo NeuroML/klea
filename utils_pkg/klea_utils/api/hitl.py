@@ -102,26 +102,75 @@ _REVIEW_DECISION_LABELS = {
     "revise": "Revision requested",
 }
 
+#: Human-readable labels for a path-permission decision (ADR-0007).
+_PERMISSION_DECISION_LABELS = {
+    "once": "Allowed once",
+    "session": "Allowed for session",
+    "deny": "Denied",
+}
+
+
+def _render_answers(value: Mapping[str, Any]) -> str | None:
+    """Render an input ``answers`` list, or ``None`` when not applicable."""
+    answers = value.get("answers")
+    if isinstance(answers, list):
+        return "; ".join(str(answer) for answer in answers)
+    return None
+
+
+def _render_decisions(value: Mapping[str, Any]) -> str | None:
+    """Render path-permission ``decisions``, or ``None`` when not applicable."""
+    decisions = value.get("decisions")
+    if not isinstance(decisions, list):
+        return None
+    parts: list[str] = []
+    for entry in decisions:
+        if not isinstance(entry, Mapping):
+            continue
+        label = _PERMISSION_DECISION_LABELS.get(
+            str(entry.get("decision", "")), "Denied"
+        )
+        key = str(entry.get("key", ""))
+        parts.append(f"{label}: {key}" if key else label)
+    return "; ".join(parts)
+
+
+def _render_review_decision(value: Mapping[str, Any]) -> str | None:
+    """Render a review ``decision``/``feedback``, or ``None``."""
+    decision = str(value.get("decision", ""))
+    if not decision:
+        return None
+    label = _REVIEW_DECISION_LABELS.get(decision, decision)
+    feedback = str(value.get("feedback", ""))
+    return f"{label}: {feedback}" if feedback else label
+
+
+#: Ordered renderers for an interrupt resume mapping; the first that applies
+#: (returns a string) wins.  Add a renderer here for a new interrupt kind.
+_RESPONSE_RENDERERS = (
+    _render_answers,
+    _render_decisions,
+    _render_review_decision,
+)
+
 
 def render_interrupt_response(value: Mapping[str, Any]) -> str:
     """Render an interrupt resume mapping as the user turn for the transcript.
 
-    Input answers (``answers``) are joined; a review ``decision`` is shown in
-    human-readable form (``approve`` -> "Plan approved", ``revise`` ->
-    "Revision requested: <feedback>").  This is display only: the wire values
-    are unchanged.
+    Each interrupt kind has a renderer (see :data:`_RESPONSE_RENDERERS`):
+    input ``answers`` are joined; path-permission ``decisions`` are shown as
+    "Allowed once: /tmp", "Allowed for session: /proj", "Denied: <key>"; a
+    review ``decision`` becomes "Plan approved" / "Revision requested:
+    <feedback>".  An unknown shape falls back to its JSON form.  This is
+    display only: the wire values are unchanged.
 
     Shared by ``chat_core`` (the persisted user row) and the web UI (the live
     transcript) so the two cannot drift.
     """
-    answers = value.get("answers")
-    if isinstance(answers, list):
-        return "; ".join(str(answer) for answer in answers)
-    decision = str(value.get("decision", ""))
-    if decision:
-        label = _REVIEW_DECISION_LABELS.get(decision, decision)
-        feedback = str(value.get("feedback", ""))
-        return f"{label}: {feedback}" if feedback else label
+    for renderer in _RESPONSE_RENDERERS:
+        rendered = renderer(value)
+        if rendered is not None:
+            return rendered
     return json.dumps(dict(value), default=str)
 
 

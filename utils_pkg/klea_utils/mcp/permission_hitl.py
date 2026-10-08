@@ -95,6 +95,10 @@ def build_permission_payload(
     :param question: Custom prompt text; defaults to :data:`DEFAULT_QUESTION`.
     :returns: The interrupt payload dict.
     """
+    logger.debug(
+        f"Building permission payload\n{len(requests) = }\n"
+        f"{[request.approval_key for request in requests] = }"
+    )
     return {
         "kind": "permission",
         "question": question or DEFAULT_QUESTION,

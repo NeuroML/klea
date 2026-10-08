@@ -356,6 +356,11 @@ async def dispatch_tool_calls(
                 approved_dirs.add(key)
         denied = set(resolution.denied)
 
+    logger.debug(
+        f"Permission gate\n{len(all_requests) = }\n{resolution = }\n"
+        f"{approved_dirs = }\n{approved_files = }\n{denied = }"
+    )
+
     pending: list[tuple[int, ToolCallSchema]] = []
     for i in gated:
         leftover = [

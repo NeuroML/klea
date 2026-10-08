@@ -253,6 +253,11 @@ def detect_path_requests(
         (the permission second round).
     :returns: Approval requests, sorted by approval key.
     """
+    logger.debug(
+        f"Detecting path requests\n{tool = }\n{arguments = }\n"
+        f"{project_root = }\n{allowed_dirs = }\n{allowed_files = }\n"
+        f"{picker_paths = }\n{include_sensitive = }"
+    )
     root = (
         Path(project_root).expanduser().resolve()
         if project_root
@@ -333,6 +338,5 @@ def detect_path_requests(
             ):
                 consider(candidate, name, "guess", f"value:{name}")
 
-    if requests:
-        logger.debug(f"Detected path requests\n{list(requests) = }")
+    logger.debug(f"Detected path requests\n{len(requests) = }\n{list(requests) = }")
     return sorted(requests.values(), key=lambda request: request.approval_key)

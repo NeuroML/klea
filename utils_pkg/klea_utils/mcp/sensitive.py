@@ -95,10 +95,14 @@ def is_sensitive(path: str | os.PathLike) -> bool:
     """
     the_path = Path(path)
     name = the_path.name.lower()
-    if name in _SENSITIVE_NAMES or the_path.suffix.lower() in _SENSITIVE_SUFFIXES:
-        return True
-    if any(part.lower() in _SENSITIVE_DIRS for part in the_path.parts):
-        return True
-    return any(
-        fnmatch(name, pattern) for pattern in (*_SENSITIVE_GLOBS, *_extra_patterns())
+    sensitive = (
+        name in _SENSITIVE_NAMES
+        or the_path.suffix.lower() in _SENSITIVE_SUFFIXES
+        or any(part.lower() in _SENSITIVE_DIRS for part in the_path.parts)
+        or any(
+            fnmatch(name, pattern)
+            for pattern in (*_SENSITIVE_GLOBS, *_extra_patterns())
+        )
     )
+    logger.debug(f"Sensitive check\n{the_path = }\n{sensitive = }")
+    return sensitive

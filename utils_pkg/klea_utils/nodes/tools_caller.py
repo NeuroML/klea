@@ -213,6 +213,10 @@ class ToolsCallerNode(
                 for key in resolution.allowed_session
                 if kind_by_key.get(key) == "sensitive"
             ]
+            self.logger.debug(
+                f"Permission resolved\n{resolution = }\n"
+                f"{ctx.allowed_session_dirs = }\n{ctx.allowed_session_files = }"
+            )
             return resolution
 
         return resolver

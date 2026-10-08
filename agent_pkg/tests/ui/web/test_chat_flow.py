@@ -14,6 +14,8 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
+
 from nicegui import ui
 
 
@@ -111,3 +113,91 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     await agent_user.should_see("ok", retries=50)
 
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
+
+
+def _permission_event(request: dict) -> dict:
+    return {
+        "type": "interrupt",
+        "node": "Running tools",
+        "data": {
+            "kind": "permission",
+            "question": "Allow the agent to access these paths?",
+            "requests": [request],
+            "interrupt_id": "p1",
+        },
+    }
+
+
+async def test_permission_interrupt_outside_renders_and_submits(
+    fake_backend, agent_user
+):
+    """An outside-path ask renders choices; Submit sends the decision."""
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "outside",
+                "tool": "read_file",
+                "path": "/etc/hosts",
+                "directory": "/etc",
+                "confidence": "declared",
+                "source": "checkpaths:path",
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    await agent_user.should_see("/etc")
+
+    agent_user.find("Session").click()
+    await asyncio.sleep(0.1)
+    # The form re-renders on select, so the chosen option is highlighted.
+    active = [
+        element
+        for element in agent_user.find("Session").elements
+        if "choice-btn--active" in list(element.classes)
+    ]
+    assert active, "the selected option should be highlighted"
+
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    agent_user.find("Submit").click()
+    await agent_user.should_see("ok", retries=50)
+
+    body = next(
+        body for body in fake_backend.stream_bodies() if "interrupt_response" in body
+    )
+    assert body["interrupt_response"]["decisions"] == [
+        {"key": "/etc", "decision": "session"}
+    ]
+
+
+async def test_permission_interrupt_sensitive_renders_file(fake_backend, agent_user):
+    """A sensitive-file ask names the file; the default decision is deny."""
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "sensitive",
+                "tool": "read_file",
+                "path": "/proj/.env",
+                "directory": "/proj",
+                "confidence": "declared",
+                "source": "checkpaths:path",
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Sensitive file: /proj/.env", retries=50)
+
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    agent_user.find("Submit").click()
+    await agent_user.should_see("ok", retries=50)
+
+    body = next(
+        body for body in fake_backend.stream_bodies() if "interrupt_response" in body
+    )
+    assert body["interrupt_response"]["decisions"] == [
+        {"key": "/proj/.env", "decision": "deny"}
+    ]
