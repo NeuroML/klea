@@ -58,6 +58,10 @@ class ToolCallSchema(BaseModel):
     tool: str = ""
     args: dict[str, Any] = Field(default_factory=dict)
     reason: str = ""
+    #: Filesystem paths the picker declared the call will touch, used by the
+    #: client-side permission gate as the ``expected`` discovery tier
+    #: (ADR-0007 update 2026-10-08).  Empty when the picker declared none.
+    paths: list[str] = Field(default_factory=list)
     #: 1-based plan step this call belongs to (0 when there is no plan, e.g.
     #: RAG).  Set by the agent's picker so a batch of calls can be attributed
     #: back to their originating step (ADR-0041).

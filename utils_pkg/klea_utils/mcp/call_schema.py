@@ -238,6 +238,11 @@ def build_tool_call_schema(tools: Mapping[str, ToolInfo]) -> type[BaseModel]:
         "ToolCall",
         step=(int, ...),
         reason=(str, ""),
+        # ``paths`` is the picker's declared filesystem paths for the call
+        # (the ``expected`` permission tier).  Optional with an empty default
+        # so a weak model omitting it cannot fail structured output; the
+        # prompt asks for it on every call.
+        paths=(list[str], Field(default_factory=list)),
         call=(call_union, ...),
     )
     output = create_model(

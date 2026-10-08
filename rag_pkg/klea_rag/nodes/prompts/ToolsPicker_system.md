@@ -26,6 +26,10 @@ may choose from.
   tool `get_models` carries `{{"tool": "get_models", "num": 3}}`); there is
   no separate `args` object.
 * There are no plan steps: set `step` to `0` on every call.
+* On every call, set `paths` to the filesystem paths the call will read or
+  write, exactly as the call will use them.  Use an empty list when the call
+  touches no files.  This declaration is checked before the call runs, so never
+  omit a path the call will touch.
 * If no tool would provide useful information, return an empty `tool_calls`
   list.
 * Keep your JSON valid and include all required fields for the chosen calls.

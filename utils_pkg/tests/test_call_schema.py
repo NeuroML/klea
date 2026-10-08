@@ -68,6 +68,36 @@ def test_required_and_defaults_are_enforced():
         out.model_validate({"tool_calls": [_call("read_file")]})
 
 
+def test_paths_field_parses_and_defaults():
+    """Every call carries a ``paths`` list; omitted defaults to empty."""
+    out = build_tool_call_schema(_tools(read_file=READ_FILE))
+    assert (
+        "paths"
+        in convert_to_json_schema(out)["properties"]["tool_calls"]["items"][
+            "properties"
+        ]
+    )
+
+    parsed: Any = out.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "why",
+                    "paths": ["/tmp/out.txt"],
+                    "call": {"tool": "read_file", "path": "README.md"},
+                }
+            ]
+        }
+    )
+    assert parsed.tool_calls[0].paths == ["/tmp/out.txt"]
+
+    defaulted: Any = out.model_validate(
+        {"tool_calls": [_call("read_file", path="README.md")]}
+    )
+    assert defaulted.tool_calls[0].paths == []
+
+
 def test_array_field_maps_to_list():
     out = build_tool_call_schema(_tools(find_files=FIND_FILES))
     parsed: Any = out.model_validate(

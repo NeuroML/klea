@@ -295,6 +295,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 continue
             step = int(getattr(item, "step", 0) or 0)
             reason = getattr(item, "reason", "") or ""
+            # Paths the picker declared for the call (the ``expected``
+            # permission tier); absent on the legacy static schema.
+            paths = [str(path) for path in (getattr(item, "paths", None) or [])]
             tool_name = str(getattr(call, "tool", "") or "")
             if tool_name == NO_TOOL_TAG:
                 normalized.append(
@@ -302,6 +305,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                         tool="",
                         args={},
                         reason=getattr(call, "reason", "") or reason,
+                        paths=paths,
                         step=step,
                     )
                 )
@@ -312,7 +316,13 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 else {}
             )
             normalized.append(
-                ToolCallSchema(tool=tool_name, args=args, reason=reason, step=step)
+                ToolCallSchema(
+                    tool=tool_name,
+                    args=args,
+                    reason=reason,
+                    paths=paths,
+                    step=step,
+                )
             )
         return normalized
 

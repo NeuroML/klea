@@ -28,6 +28,11 @@ steps needs -- not to choose which tools to use.
   call(s).  Put each tool's parameters as fields on its call (for example
   `{{"tool": "read_file", "path": "README.md"}}`); there is no separate `args`
   object.
+* On every call, set `paths` to the filesystem paths the call will read or
+  write, exactly as the call will use them (for example the value passed to a
+  file tool, or the files a command touches).  Use an empty list when the call
+  touches no files.  This declaration is checked before the call runs, so never
+  omit a path the call will touch.
 * Build the narrowest call that satisfies the step.  When the step or
   `observations` names a specific file, module, test or target, pass exactly
   that (for example `pytest tests/test_x.py`, not a bare `pytest`); never

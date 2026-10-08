@@ -148,6 +148,28 @@ def test_output_schema_is_a_per_tool_union():
     assert calls[0].reason == "find models"
 
 
+def test_normalize_carries_picker_declared_paths():
+    """The picker's declared ``paths`` survive normalization (expected tier)."""
+    picker = _make_picker()
+    schema = picker._get_output_schema(AgentLikeState(), LLMNodeContext())
+    assert schema is not None
+    parsed = schema.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "read it",
+                    "paths": ["/etc/hosts"],
+                    "call": {"tool": "get_models", "search_query": "x"},
+                }
+            ]
+        }
+    )
+    calls = picker._normalize_calls(parsed)
+    assert len(calls) == 1
+    assert calls[0].paths == ["/etc/hosts"]
+
+
 def test_normalize_no_tool_branch_is_unusable():
     """A ``NoTool`` branch normalizes to the empty-tool failure signal."""
     picker = _make_picker()
