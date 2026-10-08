@@ -79,7 +79,6 @@ class PageContext:
     chat_id: str = ""
 
     # Mutable runtime state
-    expanded: set[int] = field(default_factory=set)
     #: Per-chat run registry, keyed by ``"{user_id}:{chat_id}"``: the asyncio
     #: task driving each chat's run and its Retry callback.  Page-scoped (the
     #: tasks are bound to this page's event loop) and independent of the

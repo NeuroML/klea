@@ -212,6 +212,16 @@ async def run_stream(
         "cancel" if interrupt_cancel else interrupt_response is not None,
     )
     key = f"{ctx.user_id}:{chat_id}"
+
+    def _active() -> bool:
+        """Whether *chat_id* is the chat currently shown on the page.
+
+        Chat data is always updated; the DOM is only touched when the run's
+        chat is the visible one, so a background run cannot repaint the chat
+        the user is looking at.
+        """
+        return chat_id == ctx.chat_id
+
     # Per-chat run registry (page-scoped): the callers register the created
     # task, so a run is visible for gating before this coroutine starts;
     # ``setdefault`` keeps their handle when they raced ahead.
@@ -219,7 +229,8 @@ async def run_stream(
     # Retry resumes this turn; the status region's Retry button invokes it.
     # Kept after the run (below) so a failed run's Retry action survives.
     ctx.retry_cbs[key] = lambda: _retry_stream(ctx, query, chat_id)
-    ctx.refresh_stream_button()
+    if _active():
+        ctx.refresh_stream_button()
     current_chat["state_sections"] = {}
     # The status region is per-chat state (rendered by the chat-area
     # component), so it is replaced wholesale on every turn and switching
@@ -230,7 +241,8 @@ async def run_stream(
         # Continuing the same turn (resume or an interrupt answer/cancel):
         # keep the existing inspector section and re-activate it so appended
         # entries land in the right place.
-        ctx.refresh_inspector()
+        if _active():
+            ctx.refresh_inspector()
     else:
         # Start a new inspector section for this query.  Entries are appended
         # live; sections (and their entries) are kept for the session.
@@ -241,14 +253,16 @@ async def run_stream(
         }
         current_chat["inspector_entries"].append(marker)
         ctx.begin_inspector_section(chat_id, marker)
-    ctx.refresh_status_pane()
-    ctx.refresh_turn_status()
+    if _active():
+        ctx.refresh_status_pane()
+        ctx.refresh_turn_status()
 
     def _reset_streaming_state() -> None:
         """Drop this chat's run entry and refresh the send control/status."""
         ctx.stream_tasks.pop(key, None)
-        ctx.refresh_stream_button()
-        ctx.refresh_status_pane()
+        if _active():
+            ctx.refresh_stream_button()
+            ctx.refresh_status_pane()
 
     try:
         async for event in stream_events(
@@ -274,32 +288,37 @@ async def run_stream(
                 )
                 # Update the live heading in place (no full re-render).
                 current_chat["turn_status"]["heading"] = heading
-                if ctx.turn_status_label is not None:
+                if _active() and ctx.turn_status_label is not None:
                     ctx.turn_status_label.set_text(heading)
                 continue
             action = apply_stream_event(current_chat, event)
             if action in ("usage", "state", "context"):
-                ctx.refresh_status_pane()
+                if _active():
+                    ctx.refresh_status_pane()
             elif action == "inspect":
                 entry = current_chat["inspector_entries"][-1]
                 ctx.append_inspector(chat_id, entry)
             elif action == "tool":
-                ctx.render_chat_area()
+                if _active():
+                    ctx.render_chat_area()
             elif action == "interrupt":
                 # The run paused for HITL input: show the ask and stop
                 # streaming until the user answers or cancels (ADR-0046).
                 logger.debug("chat=%s paused for input", chat_id)
                 current_chat["turn_status"] = {"kind": "awaiting_input"}
-                ctx.refresh_turn_status()
+                if _active():
+                    ctx.refresh_turn_status()
                 _reset_streaming_state()
                 break
             elif action == "complete":
                 logger.debug("chat=%s stream complete", chat_id)
                 current_chat["turn_status"] = {"kind": "idle"}
                 current_chat.pop("interrupt", None)
-                ctx.render_chat_area()
+                if _active():
+                    ctx.render_chat_area()
                 _reset_streaming_state()
-                ctx.refresh_inspector()
+                if _active():
+                    ctx.refresh_inspector()
                 break
             elif action == "error":
                 error_msg = event.get("message", "Unknown error")
@@ -315,7 +334,8 @@ async def run_stream(
                     "message": error_msg,
                     "resumable": resumable,
                 }
-                ctx.refresh_turn_status()
+                if _active():
+                    ctx.refresh_turn_status()
                 _reset_streaming_state()
                 break
     except asyncio.CancelledError:
@@ -324,7 +344,8 @@ async def run_stream(
         # (NiceGUI's exception handler ignores it).
         logger.debug("chat=%s stream cancelled by user", chat_id)
         current_chat["turn_status"] = {"kind": "stopped"}
-        ctx.refresh_turn_status()
+        if _active():
+            ctx.refresh_turn_status()
         _reset_streaming_state()
         raise
     except httpx.HTTPStatusError as e:
@@ -337,7 +358,8 @@ async def run_stream(
             "message": f"Request failed ({e.response.status_code}): {e}",
             "resumable": False,
         }
-        ctx.refresh_turn_status()
+        if _active():
+            ctx.refresh_turn_status()
         _reset_streaming_state()
     except httpx.RequestError as e:
         # Transport failure: a dropped connection or idle timeout.  The run is
@@ -348,7 +370,8 @@ async def run_stream(
             "message": f"Connection error: {e}",
             "resumable": True,
         }
-        ctx.refresh_turn_status()
+        if _active():
+            ctx.refresh_turn_status()
         _reset_streaming_state()
     finally:
         # Clear this chat's run entry on every exit path (including an

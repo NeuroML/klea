@@ -233,8 +233,9 @@ def _render_messages(ctx: PageContext) -> None:
         else:
             current_chat = chats.get(f"{ctx.user_id}:{current}")
             msgs = current_chat["messages"] if current_chat else []
+            expanded = current_chat["expanded"] if current_chat else set()
             for idx, msg in enumerate(msgs):
-                collapsed = idx not in ctx.expanded
+                collapsed = idx not in expanded
                 text = msg.get("text", "")
                 ChatBubble(
                     text=linkify_md(text),
@@ -251,11 +252,7 @@ def _render_messages(ctx: PageContext) -> None:
                         f"navigator.clipboard.writeText({json.dumps(t)})"
                     ),
                     on_expand=lambda i=idx: (
-                        (
-                            ctx.expanded.discard(i)
-                            if i in ctx.expanded
-                            else ctx.expanded.add(i)
-                        )
+                        (expanded.discard(i) if i in expanded else expanded.add(i))
                         or ctx.render_chat_area()
                     ),
                 )
