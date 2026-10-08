@@ -599,6 +599,9 @@
                 <span class="k">continue</span>
             <span class="n">step</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s2">"step"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
             <span class="n">reason</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
+            <span class="c1"># Paths the picker declared for the call (the ``expected``</span>
+            <span class="c1"># permission tier); absent on the legacy static schema.</span>
+            <span class="n">paths</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="s2">"paths"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])]</span>
             <span class="n">tool_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">tool_name</span> <span class="o">==</span> <span class="n">NO_TOOL_TAG</span><span class="p">:</span>
                 <span class="n">normalized</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
@@ -606,6 +609,7 @@
                         <span class="n">tool</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
                         <span class="n">args</span><span class="o">=</span><span class="p">{},</span>
                         <span class="n">reason</span><span class="o">=</span><span class="nb">getattr</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="n">reason</span><span class="p">,</span>
+                        <span class="n">paths</span><span class="o">=</span><span class="n">paths</span><span class="p">,</span>
                         <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
@@ -616,7 +620,13 @@
                 <span class="k">else</span> <span class="p">{}</span>
             <span class="p">)</span>
             <span class="n">normalized</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                <span class="n">ToolCallSchema</span><span class="p">(</span><span class="n">tool</span><span class="o">=</span><span class="n">tool_name</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">)</span>
+                <span class="n">ToolCallSchema</span><span class="p">(</span>
+                    <span class="n">tool</span><span class="o">=</span><span class="n">tool_name</span><span class="p">,</span>
+                    <span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span>
+                    <span class="n">reason</span><span class="o">=</span><span class="n">reason</span><span class="p">,</span>
+                    <span class="n">paths</span><span class="o">=</span><span class="n">paths</span><span class="p">,</span>
+                    <span class="n">step</span><span class="o">=</span><span class="n">step</span><span class="p">,</span>
+                <span class="p">)</span>
             <span class="p">)</span>
         <span class="k">return</span> <span class="n">normalized</span>
 

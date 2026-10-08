@@ -304,6 +304,11 @@
 <span class="sd">"""</span>
 <span class="sd">Shell command execution implementation for Klea MCP tools (ADR-0038).</span>
 
+<span class="sd">Timeout and cancellation signal the command's process group (SIGTERM, then</span>
+<span class="sd">SIGKILL).  A descendant that detaches from the group (``setsid``/``setpgid``,</span>
+<span class="sd">as some build tools do) cannot be reached by a portable group signal and may</span>
+<span class="sd">survive.</span>
+
 <span class="sd">See ``devdocs/system/mcp-permissions.md``.</span>
 
 <span class="sd">File: klea_utils/mcp/tool_impls/run_command.py</span>
@@ -319,9 +324,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">signal</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
-
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDeniedError</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -343,6 +345,9 @@
 <span class="c1">#: Grace period between SIGTERM and SIGKILL when killing a timed-out process</span>
 <span class="c1">#: group.</span>
 <span class="n">KILL_GRACE_SECONDS</span> <span class="o">=</span> <span class="mf">3.0</span>
+
+<span class="c1">#: Poll interval while waiting for a signalled process group to drain.</span>
+<span class="n">_GROUP_POLL_SECONDS</span> <span class="o">=</span> <span class="mf">0.05</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_shell_display</span><span class="p">(</span>
@@ -472,36 +477,92 @@
 
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_process_group_exists</span><span class="p">(</span><span class="n">pgid</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether any process remains in process group *pgid*.</span>
+
+<span class="sd">    Probes the group with the null signal: ``os.killpg`` raises</span>
+<span class="sd">    :class:`ProcessLookupError` when the group is empty.</span>
+
+<span class="sd">    :param pgid: Process group id to probe.</span>
+<span class="sd">    :returns: True when at least one process is still in the group.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">killpg</span><span class="p">(</span><span class="n">pgid</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ProcessLookupError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">except</span> <span class="ne">PermissionError</span><span class="p">:</span>  <span class="c1"># pragma: no cover - the group is ours</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_drain_process_group</span><span class="p">(</span><span class="n">pgid</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Wait up to *timeout* seconds for process group *pgid* to become empty.</span>
+
+<span class="sd">    :param pgid: Process group id to watch.</span>
+<span class="sd">    :param timeout: Maximum seconds to wait.</span>
+<span class="sd">    :returns: True when the group drained within *timeout*.</span>
+<span class="sd">    """</span>
+    <span class="n">loop</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">get_running_loop</span><span class="p">()</span>
+    <span class="n">deadline</span> <span class="o">=</span> <span class="n">loop</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">+</span> <span class="n">timeout</span>
+    <span class="k">while</span> <span class="n">_process_group_exists</span><span class="p">(</span><span class="n">pgid</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">loop</span><span class="o">.</span><span class="n">time</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">deadline</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">_GROUP_POLL_SECONDS</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_terminate_process_group</span><span class="p">(</span><span class="n">process</span><span class="p">:</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">subprocess</span><span class="o">.</span><span class="n">Process</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Terminate a process and its children (its process group).</span>
 
-<span class="sd">    Sends SIGTERM to the group, waits :data:`KILL_GRACE_SECONDS`, then</span>
-<span class="sd">    SIGKILLs if it is still alive.  Best-effort: a race where the process has</span>
-<span class="sd">    already exited is ignored.</span>
+<span class="sd">    Sends SIGTERM to the whole group, waits :data:`KILL_GRACE_SECONDS` for the</span>
+<span class="sd">    *group* to drain, then SIGKILLs any survivors.  Waiting on the group rather</span>
+<span class="sd">    than only the direct child matters: a descendant can outlive the shell that</span>
+<span class="sd">    spawned it when it ignores or defers SIGTERM, and the group is gone only</span>
+<span class="sd">    once its last member exits.  Best-effort: an already-exited process or</span>
+<span class="sd">    group is ignored.</span>
+
+<span class="sd">    A descendant that detaches from the group (``setsid``/``setpgid``, as some</span>
+<span class="sd">    build tools do) cannot be reached here; see the module docstring.</span>
 
 <span class="sd">    :param process: The subprocess to terminate.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="n">process</span><span class="o">.</span><span class="n">returncode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">os</span><span class="p">,</span> <span class="s2">"killpg"</span><span class="p">):</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">killpg</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getpgid</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="p">),</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - non-POSIX fallback</span>
-            <span class="n">process</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
-        <span class="k">return</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="n">KILL_GRACE_SECONDS</span><span class="p">)</span>
-        <span class="k">return</span>
-    <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Command did not exit after SIGTERM; sending SIGKILL"</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">os</span><span class="p">,</span> <span class="s2">"killpg"</span><span class="p">):</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">killpg</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getpgid</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="p">),</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - non-POSIX fallback</span>
+
+    <span class="n">killpg</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">os</span><span class="p">,</span> <span class="s2">"killpg"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">killpg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># pragma: no cover - non-POSIX fallback</span>
+        <span class="n">process</span><span class="o">.</span><span class="n">terminate</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">wait_for</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">(),</span> <span class="n">timeout</span><span class="o">=</span><span class="n">KILL_GRACE_SECONDS</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TimeoutError</span><span class="p">:</span>
             <span class="n">process</span><span class="o">.</span><span class="n">kill</span><span class="p">()</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+            <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
         <span class="k">return</span>
+
+    <span class="c1"># Capture the group id before signalling: once the leader is reaped,</span>
+    <span class="c1"># ``getpgid(pid)`` is no longer usable, but the group id stays valid while</span>
+    <span class="c1"># any member remains.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">pgid</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getpgid</span><span class="p">(</span><span class="n">process</span><span class="o">.</span><span class="n">pid</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="k">return</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">killpg</span><span class="p">(</span><span class="n">pgid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGTERM</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="k">await</span> <span class="n">_drain_process_group</span><span class="p">(</span><span class="n">pgid</span><span class="p">,</span> <span class="n">KILL_GRACE_SECONDS</span><span class="p">):</span>
+        <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+        <span class="k">return</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Command process group did not exit after SIGTERM; sending SIGKILL"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">killpg</span><span class="p">(</span><span class="n">pgid</span><span class="p">,</span> <span class="n">signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ProcessLookupError</span><span class="p">,</span> <span class="ne">PermissionError</span><span class="p">):</span>
+        <span class="k">pass</span>
     <span class="k">await</span> <span class="n">process</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
 
 
@@ -519,26 +580,29 @@
 <span class="sd">    Framework-agnostic implementation shared across Klea MCP servers.  Apps</span>
 <span class="sd">    wrap this in an MCP tool (see ``klea_utils.mcp.server.bundled_tools``).</span>
 
-<span class="sd">    This is **not** a sandbox (ADR-0038): ``working_directory`` is checked</span>
-<span class="sd">    against *project_root* like any other path argument, but the command can</span>
-<span class="sd">    ignore it (``cd /``, absolute paths) and has the host user's filesystem,</span>
-<span class="sd">    process, and network authority.  The command inherits the server's</span>
-<span class="sd">    environment.  Access control relies on the tool's ``destructive`` /</span>
-<span class="sd">    ``open_world`` annotations and the access level (ADR-0037).</span>
+<span class="sd">    This is **not** a sandbox (ADR-0038): the command can ignore</span>
+<span class="sd">    ``working_directory`` (``cd /``, absolute paths) and has the host user's</span>
+<span class="sd">    filesystem, process, and network authority.  The command inherits the</span>
+<span class="sd">    server's environment.  Access control relies on the client-side path gate</span>
+<span class="sd">    (``working_directory`` and paths in the command, ADR-0007) plus the tool's</span>
+<span class="sd">    ``destructive`` / ``open_world`` annotations and the access level</span>
+<span class="sd">    (ADR-0037).</span>
 
 <span class="sd">    The process is run with ``start_new_session`` so it can be killed as a</span>
 <span class="sd">    group on timeout, with stdin closed so an interactive command cannot</span>
-<span class="sd">    hang.</span>
+<span class="sd">    hang.  Timeout and cancellation terminate the whole process group, but a</span>
+<span class="sd">    command that detaches its children (``setsid``/daemonising) can leave</span>
+<span class="sd">    processes running that the group signal cannot reach.</span>
 
 <span class="sd">    :param command: Shell command string to run.</span>
-<span class="sd">    :param working_directory: Directory to run in; must resolve inside</span>
-<span class="sd">        *project_root*.  Defaults to *project_root* (or the current working</span>
-<span class="sd">        directory when *project_root* is ``None``).</span>
+<span class="sd">    :param working_directory: Directory to run in.  Defaults to *project_root*</span>
+<span class="sd">        (or the current working directory when *project_root* is ``None``).</span>
 <span class="sd">    :param timeout_seconds: Seconds to wait before killing the process group.</span>
 <span class="sd">        Must not exceed :func:`max_timeout_seconds`.</span>
 <span class="sd">    :param max_output_chars: Maximum characters captured per stream.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission check.</span>
-<span class="sd">        Defaults to the current working directory.</span>
+<span class="sd">    :param project_root: Default base for *working_directory* when it is not</span>
+<span class="sd">        given; not a permission check (the client-side gate enforces the</span>
+<span class="sd">        boundary).</span>
 <span class="sd">    :returns: dict with command, working_directory, returncode, stdout,</span>
 <span class="sd">        stderr, truncated, error.  A non-zero ``returncode`` is a normal</span>
 <span class="sd">        command result (many tools signal conditions with it); ``error`` is</span>
@@ -569,11 +633,6 @@
         <span class="k">if</span> <span class="n">boundary</span>
         <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span>
     <span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">check_path_access</span><span class="p">(</span><span class="n">cwd</span><span class="p">,</span> <span class="n">boundary</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">PermissionDeniedError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied for working directory </span><span class="si">{</span><span class="n">working_directory</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">_result</span><span class="p">(</span><span class="n">command</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">cwd</span><span class="p">),</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
     <span class="n">cwd</span> <span class="o">=</span> <span class="n">cwd</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
 
     <span class="n">ceiling</span> <span class="o">=</span> <span class="n">max_timeout_seconds</span><span class="p">()</span>
@@ -632,6 +691,13 @@
                 <span class="s2">"Retry with a larger timeout if it is expected to take longer."</span>
             <span class="p">),</span>
         <span class="p">)</span>
+    <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
+        <span class="c1"># The call was cancelled (client-side call timeout, graph cancel, or</span>
+        <span class="c1"># server shutdown).  Shield the cleanup so the process group is still</span>
+        <span class="c1"># terminated before the cancellation propagates.</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Command cancelled; terminating process group: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">shield</span><span class="p">(</span><span class="n">_terminate_process_group</span><span class="p">(</span><span class="n">process</span><span class="p">))</span>
+        <span class="k">raise</span>
 
     <span class="n">stdout</span> <span class="o">=</span> <span class="n">stdout_b</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span>
     <span class="n">stderr</span> <span class="o">=</span> <span class="n">stderr_b</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">)</span>

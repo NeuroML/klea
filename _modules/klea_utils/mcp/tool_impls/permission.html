@@ -302,10 +302,13 @@
           <h1>Source code for klea_utils.mcp.tool_impls.permission</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Path permission checking for file-accessing MCP tools.</span>
+<span class="sd">Path boundary helpers for the client-side permission gate.</span>
 
-<span class="sd">See ``devdocs/system/mcp-permissions.md`` and</span>
-<span class="sd">``devdocs/adr/0007-mcp-permissions.md``.</span>
+<span class="sd">The tool implementations no longer call these; the client-side gate uses</span>
+<span class="sd">:func:`resolve_path` / :func:`path_is_allowed` / :func:`permitted_roots`</span>
+<span class="sd">(:mod:`klea_utils.mcp.path_detect`) and :func:`check_path_access` remains a</span>
+<span class="sd">convenience that raises on denial.  See ``devdocs/system/mcp-permissions.md``</span>
+<span class="sd">and ``devdocs/adr/0007-mcp-permissions.md``.</span>
 
 <span class="sd">Containment is path-based and taken as a snapshot.  Two known limitations:</span>
 <span class="sd">a *hard link* inside the root to an inode whose other names are outside it is</span>
@@ -321,131 +324,143 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDeniedError</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<span class="c1"># TODO (deferred): replace the hard boundary check with a full permission</span>
-<span class="c1"># service: config rulesets (allow/deny/ask per path pattern) plus an</span>
-<span class="c1"># LLM-free interactive approval loop (graph pause + TUI/web input),</span>
-<span class="c1"># opencode-style.  Tracked as a separate task; for now access is denied to</span>
-<span class="c1"># any path outside *project_root* and no user approval exists yet.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_relative_to</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether resolved *path* is inside resolved *root*."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">path</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span>
+
+
+<div class="viewcode-block" id="permitted_roots">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.permission.permitted_roots">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">permitted_roots</span><span class="p">(</span>
+    <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">allowed_dirs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the resolved roots a path is allowed to be inside.</span>
+
+<span class="sd">    All are fully resolved, so ``..`` traversal and symlink escapes are</span>
+<span class="sd">    caught against every root.  Blank or unresolvable ``allowed_dirs`` entries</span>
+<span class="sd">    are skipped (fail open for the root, not the path).</span>
+
+<span class="sd">    :param project_root: Primary boundary; defaults to the current directory.</span>
+<span class="sd">    :param allowed_dirs: Additional roots, for example directories a user</span>
+<span class="sd">        approved for the session (ADR-0007 update 2026-10-08).</span>
+<span class="sd">    :returns: A list of resolved boundary roots.</span>
+<span class="sd">    """</span>
+    <span class="n">roots</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">project_root</span>
+        <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="p">]</span>
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">allowed_dirs</span> <span class="ow">or</span> <span class="p">[]:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">roots</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping unresolvable allowed directory </span><span class="si">{</span><span class="n">entry</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">roots</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_path">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.permission.resolve_path">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_path</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve *path* to an absolute, symlink-free path, or ``None``.</span>
+
+<span class="sd">    Returns ``None`` for an empty path or one that cannot be resolved (for</span>
+<span class="sd">    example a symlink loop), so callers can fail closed.  A missing target is</span>
+<span class="sd">    resolved non-strictly so the boundary check still applies to its location.</span>
+
+<span class="sd">    :param path: Path to resolve.</span>
+<span class="sd">    :returns: The resolved path, or ``None``.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">base_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># ``strict=True`` makes a symlink loop (ELOOP) or an unreadable parent</span>
+        <span class="c1"># raise here instead of being silently returned as-is by the non-strict</span>
+        <span class="c1"># resolve.</span>
+        <span class="k">return</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
+        <span class="c1"># A missing target is allowed through so the tool can report nearby</span>
+        <span class="c1"># entries; the boundary check still applies to its location.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="path_is_allowed">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.permission.path_is_allowed">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">path_is_allowed</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">roots</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether resolved *path* is inside any of *roots*.</span>
+
+<span class="sd">    :param path: An already-resolved path.</span>
+<span class="sd">    :param roots: Resolved boundary roots (see :func:`permitted_roots`).</span>
+<span class="sd">    :returns: True when *path* is inside at least one root.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">_is_relative_to</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span> <span class="k">for</span> <span class="n">root</span> <span class="ow">in</span> <span class="n">roots</span><span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="check_path_access">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.permission.check_path_access">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">check_path_access</span><span class="p">(</span>
-    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span>
+    <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">allowed_dirs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Raise :class:`PermissionDeniedError` when *path* is not permitted.</span>
 
-<span class="sd">    The permission layer is currently a stub: *path* is allowed only when it</span>
-<span class="sd">    resolves inside *project_root* (default: the current working directory).</span>
-<span class="sd">    Both sides are fully resolved first, so ``..`` traversal and symlink</span>
-<span class="sd">    escapes outside the boundary are caught.  Anything else is denied with</span>
-<span class="sd">    no way to grant access yet.</span>
+<span class="sd">    *path* is allowed when it resolves inside *project_root* (default: the</span>
+<span class="sd">    current working directory) or inside any of *allowed_dirs*.  Both sides</span>
+<span class="sd">    are fully resolved first, so ``..`` traversal and symlink escapes outside</span>
+<span class="sd">    the boundary are caught.</span>
+
+<span class="sd">    This is the utility used by the client-side tool-call gate</span>
+<span class="sd">    (:mod:`klea_utils.mcp.path_detect`); it is no longer called inside tool</span>
+<span class="sd">    implementations (ADR-0007 update 2026-10-08).</span>
 
 <span class="sd">    :param path: File or directory path the tool wants to access.</span>
 <span class="sd">    :param project_root: Boundary directory inside which access is allowed.</span>
 <span class="sd">        Defaults to the current working directory.</span>
-<span class="sd">    :raises PermissionDeniedError: when *path* resolves outside the boundary,</span>
-<span class="sd">        or cannot be resolved at all (for example a symlink loop).</span>
+<span class="sd">    :param allowed_dirs: Additional directories permitted for this check</span>
+<span class="sd">        (session approvals), or ``None``.</span>
+<span class="sd">    :raises PermissionDeniedError: when *path* resolves outside every root, or</span>
+<span class="sd">        cannot be resolved at all (for example a symlink loop).</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Permission denied: empty path"</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span><span class="s2">"Empty path is not allowed"</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">base_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="c1"># ``strict=True`` makes a symlink loop (ELOOP) or an unreadable</span>
-            <span class="c1"># parent raise here instead of being silently returned as-is by</span>
-            <span class="c1"># the non-strict resolve.</span>
-            <span class="n">the_path</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">FileNotFoundError</span><span class="p">:</span>
-            <span class="c1"># A missing target is allowed through so the tool can report nearby</span>
-            <span class="c1"># entries; the boundary check below still applies to its location.</span>
-            <span class="n">the_path</span> <span class="o">=</span> <span class="n">base_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-        <span class="n">root</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">project_root</span>
-            <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-        <span class="p">)</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="c1"># A symlink loop, unreadable parent, etc. must deny rather than crash</span>
-        <span class="c1"># the tool: fail closed.</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied: cannot resolve </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot resolve path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">the_path</span><span class="o">.</span><span class="n">relative_to</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2"> is outside </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">the_path</span> <span class="o">=</span> <span class="n">resolve_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">the_path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied: cannot resolve </span><span class="si">{</span><span class="n">path</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cannot resolve path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">roots</span> <span class="o">=</span> <span class="n">permitted_roots</span><span class="p">(</span><span class="n">project_root</span><span class="p">,</span> <span class="n">allowed_dirs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">path_is_allowed</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">roots</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2"> is outside </span><span class="si">{</span><span class="n">roots</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">raise</span> <span class="n">PermissionDeniedError</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"Access to path outside the project directory is denied: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span>
-        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="p">)</span>
 
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission granted: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2"> is inside </span><span class="si">{</span><span class="n">root</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
-
-
-
-<div class="viewcode-block" id="check_tool_arguments_permissions">
-<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.permission.check_tool_arguments_permissions">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">check_tool_arguments_permissions</span><span class="p">(</span>
-    <span class="n">tool_meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">arguments</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
-    <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Check the path arguments a tool call would pass against the boundary.</span>
-
-<span class="sd">    Reads the ``checkpaths`` key from *tool_meta* (the ``meta`` dict of an</span>
-<span class="sd">    MCP tool, populated by ``register_tools`` from ``ToolInfo.checkpaths``).</span>
-<span class="sd">    For each declared argument name that is present in *arguments*, the value</span>
-<span class="sd">    is checked with :func:`check_path_access`.  Unlike</span>
-<span class="sd">    :func:`check_path_access`, this never raises: denied paths are collected</span>
-<span class="sd">    and returned as human-readable messages so the caller (the tool caller</span>
-<span class="sd">    node) can turn them into a non-halting error result without invoking the</span>
-<span class="sd">    tool.</span>
-
-<span class="sd">    Values that are not strings or path-like (e.g. an int) are skipped with a</span>
-<span class="sd">    warning, so a mistyped declaration cannot crash the gate.</span>
-
-<span class="sd">    :param tool_meta: Tool ``meta`` dict (``Tool.meta`` from ``mcp_tools``),</span>
-<span class="sd">        or ``None``/empty when the tool declares nothing.</span>
-<span class="sd">    :param arguments: The arguments dict the caller intends to pass to the tool.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission check.</span>
-<span class="sd">        Defaults to the current working directory.</span>
-<span class="sd">    :returns: List of denial messages; empty when all declared paths are</span>
-<span class="sd">        permitted (or no ``checkpaths`` are declared).</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">tool_meta</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">[]</span>
-    <span class="n">checkpaths</span> <span class="o">=</span> <span class="n">tool_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"checkpaths"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">checkpaths</span><span class="p">:</span>
-        <span class="k">return</span> <span class="p">[]</span>
-
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Checking declared path arguments</span><span class="se">\n</span><span class="si">{</span><span class="n">checkpaths</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">arguments</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-    <span class="n">denials</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">arg_name</span> <span class="ow">in</span> <span class="n">checkpaths</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">arg_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">arguments</span><span class="p">:</span>
-            <span class="k">continue</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="n">arguments</span><span class="p">[</span><span class="n">arg_name</span><span class="p">]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)):</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Skipping non-path value for declared path arg</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">arg_name</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">value</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
-            <span class="p">)</span>
-            <span class="k">continue</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">check_path_access</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
-        <span class="k">except</span> <span class="n">PermissionDeniedError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Permission denied for tool arg </span><span class="si">{</span><span class="n">arg_name</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">value</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">exc</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
-            <span class="p">)</span>
-            <span class="n">denials</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">denials</span></div>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission granted: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2"> is inside </span><span class="si">{</span><span class="n">roots</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

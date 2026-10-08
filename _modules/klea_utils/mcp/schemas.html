@@ -365,6 +365,10 @@
     <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">args</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">reason</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="c1">#: Filesystem paths the picker declared the call will touch, used by the</span>
+    <span class="c1">#: client-side permission gate as the ``expected`` discovery tier</span>
+    <span class="c1">#: (ADR-0007 update 2026-10-08).  Empty when the picker declared none.</span>
+    <span class="n">paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="c1">#: 1-based plan step this call belongs to (0 when there is no plan, e.g.</span>
     <span class="c1">#: RAG).  Set by the agent's picker so a batch of calls can be attributed</span>
     <span class="c1">#: back to their originating step (ADR-0041).</span>

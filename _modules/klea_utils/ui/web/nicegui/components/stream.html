@@ -687,7 +687,12 @@
         <span class="c1"># Clear this chat's run entry on every exit path (including an</span>
         <span class="c1"># unexpected exception) so it never leaks a stale task handle.  The</span>
         <span class="c1"># retry callback is kept so a failed run's Retry action survives.</span>
-        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">stream_tasks</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="c1"># Re-render the chat list so its per-chat run indicator stops</span>
+        <span class="c1"># spinning (or switches to the awaiting-input icon) now that the run</span>
+        <span class="c1"># is no longer registered.  Unconditional: the indicator is per chat,</span>
+        <span class="c1"># so it must clear even while a different chat is active.</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span></div>
 
 </pre></div>
         </article>

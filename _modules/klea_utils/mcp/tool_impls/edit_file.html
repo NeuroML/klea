@@ -316,10 +316,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileEditError</span><span class="p">,</span> <span class="n">PermissionDeniedError</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileEditError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls</span><span class="w"> </span><span class="kn">import</span> <span class="n">edit_replacers</span><span class="p">,</span> <span class="n">file_ops</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_target_note</span><span class="p">,</span> <span class="n">nearby_entries</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -383,12 +382,13 @@
 <span class="sd">    write, which is atomic.  Unless *replace_all* is set, the matched span must</span>
 <span class="sd">    be unique.</span>
 
-<span class="sd">    :param path: File path to edit; must resolve inside *project_root*.</span>
+<span class="sd">    :param path: File path to edit.</span>
 <span class="sd">    :param old_string: Exact text to replace (must not be empty).</span>
 <span class="sd">    :param new_string: Replacement text (must differ from *old_string*).</span>
 <span class="sd">    :param replace_all: Replace every occurrence rather than requiring one.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission check.</span>
-<span class="sd">        Defaults to the current working directory.</span>
+<span class="sd">    :param project_root: Base directory used to locate nearby entries when the</span>
+<span class="sd">        target is missing; the boundary itself is enforced by the client-side</span>
+<span class="sd">        gate (ADR-0007 update 2026-10-08).</span>
 <span class="sd">    :returns: dict with path, replacements, additions, deletions, matcher,</span>
 <span class="sd">        diff, error, nearby, note.  ``nearby``/``note`` are populated on a</span>
 <span class="sd">        missing/not-a-file error so the caller can see what exists instead.</span>
@@ -403,11 +403,6 @@
     <span class="p">)</span>
 
     <span class="n">the_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">check_path_access</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">PermissionDeniedError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied for </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">_result</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">))</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">the_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
         <span class="c1"># Missing target (or a directory): include the nearest existing</span>

@@ -983,6 +983,11 @@
 <span class="sd">    ``stdout``; ``error`` is set only when the command could not be run or was</span>
 <span class="sd">    killed.</span>
 
+<span class="sd">    A timed-out or cancelled command has its process group killed, but a</span>
+<span class="sd">    command that detaches its children (for example daemonises or calls</span>
+<span class="sd">    ``setsid``) may leave processes running; check with ``ps``/``pgrep`` and</span>
+<span class="sd">    clean up if needed.</span>
+
 <span class="sd">    Example: run_command(command="pwd &amp;&amp; ls", working_directory=".")</span>
 
 <span class="sd">    Args:</span>

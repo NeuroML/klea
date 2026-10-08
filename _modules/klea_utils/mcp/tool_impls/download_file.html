@@ -321,8 +321,6 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">_make_retryer_httpx</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDeniedError</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.session</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionLike</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.ssrf</span><span class="w"> </span><span class="kn">import</span> <span class="n">_MAX_REDIRECTS</span><span class="p">,</span> <span class="n">check_ssrf_async</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">_honest_user_agent</span>
@@ -372,8 +370,8 @@
 <span class="sd">    :param params: Optional query parameters for the request.</span>
 <span class="sd">    :param timeout: Request timeout in seconds.</span>
 <span class="sd">    :param retries: Number of attempts for transient failures.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission check.</span>
-<span class="sd">        Defaults to the current working directory.</span>
+<span class="sd">    :param project_root: Retained for callers; the boundary is enforced by</span>
+<span class="sd">        the client-side gate, not here (ADR-0007 update 2026-10-08).</span>
 <span class="sd">    :param allow_internal_hosts: Skip the SSRF guard (requests to loopback,</span>
 <span class="sd">        private, link-local, or reserved addresses).</span>
 <span class="sd">    :param max_download_bytes: Maximum bytes to download; larger responses</span>
@@ -400,12 +398,6 @@
         <span class="k">if</span> <span class="n">ssrf_error</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"SSRF guard blocked </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">ssrf_error</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
-
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">check_path_access</span><span class="p">(</span><span class="n">file_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">PermissionDeniedError</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied for </span><span class="si">{</span><span class="n">file_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="kc">None</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_do_download</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">current_url</span> <span class="o">=</span> <span class="n">url</span>

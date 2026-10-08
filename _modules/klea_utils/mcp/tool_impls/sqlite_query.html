@@ -317,9 +317,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionDeniedError</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
-
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1">#: File extensions accepted as sqlite databases.</span>
@@ -384,8 +381,8 @@
 <span class="sd">            relative to the project root.</span>
 <span class="sd">        sql: A single SELECT statement (a trailing semicolon is allowed).</span>
 <span class="sd">        limit: Maximum number of rows to return (clamped to MAX_LIMIT).</span>
-<span class="sd">        project_root: Boundary directory the database path must resolve</span>
-<span class="sd">            inside. Defaults to the current working directory.</span>
+<span class="sd">        project_root: Retained for callers; the boundary is enforced by</span>
+<span class="sd">            the client-side gate, not here (ADR-0007 update 2026-10-08).</span>
 <span class="sd">        max_ops: Total sqlite virtual-machine instruction budget for the</span>
 <span class="sd">            statement, bounding how much CPU a query may consume.  ``None``</span>
 <span class="sd">            disables the budget.  Non-integer or non-positive values fall</span>
@@ -405,7 +402,7 @@
         <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
     <span class="p">}</span>
 
-    <span class="n">issue</span> <span class="o">=</span> <span class="n">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
+    <span class="n">issue</span> <span class="o">=</span> <span class="n">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">issue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">result</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="n">issue</span><span class="p">}</span>
 
@@ -494,8 +491,8 @@
 <span class="sd">    Args:</span>
 <span class="sd">        db_path: Path to the sqlite database file (.sqlite/.sqlite3/.db),</span>
 <span class="sd">            relative to the project root.</span>
-<span class="sd">        project_root: Boundary directory the database path must resolve</span>
-<span class="sd">            inside. Defaults to the current working directory.</span>
+<span class="sd">        project_root: Retained for callers; the boundary is enforced by</span>
+<span class="sd">            the client-side gate, not here (ADR-0007 update 2026-10-08).</span>
 <span class="sd">        max_ops: Total sqlite virtual-machine instruction budget for the</span>
 <span class="sd">            introspection statements.  ``None`` disables the budget.</span>
 
@@ -507,7 +504,7 @@
 
     <span class="n">result</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"db_path"</span><span class="p">:</span> <span class="n">db_path</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">:</span> <span class="p">{},</span> <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
 
-    <span class="n">issue</span> <span class="o">=</span> <span class="n">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
+    <span class="n">issue</span> <span class="o">=</span> <span class="n">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">issue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">return</span> <span class="p">{</span><span class="o">**</span><span class="n">result</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">:</span> <span class="n">issue</span><span class="p">}</span>
 
@@ -547,22 +544,17 @@
 <span class="c1"># ----------------------------------------------------------------------</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_path_issue</span><span class="p">(</span><span class="n">db_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return an error message when *db_path* is unusable, else ``None``.</span>
 
-<span class="sd">    Checks the permission boundary, that the file exists, and that its</span>
-<span class="sd">    extension is a known sqlite suffix.</span>
+<span class="sd">    Checks that the file exists and that its extension is a known sqlite</span>
+<span class="sd">    suffix.  The permission boundary is enforced by the client-side gate</span>
+<span class="sd">    (ADR-0007 update 2026-10-08), not here.</span>
 
 <span class="sd">    :param db_path: Database path from the caller</span>
-<span class="sd">    :param project_root: Permission boundary, or ``None`` for cwd</span>
 <span class="sd">    :returns: Error message, or ``None`` when the path is usable</span>
 <span class="sd">    """</span>
     <span class="n">the_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">db_path</span><span class="p">)</span>
-    <span class="k">try</span><span class="p">:</span>
-        <span class="n">check_path_access</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
-    <span class="k">except</span> <span class="n">PermissionDeniedError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied for sqlite db: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">the_path</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not a sqlite database file: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"Not a sqlite database file: </span><span class="si">{</span><span class="n">db_path</span><span class="si">}</span><span class="s2">"</span>

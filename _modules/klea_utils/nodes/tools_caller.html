@@ -315,9 +315,10 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">interrupt</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">AudioContent</span><span class="p">,</span>
     <span class="n">BlobResourceContents</span><span class="p">,</span>
@@ -329,6 +330,13 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">dispatch_tool_calls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathRequest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.permission_hitl</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PermissionResolution</span><span class="p">,</span>
+    <span class="n">PermissionResponse</span><span class="p">,</span>
+    <span class="n">build_permission_payload</span><span class="p">,</span>
+    <span class="n">resolve_decisions</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">AbstractLangGraphNode</span><span class="p">,</span>
@@ -365,6 +373,7 @@
         <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">post_dispatch</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
         <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">permission_policy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"deny"</span><span class="p">,</span> <span class="s2">"ask"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"deny"</span><span class="p">,</span>
     <span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Initialise the tools caller node.</span>
 
@@ -387,12 +396,17 @@
 <span class="sd">            state is passed untyped so app-specific state schemas fit, and</span>
 <span class="sd">            ``displayed`` is a per-result flag (aligned with *results*) for</span>
 <span class="sd">            results the node streamed a display event for.</span>
+<span class="sd">        :param permission_policy: ``deny`` (default) rejects a call that</span>
+<span class="sd">            touches a path outside the permitted roots; ``ask`` pauses the run</span>
+<span class="sd">            for a per-path allow-now / allow-session / deny decision via the</span>
+<span class="sd">            shared HITL interrupt (ADR-0007).  RAG keeps the default.</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="o">=</span> <span class="n">mcp_client</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="o">=</span> <span class="n">tool_infos</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span> <span class="o">=</span> <span class="n">project_root</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span> <span class="o">=</span> <span class="n">post_dispatch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_permission_policy</span> <span class="o">=</span> <span class="n">permission_policy</span>
 
 <div class="viewcode-block" id="ToolsCallerNode.execute">
 <a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.tools_caller.ToolsCallerNode.execute">[docs]</a>
@@ -433,12 +447,26 @@
                     <span class="nb">type</span><span class="o">=</span><span class="s2">"state"</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">running</span>
                 <span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
             <span class="p">)</span>
+        <span class="n">allowed_dirs</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"allowed_dirs"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="p">]</span>
+        <span class="n">allowed_files</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"allowed_files"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="p">]</span>
+        <span class="n">resolver</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_make_permission_resolver</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_permission_policy</span> <span class="o">==</span> <span class="s2">"ask"</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
         <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
-            <span class="p">[(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">],</span>
+            <span class="n">tool_calls</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="p">,</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_project_root</span><span class="p">,</span>
             <span class="n">access_level</span><span class="o">=</span><span class="n">access_level</span><span class="p">,</span>
+            <span class="n">allowed_dirs</span><span class="o">=</span><span class="n">allowed_dirs</span><span class="p">,</span>
+            <span class="n">allowed_files</span><span class="o">=</span><span class="n">allowed_files</span><span class="p">,</span>
+            <span class="n">permission_resolver</span><span class="o">=</span><span class="n">resolver</span><span class="p">,</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">results</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span> <span class="o">=</span> <span class="n">results</span>
@@ -446,10 +474,94 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_post_exec_stream</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
 
         <span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tool_results"</span><span class="p">:</span> <span class="n">results</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="p">:</span>
+            <span class="n">merged</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">allowed_dirs</span><span class="p">,</span> <span class="o">*</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="p">]))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Session directories approved</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">"allowed_dirs"</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="p">:</span>
+            <span class="n">merged_files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+                <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">allowed_files</span><span class="p">,</span> <span class="o">*</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="p">])</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Session files approved</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">"allowed_files"</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged_files</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">:</span>
             <span class="n">updates</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">display_flags</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">updates</span></div>
 
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_make_permission_resolver</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]],</span> <span class="n">PermissionResolution</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return a resolver that pauses the run for per-path user approval.</span>
+
+<span class="sd">        Injected into :func:`dispatch_tool_calls`: it issues the shared HITL</span>
+<span class="sd">        ``interrupt`` (ADR-0046), records session-approved directories on</span>
+<span class="sd">        *ctx* (persisted by :meth:`execute`), and returns the resolution so</span>
+<span class="sd">        dispatch can enforce it.</span>
+<span class="sd">        """</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">resolver</span><span class="p">(</span><span class="n">requests</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">PermissionResolution</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Requesting path permission</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">(</span>
+                <span class="n">build_permission_payload</span><span class="p">(</span><span class="n">requests</span><span class="p">),</span>
+                <span class="n">response_schema</span><span class="o">=</span><span class="n">PermissionResponse</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">resolution</span> <span class="o">=</span> <span class="n">resolve_decisions</span><span class="p">(</span><span class="n">requests</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+            <span class="n">kind_by_key</span> <span class="o">=</span> <span class="p">{</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">}</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">key</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span>
+                <span class="k">if</span> <span class="n">kind_by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"sensitive"</span>
+            <span class="p">]</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">key</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span>
+                <span class="k">if</span> <span class="n">kind_by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span>
+            <span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Permission resolved</span><span class="se">\n</span><span class="si">{</span><span class="n">resolution</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_permission_inspect</span><span class="p">(</span><span class="n">requests</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">resolution</span>
+
+        <span class="k">return</span> <span class="n">resolver</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit_permission_inspect</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">],</span> <span class="n">resolution</span><span class="p">:</span> <span class="n">PermissionResolution</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit an ``inspect`` entry summarising a resolved permission ask.</span>
+
+<span class="sd">        Gives the inspection pane a record of what was asked and decided</span>
+<span class="sd">        (the chat form is transient), so the user can audit a path decision</span>
+<span class="sd">        after the run continues.</span>
+<span class="sd">        """</span>
+        <span class="n">allowed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_now</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span><span class="p">)</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Path permission: </span><span class="si">{</span><span class="n">allowed</span><span class="si">}</span><span class="s2"> allowed, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">denied</span><span class="p">)</span><span class="si">}</span><span class="s2"> denied"</span>
+        <span class="n">details</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"requests"</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">"kind"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span><span class="p">,</span>
+                    <span class="s2">"key"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">,</span>
+                    <span class="s2">"confidence"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">confidence</span><span class="p">,</span>
+                    <span class="s2">"source"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                    <span class="s2">"tool"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+                    <span class="s2">"argument"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">argument</span><span class="p">,</span>
+                <span class="p">}</span>
+                <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span>
+            <span class="p">],</span>
+            <span class="s2">"resolution"</span><span class="p">:</span> <span class="n">resolution</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">"inspect"</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span>
+                <span class="n">heading</span><span class="o">=</span><span class="s2">"Path permission"</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Run only when there are tool calls and a client to dispatch to."""</span>

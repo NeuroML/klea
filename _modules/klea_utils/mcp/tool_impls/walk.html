@@ -315,8 +315,6 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Collection</span><span class="p">,</span> <span class="n">Iterator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">check_path_access</span>
-
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1">#: Directory names never descended into by default.  These are version</span>
@@ -372,14 +370,12 @@
 
 <span class="sd">    :param root: Directory to walk.</span>
 <span class="sd">    :param skip_dirs: Directory basenames to skip at any depth.</span>
-<span class="sd">    :param project_root: Boundary directory for the permission check.</span>
-<span class="sd">        Defaults to the current working directory.</span>
-<span class="sd">    :raises PermissionDeniedError: when *root* resolves outside the boundary.</span>
+<span class="sd">    :param project_root: Retained for callers; the boundary is enforced by the</span>
+<span class="sd">        client-side gate, not here (ADR-0007 update 2026-10-08).</span>
 <span class="sd">    :raises OSError: when *root* cannot be scanned (e.g. it is a file or</span>
 <span class="sd">        does not exist).</span>
 <span class="sd">    :yields: :class:`pathlib.Path` for each regular file found.</span>
 <span class="sd">    """</span>
-    <span class="n">check_path_access</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">project_root</span><span class="p">)</span>
     <span class="n">base</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Walking files</span><span class="se">\n</span><span class="si">{</span><span class="n">base</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">project_root</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 

@@ -404,28 +404,77 @@
     <span class="s2">"revise"</span><span class="p">:</span> <span class="s2">"Revision requested"</span><span class="p">,</span>
 <span class="p">}</span>
 
+<span class="c1">#: Human-readable labels for a path-permission decision (ADR-0007).</span>
+<span class="n">_PERMISSION_DECISION_LABELS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"once"</span><span class="p">:</span> <span class="s2">"Allowed once"</span><span class="p">,</span>
+    <span class="s2">"session"</span><span class="p">:</span> <span class="s2">"Allowed for session"</span><span class="p">,</span>
+    <span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"Denied"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_answers</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render an input ``answers`` list, or ``None`` when not applicable."""</span>
+    <span class="n">answers</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"answers"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">answers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span> <span class="k">for</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">answers</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_decisions</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render path-permission ``decisions``, or ``None`` when not applicable."""</span>
+    <span class="n">decisions</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"decisions"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">decisions</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">decisions</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">entry</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">label</span> <span class="o">=</span> <span class="n">_PERMISSION_DECISION_LABELS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"decision"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span> <span class="s2">"Denied"</span>
+        <span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"key"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">key</span> <span class="k">else</span> <span class="n">label</span><span class="p">)</span>
+    <span class="k">return</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_review_decision</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a review ``decision``/``feedback``, or ``None``."""</span>
+    <span class="n">decision</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"decision"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">decision</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">label</span> <span class="o">=</span> <span class="n">_REVIEW_DECISION_LABELS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">decision</span><span class="p">)</span>
+    <span class="n">feedback</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"feedback"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">feedback</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">feedback</span> <span class="k">else</span> <span class="n">label</span>
+
+
+<span class="c1">#: Ordered renderers for an interrupt resume mapping; the first that applies</span>
+<span class="c1">#: (returns a string) wins.  Add a renderer here for a new interrupt kind.</span>
+<span class="n">_RESPONSE_RENDERERS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">_render_answers</span><span class="p">,</span>
+    <span class="n">_render_decisions</span><span class="p">,</span>
+    <span class="n">_render_review_decision</span><span class="p">,</span>
+<span class="p">)</span>
+
 
 <div class="viewcode-block" id="render_interrupt_response">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.hitl.render_interrupt_response">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">render_interrupt_response</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Render an interrupt resume mapping as the user turn for the transcript.</span>
 
-<span class="sd">    Input answers (``answers``) are joined; a review ``decision`` is shown in</span>
-<span class="sd">    human-readable form (``approve`` -&gt; "Plan approved", ``revise`` -&gt;</span>
-<span class="sd">    "Revision requested: &lt;feedback&gt;").  This is display only: the wire values</span>
-<span class="sd">    are unchanged.</span>
+<span class="sd">    Each interrupt kind has a renderer (see :data:`_RESPONSE_RENDERERS`):</span>
+<span class="sd">    input ``answers`` are joined; path-permission ``decisions`` are shown as</span>
+<span class="sd">    "Allowed once: /tmp", "Allowed for session: /proj", "Denied: &lt;key&gt;"; a</span>
+<span class="sd">    review ``decision`` becomes "Plan approved" / "Revision requested:</span>
+<span class="sd">    &lt;feedback&gt;".  An unknown shape falls back to its JSON form.  This is</span>
+<span class="sd">    display only: the wire values are unchanged.</span>
 
 <span class="sd">    Shared by ``chat_core`` (the persisted user row) and the web UI (the live</span>
 <span class="sd">    transcript) so the two cannot drift.</span>
 <span class="sd">    """</span>
-    <span class="n">answers</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"answers"</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">answers</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
-        <span class="k">return</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">answer</span><span class="p">)</span> <span class="k">for</span> <span class="n">answer</span> <span class="ow">in</span> <span class="n">answers</span><span class="p">)</span>
-    <span class="n">decision</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"decision"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
-    <span class="k">if</span> <span class="n">decision</span><span class="p">:</span>
-        <span class="n">label</span> <span class="o">=</span> <span class="n">_REVIEW_DECISION_LABELS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">decision</span><span class="p">,</span> <span class="n">decision</span><span class="p">)</span>
-        <span class="n">feedback</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"feedback"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">feedback</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">feedback</span> <span class="k">else</span> <span class="n">label</span>
+    <span class="k">for</span> <span class="n">renderer</span> <span class="ow">in</span> <span class="n">_RESPONSE_RENDERERS</span><span class="p">:</span>
+        <span class="n">rendered</span> <span class="o">=</span> <span class="n">renderer</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rendered</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">rendered</span>
     <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">)</span></div>
 
 

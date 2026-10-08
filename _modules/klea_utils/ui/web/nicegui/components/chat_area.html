@@ -323,6 +323,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.choice</span><span class="w"> </span><span class="kn">import</span> <span class="n">choice_buttons</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">TurnStatus</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
@@ -404,12 +405,17 @@
 <span class="w">    </span><span class="sd">"""Render the HITL ask form in the turn status region (ADR-0046).</span>
 
 <span class="sd">    A ``review`` ask gets Approve / Request changes / Cancel; an ``input``</span>
-<span class="sd">    ask gets one text field per question plus Answer / Cancel.  Submitting</span>
-<span class="sd">    calls :attr:`PageContext.submit_interrupt` (registered by the input area).</span>
+<span class="sd">    ask gets one text field per question plus Answer / Cancel; a</span>
+<span class="sd">    ``permission`` ask (ADR-0007) gets one allow-once / allow-session / deny</span>
+<span class="sd">    choice per requested path.  Submitting calls</span>
+<span class="sd">    :attr:`PageContext.submit_interrupt` (registered by the input area).</span>
 <span class="sd">    """</span>
     <span class="n">ask</span> <span class="o">=</span> <span class="n">_interrupt_ask</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">kind</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">)</span>
     <span class="n">interrupt_id</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt_id"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"permission"</span><span class="p">:</span>
+        <span class="n">_render_permission_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ask</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">)</span>
+        <span class="k">return</span>
     <span class="n">heading</span> <span class="o">=</span> <span class="s2">"Plan review"</span> <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span> <span class="k">else</span> <span class="s2">"User input"</span>
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-2 p-3 border border-primary rounded"</span><span class="p">):</span>
         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
@@ -465,6 +471,100 @@
 
         <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"gap-2"</span><span class="p">):</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Answer"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">_submit</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
+                <span class="s2">"Cancel"</span><span class="p">,</span>
+                <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"flat color=negative"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the approval key for a serialized path request (ADR-0007).</span>
+
+<span class="sd">    The resolved file for a ``sensitive`` request, the resolved directory for</span>
+<span class="sd">    an ``outside`` one.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"path"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"directory"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_permission_form</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">interrupt_id</span><span class="p">:</span> <span class="n">Any</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a path-permission ask: one decision per requested path.</span>
+
+<span class="sd">    Each request gets an allow-once / allow-session / deny choice; selecting</span>
+<span class="sd">    one re-renders the rows so it shows its active state.  Submit sends the</span>
+<span class="sd">    per-key decisions to :meth:`PageContext.submit_interrupt` (ADR-0007 update</span>
+<span class="sd">    2026-10-08).  In-progress choices live on *ask* (the chat's stored</span>
+<span class="sd">    interrupt), so they survive a status-region re-render and are cleared with</span>
+<span class="sd">    the ask on resume.</span>
+<span class="sd">    """</span>
+    <span class="n">requests</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"requests"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">requests</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="n">requests</span> <span class="o">=</span> <span class="p">[{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"outside"</span><span class="p">,</span> <span class="s2">"path"</span><span class="p">:</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)}]</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rendering permission form</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">interrupt_id</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">decisions</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"choices"</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">decisions</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">),</span> <span class="s2">"deny"</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-2 p-3 border border-primary rounded"</span><span class="p">):</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Permission required"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">question</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">):</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
+
+        <span class="c1"># Re-render on select so the chosen option shows its active state</span>
+        <span class="c1"># (``choice_buttons`` computes it at build time).</span>
+        <span class="nd">@ui</span><span class="o">.</span><span class="n">refreshable</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">_rows</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
+                    <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Sensitive file: </span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'path'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="n">hint</span> <span class="o">=</span> <span class="s2">"Commonly holds credentials."</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Outside project: </span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'directory'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="n">hint</span> <span class="o">=</span> <span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'tool'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'confidence'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
+                    <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+
+                <span class="k">def</span><span class="w"> </span><span class="nf">_set</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">decisions</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                    <span class="n">_rows</span><span class="o">.</span><span class="n">refresh</span><span class="p">()</span>
+
+                <span class="n">choice_buttons</span><span class="p">(</span>
+                    <span class="n">title</span><span class="p">,</span>
+                    <span class="p">{</span><span class="s2">"once"</span><span class="p">:</span> <span class="s2">"Once"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">:</span> <span class="s2">"Session"</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"Deny"</span><span class="p">},</span>
+                    <span class="n">decisions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">),</span>
+                    <span class="n">_set</span><span class="p">,</span>
+                    <span class="n">colors</span><span class="o">=</span><span class="p">{</span><span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"red-5"</span><span class="p">},</span>
+                    <span class="n">label_width</span><span class="o">=</span><span class="s2">"20ch"</span><span class="p">,</span>
+                    <span class="n">group_width</span><span class="o">=</span><span class="s2">"12rem"</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
+
+        <span class="n">_rows</span><span class="p">()</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">_submit</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Submitting permission decisions</span><span class="se">\n</span><span class="si">{</span><span class="n">decisions</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"decisions"</span><span class="p">:</span> <span class="p">[</span>
+                        <span class="p">{</span><span class="s2">"key"</span><span class="p">:</span> <span class="n">key</span><span class="p">,</span> <span class="s2">"decision"</span><span class="p">:</span> <span class="n">value</span><span class="p">}</span>
+                        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">decisions</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="p">]</span>
+                <span class="p">},</span>
+                <span class="n">interrupt_id</span><span class="p">,</span>
+                <span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"gap-2"</span><span class="p">):</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Submit"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">_submit</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"unelevated color=primary"</span><span class="p">)</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span>
                 <span class="s2">"Cancel"</span><span class="p">,</span>
                 <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">,</span> <span class="kc">True</span><span class="p">),</span>
