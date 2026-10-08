@@ -32,6 +32,7 @@
 - Cancel a running query: `POST /query/cancel` stops the active run for a chat (the web UI's send button becomes a Stop button while streaming), leaving the thread clean for the next query; only one run may be active per chat, so a concurrent same-chat request is rejected with `409` (ADR-0043).
 - Human-in-the-loop pauses that resume the *same* run with its state intact (ADR-0046). The agent's plan review pauses for an explicit approve/revision decision (approval runs the plan, a revision returns the feedback to the Planner), and a `needs_input` plan pauses with the questions its blocked step carries. New chat payload fields `interrupt_response` / `interrupt_cancel` (and `interrupt_id`) are distinct from `resume`, and the backend rejects a plain query while a chat awaits an answer (`409`). The web UI and TUI render the ask and submit the answer, and reloading the page re-presents a pending ask.
 - Web UI: several chats in one page can now run at once. Each chat has its own run state (send / Stop / Retry apply per chat), the chat list shows a running / awaiting-input indicator, and deleting a chat cancels its run; a background chat's stream no longer blocks the input or repaints the active chat.
+- Interactive path approval: before a tool call touches a path outside the project directory, or a sensitive file (env files, private keys, cloud config) inside it, the agent pauses and asks the user, per path, to allow once, allow for the session, or deny. A denied path returns a non-halting error and the run continues; session approvals are remembered for the chat. The ask is shown in the web UI and TUI, recorded in the inspect pane, and the sensitive-file set is extendable via `KLEA_SENSITIVE_PATTERNS` (ADR-0007).
 
 ### Changed
 
@@ -63,9 +64,12 @@
 - Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
 - Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
 - Graph diagrams (`*-lang-graph.png` and their `.mmd` source) are written only when debug logging is enabled (`--debug` / `KLEA_LOG_LEVEL=debug`), instead of on every graph build.
+- Path permission is now a single client-side gate before dispatch instead of a per-tool check: file tools no longer enforce the project-directory boundary themselves, and a tool that declares no path metadata is still gated (declared `checkpaths`, paths the tools picker declares, and heuristics such as shell-command tokens).
 
 ### Fixed
 
+- Web UI: the chat-list running indicator now stops spinning (or switches to the awaiting-input icon) as soon as a run finishes, pauses, or errors, instead of staying on the spinner until an unrelated refresh.
+- HITL answers in the chat transcript now render readably (for example `Allowed once: /tmp`) instead of raw JSON, and a path-permission answer no longer prints its wire mapping.
 - Web UI: the chat-list running/awaiting indicator and the active-chat marker now show when the sidebar is collapsed to its icon rail (the avatar cell is the only item section Quasar keeps in mini mode).
 - `read_file` refuses binary files and text that is not valid UTF-8 with a clear error (instead of returning replacement-character garbage) and strips a leading UTF-8 BOM.
 - The file tools share one line definition: lines end at `\n` after normalising CRLF and lone-CR endings (matching editors and `wc -l`), so `read_file` and `grep` no longer count form feeds, vertical tabs or Unicode separators as line breaks.

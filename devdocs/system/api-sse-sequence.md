@@ -173,7 +173,10 @@ The agent's `ChatPayload` adds `resume`, `interrupt_response`, `interrupt_id`,
 `context_snapshot` (`klea_agent.py`), so the graph emits a `context` event
 carrying mode, requested mode, assurance, note, and effective access level
 (ADR-0032).  It has HITL nodes (`Awaiting review`, `Awaiting input`) whose
-pause is delivered as an `interrupt` event (ADR-0046).  Graph node labels match
+pause is delivered as an `interrupt` event (ADR-0046), and the shared
+`ToolsCallerNode` pauses with `kind="permission"` when a tool call would touch
+a path outside the project root (or a sensitive file inside it; ADR-0007).
+Graph node labels match
 `agent_pkg/example-configs/klea-agent-lang-graph.mmd`.
 
 ```mermaid
@@ -221,6 +224,15 @@ sequenceDiagram
             Graph-->>Core: Evaluating
         else tool
             Graph-->>Core: Selecting tools
+            alt path outside project / sensitive
+                Graph-->>Core: Running tools (interrupt: permission)
+                Core-->>UI: data: interrupt (path permission)
+                Note over UI,Store: Run pauses for per-path allow / deny.
+                UI->>API: POST /query/stream {interrupt_response: decisions}
+                API->>Core: stream_response(interrupt_response=...)
+                Core->>Graph: Command(resume=decisions)
+                Graph-->>Core: resumes at Running tools
+            end
             Graph->>MCP: dispatch selected tools
             Graph-->>Core: Running tools
             Graph-->>Core: Evaluating
@@ -241,8 +253,15 @@ Notes:
   `interrupt_response` (and `interrupt_id`); `chat_core` validates it against
   the thread's paused state and resumes with `Command(resume=...)`.  A plain
   query while paused is rejected with 409.
+* **Path permission**: a tool call that would touch a path outside the
+  project root, or a sensitive file inside it, pauses with
+  `kind="permission"`; the answer carries
+  `decisions: [{key, decision}]` (`once` / `session` / `deny`).  The gate is
+  the shared `ToolsCallerNode` + `dispatch_tool_calls` (ADR-0007); a deny
+  yields a non-halting result and the run continues.
 * **Cancelling an interrupt**: `interrupt_cancel: true` resumes with
-  `{"action": "cancel"}` and routes to `Cancelled`, a terminal run.
+  `{"action": "cancel"}` and routes to `Cancelled`, a terminal run (for a
+  permission ask it denies every request instead).
 * **Resuming a failed run**: `resume: true` re-invokes the graph with `None`
   input so the failed node re-runs from its checkpoint (no user turn written).
 * **Stopping an active run**: `POST /query/cancel` (idempotent, 204) cancels
@@ -255,7 +274,7 @@ Notes:
 | Chat payload | `query`, `chat_id`, `user_id` | adds `resume`, `interrupt_response`, `interrupt_id`, `interrupt_cancel`, `mode`, `access_level` |
 | Initial state extras | none | `mode.requested`, optional `access_level` |
 | `context` event | none (base `context_snapshot` returns `None`) | emits mode / assurance / note / access_level |
-| HITL `interrupt` / resume | none | `Awaiting input`, `Awaiting review` |
+| HITL `interrupt` / resume | none | `Awaiting input`, `Awaiting review`, `permission` (path approval) |
 | Failed-run resume | n/a | `resume: true` |
 | Cancel | `POST /query/cancel` | `POST /query/cancel` |
 | Shared plumbing | `chat_core.stream_response`, `sse.py`, `runs.py`, `make_app` | same |
@@ -267,7 +286,8 @@ Notes:
   `klea_utils/api/chat_core.py` (server runners),
   `klea_utils/api/chat_common.py` (thread identity, cancel),
   `klea_utils/api/runs.py` (`ActiveRunRegistry`).
-* HITL: `klea_utils/api/hitl.py`; ADR-0046.
+* HITL: `klea_utils/api/hitl.py`; ADR-0046 (interrupt/resume), ADR-0007
+  (path permission).
 * Event catalogue: `streams.md`; ADR-0040 (amends ADR-0013).
 * App contracts: `rag_pkg/klea_rag/api/chat.py`,
   `agent_pkg/klea_agent/api/chat.py` (ADR-0031).

@@ -1,13 +1,14 @@
 # MCP tool permissions: current state, limits, and options
 
-Status: design note.  The client-side per-path gate and the annotation-driven
-tool access level are implemented; the interactive allow/deny/ask approval
-loop is being implemented (ADR-0007 update 2026-10-08).  Updates to this note
-should be reflected in the permission layer as it evolves.
+Status: design note.  The client-side per-path gate, the interactive
+allow-now / allow-session / deny approval loop (including the sensitive-file
+second round), and the annotation-driven tool access level are implemented
+(ADR-0007 update 2026-10-08).  Updates to this note should be reflected in
+the permission layer as it evolves.
 
-Last updated: 2026-10-08 (layered path discovery added; interactive approval
-per ADR-0007 update 2026-10-08; invocation axis / tool access level at
-ADR-0037; path layers decision at ADR-0007).
+Last updated: 2026-10-08 (layered path discovery, interactive approval, and
+the sensitive-file second round implemented; invocation axis / tool access
+level at ADR-0037; path layers decision at ADR-0007).
 
 See also `file-tools.md` for the file-tool text/binary/encoding contract and
 the `read_file` paging contract, which sit on top of this boundary.
