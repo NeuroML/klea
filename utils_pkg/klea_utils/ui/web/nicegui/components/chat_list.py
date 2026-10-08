@@ -26,6 +26,7 @@ from klea_utils.ui.web.nicegui.client import (
     delete_chat_on_server,
     rename_chat_on_server,
 )
+from klea_utils.ui.web.nicegui.components import stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
 from klea_utils.ui.web.nicegui.state import chats, ensure_chat, get_chats_sorted
@@ -68,6 +69,10 @@ def attach_chat_list(ctx: PageContext) -> None:
             ctx.user_id,
             ctx.chat_id,
         )
+        # Stop an in-flight run for this chat before deleting it, so the graph
+        # run is cancelled both locally and server-side.
+        if ctx.chat_is_streaming(chat_id):
+            stream.stop_stream(ctx, chat_id)
         background_tasks.create(
             delete_chat_on_server(ctx.server_url, ctx.user_id, chat_id)
         )
@@ -153,9 +158,17 @@ def attach_chat_list(ctx: PageContext) -> None:
             ):
                 with ui.item_section().props("avatar"):
                     ui.icon("push_pin" if sdata["pinned"] else "history")
-                with ui.item_section():
+                with (
+                    ui.item_section(),
+                    ui.row().classes("items-center gap-1 no-wrap"),
+                ):
                     label_cls = "text-xs font-bold" if is_current else "text-xs"
                     ui.label(sdata["name"]).classes(label_cls)
+                    # Running / awaiting-input indicator for this chat.
+                    if ctx.chat_is_streaming(chat_id_):
+                        ui.spinner().classes("w-4 h-4")
+                    elif sdata["turn_status"]["kind"] == "awaiting_input":
+                        ui.icon("help_outline").classes("text-amber text-xs")
                 ui.tooltip(
                     "Created: "
                     + datetime.fromtimestamp(sdata["created"])
