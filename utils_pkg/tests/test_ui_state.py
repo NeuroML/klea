@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.state import (
     missing_credentials,
     resolve_chat_choice,
@@ -15,6 +16,34 @@ from klea_utils.ui.web.nicegui.state import (
 )
 
 OPTIONS = ("general", "scientific")
+
+
+class _FakeTask:
+    """Minimal asyncio.Task stand-in for the registry tests."""
+
+    def __init__(self, done: bool) -> None:
+        self._done = done
+
+    def done(self) -> bool:
+        """Return the configured done state."""
+        return self._done
+
+
+def test_chat_is_streaming_reads_the_registry():
+    """Only a live task for this page's user_id:chat_id counts."""
+    ctx = PageContext(server_url="http://x", user_id="u")
+
+    assert ctx.chat_is_streaming("c") is False
+
+    ctx.stream_tasks["u:c"] = _FakeTask(done=False)
+    assert ctx.chat_is_streaming("c") is True
+
+    ctx.stream_tasks["u:c"] = _FakeTask(done=True)
+    assert ctx.chat_is_streaming("c") is False
+
+    # Another chat's task does not make this chat look busy.
+    ctx.stream_tasks["u:other"] = _FakeTask(done=False)
+    assert ctx.chat_is_streaming("c") is False
 
 
 def test_pending_wins():

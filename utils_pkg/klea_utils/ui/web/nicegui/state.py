@@ -129,6 +129,8 @@ class ChatData(TypedDict):
     pinned: bool
     #: Rendered transcript messages.
     messages: list[MessageData]
+    #: Indices of transcript messages currently expanded in the UI.
+    expanded: set[int]
     #: Inspector items for this chat, in order: a per-query
     #: :class:`InspectorMarker` followed by that query's entries.  Kept
     #: for the browser session (not persisted).
@@ -178,6 +180,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
             "created": now.timestamp(),
             "pinned": False,
             "messages": [],
+            "expanded": set(),
             "inspector_entries": [],
             "inspector_expanded": set(),
             "inspector_sections_collapsed": set(),

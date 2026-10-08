@@ -88,6 +88,12 @@ class PageContext:
     #: control can cancel it locally (belt-and-braces alongside the server
     #: ``/query/cancel`` call).
     stream_task: Any = None
+    #: Per-chat run registry, keyed by ``"{user_id}:{chat_id}"``: the asyncio
+    #: task driving each chat's run and its Retry callback.  Page-scoped (the
+    #: tasks are bound to this page's event loop) and independent of the
+    #: process-global ``chats`` store, so several chats can run at once.
+    stream_tasks: dict[str, Any] = field(default_factory=dict)
+    retry_cbs: dict[str, Any] = field(default_factory=dict)
     mini_state: bool = True
 
     # Extra request fields merged into the ``/query/stream`` POST body
@@ -165,3 +171,15 @@ class PageContext:
     #: (e.g. operating mode / access level in ``query_extra``) onto that chat.
     chat_created_hooks: list[Callable[[Any], None]] = field(default_factory=list)
     switch_chat: Callable[[str], None] = field(default=_noop_arg)
+
+    def chat_is_streaming(self, chat_id: str) -> bool:
+        """Return whether *chat_id* has an active run on this page.
+
+        Reads the per-chat registry (the ``chat_id`` is scoped by this page's
+        ``user_id``), not the display state in the ``chats`` store.
+
+        :param chat_id: Chat conversation identifier.
+        :returns: True when a live run is registered for the chat.
+        """
+        task = self.stream_tasks.get(f"{self.user_id}:{chat_id}")
+        return task is not None and not task.done()

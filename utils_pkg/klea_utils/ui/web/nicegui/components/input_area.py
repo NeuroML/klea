@@ -92,7 +92,7 @@ def attach_input(ctx: PageContext) -> None:
             )
             ctx.render_chat_area()
             ctx.refresh_chat_list()
-            background_tasks.create(
+            task = background_tasks.create(
                 stream.run_stream(
                     ctx,
                     "",
@@ -102,6 +102,7 @@ def attach_input(ctx: PageContext) -> None:
                     interrupt_cancel=cancel,
                 )
             )
+            ctx.stream_tasks[f"{ctx.user_id}:{chat_id}"] = task
 
         ctx.submit_interrupt = submit_interrupt
 
@@ -160,7 +161,8 @@ def attach_input(ctx: PageContext) -> None:
             ctx.render_chat_area()
             ctx.refresh_chat_list()
 
-            background_tasks.create(stream.run_stream(ctx, query, current))
+            task = background_tasks.create(stream.run_stream(ctx, query, current))
+            ctx.stream_tasks[f"{ctx.user_id}:{current}"] = task
 
         # Send button inside the field, anchored to the bottom-right: the
         # textarea autogrows upward as the message gets longer while the
