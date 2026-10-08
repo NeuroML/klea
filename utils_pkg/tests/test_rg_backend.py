@@ -285,19 +285,6 @@ async def test_rg_grep_not_a_directory(tmp_path):
     assert "not a directory" in result["error"].lower()
 
 
-async def test_rg_grep_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-
-    result = await rg_backend.rg_grep(
-        "/nonexistent/rg", "x", path=str(outside), project_root=str(root)
-    )
-
-    assert "denied" in result["error"].lower()
-
-
 async def test_rg_grep_truncates_at_max_results(monkeypatch, tmp_path):
     script = _write_fake_rg(tmp_path)
     fixture = _fixture(

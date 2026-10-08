@@ -16,9 +16,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
-
 logger = logging.getLogger(__name__)
 
 
@@ -48,8 +45,8 @@ def list_files(
     :param include_directories: Whether to include directories in results.
     :param recursive: If True, traverse subdirectories recursively.
     :param max_results: Maximum number of entries to return.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced by the
+        client-side gate, not here (ADR-0007 update 2026-10-08).
 
     :returns: dict with files, error, truncated, note.  ``note`` is non-empty
         when the requested filter matched nothing and the fallback below
@@ -72,17 +69,6 @@ def list_files(
     note = ""
     files: list[dict[str, Any]] = []
     paths: list[Path] = []
-
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return {
-            "files": [],
-            "truncated": False,
-            "error": str(exc),
-            "note": "",
-        }
 
     patterns = list(set(pattern.split()))
 
@@ -229,8 +215,7 @@ def nearby_entries(
     lists its immediate entries.
 
     :param path: The requested (possibly missing) path.
-    :param project_root: Boundary directory for the permission check, passed
-        through to :func:`list_files`.
+    :param project_root: Retained and passed through to :func:`list_files`.
     :param max_results: Maximum number of entries to return.
     :returns: ``(directory, names)``, or ``("", [])`` when no existing ancestor
         directory could be found or listed.

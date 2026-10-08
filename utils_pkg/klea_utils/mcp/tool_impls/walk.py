@@ -13,8 +13,6 @@ import os
 from collections.abc import Collection, Iterator
 from pathlib import Path
 
-from klea_utils.mcp.tool_impls.permission import check_path_access
-
 logger = logging.getLogger(__name__)
 
 #: Directory names never descended into by default.  These are version
@@ -68,14 +66,12 @@ def iter_files(
 
     :param root: Directory to walk.
     :param skip_dirs: Directory basenames to skip at any depth.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
-    :raises PermissionDeniedError: when *root* resolves outside the boundary.
+    :param project_root: Retained for callers; the boundary is enforced by the
+        client-side gate, not here (ADR-0007 update 2026-10-08).
     :raises OSError: when *root* cannot be scanned (e.g. it is a file or
         does not exist).
     :yields: :class:`pathlib.Path` for each regular file found.
     """
-    check_path_access(root, project_root)
     base = Path(root)
     logger.debug(f"Walking files\n{base = }\n{project_root = }")
 

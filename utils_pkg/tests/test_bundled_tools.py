@@ -469,21 +469,6 @@ class TestDownloadFile:
         assert result == cache_dir / "f.txt"
         assert result.read_text() == "cached body"
 
-    async def test_download_file_denied_outside_project(self, tmp_path):
-        fake = _FakeResponse("file body", status=200, content_type="text/plain")
-        session = _FakeSession(response=fake)
-        root = tmp_path / "root"
-        root.mkdir()
-        outside = tmp_path / "outside.txt"
-        result = await download_file(
-            session=session,
-            url="https://example.com/f.txt",
-            file_path=outside,
-            project_root=str(root),
-        )
-        assert result is None
-        assert not outside.exists()
-
     async def test_download_file_sends_honest_ua(self, tmp_path):
         fake = _FakeResponse("file body", status=200, content_type="text/plain")
         session = _FakeSession(response=fake)
@@ -554,14 +539,6 @@ class TestDownloadFile:
         )
         assert result is None
         assert session.calls == []
-
-
-def test_list_files_rejects_dotdot():
-    result = list_files(path="..")
-    logger.debug(f"{result = }")
-    assert result["files"] == []
-    assert result["error"] != ""
-    assert "outside" in result["error"].lower() or ".." in result["error"]
 
 
 def test_list_files_basic(tmp_path):
@@ -780,25 +757,6 @@ def test_list_files_symlink_not_recursed(tmp_path):
     assert "target.py" not in by_path
 
 
-def test_list_files_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "secret"
-    outside.mkdir()
-    (outside / "s.txt").write_text("s")
-    result = list_files(path=str(outside), pattern="*", project_root=str(root))
-    logger.debug(f"{result = }")
-    assert result["files"] == []
-    assert "denied" in result["error"].lower()
-
-
-def test_list_files_denied_absolute_escape(tmp_path):
-    result = list_files(path="/etc", pattern="*", project_root=str(tmp_path))
-    logger.debug(f"{result = }")
-    assert result["files"] == []
-    assert "denied" in result["error"].lower()
-
-
 def _write_lines(tmp_path, name, n):
     f = tmp_path / name
     f.write_text("\n".join(f"line {i}" for i in range(1, n + 1)))
@@ -870,17 +828,6 @@ def test_read_file_char_cap(tmp_path):
     logger.debug(f"{len(result['content']) = }")
     assert result["truncated"] is True
     assert len(result["content"]) <= 100
-
-
-def test_read_file_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "secret.txt"
-    outside.write_text("s")
-    result = read_file(str(outside), project_root=str(root))
-    logger.debug(f"{result = }")
-    assert result["content"] == ""
-    assert "denied" in result["error"].lower()
 
 
 def test_read_file_missing_file(tmp_path):

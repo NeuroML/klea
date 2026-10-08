@@ -15,9 +15,6 @@ import urllib.parse
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
-
 logger = logging.getLogger(__name__)
 
 #: File extensions accepted as sqlite databases.
@@ -80,8 +77,8 @@ def sqlite_query(
             relative to the project root.
         sql: A single SELECT statement (a trailing semicolon is allowed).
         limit: Maximum number of rows to return (clamped to MAX_LIMIT).
-        project_root: Boundary directory the database path must resolve
-            inside. Defaults to the current working directory.
+        project_root: Retained for callers; the boundary is enforced by
+            the client-side gate, not here (ADR-0007 update 2026-10-08).
         max_ops: Total sqlite virtual-machine instruction budget for the
             statement, bounding how much CPU a query may consume.  ``None``
             disables the budget.  Non-integer or non-positive values fall
@@ -101,7 +98,7 @@ def sqlite_query(
         "error": "",
     }
 
-    issue = _path_issue(db_path, project_root)
+    issue = _path_issue(db_path)
     if issue is not None:
         return {**result, "error": issue}
 
@@ -187,8 +184,8 @@ def sqlite_schema(
     Args:
         db_path: Path to the sqlite database file (.sqlite/.sqlite3/.db),
             relative to the project root.
-        project_root: Boundary directory the database path must resolve
-            inside. Defaults to the current working directory.
+        project_root: Retained for callers; the boundary is enforced by
+            the client-side gate, not here (ADR-0007 update 2026-10-08).
         max_ops: Total sqlite virtual-machine instruction budget for the
             introspection statements.  ``None`` disables the budget.
 
@@ -200,7 +197,7 @@ def sqlite_schema(
 
     result: dict[str, Any] = {"db_path": db_path, "tables": {}, "error": ""}
 
-    issue = _path_issue(db_path, project_root)
+    issue = _path_issue(db_path)
     if issue is not None:
         return {**result, "error": issue}
 
@@ -239,22 +236,17 @@ def sqlite_schema(
 # ----------------------------------------------------------------------
 
 
-def _path_issue(db_path: str, project_root: str | None) -> str | None:
+def _path_issue(db_path: str) -> str | None:
     """Return an error message when *db_path* is unusable, else ``None``.
 
-    Checks the permission boundary, that the file exists, and that its
-    extension is a known sqlite suffix.
+    Checks that the file exists and that its extension is a known sqlite
+    suffix.  The permission boundary is enforced by the client-side gate
+    (ADR-0007 update 2026-10-08), not here.
 
     :param db_path: Database path from the caller
-    :param project_root: Permission boundary, or ``None`` for cwd
     :returns: Error message, or ``None`` when the path is usable
     """
     the_path = Path(db_path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for sqlite db: {db_path}")
-        return str(exc)
     if not the_path.is_file():
         logger.warning(f"Not a sqlite database file: {db_path}")
         return f"Not a sqlite database file: {db_path}"

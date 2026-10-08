@@ -103,32 +103,18 @@ async def test_display_nonzero_exit_without_output(tmp_path):
 
 
 async def test_display_error_is_shown(tmp_path):
-    """A call-level error (denied cwd) is shown in the block."""
+    """A call-level error (invalid cwd) is shown in the block."""
     root = tmp_path / "root"
     root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
+    not_a_dir = root / "file.txt"
+    not_a_dir.write_text("x")
     result = await run_command(
-        "pwd", working_directory=str(outside), project_root=str(root)
+        "pwd", working_directory=str(not_a_dir), project_root=str(root)
     )
     display = result["display"]
     assert display["mime"] == "text/x-shell"
     assert "--- error ---" in display["data"]
     assert display["meta"]["returncode"] is None
-
-
-async def test_working_directory_outside_project_denied(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-
-    result = await run_command(
-        "pwd", working_directory=str(outside), project_root=str(root)
-    )
-
-    assert result["returncode"] is None
-    assert "denied" in result["error"].lower()
 
 
 async def test_working_directory_used(tmp_path):

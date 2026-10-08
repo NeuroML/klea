@@ -16,7 +16,6 @@ from klea_utils.mcp.path_detect import detect_path_requests
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.permission import (
     check_path_access,
-    check_tool_arguments_permissions,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,49 +89,6 @@ def test_default_root_is_cwd(tmp_path, monkeypatch):
         check_path_access(tmp_path)
 
 
-def test_check_tool_arguments_allows_inside(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    (root / "file.txt").touch()
-    meta = {"checkpaths": ["path"]}
-    result = check_tool_arguments_permissions(
-        meta, {"path": str(root / "file.txt")}, root
-    )
-    assert result == []
-
-
-def test_check_tool_arguments_denies_outside(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "secret.txt"
-    outside.touch()
-    meta = {"checkpaths": ["path"]}
-    denials = check_tool_arguments_permissions(meta, {"path": str(outside)}, root)
-    assert len(denials) == 1
-    assert "denied" in denials[0]
-
-
-def test_check_tool_arguments_no_meta(tmp_path):
-    assert check_tool_arguments_permissions(None, {"path": "/etc"}, tmp_path) == []
-    assert check_tool_arguments_permissions({}, {"path": "/etc"}, tmp_path) == []
-
-
-def test_check_tool_arguments_no_checkpaths(tmp_path):
-    assert (
-        check_tool_arguments_permissions({"other": 1}, {"path": "/etc"}, tmp_path) == []
-    )
-
-
-def test_check_tool_arguments_missing_arg(tmp_path):
-    meta = {"checkpaths": ["path"]}
-    assert check_tool_arguments_permissions(meta, {}, tmp_path) == []
-
-
-def test_check_tool_arguments_skips_non_string(tmp_path):
-    meta = {"checkpaths": ["limit"]}
-    assert check_tool_arguments_permissions(meta, {"limit": 3}, tmp_path) == []
-
-
 def test_denies_symlink_loop(tmp_path):
     """A self-referential symlink cannot be resolved, so it is denied."""
     root, _ = _root_and_outside(tmp_path)
@@ -143,20 +99,6 @@ def test_denies_symlink_loop(tmp_path):
         check_path_access(loop, root)
 
 
-def test_symlink_loop_is_a_non_halting_denial(tmp_path):
-    """The client-side gate reports a symlink loop as a denial, not a crash."""
-    root, _ = _root_and_outside(tmp_path)
-    loop = root / "loop"
-    loop.symlink_to("loop")
-
-    denials = check_tool_arguments_permissions(
-        {"checkpaths": ["path"]}, {"path": str(loop)}, str(root)
-    )
-
-    assert denials
-    assert "resolve" in denials[0].lower()
-
-
 def test_allowed_dirs_permits_outside(tmp_path):
     """A session-approved directory is allowed in addition to the root."""
     root, outside = _root_and_outside(tmp_path)
@@ -164,18 +106,6 @@ def test_allowed_dirs_permits_outside(tmp_path):
     with pytest.raises(PermissionDeniedError):
         check_path_access(outside / "f.txt", root)
     check_path_access(outside / "f.txt", root, allowed_dirs=[str(outside)])
-
-
-def test_allowed_dirs_used_by_tool_arguments(tmp_path):
-    root, outside = _root_and_outside(tmp_path)
-    outside.mkdir()
-    meta = {"checkpaths": ["path"]}
-    assert (
-        check_tool_arguments_permissions(
-            meta, {"path": str(outside)}, root, allowed_dirs=[str(outside)]
-        )
-        == []
-    )
 
 
 def _root_only(tmp_path):

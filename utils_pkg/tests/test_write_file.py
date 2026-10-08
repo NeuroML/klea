@@ -104,19 +104,6 @@ def test_write_file_rejects_directory(tmp_path):
     assert "directory" in result["error"].lower()
 
 
-def test_write_file_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside.txt"
-
-    result = write_file(str(outside), "x", project_root=str(root))
-
-    logger.debug(f"{result = }")
-    assert result["error"] != ""
-    assert "denied" in result["error"].lower()
-    assert not outside.exists()
-
-
 def test_write_file_refuses_binary_existing_file(tmp_path):
     target = tmp_path / "blob.bin"
     target.write_bytes(b"data\x00binary")

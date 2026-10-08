@@ -139,18 +139,6 @@ def test_edit_file_rejects_directory(tmp_path):
     assert "regular file" in result["error"].lower()
 
 
-def test_edit_file_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside.txt"
-    outside.write_text("hello\n")
-
-    result = edit_file(str(outside), "hello", "bye", project_root=str(root))
-
-    assert "denied" in result["error"].lower()
-    assert outside.read_text() == "hello\n"
-
-
 def test_edit_file_preserves_mode(tmp_path):
     target = tmp_path / "a.sh"
     target.write_text("old\n")

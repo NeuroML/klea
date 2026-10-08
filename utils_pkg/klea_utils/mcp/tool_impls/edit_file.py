@@ -14,10 +14,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import FileEditError, PermissionDeniedError
+from klea_utils.mcp.errors import FileEditError
 from klea_utils.mcp.tool_impls import edit_replacers, file_ops
 from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
-from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +78,13 @@ def edit_file(
     write, which is atomic.  Unless *replace_all* is set, the matched span must
     be unique.
 
-    :param path: File path to edit; must resolve inside *project_root*.
+    :param path: File path to edit.
     :param old_string: Exact text to replace (must not be empty).
     :param new_string: Replacement text (must differ from *old_string*).
     :param replace_all: Replace every occurrence rather than requiring one.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Base directory used to locate nearby entries when the
+        target is missing; the boundary itself is enforced by the client-side
+        gate (ADR-0007 update 2026-10-08).
     :returns: dict with path, replacements, additions, deletions, matcher,
         diff, error, nearby, note.  ``nearby``/``note`` are populated on a
         missing/not-a-file error so the caller can see what exists instead.
@@ -99,11 +99,6 @@ def edit_file(
     )
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return _result(path, error=str(exc))
 
     if not the_path.is_file():
         # Missing target (or a directory): include the nearest existing

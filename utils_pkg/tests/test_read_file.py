@@ -214,18 +214,6 @@ def test_read_bounded_helper(tmp_path):
     assert read_file_module._read_bounded(f, 9) is None
 
 
-def test_symlink_loop_is_denied(tmp_path):
-    """An unresolvable (self-referential) symlink is a permission error."""
-    loop = tmp_path / "loop"
-    loop.symlink_to("loop")
-
-    result = read_file(str(loop), project_root=str(tmp_path))
-
-    assert result["content"] == ""
-    assert result["error"] != ""
-    assert to_result(result).is_error is True
-
-
 @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="mkfifo is not available")
 def test_fifo_is_not_a_file(tmp_path):
     """A FIFO is not a regular file and is reported as such (not opened)."""

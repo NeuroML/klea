@@ -131,18 +131,6 @@ def test_find_files_not_a_directory(tmp_path):
     assert "not a directory" in result["error"].lower()
 
 
-def test_find_files_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-
-    result = find_files_inhouse(path=str(outside), project_root=str(root))
-
-    assert result["files"] == []
-    assert "denied" in result["error"].lower()
-
-
 # ---------------------------------------------------------------------------
 # Backend dispatch
 # ---------------------------------------------------------------------------

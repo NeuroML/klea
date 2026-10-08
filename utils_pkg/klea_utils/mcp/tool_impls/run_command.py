@@ -23,9 +23,6 @@ import signal
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
-
 logger = logging.getLogger(__name__)
 
 #: Default per-command timeout in seconds.
@@ -276,12 +273,13 @@ async def run_command(
     Framework-agnostic implementation shared across Klea MCP servers.  Apps
     wrap this in an MCP tool (see ``klea_utils.mcp.server.bundled_tools``).
 
-    This is **not** a sandbox (ADR-0038): ``working_directory`` is checked
-    against *project_root* like any other path argument, but the command can
-    ignore it (``cd /``, absolute paths) and has the host user's filesystem,
-    process, and network authority.  The command inherits the server's
-    environment.  Access control relies on the tool's ``destructive`` /
-    ``open_world`` annotations and the access level (ADR-0037).
+    This is **not** a sandbox (ADR-0038): the command can ignore
+    ``working_directory`` (``cd /``, absolute paths) and has the host user's
+    filesystem, process, and network authority.  The command inherits the
+    server's environment.  Access control relies on the client-side path gate
+    (``working_directory`` and paths in the command, ADR-0007) plus the tool's
+    ``destructive`` / ``open_world`` annotations and the access level
+    (ADR-0037).
 
     The process is run with ``start_new_session`` so it can be killed as a
     group on timeout, with stdin closed so an interactive command cannot
@@ -290,14 +288,14 @@ async def run_command(
     processes running that the group signal cannot reach.
 
     :param command: Shell command string to run.
-    :param working_directory: Directory to run in; must resolve inside
-        *project_root*.  Defaults to *project_root* (or the current working
-        directory when *project_root* is ``None``).
+    :param working_directory: Directory to run in.  Defaults to *project_root*
+        (or the current working directory when *project_root* is ``None``).
     :param timeout_seconds: Seconds to wait before killing the process group.
         Must not exceed :func:`max_timeout_seconds`.
     :param max_output_chars: Maximum characters captured per stream.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Default base for *working_directory* when it is not
+        given; not a permission check (the client-side gate enforces the
+        boundary).
     :returns: dict with command, working_directory, returncode, stdout,
         stderr, truncated, error.  A non-zero ``returncode`` is a normal
         command result (many tools signal conditions with it); ``error`` is
@@ -328,11 +326,6 @@ async def run_command(
         if boundary
         else Path.cwd()
     )
-    try:
-        check_path_access(cwd, boundary)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for working directory {working_directory}")
-        return _result(command, str(cwd), error=str(exc))
     cwd = cwd.expanduser().resolve()
 
     ceiling = max_timeout_seconds()

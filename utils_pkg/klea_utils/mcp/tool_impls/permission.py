@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Path permission checking for file-accessing MCP tools.
+Path boundary helpers for the client-side permission gate.
 
-See ``devdocs/system/mcp-permissions.md`` and
-``devdocs/adr/0007-mcp-permissions.md``.
+The tool implementations no longer call these; the client-side gate uses
+:func:`resolve_path` / :func:`path_is_allowed` / :func:`permitted_roots`
+(:mod:`klea_utils.mcp.path_detect`) and :func:`check_path_access` remains a
+convenience that raises on denial.  See ``devdocs/system/mcp-permissions.md``
+and ``devdocs/adr/0007-mcp-permissions.md``.
 
 Containment is path-based and taken as a snapshot.  Two known limitations:
 a *hard link* inside the root to an inode whose other names are outside it is
@@ -21,7 +24,6 @@ import logging
 import os
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from klea_utils.mcp.errors import PermissionDeniedError
 
@@ -146,63 +148,3 @@ def check_path_access(
         )
 
     logger.debug(f"Permission granted: {the_path} is inside {roots}")
-
-
-def check_tool_arguments_permissions(
-    tool_meta: dict[str, Any] | None,
-    arguments: dict[str, Any],
-    project_root: str | os.PathLike | None = None,
-    *,
-    allowed_dirs: Sequence[str] | None = None,
-) -> list[str]:
-    """Check the path arguments a tool call would pass against the boundary.
-
-    Reads the ``checkpaths`` key from *tool_meta* (the ``meta`` dict of an
-    MCP tool, populated by ``register_tools`` from ``ToolInfo.checkpaths``).
-    For each declared argument name that is present in *arguments*, the value
-    is checked with :func:`check_path_access`.  Unlike
-    :func:`check_path_access`, this never raises: denied paths are collected
-    and returned as human-readable messages so the caller (the tool caller
-    node) can turn them into a non-halting error result without invoking the
-    tool.
-
-    Values that are not strings or path-like (e.g. an int) are skipped with a
-    warning, so a mistyped declaration cannot crash the gate.
-
-    :param tool_meta: Tool ``meta`` dict (``Tool.meta`` from ``mcp_tools``),
-        or ``None``/empty when the tool declares nothing.
-    :param arguments: The arguments dict the caller intends to pass to the tool.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
-    :param allowed_dirs: Additional directories permitted for this check
-        (session approvals), or ``None``.
-    :returns: List of denial messages; empty when all declared paths are
-        permitted (or no ``checkpaths`` are declared).
-    """
-    if not tool_meta:
-        return []
-    checkpaths = tool_meta.get("checkpaths")
-    if not checkpaths:
-        return []
-
-    logger.debug(f"Checking declared path arguments\n{checkpaths = }\n{arguments = }")
-    denials: list[str] = []
-    for arg_name in checkpaths:
-        if arg_name not in arguments:
-            continue
-        value = arguments[arg_name]
-        if not isinstance(value, (str, os.PathLike)):
-            logger.warning(
-                f"Skipping non-path value for declared path arg\n"
-                f"{arg_name = }\n"
-                f"{value = }"
-            )
-            continue
-        try:
-            check_path_access(value, project_root, allowed_dirs=allowed_dirs)
-        except PermissionDeniedError as exc:
-            logger.warning(
-                f"Permission denied for tool arg {arg_name}\n{value = }\n{exc = }"
-            )
-            denials.append(str(exc))
-    return denials

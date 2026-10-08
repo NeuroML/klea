@@ -16,8 +16,6 @@ from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.run_command import _terminate_process_group
 from klea_utils.mcp.tool_impls.walk import SKIP_DIRECTORIES
 
@@ -290,13 +288,14 @@ async def rg_grep(
 
     :param rg: Resolved ripgrep executable (see :func:`resolve_rg`).
     :param pattern: Regular expression to search for.
-    :param path: Directory to search; must resolve inside *project_root*.
+    :param path: Directory to search.
     :param include: Space separated glob patterns restricting files searched.
     :param case_sensitive: Whether matching is case sensitive.
     :param include_ignored: When ``True``, search ``.gitignore``-ignored files.
     :param max_results: Maximum number of matching lines to return.
     :param timeout_seconds: Wall-clock cap for the invocation.
-    :param project_root: Boundary directory for the permission check.
+    :param project_root: Retained for callers; the boundary is enforced by
+        the client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with pattern, path, matches, truncated, files_scanned,
         error.
     """
@@ -314,11 +313,6 @@ async def rg_grep(
         return _grep_result(pattern, path, error="Empty pattern is not allowed.")
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return _grep_result(pattern, path, error=str(exc))
     if not the_path.is_dir():
         logger.warning(f"Not a directory: {path}")
         return _grep_result(pattern, path, error=f"Not a directory: {path}")
@@ -365,11 +359,12 @@ async def rg_files(
 
     :param rg: Resolved ripgrep executable (see :func:`resolve_rg`).
     :param pattern: Glob pattern matched against file paths; ``"*"`` lists all.
-    :param path: Directory to search; must resolve inside *project_root*.
+    :param path: Directory to search.
     :param include_ignored: When ``True``, list ``.gitignore``-ignored files.
     :param max_results: Maximum number of file paths to return.
     :param timeout_seconds: Wall-clock cap for the invocation.
-    :param project_root: Boundary directory for the permission check.
+    :param project_root: Retained for callers; the boundary is enforced by
+        the client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with files, truncated, error.
     """
     logger.debug(
@@ -381,11 +376,6 @@ async def rg_files(
     )
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return {"files": [], "truncated": False, "error": str(exc)}
     if not the_path.is_dir():
         logger.warning(f"Not a directory: {path}")
         return {"files": [], "truncated": False, "error": f"Not a directory: {path}"}

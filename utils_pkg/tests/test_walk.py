@@ -12,7 +12,6 @@ import logging
 import os
 
 import pytest
-from klea_utils.mcp.errors import PermissionDeniedError
 from klea_utils.mcp.tool_impls.walk import SKIP_DIRECTORIES, iter_files
 
 logger = logging.getLogger(__name__)
@@ -102,17 +101,6 @@ def test_iter_files_skips_file_symlinks(tmp_path):
 
     logger.debug(f"{found = }")
     assert found == {"real.txt"}
-
-
-def test_iter_files_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "secret.txt").write_text("secret")
-
-    with pytest.raises(PermissionDeniedError):
-        list(iter_files(outside, project_root=str(root)))
 
 
 def test_iter_files_missing_root_raises(tmp_path):

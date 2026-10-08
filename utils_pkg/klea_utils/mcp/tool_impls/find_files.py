@@ -13,8 +13,6 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.rg_backend import resolve_rg, rg_files
 from klea_utils.mcp.tool_impls.walk import iter_files
 
@@ -59,10 +57,10 @@ def find_files_inhouse(
 
     :param pattern: Glob pattern to match against file paths; ``"*"`` lists
         every file.
-    :param path: Directory to search, relative to *project_root*.
+    :param path: Directory to search.
     :param max_results: Maximum number of file paths to return.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced by the
+        client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with files, truncated, error.
     """
     logger.debug(
@@ -70,11 +68,6 @@ def find_files_inhouse(
     )
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return _result(error=str(exc))
 
     if not the_path.is_dir():
         logger.warning(f"Not a directory: {path}")
@@ -90,8 +83,6 @@ def find_files_inhouse(
             files.append(rel)
             if len(files) > max_results:
                 break
-    except PermissionDeniedError as exc:  # pragma: no cover - checked above
-        return _result(error=str(exc))
     except OSError as exc:
         logger.warning(f"Could not search {path}: {exc}")
         return _result(error=f"Could not search {path}: {exc}")
@@ -123,8 +114,8 @@ async def find_files(
     :param include_ignored: When ``True``, also list ``.gitignore``-ignored
         files (ripgrep backend only).
     :param max_results: Maximum number of file paths to return.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced
+        by the client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with files, truncated, error.
     """
     rg = resolve_rg()

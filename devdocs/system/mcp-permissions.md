@@ -14,30 +14,20 @@ the `read_file` paging contract, which sit on top of this boundary.
 
 ## Current state
 
-`klea_utils.mcp.tool_impls.permission` provides `check_path_access(path,
-project_root=None)` and `PermissionDeniedError`.  It is an author-side
-defense layer:
+`klea_utils.mcp.tool_impls.permission` provides the boundary helpers
+(`permitted_roots`, `resolve_path`, `path_is_allowed`, and
+`check_path_access`).  **The tool implementations no longer check the
+boundary themselves** (ADR-0007 update 2026-10-08): `check_path_access` and
+`checkpaths` are Klea conventions, not MCP, so per-tool copies added no
+portable guarantee and had to be kept in sync with the client gate.  The
+helpers are used by the client-side gate; `download_file_to_cache` and the
+sandboxed tools remain self-contained with their own boundary.
 
-- `path` is allowed only when it resolves inside `project_root` (default:
-  the current working directory).  Both sides are fully resolved first, so
-  `..` traversal and symlink escapes outside the boundary are caught.
-- Every Klea-authored tool that reads or writes the filesystem must gate
-  its path arguments through `check_path_access` and return a clear,
-  non-halting error on denial:
-  - `list_files` (`klea_utils/mcp/tool_impls/list_files.py`) -- takes
-    `project_root`.
-  - `download_file` (`klea_utils/mcp/tool_impls/download_file.py`) -- takes
-    `project_root`.
-  - `download_file_to_cache` scopes its boundary to its own cache
-    directory, so per-app cache helpers keep working unmodified.
-
-The client-side counterpart is the pre-dispatch gate in
+The single enforcement point is the pre-dispatch gate in
 `klea_utils.mcp.dispatch.dispatch_tool_calls`, built on
 `klea_utils.mcp.path_detect.detect_path_requests` (see below) and an optional
 `permission_resolver`:
 
-- **Author-side (in-tool):** the checks above, run inside the tool
-  implementation.
 - **Client-side (pre-dispatch):** every call's paths are detected before it
   reaches the MCP server.  With a `permission_resolver` the run pauses for
   the user's per-path *allow now* / *allow for session* / *deny* decision
@@ -51,8 +41,7 @@ The client-side counterpart is the pre-dispatch gate in
 
 Both agents/RAG are expected to run from the directory the user is working
 in, so the client-side gate uses `project_root=None` (the current working
-directory) by default -- the same boundary the in-tool checks default to,
-so the two layers agree.
+directory) by default.
 
 ### Layered path discovery
 
@@ -83,9 +72,7 @@ flowchart TD
     PreCheck -- denied / unapproved --> Synth1[Synthetic error\nnever reaches server]
     PreCheck -- "outside + ask" --> Approval["interrupt (per path):\nallow now / session / deny"]
     Approval --> PreCheck
-    Server --> InTool[Tool impl\ncheck_path_access]
-    InTool -- allowed --> Exec[Execute]
-    InTool -- denied --> Synth2[Error result]
+    Server --> Exec[Execute]
 ```
 
 ## Declaring which arguments are paths
@@ -98,10 +85,11 @@ async def list_files(path: str, ...): ...
 ```
 
 `register_tools` folds `checkpaths` into the tool's `meta` dict, which
-travels to clients on the MCP Tool's `_meta` field.  Tools that read or
-write the filesystem should also call `check_path_access` inside their
-implementation (the author-side layer).  Self-contained helpers with their
-own containment (e.g. `download_file_to_cache`, the sandboxed code
+travels to clients on the MCP Tool's `_meta` field.  The client-side gate
+reads it; the tool implementation no longer checks the boundary itself
+(ADR-0007 update 2026-10-08).  `checkpaths` is the deterministic discovery
+tier; the gate also covers tools that declare none (heuristics).  Tools with
+their own containment (e.g. `download_file_to_cache`, the sandboxed code
 execution tools) are not marked: their boundary is their own cache/sandbox,
 not the project root.
 
@@ -244,36 +232,35 @@ confinement guarantee.
 This document is a system-level contract, not an ADR.  The trust model is
 as built:
 
-1. **Author-side: in-tool path checks** -- path-aware and stricter than
-   opencode's name-based gate, implemented for tools Klea authors.
-   Every filesystem tool gates its path arguments through
-   `check_path_access` (see Current state and Declaring which arguments
-   are paths).  Kept as the author-side layer.
+1. **Client-side: pre-dispatch tool-call gate** -- evaluated at the call
+   site before dispatching to the MCP server, the single path enforcement
+   point.  The shared `ToolsCallerNode` gates calls through
+   `dispatch_tool_calls` + `detect_path_requests` (declared `checkpaths`,
+   picker-declared paths, and heuristics), denying out-of-boundary paths
+   before they reach the server.  With a `permission_resolver` it pauses for
+   the interactive per-path *allow now* / *allow for session* / *deny* loop
+   (ADR-0007 update 2026-10-08).  The *invocation* half (tool access level)
+   is implemented (ADR-0037): `dispatch_tool_calls` rejects calls to tools
+   disallowed by the state's `read_only | full` level, derived from the MCP
+   annotations.  The path gate covers any tool Klea invokes, even those that
+   declare no `checkpaths` (via heuristics); the invocation gate needs
+   annotations, so a third-party server that declares none is not
+   invocation-gated.
 
-2. **Client-side: pre-dispatch tool-call gate** -- evaluated at the call
-   site before dispatching to the MCP server.  The *per-path* half is
-   implemented: the shared `ToolsCallerNode` gates calls through
-   `dispatch_tool_calls` + `check_tool_arguments_permissions` using each
-   tool's `checkpaths` declaration, denying out-of-boundary paths before
-   they reach the server.  The *allow / deny / ask* ruleset and the
-   interactive user-approval loop (graph pause + TUI/web input, opencode
-   style) are **deferred** -- see the TODO in `permission.py` and the
-   kanban board.  The *invocation* half (tool access level) is implemented
-   (ADR-0037): `dispatch_tool_calls` rejects calls to tools disallowed by
-   the state's `read_only | full` level, derived from the MCP annotations.
-   The client-side gate only applies to tools that declare `checkpaths`
-   (path half) or annotations (invocation half); third-party servers that
-   declare neither are not gated.
+   The author-side in-tool checks (formerly layer 1) were **removed**
+   (ADR-0007 update 2026-10-08): they were a Klea-only, non-portable
+   duplicate of this gate.  A direct caller of a bundled server (the
+   standalone `klea-mcp` CLI used by a non-Klea client) therefore has no
+   path gate; there is no MCP standard that enforces path access.
 
-3. **OS-level sandboxing (orthogonal)** -- run third-party MCP servers
+2. **OS-level sandboxing (orthogonal)** -- run third-party MCP servers
    (or the whole agent) in a container / bubblewrap / chroot with only
    the project directory mounted.  This is the only hard boundary for
-   servers Klea does not author, and it is orthogonal to layers 1 and 2.
+   servers Klea does not author.
 
-Implemented posture: layers 1 + 2 together, trust model as documented
-above, and advise sandboxing for third-party servers.  In all cases,
-connecting to a server means trusting its author: never connect to a
-server you do not trust.
+Implemented posture: the client-side gate + sandboxing advice, trust model
+as documented above.  In all cases, connecting to a server means trusting
+its author: never connect to a server you do not trust.
 
 See also ``../adr/0007-mcp-permissions.md`` (path layers) and
 ``../adr/0037-tool-access-levels.md`` (invocation axis / access level) for

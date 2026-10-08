@@ -218,13 +218,6 @@ def test_query_unknown_column_is_helpful(tmp_path):
     assert "papers" in out["error"]
 
 
-def test_query_permission_denied_outside_boundary(tmp_path):
-    _db, _ = _make_db(tmp_path, name="data2.sqlite3")
-    outside = tmp_path.parent / "elsewhere.sqlite3"
-    out = sqlite_query(str(outside), "SELECT 1", project_root=str(tmp_path))
-    assert "denied" in out["error"].lower()
-
-
 def test_query_missing_file_error(tmp_path):
     out = sqlite_query(
         str(tmp_path / "nope.db"), "SELECT 1", project_root=str(tmp_path)

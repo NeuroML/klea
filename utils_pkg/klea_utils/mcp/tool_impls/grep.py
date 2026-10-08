@@ -14,9 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import PermissionDeniedError
 from klea_utils.mcp.tool_impls.file_ops import is_binary, split_lines
-from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.rg_backend import resolve_rg, rg_grep
 from klea_utils.mcp.tool_impls.walk import iter_files
 
@@ -99,8 +97,8 @@ def grep_inhouse(
     :param max_files: Maximum number of files to scan.
     :param max_file_bytes: Maximum size of a file considered for searching.
     :param max_chars: Maximum total characters of matching lines to return.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced
+        by the client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with pattern, path, matches, truncated, files_scanned,
         error.
     """
@@ -132,11 +130,6 @@ def grep_inhouse(
         return _result(pattern, path, error=f"Invalid regular expression: {exc}")
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return _result(pattern, path, error=str(exc))
 
     if not the_path.is_dir():
         logger.warning(f"Not a directory: {path}")
@@ -202,8 +195,6 @@ def grep_inhouse(
                     break
             if len(matches) >= max_results or chars >= max_chars:
                 break
-    except PermissionDeniedError as exc:  # pragma: no cover - checked above
-        return _result(pattern, path, error=str(exc))
     except OSError as exc:
         logger.warning(f"Could not search {path}: {exc}")
         return _result(pattern, path, error=f"Could not search {path}: {exc}")
@@ -246,8 +237,8 @@ async def grep(
     :param include_ignored: When ``True``, also search ``.gitignore``-ignored
         files (ripgrep backend only).
     :param max_results: Maximum number of matching lines to return.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced
+        by the client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with pattern, path, matches, truncated, files_scanned,
         error.
     """

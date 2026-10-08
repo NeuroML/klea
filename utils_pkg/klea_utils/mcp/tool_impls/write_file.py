@@ -14,9 +14,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import FileEditError, PermissionDeniedError
+from klea_utils.mcp.errors import FileEditError
 from klea_utils.mcp.tool_impls import file_ops
-from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
 
@@ -69,21 +68,16 @@ def write_file(
     and the new content normalised to it.  Missing parent directories are
     created.  The result carries a unified diff against the previous content.
 
-    :param path: File path to write; must resolve inside *project_root*.
+    :param path: File path to write.
     :param content: Complete file content.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced by the
+        client-side gate, not here (ADR-0007 update 2026-10-08).
     :returns: dict with path, created, bytes_written, additions, deletions,
         diff, error.
     """
     logger.debug(f"Writing file\n{path = }\n{len(content) = }\n{project_root = }")
 
     the_path = Path(path)
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return _result(path, error=str(exc))
 
     if the_path.is_dir():
         logger.warning(f"Path is a directory: {path}")

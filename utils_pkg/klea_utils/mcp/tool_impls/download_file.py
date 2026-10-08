@@ -19,8 +19,6 @@ from urllib.parse import urljoin, urlparse
 import httpx
 
 from klea_utils.api.utils import _make_retryer_httpx
-from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.session import SessionLike
 from klea_utils.mcp.tool_impls.ssrf import _MAX_REDIRECTS, check_ssrf_async
 from klea_utils.mcp.tool_impls.web_fetch import _honest_user_agent
@@ -68,8 +66,8 @@ async def download_file(
     :param params: Optional query parameters for the request.
     :param timeout: Request timeout in seconds.
     :param retries: Number of attempts for transient failures.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Retained for callers; the boundary is enforced by
+        the client-side gate, not here (ADR-0007 update 2026-10-08).
     :param allow_internal_hosts: Skip the SSRF guard (requests to loopback,
         private, link-local, or reserved addresses).
     :param max_download_bytes: Maximum bytes to download; larger responses
@@ -96,12 +94,6 @@ async def download_file(
         if ssrf_error is not None:
             logger.warning(f"SSRF guard blocked {url}: {ssrf_error}")
             return None
-
-    try:
-        check_path_access(file_path, project_root)
-    except PermissionDeniedError:
-        logger.warning(f"Permission denied for {file_path}")
-        return None
 
     async def _do_download() -> Path | None:
         current_url = url

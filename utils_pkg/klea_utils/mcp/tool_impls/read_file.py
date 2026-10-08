@@ -14,7 +14,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from klea_utils.mcp.errors import DocumentConversionError, PermissionDeniedError
+from klea_utils.mcp.errors import DocumentConversionError
 from klea_utils.mcp.tool_impls.file_ops import (
     detect_newline,
     is_binary,
@@ -22,7 +22,6 @@ from klea_utils.mcp.tool_impls.file_ops import (
     split_lines,
 )
 from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
-from klea_utils.mcp.tool_impls.permission import check_path_access
 from klea_utils.mcp.tool_impls.web_fetch import _html_to_text
 
 logger = logging.getLogger(__name__)
@@ -138,8 +137,9 @@ def read_file(
     :param line_numbers: Prefix each returned line with its line number
         (default).  Set ``False`` to return the raw line text, e.g. to copy
         a span into an edit tool's ``old_string``.
-    :param project_root: Boundary directory for the permission check.
-        Defaults to the current working directory.
+    :param project_root: Base directory used to locate nearby entries when the
+        target is missing; the boundary itself is enforced by the client-side
+        gate (ADR-0007 update 2026-10-08).
     :returns: dict with path, content, line_start, line_end, total_lines,
         truncated, next_offset, error, note (plus ``nearby`` on a missing-file
         error).  A truncated result is a success (``error`` empty) that carries
@@ -159,20 +159,6 @@ def read_file(
     )
 
     the_path = Path(path)
-
-    try:
-        check_path_access(the_path, project_root)
-    except PermissionDeniedError as exc:
-        logger.warning(f"Permission denied for {path}")
-        return {
-            "path": str(the_path),
-            "content": "",
-            "line_start": 1,
-            "line_end": 0,
-            "total_lines": 0,
-            "truncated": False,
-            "error": str(exc),
-        }
 
     if not the_path.is_file():
         logger.warning(f"Not a readable file: {path}")

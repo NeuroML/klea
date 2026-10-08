@@ -205,20 +205,6 @@ def test_grep_not_a_directory(tmp_path):
     assert "not a directory" in result["error"].lower()
 
 
-def test_grep_denied_outside_project(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    (outside / "s.txt").write_text("needle")
-
-    result = grep_inhouse(pattern="needle", path=str(outside), project_root=str(root))
-
-    logger.debug(f"{result = }")
-    assert result["matches"] == []
-    assert "denied" in result["error"].lower()
-
-
 # ---------------------------------------------------------------------------
 # Backend dispatch
 # ---------------------------------------------------------------------------

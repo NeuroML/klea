@@ -12,8 +12,10 @@ The bundled filesystem tools -- `read_file`, `write_file`, `edit_file`,
 
 * `klea_utils/mcp/tool_impls/file_ops.py` -- text decoding/encoding, binary
   detection, BOM and newline helpers, atomic writes.
-* `klea_utils/mcp/tool_impls/permission.py` -- path containment
-  (`check_path_access`).
+* The **client-side path gate** (`klea_utils/mcp/dispatch.py` +
+  `path_detect.py`), not the tools: the tools no longer check the boundary
+  themselves (ADR-0007 update 2026-10-08).  `permission.py` retains the
+  boundary helpers used by that gate.
 
 Recording the contract here keeps the definition in one place (the tools were
 originally written without an enumerated edge-case contract, which let
@@ -49,8 +51,9 @@ originally written without an enumerated edge-case contract, which let
   `next_offset`, `next_char_offset` and a `note` telling the caller how to
   continue.  It is not an MCP error.
 * Error results (`isError: true`): missing / not-a-file (with `nearby` +
-  `note`), binary, invalid UTF-8, too large, and permission denied /
-  unresolvable (symlink loop).
+  `note`), binary, invalid UTF-8, too large, and unreadable (a symlink loop
+  reports as not-a-file).  Path-permission denials come from the client-side
+  gate before the tool runs, not from `read_file`.
 * `max_bytes` (default 100 MB) bounds the raw read; the read is bounded
   (`_read_bounded`, reads at most `max_bytes + 1`) so a file that grows after
   the size check cannot make the read unbounded.
@@ -74,8 +77,8 @@ originally written without an enumerated edge-case contract, which let
 | Raw `.csv` / `.tsv` | Note that fields may span lines (converted when anydoc is available). |
 | File > `max_bytes` | Refused (error). |
 | File grows mid-read | Bounded read refuses (error). |
-| Symlink loop / unresolvable | Denied (`check_path_access`). |
-| Symlink / `..` outside root | Denied. |
+| Symlink loop / unresolvable | Not a file (error). |
+| Symlink / `..` outside root | Handled by the client-side gate (deny/ask), not the tool. |
 | FIFO / device / directory | "Not a file" + `nearby`. |
 | Missing file | Error + `nearby` + `note`. |
 
