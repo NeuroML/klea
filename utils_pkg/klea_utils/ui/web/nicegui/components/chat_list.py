@@ -29,7 +29,12 @@ from klea_utils.ui.web.nicegui.client import (
 from klea_utils.ui.web.nicegui.components import stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
-from klea_utils.ui.web.nicegui.state import chats, ensure_chat, get_chats_sorted
+from klea_utils.ui.web.nicegui.state import (
+    chat_indicator,
+    chats,
+    ensure_chat,
+    get_chats_sorted,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,25 +161,33 @@ def attach_chat_list(ctx: PageContext) -> None:
                 .classes("w-full")
                 .on("dblclick", lambda s=chat_id_: _rename_chat(s))
             ):
+                streaming = ctx.chat_is_streaming(chat_id_)
+                awaiting = sdata["turn_status"]["kind"] == "awaiting_input"
+                indicator = chat_indicator(
+                    streaming=streaming,
+                    awaiting=awaiting,
+                    pinned=sdata["pinned"],
+                    active=is_current,
+                )
+                # The avatar cell is the only section Quasar keeps when the
+                # drawer is in mini mode, so the run/awaiting/active state is
+                # shown there (the label below is hidden when collapsed).
                 with ui.item_section().props("avatar"):
-                    ui.icon("push_pin" if sdata["pinned"] else "history")
-                with (
-                    ui.item_section(),
-                    ui.row().classes("items-center gap-1 no-wrap"),
-                ):
+                    if indicator.kind == "spinner":
+                        ui.spinner().classes(indicator.classes)
+                    else:
+                        ui.icon(indicator.icon).classes(indicator.classes)
+                with ui.item_section():
                     label_cls = "text-xs font-bold" if is_current else "text-xs"
                     ui.label(sdata["name"]).classes(label_cls)
-                    # Running / awaiting-input indicator for this chat.
-                    if ctx.chat_is_streaming(chat_id_):
-                        ui.spinner().classes("w-4 h-4")
-                    elif sdata["turn_status"]["kind"] == "awaiting_input":
-                        ui.icon("help_outline").classes("text-amber text-xs")
-                ui.tooltip(
-                    "Created: "
-                    + datetime.fromtimestamp(sdata["created"])
-                    .astimezone()
-                    .strftime("%a %d %b %Y at %X")
-                )
+                tooltip = "Created: " + datetime.fromtimestamp(
+                    sdata["created"]
+                ).astimezone().strftime("%a %d %b %Y at %X")
+                if streaming:
+                    tooltip += " - running"
+                elif awaiting:
+                    tooltip += " - awaiting your input"
+                ui.tooltip(tooltip)
                 # Three-dot context menu (right-aligned).
                 with (
                     ui.item_section().props("side"),
