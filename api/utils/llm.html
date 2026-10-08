@@ -603,6 +603,10 @@ The model selection UIs offer no custom URL for these.</p>
 conversation messages are no longer flattened into this block: they are
 injected as real message objects by the node’s prompt assembly (see
 <code class="docutils literal notranslate"><span class="pre">klea_utils.nodes.base</span></code>).</p>
+<p>The summary is dynamic text concatenated into the system prompt <em>template</em>,
+so its braces are escaped (<a class="reference internal" href="#klea_utils.llm.escape_prompt_braces" title="klea_utils.llm.escape_prompt_braces"><code class="xref py py-func docutils literal notranslate"><span class="pre">escape_prompt_braces()</span></code></a>); a summary that
+echoes a JSON/code fragment from the conversation would otherwise be parsed
+as a template variable.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>context_summary</strong> – Summary of the past conversation.</p>
@@ -732,6 +736,26 @@ startup is fast and model availability is checked only at query time.</p>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#klea_utils.llm.CredentialScope" title="klea_utils.llm.CredentialScope"><code class="xref py py-class docutils literal notranslate"><span class="pre">CredentialScope</span></code></a> – a lowercased provider and an
 optional endpoint for custom / explicit-URL models.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.llm.escape_prompt_braces">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">escape_prompt_braces</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/llm.html#escape_prompt_braces"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.llm.escape_prompt_braces" title="Link to this definition">¶</a></dt>
+<dd><p>Escape <code class="docutils literal notranslate"><span class="pre">{</span></code> and <code class="docutils literal notranslate"><span class="pre">}</span></code> for safe embedding in a prompt template.</p>
+<p><code class="docutils literal notranslate"><span class="pre">ChatPromptTemplate</span></code> parses <code class="docutils literal notranslate"><span class="pre">{...}</span></code> in its <em>template</em> strings as input
+variables, so dynamic text concatenated into a template (a context
+summary, a generated JSON schema, configured domain text) must be escaped
+or a brace in it raises <code class="docutils literal notranslate"><span class="pre">INVALID_PROMPT_INPUT</span></code>.  Text passed as a
+template <em>variable value</em>, and message objects placed in the prompt, are
+not templated and need no escaping.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>text</strong> – Dynamic text to embed in a prompt template.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The text with braces doubled (<code class="docutils literal notranslate"><span class="pre">{</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">{{</span></code>, <code class="docutils literal notranslate"><span class="pre">}</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">}}</span></code>).</p>
 </dd>
 </dl>
 </dd></dl>
@@ -1481,6 +1505,7 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.content_to_str"><code class="docutils literal notranslate"><span class="pre">content_to_str()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.create_configurable_model"><code class="docutils literal notranslate"><span class="pre">create_configurable_model()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.credential_scope"><code class="docutils literal notranslate"><span class="pre">credential_scope()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.escape_prompt_braces"><code class="docutils literal notranslate"><span class="pre">escape_prompt_braces()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.estimate_input_tokens"><code class="docutils literal notranslate"><span class="pre">estimate_input_tokens()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.extract_llm_output_content"><code class="docutils literal notranslate"><span class="pre">extract_llm_output_content()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.format_alert"><code class="docutils literal notranslate"><span class="pre">format_alert()</span></code></a></li>

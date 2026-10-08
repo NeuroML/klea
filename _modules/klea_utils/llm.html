@@ -2367,6 +2367,25 @@
 
 
 
+<div class="viewcode-block" id="escape_prompt_braces">
+<a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.escape_prompt_braces">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">escape_prompt_braces</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Escape ``{`` and ``}`` for safe embedding in a prompt template.</span>
+
+<span class="sd">    ``ChatPromptTemplate`` parses ``{...}`` in its *template* strings as input</span>
+<span class="sd">    variables, so dynamic text concatenated into a template (a context</span>
+<span class="sd">    summary, a generated JSON schema, configured domain text) must be escaped</span>
+<span class="sd">    or a brace in it raises ``INVALID_PROMPT_INPUT``.  Text passed as a</span>
+<span class="sd">    template *variable value*, and message objects placed in the prompt, are</span>
+<span class="sd">    not templated and need no escaping.</span>
+
+<span class="sd">    :param text: Dynamic text to embed in a prompt template.</span>
+<span class="sd">    :returns: The text with braces doubled (``{`` -&gt; ``{{``, ``}`` -&gt; ``}}``).</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{"</span><span class="p">,</span> <span class="s2">"{{"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"}"</span><span class="p">,</span> <span class="s2">"}}"</span><span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="add_memory_to_prompt">
 <a class="viewcode-back" href="../../api/utils/llm.html#klea_utils.llm.add_memory_to_prompt">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">add_memory_to_prompt</span><span class="p">(</span><span class="n">context_summary</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -2376,6 +2395,11 @@
 <span class="sd">    conversation messages are no longer flattened into this block: they are</span>
 <span class="sd">    injected as real message objects by the node's prompt assembly (see</span>
 <span class="sd">    ``klea_utils.nodes.base``).</span>
+
+<span class="sd">    The summary is dynamic text concatenated into the system prompt *template*,</span>
+<span class="sd">    so its braces are escaped (:func:`escape_prompt_braces`); a summary that</span>
+<span class="sd">    echoes a JSON/code fragment from the conversation would otherwise be parsed</span>
+<span class="sd">    as a template variable.</span>
 
 <span class="sd">    :param context_summary: Summary of the past conversation.</span>
 <span class="sd">    :returns: Prompt text block, or ``""`` when there is no summary.</span>
@@ -2399,7 +2423,7 @@
 
 <span class="s2">        Here is a concise summary of the past conversation to maintain continuity:</span>
 
-<span class="s2">        </span><span class="si">{</span><span class="n">context_summary</span><span class="si">}</span>
+<span class="s2">        </span><span class="si">{</span><span class="n">escape_prompt_braces</span><span class="p">(</span><span class="n">context_summary</span><span class="p">)</span><span class="si">}</span>
 
 <span class="s2">        """</span><span class="p">)</span>
 

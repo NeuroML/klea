@@ -342,6 +342,7 @@
     <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
     <span class="n">add_memory_to_prompt</span><span class="p">,</span>
     <span class="n">classify_llm_invocation_error</span><span class="p">,</span>
+    <span class="n">escape_prompt_braces</span><span class="p">,</span>
     <span class="n">estimate_input_tokens</span><span class="p">,</span>
     <span class="n">get_last_n_conversations</span><span class="p">,</span>
     <span class="n">get_provider_allowed_fields</span><span class="p">,</span>
@@ -1401,12 +1402,12 @@
 
 <span class="s2">            Respond in JSON following this schema:</span>
 
-<span class="s2">            </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">sanitized</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{{"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"}}"</span><span class="p">)</span><span class="si">}</span>
+<span class="s2">            </span><span class="si">{</span><span class="n">escape_prompt_braces</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">sanitized</span><span class="p">))</span><span class="si">}</span>
 
 <span class="s2">            The response must be a raw, valid JSON object like this example</span>
 <span class="s2">            (replace the placeholder values with real content):</span>
 
-<span class="s2">            </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">example</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"{"</span><span class="p">,</span><span class="w"> </span><span class="s2">"{{"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"}"</span><span class="p">,</span><span class="w"> </span><span class="s2">"}}"</span><span class="p">)</span><span class="si">}</span>
+<span class="s2">            </span><span class="si">{</span><span class="n">escape_prompt_braces</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">example</span><span class="p">))</span><span class="si">}</span>
 
 <span class="s2">            Do not output the schema definition itself, or notes/comments, or</span>
 <span class="s2">            the 'title'/'type'/'properties' keys.</span>
