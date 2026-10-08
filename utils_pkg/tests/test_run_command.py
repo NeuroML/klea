@@ -8,10 +8,14 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import asyncio
 import logging
+import os
 import shlex
+import signal
 import sys
 
+import pytest
 from klea_utils.mcp.tool_impls.run_command import (
     DEFAULT_MAX_TIMEOUT_SECONDS,
     MAX_TIMEOUT_ENV_VAR,
@@ -169,6 +173,84 @@ async def test_timeout_kills_command(tmp_path):
     )
     assert result["returncode"] is None
     assert "timed out" in result["error"]
+
+
+async def _wait_for_death(pid: int, *, attempts: int = 40) -> bool:
+    """Return whether *pid* exits within a short grace, then force-clean it.
+
+    :param pid: Process id to poll with signal 0.
+    :param attempts: Number of 50 ms polls before giving up.
+    :returns: ``True`` when the process is gone, ``False`` otherwise (the
+        process is SIGKILLed before returning so a failure does not leak).
+    """
+    for _ in range(attempts):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        await asyncio.sleep(0.05)
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    return False
+
+
+async def test_timeout_kills_sigterm_ignoring_grandchild(tmp_path):
+    """A grandchild that ignores SIGTERM is still killed on timeout.
+
+    The direct child (the shell) exits on SIGTERM, but the backgrounded
+    grandchild ignores it.  The tool must not return as soon as the direct
+    child is reaped; it has to escalate to SIGKILL for the whole process
+    group, or the grandchild leaks.
+    """
+    pidfile = tmp_path / "grandchild.pid"
+    command = (
+        f"sh -c 'trap \"\" TERM; sleep 30' "
+        f"& echo $! > {shlex.quote(str(pidfile))}; sleep 30"
+    )
+    result = await run_command(
+        command,
+        working_directory=str(tmp_path),
+        project_root=str(tmp_path),
+        timeout_seconds=1.0,
+    )
+    assert result["returncode"] is None
+    assert "timed out" in result["error"]
+
+    pid = int(pidfile.read_text().strip())
+    assert await _wait_for_death(pid), f"grandchild {pid} survived the timeout kill"
+
+
+async def test_cancellation_kills_process_group(tmp_path):
+    """Cancelling ``run_command`` kills the spawned process group.
+
+    A client-side call timeout (or graph cancellation) cancels the coroutine
+    while it is awaiting the child; the process group must still be
+    terminated instead of leaking.
+    """
+    pidfile = tmp_path / "shell.pid"
+    command = f"echo $$ > {shlex.quote(str(pidfile))}; sleep 30"
+
+    task = asyncio.create_task(
+        run_command(
+            command,
+            working_directory=str(tmp_path),
+            project_root=str(tmp_path),
+            timeout_seconds=30.0,
+        )
+    )
+    for _ in range(200):
+        if pidfile.exists() and pidfile.read_text().strip():
+            break
+        await asyncio.sleep(0.02)
+    pid = int(pidfile.read_text().strip())
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert await _wait_for_death(pid), f"process {pid} survived cancellation"
 
 
 async def test_output_truncated(tmp_path):

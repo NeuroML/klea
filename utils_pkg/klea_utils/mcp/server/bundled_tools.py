@@ -655,6 +655,11 @@ async def run_command(
     ``stdout``; ``error`` is set only when the command could not be run or was
     killed.
 
+    A timed-out or cancelled command has its process group killed, but a
+    command that detaches its children (for example daemonises or calls
+    ``setsid``) may leave processes running; check with ``ps``/``pgrep`` and
+    clean up if needed.
+
     Example: run_command(command="pwd && ls", working_directory=".")
 
     Args:

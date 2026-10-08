@@ -2,6 +2,11 @@
 """
 Shell command execution implementation for Klea MCP tools (ADR-0038).
 
+Timeout and cancellation signal the command's process group (SIGTERM, then
+SIGKILL).  A descendant that detaches from the group (``setsid``/``setpgid``,
+as some build tools do) cannot be reached by a portable group signal and may
+survive.
+
 See ``devdocs/system/mcp-permissions.md``.
 
 File: klea_utils/mcp/tool_impls/run_command.py
@@ -41,6 +46,9 @@ DEFAULT_MAX_OUTPUT_CHARS = 100_000
 #: Grace period between SIGTERM and SIGKILL when killing a timed-out process
 #: group.
 KILL_GRACE_SECONDS = 3.0
+
+#: Poll interval while waiting for a signalled process group to drain.
+_GROUP_POLL_SECONDS = 0.05
 
 
 def _shell_display(
@@ -167,36 +175,92 @@ def max_timeout_seconds() -> float:
     return value
 
 
+def _process_group_exists(pgid: int) -> bool:
+    """Return whether any process remains in process group *pgid*.
+
+    Probes the group with the null signal: ``os.killpg`` raises
+    :class:`ProcessLookupError` when the group is empty.
+
+    :param pgid: Process group id to probe.
+    :returns: True when at least one process is still in the group.
+    """
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:  # pragma: no cover - the group is ours
+        return True
+    return True
+
+
+async def _drain_process_group(pgid: int, timeout: float) -> bool:
+    """Wait up to *timeout* seconds for process group *pgid* to become empty.
+
+    :param pgid: Process group id to watch.
+    :param timeout: Maximum seconds to wait.
+    :returns: True when the group drained within *timeout*.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while _process_group_exists(pgid):
+        if loop.time() >= deadline:
+            return False
+        await asyncio.sleep(_GROUP_POLL_SECONDS)
+    return True
+
+
 async def _terminate_process_group(process: asyncio.subprocess.Process) -> None:
     """Terminate a process and its children (its process group).
 
-    Sends SIGTERM to the group, waits :data:`KILL_GRACE_SECONDS`, then
-    SIGKILLs if it is still alive.  Best-effort: a race where the process has
-    already exited is ignored.
+    Sends SIGTERM to the whole group, waits :data:`KILL_GRACE_SECONDS` for the
+    *group* to drain, then SIGKILLs any survivors.  Waiting on the group rather
+    than only the direct child matters: a descendant can outlive the shell that
+    spawned it when it ignores or defers SIGTERM, and the group is gone only
+    once its last member exits.  Best-effort: an already-exited process or
+    group is ignored.
+
+    A descendant that detaches from the group (``setsid``/``setpgid``, as some
+    build tools do) cannot be reached here; see the module docstring.
 
     :param process: The subprocess to terminate.
     """
     if process.returncode is not None:
         return
-    try:
-        if hasattr(os, "killpg"):
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        else:  # pragma: no cover - non-POSIX fallback
-            process.terminate()
-    except (ProcessLookupError, PermissionError):
-        return
-    try:
-        await asyncio.wait_for(process.wait(), timeout=KILL_GRACE_SECONDS)
-        return
-    except TimeoutError:
-        logger.warning("Command did not exit after SIGTERM; sending SIGKILL")
-    try:
-        if hasattr(os, "killpg"):
-            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        else:  # pragma: no cover - non-POSIX fallback
+
+    killpg = getattr(os, "killpg", None)
+    if killpg is None:  # pragma: no cover - non-POSIX fallback
+        process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=KILL_GRACE_SECONDS)
+        except TimeoutError:
             process.kill()
-    except (ProcessLookupError, PermissionError):
+            await process.wait()
         return
+
+    # Capture the group id before signalling: once the leader is reaped,
+    # ``getpgid(pid)`` is no longer usable, but the group id stays valid while
+    # any member remains.
+    try:
+        pgid = os.getpgid(process.pid)
+    except (ProcessLookupError, PermissionError):
+        await process.wait()
+        return
+
+    try:
+        killpg(pgid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        await process.wait()
+        return
+
+    if await _drain_process_group(pgid, KILL_GRACE_SECONDS):
+        await process.wait()
+        return
+
+    logger.warning("Command process group did not exit after SIGTERM; sending SIGKILL")
+    try:
+        killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
     await process.wait()
 
 
@@ -221,7 +285,9 @@ async def run_command(
 
     The process is run with ``start_new_session`` so it can be killed as a
     group on timeout, with stdin closed so an interactive command cannot
-    hang.
+    hang.  Timeout and cancellation terminate the whole process group, but a
+    command that detaches its children (``setsid``/daemonising) can leave
+    processes running that the group signal cannot reach.
 
     :param command: Shell command string to run.
     :param working_directory: Directory to run in; must resolve inside
@@ -325,6 +391,13 @@ async def run_command(
                 "Retry with a larger timeout if it is expected to take longer."
             ),
         )
+    except asyncio.CancelledError:
+        # The call was cancelled (client-side call timeout, graph cancel, or
+        # server shutdown).  Shield the cleanup so the process group is still
+        # terminated before the cancellation propagates.
+        logger.warning(f"Command cancelled; terminating process group: {command}")
+        await asyncio.shield(_terminate_process_group(process))
+        raise
 
     stdout = stdout_b.decode("utf-8", errors="replace")
     stderr = stderr_b.decode("utf-8", errors="replace")

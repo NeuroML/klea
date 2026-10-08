@@ -104,8 +104,12 @@ than application configuration; a config field can be added later if needed.
   stdin=DEVNULL, stdout=PIPE, stderr=PIPE, start_new_session=True)` so the
   tool never blocks the MCP event loop, cannot read interactive input, and
   runs in its own process group.
-* On timeout the process *group* is signalled (SIGTERM, then SIGKILL after a
-  short grace), so children do not leak.
+* On timeout or cancellation the process *group* is signalled (SIGTERM, then
+  SIGKILL after a short grace once the group fails to drain), so children do
+  not leak.  Detection waits on the whole group, not only the direct child,
+  because a descendant can outlive the shell that spawned it.  A descendant
+  that detaches from the group (``setsid``/``setpgid``, as some build tools
+  do) cannot be reached by a portable group signal; this is a known limit.
 * The result is a dict `{command, working_directory, returncode, stdout,
   stderr, truncated, error}`.  `error` is set only when the command never
   produced a result: a timeout, a denied working directory, a spawn failure,
@@ -169,7 +173,8 @@ step.  Both are separate follow-ups.
 
 * Unit tests: success, non-zero exit -> normal result (returncode set, error
   empty, output preserved), working directory denied /
-  inside / default / not-a-directory, timeout kills the process group, output
+  inside / default / not-a-directory, timeout kills the process group (including
+  a SIGTERM-ignoring grandchild), cancellation kills the group, output
   truncation, stdin closed, and the `KLEA_RUN_COMMAND_MAX_TIMEOUT` override
   (including non-finite values).
 * Root guard tests (`test_mcp_privilege.py`, `test_mcp_registry.py`): helpers,
@@ -187,6 +192,20 @@ step.  Both are separate follow-ups.
   block shows the full captured output (the UI collapses long blocks) and is
   shown when a stream is non-empty or the exit is non-zero (a silent success
   stays quiet).  `download_file` gained a matching `text/plain` display.
+
+### Update (2026-10-08)
+
+* Hardened process-group termination.  The SIGKILL escalation now waits for
+  the whole process group to drain (not only the direct child), so a
+  grandchild that ignores or defers SIGTERM is still killed.  Cancellation
+  (`asyncio.CancelledError`, e.g. a client-side call timeout) now terminates
+  the group before propagating.  The group id is captured before signalling,
+  so it survives reaping of the group leader.
+* The `run_command` tool description now warns that a command which detaches
+  its children may leave processes running (check with ``ps``/``pgrep``).
+* Known limit recorded in `devdocs/backlog.md`: descendants that
+  ``setsid``/``setpgid`` out of the group are not reachable by a portable
+  group kill.
 
 ## More Information
 

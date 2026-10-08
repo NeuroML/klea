@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-07.
+Last updated: 2026-10-08.
 
 ## Cancellation / concurrency
 
@@ -66,6 +66,12 @@ Last updated: 2026-10-07.
   `max_bytes`, default 100 MB) and splits it in memory before slicing.  Reading
   incrementally (seek/iterate) would let files larger than `max_bytes` be paged
   without loading them, and lower the memory bound.
+- `run_command` whole-tree kill: the process-group kill (SIGTERM then SIGKILL)
+  now drains the group, but a descendant that detaches (``setsid``/``setpgid``,
+  e.g. `mock`/`systemd-nspawn`) escapes and survives.  Reaching it needs a
+  platform-native mechanism (Linux cgroup v2 / `PR_SET_CHILD_SUBREAPER`,
+  Windows Job Objects) or a cross-platform best-effort recursive walk (adds a
+  `psutil` dependency and is racy).  Deferred; see ADR-0038.
 
 ## Scientific mode / correctness / evaluation
 
