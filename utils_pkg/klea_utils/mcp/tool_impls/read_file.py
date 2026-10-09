@@ -8,16 +8,16 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import codecs
 import logging
 import threading
 from collections import OrderedDict
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from klea_utils.mcp.errors import DocumentConversionError
 from klea_utils.mcp.tool_impls.file_ops import (
-    detect_newline,
-    is_binary,
     split_bom,
     split_lines,
 )
@@ -72,6 +72,16 @@ _MAX_CHARS = 20_000
 #: Default number of lines returned per read (a page).  ``None`` still means
 #: "to the end", bounded by :data:`_MAX_CHARS`.
 _DEFAULT_LIMIT = 500
+
+#: Character allowance for a rendered line-number prefix when capping a
+#: streamed line (any realistic line number fits well within this).
+_PREFIX_ALLOWANCE = 64
+
+#: Read granularity for the streaming plain-text reader.
+_STREAM_CHUNK_BYTES = 64 * 1024
+
+#: Files larger than this get a "prefer grep" hint when a page is truncated.
+_LARGE_FILE_HINT_BYTES = 1024 * 1024
 
 #: Maximum number of converted documents held in the in-memory cache.
 _MAX_CACHE_ENTRIES = 4
@@ -132,8 +142,10 @@ def read_file(
         end of the file.
     :param max_chars: Character budget for the response (server-owned backstop;
         not exposed to the model), applied after the line slice.
-    :param max_bytes: Maximum file size in bytes to read; larger files are
-        refused with an error.
+    :param max_bytes: Per-call scan cap in bytes (server-owned).  Plain text is
+        streamed, so the scan stops after this many bytes and the page is
+        returned truncated with a hint; HTML/office/PDF conversions and a
+        file that grows mid-read are still bounded by it.
     :param line_numbers: Prefix each returned line with its line number
         (default).  Set ``False`` to return the raw line text, e.g. to copy
         a span into an edit tool's ``old_string``.
@@ -145,7 +157,10 @@ def read_file(
         error).  A truncated result is a success (``error`` empty) that carries
         the line range actually returned and ``next_offset`` for continuing;
         ``nearby``/``note`` are populated on a missing/not-a-file error so the
-        caller can see what exists instead.
+        caller can see what exists instead.  ``total_lines`` is exact only when
+        the streamed read reached EOF; a page that stops early reports it as
+        ``None``.  A truncated page of a large file also carries a note
+        suggesting ``grep`` to locate the region.
     """
     logger.debug(
         f"Reading file\n"
@@ -175,18 +190,11 @@ def read_file(
             "note": missing_target_note(path, directory, nearby),
         }
 
-    size = the_path.stat().st_size
-    if size > max_bytes:
-        logger.warning(f"File too large ({size} bytes > {max_bytes}): {path}")
-        return {
-            "path": str(the_path),
-            "content": "",
-            "line_start": 1,
-            "line_end": 0,
-            "total_lines": 0,
-            "truncated": False,
-            "error": f"File too large to read: {size} bytes",
-        }
+    try:
+        size = the_path.stat().st_size
+    except OSError as exc:
+        logger.warning(f"Could not stat {path}: {exc}")
+        size = None
 
     if offset < 1:
         logger.warning(f"Invalid offset {offset}; starting from line 1")
@@ -204,37 +212,54 @@ def read_file(
         max_chars = 1
 
     suffix = the_path.suffix.lower()
+    start = offset - 1
+    line_start = start + 1
     had_bom = False
     delimited_raw = False
+    streamed = False
+    reached_eof = True
+    scan_capped = False
+    total_lines: int | None = 0
+    segments: list[str] = []
     try:
         if suffix in (".html", ".htm"):
-            # HTML is web content and may not be UTF-8; decode leniently.
+            # HTML is web content and may not be UTF-8; decode leniently.  It is
+            # parsed whole (BeautifulSoup), then paged like any other text.
             data = _read_bounded(the_path, max_bytes)
             if data is None:
                 return _too_large_result(the_path, max_bytes)
-            text, had_bom = split_bom(data.decode("utf-8", errors="replace"))
-            content = _html_to_text(text)
+            html, had_bom = split_bom(data.decode("utf-8", errors="replace"))
+            segments, total_lines = _slice_segments(
+                _html_to_text(html), offset, limit, char_offset
+            )
         elif _should_convert(suffix):
-            content = _converted_text(the_path)
-        else:
-            data = _read_bounded(the_path, max_bytes)
-            if data is None:
+            # Conversions (anydoc) read the whole document, so keep the size
+            # guard: a huge document is refused rather than pulled into memory.
+            if size is not None and size > max_bytes:
                 return _too_large_result(the_path, max_bytes)
-            if is_binary(data):
-                logger.warning(f"Refusing to read binary file: {path}")
-                return {
-                    "path": str(the_path),
-                    "content": "",
-                    "line_start": 1,
-                    "line_end": 0,
-                    "total_lines": 0,
-                    "truncated": False,
-                    "error": f"Cannot read binary file: {the_path}",
-                }
-            # Strict UTF-8: report invalid bytes rather than returning
-            # replacement-character garbage.  A UTF-8 BOM is stripped.
-            content, had_bom = split_bom(data.decode("utf-8"))
+            segments, total_lines = _slice_segments(
+                _converted_text(the_path), offset, limit, char_offset
+            )
+        else:
+            # Plain text: stream the page lazily, so memory is O(page) and files
+            # larger than ``max_bytes`` still page (``max_bytes`` now bounds the
+            # bytes scanned in one call rather than refusing the file).
             delimited_raw = suffix in {".csv", ".tsv"}
+            streamed = True
+            (
+                segments,
+                total_lines,
+                reached_eof,
+                scan_capped,
+                had_bom,
+            ) = _read_streamed_page(
+                the_path,
+                offset=offset,
+                limit=limit,
+                char_offset=char_offset,
+                max_chars=max_chars,
+                max_bytes=max_bytes,
+            )
     except UnicodeDecodeError:
         logger.warning(f"Not valid UTF-8 text: {path}")
         return {
@@ -245,6 +270,17 @@ def read_file(
             "total_lines": 0,
             "truncated": False,
             "error": f"File is not valid UTF-8 text: {the_path}",
+        }
+    except _BinaryFileError:
+        logger.warning(f"Refusing to read binary file: {path}")
+        return {
+            "path": str(the_path),
+            "content": "",
+            "line_start": 1,
+            "line_end": 0,
+            "total_lines": 0,
+            "truncated": False,
+            "error": f"Cannot read binary file: {the_path}",
         }
     except OSError as exc:
         logger.warning(f"Could not read {path}: {exc}")
@@ -280,21 +316,6 @@ def read_file(
             "error": str(exc),
         }
 
-    lines = split_lines(content)
-    total_lines = len(lines)
-    logger.debug(f"Line definition: {detect_newline(content) = }\n{total_lines = }")
-    start = offset - 1
-    end = None if limit is None else start + limit
-    sliced = lines[start:end]
-
-    # The first segment may be a suffix of ``offset``'s line when continuing
-    # inside an over-long line (``char_offset`` > 0); the rest are whole lines.
-    segments: list[str] = []
-    if sliced:
-        first = sliced[0][char_offset:] if char_offset else sliced[0]
-        segments = [first, *sliced[1:]]
-
-    line_start = start + 1
     if line_numbers:
         rendered = [
             f"{line_no}: {segment}"
@@ -319,35 +340,53 @@ def read_file(
         )
     else:
         kept, next_offset, next_char_offset, char_limited = [], None, 0, False
+
     line_end = start + len(kept)
-    truncated = char_limited or line_end < total_lines
-    if truncated and next_offset is None:
-        # Truncation came from the ``limit`` slice, not the character cap.
+    if streamed:
+        # A streamed page knows the total only when it reaches EOF.
+        truncated = char_limited or not reached_eof
+    else:
+        truncated = char_limited or (total_lines is not None and line_end < total_lines)
+    if truncated and next_offset is None and kept:
+        # Truncation came from the page boundary / scan cap, not the char cap.
         next_offset = line_end + 1
         next_char_offset = 0
 
     content = "\n".join(kept)
 
+    total_suffix = f" of {total_lines}" if total_lines is not None else ""
     note = ""
     if truncated and next_offset is not None:
         if next_char_offset:
             note = (
                 f"Output truncated mid-line: showing line {line_start} from "
-                f"char {char_offset} to line {line_end} char {next_char_offset} "
-                f"of {total_lines}. Continue with offset={next_offset}, "
+                f"char {char_offset} to line {line_end} char {next_char_offset}"
+                f"{total_suffix}. Continue with offset={next_offset}, "
                 f"char_offset={next_char_offset}."
             )
         else:
             note = (
-                f"Output truncated: showing lines {line_start}-{line_end} of "
-                f"{total_lines}. Continue with offset={next_offset}."
+                f"Output truncated: showing lines {line_start}-{line_end}"
+                f"{total_suffix}. Continue with offset={next_offset}."
             )
+    elif truncated and not reached_eof:
+        note = (
+            "The requested line is past the region scanned in one call; the file "
+            "is too large to scan that far. Use grep to locate the region, then "
+            "read around it."
+        )
     elif not segments and total_lines:
         note = f"offset {offset} is past the end of the file ({total_lines} lines)."
     elif had_bom:
         note = "Stripped a UTF-8 BOM."
     elif delimited_raw:
         note = "Delimited file read as physical lines; quoted fields may span lines."
+
+    if truncated and size is not None and size > _LARGE_FILE_HINT_BYTES:
+        note = (
+            f"{note} Large file: prefer grep to find the region you need, then "
+            "read around it with offset/limit."
+        ).strip()
 
     logger.debug(
         f"Read file\n"
@@ -358,7 +397,9 @@ def read_file(
         f"{len(content) = }\n"
         f"{truncated = }\n"
         f"{next_offset = }\n"
-        f"{next_char_offset = }"
+        f"{next_char_offset = }\n"
+        f"{streamed = }\n"
+        f"{scan_capped = }"
     )
     return {
         "path": str(the_path),
@@ -454,6 +495,198 @@ def _too_large_result(path: Path, max_bytes: int) -> dict[str, Any]:
         "truncated": False,
         "error": f"File too large to read: over {max_bytes} bytes",
     }
+
+
+def _slice_segments(
+    content: str, offset: int, limit: int | None, char_offset: int
+) -> tuple[list[str], int]:
+    """Return the raw page lines of *content* and its total line count.
+
+    The first segment may be a suffix of ``offset``'s line when continuing
+    inside an over-long line (``char_offset`` > 0); the rest are whole lines.
+
+    :param content: Decoded/converted file text.
+    :param offset: 1-indexed line to start from.
+    :param limit: Maximum number of lines, or ``None`` for "to the end".
+    :param char_offset: 0-indexed character within ``offset``'s line.
+    :returns: ``(segments, total_lines)``.
+    """
+    lines = split_lines(content)
+    total_lines = len(lines)
+    start = offset - 1
+    end = None if limit is None else start + limit
+    sliced = lines[start:end]
+    segments: list[str] = []
+    if sliced:
+        first = sliced[0][char_offset:] if char_offset else sliced[0]
+        segments = [first, *sliced[1:]]
+    return segments, total_lines
+
+
+class _BinaryFileError(Exception):
+    """Raised by the streaming reader when it sees a NUL byte."""
+
+
+class _StreamState:
+    """Mutable state shared with the streaming line reader."""
+
+    __slots__ = ("bytes_read", "capped", "exhausted", "had_bom")
+
+    def __init__(self) -> None:
+        self.bytes_read = 0
+        self.capped = False
+        self.exhausted = False
+        self.had_bom = False
+
+
+def _read_streamed_page(
+    path: Path,
+    *,
+    offset: int,
+    limit: int | None,
+    char_offset: int,
+    max_chars: int,
+    max_bytes: int,
+) -> tuple[list[str], int | None, bool, bool, bool]:
+    """Collect one page of lines from *path* without loading the whole file.
+
+    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once
+    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the
+    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.
+
+    :param path: Text file to read.
+    :param offset: 1-indexed line to start from.
+    :param limit: Maximum number of lines, or ``None`` for "to the end".
+    :param char_offset: 0-indexed character within ``offset``'s line.
+    :param max_chars: Character budget for the page (bounds the scan too).
+    :param max_bytes: Per-call scan cap in bytes.
+    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom)``.
+        ``total_lines`` is ``None`` unless the scan reached EOF.
+    """
+    state = _StreamState()
+    max_line_chars = char_offset + max_chars + _PREFIX_ALLOWANCE
+    segments: list[str] = []
+    line_no = 0
+    collected = 0
+    accumulated = 0
+    with path.open("rb") as handle:
+        lines = _iter_capped_lines(
+            handle,
+            state,
+            max_line_chars=max_line_chars,
+            max_bytes=max_bytes,
+        )
+        for text, _truncated in lines:
+            line_no += 1
+            if line_no < offset:
+                continue
+            segment = text[char_offset:] if line_no == offset and char_offset else text
+            segments.append(segment)
+            collected += 1
+            accumulated += len(segment) + (1 if collected > 1 else 0)
+            if limit is not None and collected >= limit:
+                # Peek once to tell EOF from a real continuation.
+                try:
+                    next(lines)
+                except StopIteration:
+                    pass
+                break
+            if accumulated >= max_chars:
+                break
+    total_lines = line_no if state.exhausted else None
+    return segments, total_lines, state.exhausted, state.capped, state.had_bom
+
+
+def _iter_capped_lines(
+    handle: BinaryIO,
+    state: _StreamState,
+    *,
+    max_line_chars: int,
+    max_bytes: int,
+    chunk_size: int = _STREAM_CHUNK_BYTES,
+) -> Iterator[tuple[str, bool]]:
+    """Yield ``(line, truncated)`` pairs read lazily from a binary *handle*.
+
+    Decodes incrementally (so a multibyte character split across a chunk is
+    handled), normalises CRLF and lone CR to LF across chunk boundaries, and
+    caps each line at *max_line_chars* (the rest of an over-long line is
+    discarded, with ``truncated`` set).  Stops at EOF (``state.exhausted``) or
+    once *max_bytes* have been read (``state.capped``).  A NUL byte raises
+    :class:`_BinaryFileError`; invalid UTF-8 raises ``UnicodeDecodeError``.
+
+    :param handle: Open binary file handle.
+    :param state: Mutable state updated as the scan proceeds.
+    :param max_line_chars: Maximum characters kept per line.
+    :param max_bytes: Per-call scan cap in bytes.
+    :param chunk_size: Read granularity in bytes.
+    :yields: ``(line_text, truncated)`` for each line, without its newline.
+    """
+    decoder = codecs.getincrementaldecoder("utf-8")()
+    carry = ""
+    discarding = False
+    pending_cr = False
+    first = True
+    while True:
+        remaining = max_bytes - state.bytes_read
+        if remaining <= 0:
+            state.capped = True
+            return
+        raw = handle.read(min(chunk_size, remaining))
+        eof = not raw
+        if raw:
+            state.bytes_read += len(raw)
+            if b"\x00" in raw:
+                raise _BinaryFileError()
+            text = decoder.decode(raw)
+        else:
+            # Flush the decoder; raises UnicodeDecodeError on a split character.
+            text = decoder.decode(b"", final=True)
+            if pending_cr:
+                text = "\n" + text
+                pending_cr = False
+        if first and text:
+            first = False
+            if text.startswith("\ufeff"):
+                text = text[1:]
+                state.had_bom = True
+        if pending_cr:
+            text = "\r" + text
+            pending_cr = False
+        if text.endswith("\r"):
+            pending_cr = True
+            text = text[:-1]
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+
+        pos = 0
+        while True:
+            nl = text.find("\n", pos)
+            if nl == -1:
+                remainder = text[pos:]
+                if not discarding:
+                    room = max_line_chars - len(carry)
+                    if room > 0:
+                        carry += remainder[:room]
+                    if len(carry) >= max_line_chars:
+                        discarding = True
+                break
+            segment = text[pos:nl]
+            if discarding:
+                truncated = True
+            else:
+                room = max_line_chars - len(carry)
+                if room > 0:
+                    carry += segment[:room]
+                truncated = len(segment) > room
+            yield carry, truncated
+            carry = ""
+            discarding = False
+            pos = nl + 1
+
+        if eof:
+            if carry:
+                yield carry, discarding
+            state.exhausted = True
+            return
 
 
 def _anydoc_available() -> bool:

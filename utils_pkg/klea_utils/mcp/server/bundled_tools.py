@@ -300,6 +300,10 @@ async def read_file(
     - You need to see the contents of a file in the project.
     - You want to page through a large file by line numbers.
 
+    For a large file, prefer the grep tool to locate the region you need
+    first, then read around it with ``offset``/``limit``; reading a large file
+    page by page from the start is slow.
+
     Do not use for:
     - Listing a directory (use the list files tool instead).
     - Fetching remote content (use the web fetch tool instead).
@@ -324,14 +328,15 @@ async def read_file(
 
     Returns:
         Dictionary with content, line range, total_lines, truncated,
-        next_offset, next_char_offset, error and note.  A truncated read is a
-        success (empty ``error``) that normally ends on a line boundary and
-        carries ``next_offset`` (and an explanatory ``note``) so the caller can
-        continue.  A single line longer than the character cap is paged by
-        characters: continue with the same ``offset`` and the returned
-        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``
-        (entries in the nearest existing directory) and ``note`` are populated
-        so the caller can see what exists instead.
+        next_offset, next_char_offset, error and note.  ``total_lines`` is
+        ``null`` when a streamed read stops before the end of the file.  A
+        truncated read is a success (empty ``error``) that normally ends on a
+        line boundary and carries ``next_offset`` (and an explanatory ``note``)
+        so the caller can continue.  A single line longer than the character
+        cap is paged by characters: continue with the same ``offset`` and the
+        returned ``next_char_offset``.  On a missing/not-a-file error,
+        ``nearby`` (entries in the nearest existing directory) and ``note`` are
+        populated so the caller can see what exists instead.
     """
     result = read_file_impl(
         path=path,

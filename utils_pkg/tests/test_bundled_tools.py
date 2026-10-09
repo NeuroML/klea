@@ -772,7 +772,8 @@ def test_read_file_paging(tmp_path):
     )
     assert result["line_start"] == 1
     assert result["line_end"] == 5
-    assert result["total_lines"] == 10
+    # A streamed page that stops before EOF does not know the total.
+    assert result["total_lines"] is None
     assert result["truncated"] is True
     assert result["error"] == ""
 
@@ -783,6 +784,7 @@ def test_read_file_paging(tmp_path):
     )
     assert result["line_start"] == 6
     assert result["line_end"] == 10
+    assert result["total_lines"] == 10
     assert result["truncated"] is False
 
 
@@ -795,7 +797,7 @@ def test_read_file_raw_no_line_numbers(tmp_path):
     assert result["content"] == "line 2\nline 3"
     assert result["line_start"] == 2
     assert result["line_end"] == 3
-    assert result["total_lines"] == 5
+    assert result["total_lines"] is None
     assert result["error"] == ""
 
 
@@ -875,12 +877,14 @@ def test_read_file_present_file_has_empty_note(tmp_path):
     assert result.get("note", "") == ""
 
 
-def test_read_file_too_large(tmp_path):
+def test_read_file_beyond_max_bytes_scan_cap(tmp_path):
+    """A file larger than max_bytes is pageable; the scan cap truncates it."""
     f = _write_lines(tmp_path, "t.txt", 5)
     result = read_file(str(f), max_bytes=10, project_root=str(tmp_path))
     logger.debug(f"{result = }")
-    assert result["content"] == ""
-    assert "too large" in result["error"].lower()
+    assert result["error"] == ""
+    assert result["truncated"] is True
+    assert result["content"] == "1: line 1"
 
 
 def test_read_file_csv_converts(tmp_path):

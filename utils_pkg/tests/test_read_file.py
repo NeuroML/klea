@@ -294,3 +294,143 @@ def test_tool_schema_hides_the_character_budget():
     assert "max_chars" not in params
     assert "char_offset" in params
     assert params["limit"].default == 500
+
+
+def test_file_larger_than_max_bytes_is_paged(tmp_path):
+    """A file larger than max_bytes is paginated, not refused."""
+    f = _write(tmp_path, 2000)
+
+    result = read_file(str(f), limit=5, max_bytes=1024, project_root=str(tmp_path))
+
+    assert result["error"] == ""
+    assert result["content"].startswith("1: line 1")
+    assert result["line_end"] == 5
+
+
+def test_streamed_page_reports_unknown_total(tmp_path):
+    """A page that stops before EOF reports ``total_lines`` as null."""
+    f = _write(tmp_path, 5000)
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["truncated"] is True
+    assert result["total_lines"] is None
+    assert "of None" not in result["note"]
+
+
+def test_streamed_read_to_eof_reports_total(tmp_path):
+    """A small file read to EOF still reports its exact line count."""
+    f = _write(tmp_path, 5)
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["total_lines"] == 5
+    assert result["truncated"] is False
+
+
+def test_mid_file_offset_pages_lazily(tmp_path):
+    """A page in the middle of a large file reads the requested lines only."""
+    f = _write(tmp_path, 2000)
+
+    result = read_file(str(f), offset=1500, limit=3, project_root=str(tmp_path))
+
+    assert result["content"] == "1500: line 1500\n1501: line 1501\n1502: line 1502"
+    assert result["line_start"] == 1500
+    assert result["line_end"] == 1502
+    assert result["total_lines"] is None
+
+
+def test_scan_cap_before_offset_gives_grep_hint(tmp_path):
+    """The per-call scan cap stops a deep read and points to grep."""
+    f = _write(tmp_path, 5000)
+
+    result = read_file(
+        str(f), offset=4000, limit=5, max_bytes=1024, project_root=str(tmp_path)
+    )
+
+    assert result["content"] == ""
+    assert result["truncated"] is True
+    assert "grep" in result["note"]
+
+
+def test_large_file_truncated_page_has_grep_hint(tmp_path):
+    """A truncated page of a large file suggests grep-then-read."""
+    f = tmp_path / "big.txt"
+    f.write_text("\n".join("y" * 100 for _ in range(20000)))
+
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["truncated"] is True
+    assert "grep" in result["note"]
+
+
+def test_stream_reader_splits_crlf_across_chunks():
+    """A CRLF straddling a chunk boundary is normalised, not split."""
+    import io
+
+    from klea_utils.mcp.tool_impls.read_file import (
+        _iter_capped_lines,
+        _StreamState,
+    )
+
+    state = _StreamState()
+    lines = list(
+        _iter_capped_lines(
+            io.BytesIO(b"ab\r\ncd\n"),
+            state,
+            max_line_chars=10,
+            max_bytes=10_000,
+            chunk_size=3,
+        )
+    )
+
+    assert [text for text, _ in lines] == ["ab", "cd"]
+    assert state.exhausted is True
+
+
+def test_stream_reader_splits_multibyte_across_chunks():
+    """A UTF-8 character split across a chunk boundary decodes correctly."""
+    import io
+
+    from klea_utils.mcp.tool_impls.read_file import (
+        _iter_capped_lines,
+        _StreamState,
+    )
+
+    state = _StreamState()
+    lines = list(
+        _iter_capped_lines(
+            io.BytesIO("caf\u00e9\n".encode()),
+            state,
+            max_line_chars=10,
+            max_bytes=10_000,
+            chunk_size=1,
+        )
+    )
+
+    assert [text for text, _ in lines] == ["caf\u00e9"]
+    assert state.exhausted is True
+
+
+def test_stream_reader_caps_an_over_long_line():
+    """A line beyond the cap is truncated and flagged, bounding memory."""
+    import io
+
+    from klea_utils.mcp.tool_impls.read_file import (
+        _iter_capped_lines,
+        _StreamState,
+    )
+
+    state = _StreamState()
+    lines = list(
+        _iter_capped_lines(
+            io.BytesIO(b"x" * 100 + b"\n"),
+            state,
+            max_line_chars=10,
+            max_bytes=10_000,
+            chunk_size=5,
+        )
+    )
+
+    assert lines == [("x" * 10, True)]
+    assert state.exhausted is True
