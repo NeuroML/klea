@@ -51,12 +51,23 @@ originally written without an enumerated edge-case contract, which let
   `next_offset`, `next_char_offset` and a `note` telling the caller how to
   continue.  It is not an MCP error.
 * Error results (`isError: true`): missing / not-a-file (with `nearby` +
-  `note`), binary, invalid UTF-8, too large, and unreadable (a symlink loop
-  reports as not-a-file).  Path-permission denials come from the client-side
-  gate before the tool runs, not from `read_file`.
-* `max_bytes` (default 100 MB) bounds the raw read; the read is bounded
-  (`_read_bounded`, reads at most `max_bytes + 1`) so a file that grows after
-  the size check cannot make the read unbounded.
+  `note`), binary, invalid UTF-8, and unreadable (a symlink loop reports as
+  not-a-file).  Path-permission denials come from the client-side gate before
+  the tool runs, not from `read_file`.
+* Plain text (and raw `.csv`/`.tsv`) is read **lazily**: the pager consumes a
+  line iterator from a chunked reader (incremental UTF-8 decoding, newline
+  normalisation across chunk boundaries), so memory is O(page) rather than
+  O(file).  Conversion formats (HTML/anydoc) produce the whole converted text
+  (cached) and are paged from it.
+* `max_bytes` (default 100 MB) is a per-call **scan cap**: the reader stops
+  after reading/decoding that many bytes in one call.  It is **not** a
+  file-size gate -- files larger than `max_bytes` are paged like any other,
+  and a page that cannot be completed within the cap is returned truncated
+  with a note.
+* `total_lines` is exact only when the read reaches EOF; a streamed page that
+  stops early does not scan the rest of the file, so the field is `null`.
+* A **large-file truncation** carries a `note` recommending `grep` to locate
+  the region and then reading it with `offset`/`limit`.
 
 ## Edge-case matrix
 
@@ -75,8 +86,11 @@ originally written without an enumerated edge-case contract, which let
 | CRLF / lone CR | Normalised to LF for line numbering. |
 | Form feed / Unicode separators | Not line breaks (stay in the line). |
 | Raw `.csv` / `.tsv` | Note that fields may span lines (converted when anydoc is available). |
-| File > `max_bytes` | Refused (error). |
-| File grows mid-read | Bounded read refuses (error). |
+| File > `max_bytes` | Paged; not refused.  A page needing more than the scan cap is truncated with a note. |
+| Large file, page near the start | Readable; only the page's bytes are scanned. |
+| Large file, page far in | Truncated + `grep` hint (Phase 1); byte-offset seek is the Phase 2 follow-up. |
+| Page does not reach EOF | `total_lines: null` (streamed read). |
+| File grows mid-read | Bounded by the page plus the `max_bytes` scan cap; never unbounded. |
 | Symlink loop / unresolvable | Not a file (error). |
 | Symlink / `..` outside root | Handled by the client-side gate (deny/ask), not the tool. |
 | FIFO / device / directory | "Not a file" + `nearby`. |
@@ -90,9 +104,13 @@ originally written without an enumerated edge-case contract, which let
   opened.  Hardening needs a per-open check (`openat`/`O_NOFOLLOW`).
 * **No transcoding.**  Only UTF-8 text is supported; UTF-16/latin-1 files are
   refused (or reported as binary).  A future option could transcode.
-* **Whole-file read.**  `read_file` loads the file (bounded by `max_bytes`)
-  before slicing; streaming the slice would allow paging files larger than
-  `max_bytes` without loading them.
+* **Line offsets scan from the start.**  A page is read lazily (O(page)
+  memory), but reaching a line `offset` still counts newlines from byte 0, so a
+  late page costs O(offset) I/O.  Byte-offset region reads (grep emits match
+  offsets; `read_file` seeks) are the Phase 2 follow-up (`devdocs/backlog.md`).
+* **Conversions are whole-document.**  HTML (BeautifulSoup) and anydoc convert
+  the whole file before paging, so those paths cannot stream; the converted
+  text is cached so re-paging does not re-convert.
 * **`run_command` is not a sandbox.**  Its working directory is advisory; it
   has the host user's authority.  See `mcp-permissions.md`.
 * **Third-party MCP servers** ignore Klea's gate; their boundary is whatever

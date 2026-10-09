@@ -62,10 +62,24 @@ Last updated: 2026-10-09.
   Precedent: `klea_utils/mcp/tool_impls/ssrf.py:88`.
 - Prompt tidy-up: `Planner_system.md` still says "Do not invent tools or
   arbitrary shell commands" (the picker prompt was clarified separately).
-- Large-file paging: `read_file` still reads the whole file (bounded by
-  `max_bytes`, default 100 MB) and splits it in memory before slicing.  Reading
-  incrementally (seek/iterate) would let files larger than `max_bytes` be paged
-  without loading them, and lower the memory bound.
+- `read_file` streaming read (Phase 1, in progress): `read_file` currently
+  reads the whole file (bounded by `max_bytes`, default 100 MB) and splits it in
+  memory before slicing.  Phase 1 makes the pager consume a line iterator: a
+  lazy, chunked reader for plain/csv/tsv text (incremental UTF-8 decode, newline
+  normalisation across chunks), so memory is O(page) and `max_bytes` is no
+  longer a file-size refusal gate.  Conversions (HTML/anydoc) stay whole +
+  cached.  A large-file truncation carries a "use `grep` to locate the region,
+  then read with `offset`/`limit`" note.  `max_bytes` becomes a per-call scan
+  cap and `total_lines` is exact only when the read reaches EOF (else `null`).
+  See `system/file-tools.md`.
+- `read_file` byte-offset region reads (Phase 2): Phase 1 still scans from byte
+  0 to count newlines up to a line `offset`, so a late page costs O(offset) I/O
+  even though memory is bounded.  Phase 2 adds true O(page) region reads:
+  ripgrep already emits match byte offsets (currently ignored by
+  `_parse_match_line`), so grep could return them (the in-house fallback can
+  compute them), and `read_file` gains a byte-offset/region mode that `seek()`s.
+  Touches both grep backends, the read contract and tests.  Deferred until
+  large-file reads prove painful.
 - `run_command` whole-tree kill: the process-group kill (SIGTERM then SIGKILL)
   now drains the group, but a descendant that detaches (``setsid``/``setpgid``,
   e.g. `mock`/`systemd-nspawn`) escapes and survives.  Reaching it needs a
@@ -130,10 +144,6 @@ Last updated: 2026-10-09.
   default used instead).
 - Third-party trust roadmap (consent loop, sandbox-by-default, curated server
   registry), deferred per ADR-0037.
-- Model/provider picker residual: the catalog-backed picker, the backend
-  `/models/catalogue` endpoint and the free-text "custom" fallback are
-  implemented.  Remaining: mark local/on-device providers (Ollama, LM Studio,
-  ...) via an offline probe in the provider list.
 - Credentials follow-ups (ADR-0042): per-request/session-only keys that are
   never persisted server-side (web/TUI parity); OS keyring support (desktop
   only, absent on headless servers); `{env:VAR}` references in place of stored

@@ -236,7 +236,10 @@ set models at runtime, without restarting the server: open the model dialog
 with the settings (gear) icon in the status pane and pick each role's
 provider, model and optional custom URL from the
 `models.dev <https://models.dev>`_ catalogue (free text is still accepted
-for uncatalogued models).  The dialog edits the per-session defaults when
+for uncatalogued models).  The catalogue is a convenience subset, not
+exhaustive: enter any other model -- a local/on-device server (Ollama,
+LM Studio), a self-hosted endpoint, or a regional provider -- as free text.
+The dialog edits the per-session defaults when
 no chat is open and the current chat's overrides otherwise; saving in a
 chat also updates the defaults, so new chats inherit them.  A first-run
 **Choose models** prompt opens the dialog when setup is incomplete, and
