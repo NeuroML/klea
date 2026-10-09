@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-08.
+Last updated: 2026-10-09.
 
 ## Cancellation / concurrency
 
@@ -118,6 +118,9 @@ Last updated: 2026-10-08.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
+- Sphinx build: importing `mcp` / `fastmcp` fails only inside the Sphinx
+  process (not reproduced in isolation; 2026-10-02 session).  Unresolved;
+  revisit if the MCP autodoc paths must build.
 
 ## Configuration / UX
 
@@ -147,16 +150,13 @@ Last updated: 2026-10-08.
   `thinking`/`reasoning_effort`); a config `variants` section; `#variant`
   parsing in `parse_model_name` (`provider:model#variant[:suffix]`); picker
   support (dropdown from `reasoning_options`, free-text fallback); and an ADR.
-- HuggingFace model discovery: the picker's model list is models.dev's
-  `huggingface` provider (78 curated, mostly large models); small/on-device
-  models (SmolLM2, Qwen2.5-0.5B, ...) are absent and must be typed as free
-  text.  Consider a curated small-model suggestion list (offline) and/or an HF
-  Hub-backed list
-  (`GET https://huggingface.co/api/models?filter=text-generation&sort=downloads`)
-  behind a cached server endpoint with an offline fallback.
 - Verify the HuggingFace local (`:local`) backend end to end once a working
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
+- App-name standardization: the internal `app_name` values are still
+  `klea-tui` / `klea-web` / `klea-rag-web` (NiceGUI data dirs, logs,
+  user-agent); the agreed `klea-{agent,rag}-{tui,web}` scheme is not
+  implemented.
 
 ## Sessions / working directory
 
@@ -189,6 +189,9 @@ Last updated: 2026-10-08.
   framework -- `/cd` for the session root above, plus potential `/mode`,
   `/access`, `/model`, etc. -- rather than a one-off command.  The framework is
   frontend work; `/cd` depends on the session-root capability.
+- TUI session continuity: the TUI has no persistent `user_id`, so it cannot
+  resume a web session (and vice versa).  Whether the TUI should adopt a
+  persistent identity is an undecided design question.
 
 ## Streaming / tool UX
 
@@ -227,6 +230,15 @@ Last updated: 2026-10-08.
   single collapsed summary row ("read 4 files, searched 3 patterns") over one
   row per call, in the status pane or as one chat group.  Not a committed
   item.
+- Token streaming has no consumer: nodes marked `stream_tokens = True`
+  (e.g. `AnswerGeneral`) emit token deltas, but neither the web nor the TUI
+  renders them ("exists for a future live-typing UI").  Wiring a live-typing
+  render is deferred (`system/streams.md`).
+- Inline media rendering: `image/*` / `audio/*` results fall back to the
+  `display` text path; a `display` tool plus media rendering (and
+  `image/svg+xml` sanitisation) is deferred (ADR-0040, `system/streams.md`).
+- TUI `tool` parity: `tool` stream entries render in the web status/inspect
+  panes only; the TUI ignores them (`system/streams.md`).
 
 ## Testing
 
