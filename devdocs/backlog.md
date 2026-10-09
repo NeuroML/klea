@@ -62,17 +62,8 @@ Last updated: 2026-10-09.
   Precedent: `klea_utils/mcp/tool_impls/ssrf.py:88`.
 - Prompt tidy-up: `Planner_system.md` still says "Do not invent tools or
   arbitrary shell commands" (the picker prompt was clarified separately).
-- `read_file` streaming read (Phase 1, in progress): `read_file` currently
-  reads the whole file (bounded by `max_bytes`, default 100 MB) and splits it in
-  memory before slicing.  Phase 1 makes the pager consume a line iterator: a
-  lazy, chunked reader for plain/csv/tsv text (incremental UTF-8 decode, newline
-  normalisation across chunks), so memory is O(page) and `max_bytes` is no
-  longer a file-size refusal gate.  Conversions (HTML/anydoc) stay whole +
-  cached.  A large-file truncation carries a "use `grep` to locate the region,
-  then read with `offset`/`limit`" note.  `max_bytes` becomes a per-call scan
-  cap and `total_lines` is exact only when the read reaches EOF (else `null`).
-  See `system/file-tools.md`.
-- `read_file` byte-offset region reads (Phase 2): Phase 1 still scans from byte
+- `read_file` byte-offset region reads (Phase 2): Phase 1 (streamed text read,
+  done) still scans from byte
   0 to count newlines up to a line `offset`, so a late page costs O(offset) I/O
   even though memory is bounded.  Phase 2 adds true O(page) region reads:
   ripgrep already emits match byte offsets (currently ignored by
