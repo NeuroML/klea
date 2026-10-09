@@ -246,7 +246,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/api.html">API</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-tui.html">UI — TUI / REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-tui.html">UI - terminal REPL</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -310,16 +310,16 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">codecs</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">BinaryIO</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.errors</span><span class="w"> </span><span class="kn">import</span> <span class="n">DocumentConversionError</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.file_ops</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-    <span class="n">detect_newline</span><span class="p">,</span>
-    <span class="n">is_binary</span><span class="p">,</span>
     <span class="n">split_bom</span><span class="p">,</span>
     <span class="n">split_lines</span><span class="p">,</span>
 <span class="p">)</span>
@@ -374,6 +374,16 @@
 <span class="c1">#: Default number of lines returned per read (a page).  ``None`` still means</span>
 <span class="c1">#: "to the end", bounded by :data:`_MAX_CHARS`.</span>
 <span class="n">_DEFAULT_LIMIT</span> <span class="o">=</span> <span class="mi">500</span>
+
+<span class="c1">#: Character allowance for a rendered line-number prefix when capping a</span>
+<span class="c1">#: streamed line (any realistic line number fits well within this).</span>
+<span class="n">_PREFIX_ALLOWANCE</span> <span class="o">=</span> <span class="mi">64</span>
+
+<span class="c1">#: Read granularity for the streaming plain-text reader.</span>
+<span class="n">_STREAM_CHUNK_BYTES</span> <span class="o">=</span> <span class="mi">64</span> <span class="o">*</span> <span class="mi">1024</span>
+
+<span class="c1">#: Files larger than this get a "prefer grep" hint when a page is truncated.</span>
+<span class="n">_LARGE_FILE_HINT_BYTES</span> <span class="o">=</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span>
 
 <span class="c1">#: Maximum number of converted documents held in the in-memory cache.</span>
 <span class="n">_MAX_CACHE_ENTRIES</span> <span class="o">=</span> <span class="mi">4</span>
@@ -436,8 +446,10 @@
 <span class="sd">        end of the file.</span>
 <span class="sd">    :param max_chars: Character budget for the response (server-owned backstop;</span>
 <span class="sd">        not exposed to the model), applied after the line slice.</span>
-<span class="sd">    :param max_bytes: Maximum file size in bytes to read; larger files are</span>
-<span class="sd">        refused with an error.</span>
+<span class="sd">    :param max_bytes: Per-call scan cap in bytes (server-owned).  Plain text is</span>
+<span class="sd">        streamed, so the scan stops after this many bytes and the page is</span>
+<span class="sd">        returned truncated with a hint; HTML/office/PDF conversions and a</span>
+<span class="sd">        file that grows mid-read are still bounded by it.</span>
 <span class="sd">    :param line_numbers: Prefix each returned line with its line number</span>
 <span class="sd">        (default).  Set ``False`` to return the raw line text, e.g. to copy</span>
 <span class="sd">        a span into an edit tool's ``old_string``.</span>
@@ -449,7 +461,10 @@
 <span class="sd">        error).  A truncated result is a success (``error`` empty) that carries</span>
 <span class="sd">        the line range actually returned and ``next_offset`` for continuing;</span>
 <span class="sd">        ``nearby``/``note`` are populated on a missing/not-a-file error so the</span>
-<span class="sd">        caller can see what exists instead.</span>
+<span class="sd">        caller can see what exists instead.  ``total_lines`` is exact only when</span>
+<span class="sd">        the streamed read reached EOF; a page that stops early reports it as</span>
+<span class="sd">        ``None``.  A truncated page of a large file also carries a note</span>
+<span class="sd">        suggesting ``grep`` to locate the region.</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Reading file</span><span class="se">\n</span><span class="s2">"</span>
@@ -479,18 +494,11 @@
             <span class="s2">"note"</span><span class="p">:</span> <span class="n">missing_target_note</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">directory</span><span class="p">,</span> <span class="n">nearby</span><span class="p">),</span>
         <span class="p">}</span>
 
-    <span class="n">size</span> <span class="o">=</span> <span class="n">the_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
-    <span class="k">if</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">max_bytes</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"File too large (</span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2"> bytes &gt; </span><span class="si">{</span><span class="n">max_bytes</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">{</span>
-            <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
-            <span class="s2">"content"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
-            <span class="s2">"line_start"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-            <span class="s2">"line_end"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-            <span class="s2">"total_lines"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-            <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-            <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"File too large to read: </span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2"> bytes"</span><span class="p">,</span>
-        <span class="p">}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="n">the_path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not stat </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="k">if</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid offset </span><span class="si">{</span><span class="n">offset</span><span class="si">}</span><span class="s2">; starting from line 1"</span><span class="p">)</span>
@@ -508,37 +516,54 @@
         <span class="n">max_chars</span> <span class="o">=</span> <span class="mi">1</span>
 
     <span class="n">suffix</span> <span class="o">=</span> <span class="n">the_path</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">line_start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
     <span class="n">had_bom</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">delimited_raw</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">streamed</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">reached_eof</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">scan_capped</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">total_lines</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">".html"</span><span class="p">,</span> <span class="s2">".htm"</span><span class="p">):</span>
-            <span class="c1"># HTML is web content and may not be UTF-8; decode leniently.</span>
+            <span class="c1"># HTML is web content and may not be UTF-8; decode leniently.  It is</span>
+            <span class="c1"># parsed whole (BeautifulSoup), then paged like any other text.</span>
             <span class="n">data</span> <span class="o">=</span> <span class="n">_read_bounded</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">_too_large_result</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
-            <span class="n">text</span><span class="p">,</span> <span class="n">had_bom</span> <span class="o">=</span> <span class="n">split_bom</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">))</span>
-            <span class="n">content</span> <span class="o">=</span> <span class="n">_html_to_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+            <span class="n">html</span><span class="p">,</span> <span class="n">had_bom</span> <span class="o">=</span> <span class="n">split_bom</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">))</span>
+            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
+                <span class="n">_html_to_text</span><span class="p">(</span><span class="n">html</span><span class="p">),</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">char_offset</span>
+            <span class="p">)</span>
         <span class="k">elif</span> <span class="n">_should_convert</span><span class="p">(</span><span class="n">suffix</span><span class="p">):</span>
-            <span class="n">content</span> <span class="o">=</span> <span class="n">_converted_text</span><span class="p">(</span><span class="n">the_path</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">data</span> <span class="o">=</span> <span class="n">_read_bounded</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Conversions (anydoc) read the whole document, so keep the size</span>
+            <span class="c1"># guard: a huge document is refused rather than pulled into memory.</span>
+            <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">max_bytes</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">_too_large_result</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">is_binary</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
-                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Refusing to read binary file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-                <span class="k">return</span> <span class="p">{</span>
-                    <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
-                    <span class="s2">"content"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
-                    <span class="s2">"line_start"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-                    <span class="s2">"line_end"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-                    <span class="s2">"total_lines"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-                    <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
-                    <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Cannot read binary file: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-                <span class="p">}</span>
-            <span class="c1"># Strict UTF-8: report invalid bytes rather than returning</span>
-            <span class="c1"># replacement-character garbage.  A UTF-8 BOM is stripped.</span>
-            <span class="n">content</span><span class="p">,</span> <span class="n">had_bom</span> <span class="o">=</span> <span class="n">split_bom</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">))</span>
+            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
+                <span class="n">_converted_text</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">char_offset</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Plain text: stream the page lazily, so memory is O(page) and files</span>
+            <span class="c1"># larger than ``max_bytes`` still page (``max_bytes`` now bounds the</span>
+            <span class="c1"># bytes scanned in one call rather than refusing the file).</span>
             <span class="n">delimited_raw</span> <span class="o">=</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">".csv"</span><span class="p">,</span> <span class="s2">".tsv"</span><span class="p">}</span>
+            <span class="n">streamed</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="p">(</span>
+                <span class="n">segments</span><span class="p">,</span>
+                <span class="n">total_lines</span><span class="p">,</span>
+                <span class="n">reached_eof</span><span class="p">,</span>
+                <span class="n">scan_capped</span><span class="p">,</span>
+                <span class="n">had_bom</span><span class="p">,</span>
+            <span class="p">)</span> <span class="o">=</span> <span class="n">_read_streamed_page</span><span class="p">(</span>
+                <span class="n">the_path</span><span class="p">,</span>
+                <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+                <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+                <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+                <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+                <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+            <span class="p">)</span>
     <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not valid UTF-8 text: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
@@ -549,6 +574,17 @@
             <span class="s2">"total_lines"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
             <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
             <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"File is not valid UTF-8 text: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+        <span class="p">}</span>
+    <span class="k">except</span> <span class="n">_BinaryFileError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Refusing to read binary file: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
+            <span class="s2">"content"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"line_start"</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="s2">"line_end"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">"total_lines"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"Cannot read binary file: </span><span class="si">{</span><span class="n">the_path</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
         <span class="p">}</span>
     <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not read </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
@@ -584,21 +620,6 @@
             <span class="s2">"error"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">),</span>
         <span class="p">}</span>
 
-    <span class="n">lines</span> <span class="o">=</span> <span class="n">split_lines</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
-    <span class="n">total_lines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Line definition: </span><span class="si">{</span><span class="n">detect_newline</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">total_lines</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
-    <span class="n">end</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">start</span> <span class="o">+</span> <span class="n">limit</span>
-    <span class="n">sliced</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
-
-    <span class="c1"># The first segment may be a suffix of ``offset``'s line when continuing</span>
-    <span class="c1"># inside an over-long line (``char_offset`` &gt; 0); the rest are whole lines.</span>
-    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">if</span> <span class="n">sliced</span><span class="p">:</span>
-        <span class="n">first</span> <span class="o">=</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">segments</span> <span class="o">=</span> <span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="o">*</span><span class="n">sliced</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
-
-    <span class="n">line_start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
     <span class="k">if</span> <span class="n">line_numbers</span><span class="p">:</span>
         <span class="n">rendered</span> <span class="o">=</span> <span class="p">[</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_no</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">segment</span><span class="si">}</span><span class="s2">"</span>
@@ -623,35 +644,53 @@
         <span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">kept</span><span class="p">,</span> <span class="n">next_offset</span><span class="p">,</span> <span class="n">next_char_offset</span><span class="p">,</span> <span class="n">char_limited</span> <span class="o">=</span> <span class="p">[],</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">False</span>
+
     <span class="n">line_end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span>
-    <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="n">line_end</span> <span class="o">&lt;</span> <span class="n">total_lines</span>
-    <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">next_offset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="c1"># Truncation came from the ``limit`` slice, not the character cap.</span>
+    <span class="k">if</span> <span class="n">streamed</span><span class="p">:</span>
+        <span class="c1"># A streamed page knows the total only when it reaches EOF.</span>
+        <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">reached_eof</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="p">(</span><span class="n">total_lines</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">line_end</span> <span class="o">&lt;</span> <span class="n">total_lines</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">next_offset</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">kept</span><span class="p">:</span>
+        <span class="c1"># Truncation came from the page boundary / scan cap, not the char cap.</span>
         <span class="n">next_offset</span> <span class="o">=</span> <span class="n">line_end</span> <span class="o">+</span> <span class="mi">1</span>
         <span class="n">next_char_offset</span> <span class="o">=</span> <span class="mi">0</span>
 
     <span class="n">content</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span>
 
+    <span class="n">total_suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" of </span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">total_lines</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">""</span>
     <span class="n">note</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">next_offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">next_char_offset</span><span class="p">:</span>
             <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Output truncated mid-line: showing line </span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2"> from "</span>
-                <span class="sa">f</span><span class="s2">"char </span><span class="si">{</span><span class="n">char_offset</span><span class="si">}</span><span class="s2"> to line </span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2"> char </span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2"> "</span>
-                <span class="sa">f</span><span class="s2">"of </span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">, "</span>
+                <span class="sa">f</span><span class="s2">"char </span><span class="si">{</span><span class="n">char_offset</span><span class="si">}</span><span class="s2"> to line </span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2"> char </span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">, "</span>
                 <span class="sa">f</span><span class="s2">"char_offset=</span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2">."</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Output truncated: showing lines </span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2"> of "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">."</span>
+                <span class="sa">f</span><span class="s2">"Output truncated: showing lines </span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">."</span>
             <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">reached_eof</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s2">"The requested line is past the region scanned in one call; the file "</span>
+            <span class="s2">"is too large to scan that far. Use grep to locate the region, then "</span>
+            <span class="s2">"read around it."</span>
+        <span class="p">)</span>
     <span class="k">elif</span> <span class="ow">not</span> <span class="n">segments</span> <span class="ow">and</span> <span class="n">total_lines</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"offset </span><span class="si">{</span><span class="n">offset</span><span class="si">}</span><span class="s2"> is past the end of the file (</span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2"> lines)."</span>
     <span class="k">elif</span> <span class="n">had_bom</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="s2">"Stripped a UTF-8 BOM."</span>
     <span class="k">elif</span> <span class="n">delimited_raw</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="s2">"Delimited file read as physical lines; quoted fields may span lines."</span>
+
+    <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">_LARGE_FILE_HINT_BYTES</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Large file: prefer grep to find the region you need, then "</span>
+            <span class="s2">"read around it with offset/limit."</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Read file</span><span class="se">\n</span><span class="s2">"</span>
@@ -662,7 +701,9 @@
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">truncated</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_offset</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_char_offset</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_char_offset</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">streamed</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">scan_capped</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="p">{</span>
         <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
@@ -759,6 +800,198 @@
         <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
         <span class="s2">"error"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"File too large to read: over </span><span class="si">{</span><span class="n">max_bytes</span><span class="si">}</span><span class="s2"> bytes"</span><span class="p">,</span>
     <span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_slice_segments</span><span class="p">(</span>
+    <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the raw page lines of *content* and its total line count.</span>
+
+<span class="sd">    The first segment may be a suffix of ``offset``'s line when continuing</span>
+<span class="sd">    inside an over-long line (``char_offset`` &gt; 0); the rest are whole lines.</span>
+
+<span class="sd">    :param content: Decoded/converted file text.</span>
+<span class="sd">    :param offset: 1-indexed line to start from.</span>
+<span class="sd">    :param limit: Maximum number of lines, or ``None`` for "to the end".</span>
+<span class="sd">    :param char_offset: 0-indexed character within ``offset``'s line.</span>
+<span class="sd">    :returns: ``(segments, total_lines)``.</span>
+<span class="sd">    """</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">split_lines</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
+    <span class="n">total_lines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">start</span> <span class="o">+</span> <span class="n">limit</span>
+    <span class="n">sliced</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">sliced</span><span class="p">:</span>
+        <span class="n">first</span> <span class="o">=</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">segments</span> <span class="o">=</span> <span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="o">*</span><span class="n">sliced</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
+    <span class="k">return</span> <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_BinaryFileError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Raised by the streaming reader when it sees a NUL byte."""</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_StreamState</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Mutable state shared with the streaming line reader."""</span>
+
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"bytes_read"</span><span class="p">,</span> <span class="s2">"capped"</span><span class="p">,</span> <span class="s2">"exhausted"</span><span class="p">,</span> <span class="s2">"had_bom"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bytes_read</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">capped</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exhausted</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">had_bom</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_streamed_page</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Collect one page of lines from *path* without loading the whole file.</span>
+
+<span class="sd">    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once</span>
+<span class="sd">    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the</span>
+<span class="sd">    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.</span>
+
+<span class="sd">    :param path: Text file to read.</span>
+<span class="sd">    :param offset: 1-indexed line to start from.</span>
+<span class="sd">    :param limit: Maximum number of lines, or ``None`` for "to the end".</span>
+<span class="sd">    :param char_offset: 0-indexed character within ``offset``'s line.</span>
+<span class="sd">    :param max_chars: Character budget for the page (bounds the scan too).</span>
+<span class="sd">    :param max_bytes: Per-call scan cap in bytes.</span>
+<span class="sd">    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom)``.</span>
+<span class="sd">        ``total_lines`` is ``None`` unless the scan reached EOF.</span>
+<span class="sd">    """</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">_StreamState</span><span class="p">()</span>
+    <span class="n">max_line_chars</span> <span class="o">=</span> <span class="n">char_offset</span> <span class="o">+</span> <span class="n">max_chars</span> <span class="o">+</span> <span class="n">_PREFIX_ALLOWANCE</span>
+    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">line_no</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">collected</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">accumulated</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">_iter_capped_lines</span><span class="p">(</span>
+            <span class="n">handle</span><span class="p">,</span>
+            <span class="n">state</span><span class="p">,</span>
+            <span class="n">max_line_chars</span><span class="o">=</span><span class="n">max_line_chars</span><span class="p">,</span>
+            <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">text</span><span class="p">,</span> <span class="n">_truncated</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="n">line_no</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">line_no</span> <span class="o">&lt;</span> <span class="n">offset</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">segment</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">line_no</span> <span class="o">==</span> <span class="n">offset</span> <span class="ow">and</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">text</span>
+            <span class="n">segments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span>
+            <span class="n">collected</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">accumulated</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">collected</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">collected</span> <span class="o">&gt;=</span> <span class="n">limit</span><span class="p">:</span>
+                <span class="c1"># Peek once to tell EOF from a real continuation.</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="nb">next</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">accumulated</span> <span class="o">&gt;=</span> <span class="n">max_chars</span><span class="p">:</span>
+                <span class="k">break</span>
+    <span class="n">total_lines</span> <span class="o">=</span> <span class="n">line_no</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">capped</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">had_bom</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_iter_capped_lines</span><span class="p">(</span>
+    <span class="n">handle</span><span class="p">:</span> <span class="n">BinaryIO</span><span class="p">,</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">_StreamState</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">max_line_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_STREAM_CHUNK_BYTES</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Yield ``(line, truncated)`` pairs read lazily from a binary *handle*.</span>
+
+<span class="sd">    Decodes incrementally (so a multibyte character split across a chunk is</span>
+<span class="sd">    handled), normalises CRLF and lone CR to LF across chunk boundaries, and</span>
+<span class="sd">    caps each line at *max_line_chars* (the rest of an over-long line is</span>
+<span class="sd">    discarded, with ``truncated`` set).  Stops at EOF (``state.exhausted``) or</span>
+<span class="sd">    once *max_bytes* have been read (``state.capped``).  A NUL byte raises</span>
+<span class="sd">    :class:`_BinaryFileError`; invalid UTF-8 raises ``UnicodeDecodeError``.</span>
+
+<span class="sd">    :param handle: Open binary file handle.</span>
+<span class="sd">    :param state: Mutable state updated as the scan proceeds.</span>
+<span class="sd">    :param max_line_chars: Maximum characters kept per line.</span>
+<span class="sd">    :param max_bytes: Per-call scan cap in bytes.</span>
+<span class="sd">    :param chunk_size: Read granularity in bytes.</span>
+<span class="sd">    :yields: ``(line_text, truncated)`` for each line, without its newline.</span>
+<span class="sd">    """</span>
+    <span class="n">decoder</span> <span class="o">=</span> <span class="n">codecs</span><span class="o">.</span><span class="n">getincrementaldecoder</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)()</span>
+    <span class="n">carry</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">discarding</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">pending_cr</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="n">remaining</span> <span class="o">=</span> <span class="n">max_bytes</span> <span class="o">-</span> <span class="n">state</span><span class="o">.</span><span class="n">bytes_read</span>
+        <span class="k">if</span> <span class="n">remaining</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">capped</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">,</span> <span class="n">remaining</span><span class="p">))</span>
+        <span class="n">eof</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">raw</span>
+        <span class="k">if</span> <span class="n">raw</span><span class="p">:</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">bytes_read</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+            <span class="k">if</span> <span class="sa">b</span><span class="s2">"</span><span class="se">\x00</span><span class="s2">"</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">_BinaryFileError</span><span class="p">()</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Flush the decoder; raises UnicodeDecodeError on a split character.</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="sa">b</span><span class="s2">""</span><span class="p">,</span> <span class="n">final</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">pending_cr</span><span class="p">:</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="n">text</span>
+                <span class="n">pending_cr</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">first</span> <span class="ow">and</span> <span class="n">text</span><span class="p">:</span>
+            <span class="n">first</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"</span><span class="se">\ufeff</span><span class="s2">"</span><span class="p">):</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="n">state</span><span class="o">.</span><span class="n">had_bom</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">pending_cr</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\r</span><span class="s2">"</span> <span class="o">+</span> <span class="n">text</span>
+            <span class="n">pending_cr</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">text</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">"</span><span class="se">\r</span><span class="s2">"</span><span class="p">):</span>
+            <span class="n">pending_cr</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\r</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+
+        <span class="n">pos</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">nl</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nl</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+                <span class="n">remainder</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">pos</span><span class="p">:]</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">discarding</span><span class="p">:</span>
+                    <span class="n">room</span> <span class="o">=</span> <span class="n">max_line_chars</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">carry</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">room</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">carry</span> <span class="o">+=</span> <span class="n">remainder</span><span class="p">[:</span><span class="n">room</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">carry</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">max_line_chars</span><span class="p">:</span>
+                        <span class="n">discarding</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="k">break</span>
+            <span class="n">segment</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">pos</span><span class="p">:</span><span class="n">nl</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">discarding</span><span class="p">:</span>
+                <span class="n">truncated</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">room</span> <span class="o">=</span> <span class="n">max_line_chars</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">carry</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">room</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">carry</span> <span class="o">+=</span> <span class="n">segment</span><span class="p">[:</span><span class="n">room</span><span class="p">]</span>
+                <span class="n">truncated</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">room</span>
+            <span class="k">yield</span> <span class="n">carry</span><span class="p">,</span> <span class="n">truncated</span>
+            <span class="n">carry</span> <span class="o">=</span> <span class="s2">""</span>
+            <span class="n">discarding</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">nl</span> <span class="o">+</span> <span class="mi">1</span>
+
+        <span class="k">if</span> <span class="n">eof</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">carry</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">carry</span><span class="p">,</span> <span class="n">discarding</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_anydoc_available</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>

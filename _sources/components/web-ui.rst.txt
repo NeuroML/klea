@@ -89,7 +89,10 @@ with three fields -- a **provider** dropdown, a **model** dropdown, and an
 optional **custom URL** -- filled from the `models.dev <https://models.dev>`_
 catalogue.  Free text is still accepted for models that are not in the
 catalogue (for example ``ollama:`` models or a self-hosted endpoint), and a
-custom URL overrides the provider's default endpoint.  The dialog edits the
+custom URL overrides the provider's default endpoint.  The catalogue is a
+convenience subset, not an exhaustive list: enter any other model -- a
+local/on-device server (Ollama, LM Studio), a self-hosted endpoint, or a
+regional provider -- as free text.  The dialog edits the
 current chat's models when a chat is open and the per-session defaults
 otherwise; saving in a chat also updates the session defaults ("last used"),
 so new chats start from the same models.  **Manage API keys** opens the

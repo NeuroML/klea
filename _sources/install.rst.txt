@@ -236,7 +236,10 @@ set models at runtime, without restarting the server: open the model dialog
 with the settings (gear) icon in the status pane and pick each role's
 provider, model and optional custom URL from the
 `models.dev <https://models.dev>`_ catalogue (free text is still accepted
-for uncatalogued models).  The dialog edits the per-session defaults when
+for uncatalogued models).  The catalogue is a convenience subset, not
+exhaustive: enter any other model -- a local/on-device server (Ollama,
+LM Studio), a self-hosted endpoint, or a regional provider -- as free text.
+The dialog edits the per-session defaults when
 no chat is open and the current chat's overrides otherwise; saving in a
 chat also updates the defaults, so new chats inherit them.  A first-run
 **Choose models** prompt opens the dialog when setup is incomplete, and
@@ -414,18 +417,23 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
      - Log file name
    * - ``klea-rag`` (RAG server / graph)
      - ``klea-rag/klea-rag.log``
-   * - ``klea-rag`` TUI client
+   * - ``klea-rag`` terminal client (REPL)
      - ``klea-rag-tui/klea-rag-tui.log``
    * - ``klea-rag`` web client
      - ``klea-rag-web/klea-rag-web.log``
    * - ``klea-agent`` (Agent server / graph)
      - ``klea-agent/klea-agent.log``
-   * - ``klea`` TUI client
-     - ``klea-tui/klea-tui.log``
+   * - ``klea`` terminal client (REPL)
+     - ``klea-agent-tui/klea-agent-tui.log``
    * - ``klea`` web client
-     - ``klea-web/klea-web.log``
+     - ``klea-agent-web/klea-agent-web.log``
    * - ``nml-mcp`` (MCP server)
      - ``nml_mcp/nml_mcp.log``
+
+The ``cli`` subcommand's terminal client is a lightweight REPL for quick
+testing, not the TUI.  It currently uses the ``-tui`` process identity; the
+planned full Textual TUI will take that identity over and the REPL will be
+dropped.
 
 ``klea-stores-create`` logs to the console only.
 
@@ -447,7 +455,7 @@ user-data directory:
 
 (honouring ``XDG_DATA_HOME``), and are named
 ``storage-user-<session-id>.json``.  The ``<app>`` is ``klea-rag-web``
-for ``klea-rag web`` and ``klea-web`` for ``klea web``, so the two
+for ``klea-rag web`` and ``klea-agent-web`` for ``klea web``, so the two
 frontends do not overlap.
 
 Each file stores only a pointer to server-side state::

@@ -247,7 +247,7 @@
 <li class="toctree-l3"><a class="reference internal" href="api.html">API</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="ui-tui.html">UI — TUI / REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="ui-tui.html">UI - terminal REPL</a></li>
 <li class="toctree-l4"><a class="reference internal" href="ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -1540,8 +1540,10 @@ resume position.</p></li>
 end of the file.</p></li>
 <li><p><strong>max_chars</strong> – Character budget for the response (server-owned backstop;
 not exposed to the model), applied after the line slice.</p></li>
-<li><p><strong>max_bytes</strong> – Maximum file size in bytes to read; larger files are
-refused with an error.</p></li>
+<li><p><strong>max_bytes</strong> – Per-call scan cap in bytes (server-owned).  Plain text is
+streamed, so the scan stops after this many bytes and the page is
+returned truncated with a hint; HTML/office/PDF conversions and a
+file that grows mid-read are still bounded by it.</p></li>
 <li><p><strong>line_numbers</strong> – Prefix each returned line with its line number
 (default).  Set <code class="docutils literal notranslate"><span class="pre">False</span></code> to return the raw line text, e.g. to copy
 a span into an edit tool’s <code class="docutils literal notranslate"><span class="pre">old_string</span></code>.</p></li>
@@ -1556,7 +1558,10 @@ truncated, next_offset, error, note (plus <code class="docutils literal notransl
 error).  A truncated result is a success (<code class="docutils literal notranslate"><span class="pre">error</span></code> empty) that carries
 the line range actually returned and <code class="docutils literal notranslate"><span class="pre">next_offset</span></code> for continuing;
 <code class="docutils literal notranslate"><span class="pre">nearby</span></code>/<code class="docutils literal notranslate"><span class="pre">note</span></code> are populated on a missing/not-a-file error so the
-caller can see what exists instead.</p>
+caller can see what exists instead.  <code class="docutils literal notranslate"><span class="pre">total_lines</span></code> is exact only when
+the streamed read reached EOF; a page that stops early reports it as
+<code class="docutils literal notranslate"><span class="pre">None</span></code>.  A truncated page of a large file also carries a note
+suggesting <code class="docutils literal notranslate"><span class="pre">grep</span></code> to locate the region.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -3385,6 +3390,9 @@ Document formats (PDF, office files) are converted to Markdown first.</p>
 <p>Use when:
 - You need to see the contents of a file in the project.
 - You want to page through a large file by line numbers.</p>
+<p>For a large file, prefer the grep tool to locate the region you need
+first, then read around it with <code class="docutils literal notranslate"><span class="pre">offset</span></code>/<code class="docutils literal notranslate"><span class="pre">limit</span></code>; reading a large file
+page by page from the start is slow.</p>
 <p>Do not use for:
 - Listing a directory (use the list files tool instead).
 - Fetching remote content (use the web fetch tool instead).</p>
@@ -3411,14 +3419,15 @@ text to copy into an edit.</p></li>
 <dl class="field-list simple">
 <dt class="field-odd">Returns<span class="colon">:</span></dt>
 <dd class="field-odd"><p>Dictionary with content, line range, total_lines, truncated,
-next_offset, next_char_offset, error and note.  A truncated read is a
-success (empty <code class="docutils literal notranslate"><span class="pre">error</span></code>) that normally ends on a line boundary and
-carries <code class="docutils literal notranslate"><span class="pre">next_offset</span></code> (and an explanatory <code class="docutils literal notranslate"><span class="pre">note</span></code>) so the caller can
-continue.  A single line longer than the character cap is paged by
-characters: continue with the same <code class="docutils literal notranslate"><span class="pre">offset</span></code> and the returned
-<code class="docutils literal notranslate"><span class="pre">next_char_offset</span></code>.  On a missing/not-a-file error, <code class="docutils literal notranslate"><span class="pre">nearby</span></code>
-(entries in the nearest existing directory) and <code class="docutils literal notranslate"><span class="pre">note</span></code> are populated
-so the caller can see what exists instead.</p>
+next_offset, next_char_offset, error and note.  <code class="docutils literal notranslate"><span class="pre">total_lines</span></code> is
+<code class="docutils literal notranslate"><span class="pre">null</span></code> when a streamed read stops before the end of the file.  A
+truncated read is a success (empty <code class="docutils literal notranslate"><span class="pre">error</span></code>) that normally ends on a
+line boundary and carries <code class="docutils literal notranslate"><span class="pre">next_offset</span></code> (and an explanatory <code class="docutils literal notranslate"><span class="pre">note</span></code>)
+so the caller can continue.  A single line longer than the character
+cap is paged by characters: continue with the same <code class="docutils literal notranslate"><span class="pre">offset</span></code> and the
+returned <code class="docutils literal notranslate"><span class="pre">next_char_offset</span></code>.  On a missing/not-a-file error,
+<code class="docutils literal notranslate"><span class="pre">nearby</span></code> (entries in the nearest existing directory) and <code class="docutils literal notranslate"><span class="pre">note</span></code> are
+populated so the caller can see what exists instead.</p>
 </dd>
 </dl>
 </dd></dl>

@@ -246,7 +246,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/api.html">API</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-tui.html">UI — TUI / REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-tui.html">UI - terminal REPL</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -302,7 +302,12 @@
           <h1>Source code for klea_utils.ui.tui.repl</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Shared async REPL for Klea chat interfaces.</span>
+<span class="sd">Lightweight async REPL for Klea terminal clients.</span>
+
+<span class="sd">This is a minimal ``input()``-based REPL for quick testing with simple</span>
+<span class="sd">queries, **not** the TUI.  It is temporary and will be dropped once the full</span>
+<span class="sd">Textual TUI (shared components in this package, composed per app) exists; see</span>
+<span class="sd">``devdocs/backlog.md``.</span>
 
 <span class="sd">File: klea_utils/ui/tui/repl.py</span>
 
@@ -429,7 +434,7 @@
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">single_query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">app_prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea"</span><span class="p">,</span>
-    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-tui"</span><span class="p">,</span>
+    <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-agent-tui"</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Run an interactive or single-query chat REPL.</span>
 

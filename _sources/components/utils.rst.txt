@@ -38,7 +38,8 @@ applications share:
 * the FastAPI app factory, session store and SSE streaming;
 * MCP tool implementations, the bundled tools server (see
   :doc:`mcp-servers`) and access-level enforcement;
-* reusable NiceGUI components, a Streamlit UI and the TUI.
+* reusable NiceGUI components, a Streamlit UI, and a lightweight terminal
+  REPL (a full Textual TUI is planned).
 
 Interfaces
 ----------
