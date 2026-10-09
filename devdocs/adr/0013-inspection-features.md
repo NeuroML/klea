@@ -55,8 +55,8 @@ validate and trust its output?
   requirements.
 * Must compose with the general Klea framework
   (``klea_utils.graph.base.BaseLangGraph`` streaming) and the existing
-  web/TUI clients (NiceGUI 3-column, Textual REPL) without forking UIs;
-  not a RAG-only concern.
+  web/terminal clients (NiceGUI 3-column, terminal REPL; a Textual TUI is
+  planned) without forking UIs; not a RAG-only concern.
 
 ## Considered Options
 
@@ -230,3 +230,6 @@ Chosen option: "C. Structured per-node inspection signals".
 * Decisions codified ``2026-08-28``; inspection wiring grew alongside
   the RAG graph extraction (early ``2026-03..04``) and the NiceGUI
   3-column inspector (``2026-07..08``).
+* Update (2026-10-09): the terminal client reached by ``klea-rag cli`` is a
+  lightweight ``input()``-based REPL, not a Textual TUI; a full TUI is
+  planned (``devdocs/backlog.md``).

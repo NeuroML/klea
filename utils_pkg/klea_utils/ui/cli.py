@@ -214,7 +214,7 @@ def _run_web(
         cwd = Path(spec.origin).parent
         # Forward NICEGUI_STORAGE_PATH for reload subprocess and per-app
         # default.  If not set, derive from PlatformDirs(web_app_name) so
-        # klea-rag-web and klea-web use separate user_data_dir/nicegui dirs.
+        # klea-rag-web and klea-agent-web use separate user_data_dir/nicegui dirs.
         import os
 
         from platformdirs import PlatformDirs

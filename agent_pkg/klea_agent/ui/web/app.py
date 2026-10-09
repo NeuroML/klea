@@ -16,7 +16,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 # NiceGUI (nicegui/storage.py reads NICEGUI_STORAGE_PATH at import time).
 from klea_utils.ui.web.nicegui.entry import default_storage_env
 
-default_storage_env("klea-web")
+default_storage_env("klea-agent-web")
 
 from klea_utils.ui.web.nicegui.parser import make_parser
 

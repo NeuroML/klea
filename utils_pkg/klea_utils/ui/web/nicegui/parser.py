@@ -76,7 +76,7 @@ def make_parser(
     )
     parser.add_argument(
         "--app-name",
-        default="klea-web",
+        default="klea-agent-web",
         help="Log identity for this frontend process (used for the log file name)",
     )
     return parser

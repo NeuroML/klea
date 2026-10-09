@@ -124,7 +124,8 @@ Last updated: 2026-10-09.
 
 ## Configuration / UX
 
-- TUI/CLI mode and access selectors (the web UI has them; TUI/CLI do not).
+- Mode and access selectors in the terminal frontends (the web UI has them;
+  the terminal REPL and the planned Textual TUI do not -- see Frontends / TUI).
 - Optional `KLEA_AGENT_ACCESS_LEVEL` env default (deferred; JSON config
   default used instead).
 - Third-party trust roadmap (consent loop, sandbox-by-default, curated server
@@ -153,10 +154,6 @@ Last updated: 2026-10-09.
 - Verify the HuggingFace local (`:local`) backend end to end once a working
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
-- App-name standardization: the internal `app_name` values are still
-  `klea-tui` / `klea-web` / `klea-rag-web` (NiceGUI data dirs, logs,
-  user-agent); the agreed `klea-{agent,rag}-{tui,web}` scheme is not
-  implemented.
 
 ## Sessions / working directory
 
@@ -189,9 +186,35 @@ Last updated: 2026-10-09.
   framework -- `/cd` for the session root above, plus potential `/mode`,
   `/access`, `/model`, etc. -- rather than a one-off command.  The framework is
   frontend work; `/cd` depends on the session-root capability.
-- TUI session continuity: the TUI has no persistent `user_id`, so it cannot
-  resume a web session (and vice versa).  Whether the TUI should adopt a
-  persistent identity is an undecided design question.
+
+## Frontends / TUI
+
+- Terminal client status: the `cli` subcommand runs a lightweight
+  `input()`-based REPL (`klea_utils/ui/tui/repl.py`), a temporary tool for
+  quick testing with simple queries.  It is **not** the TUI -- the historical
+  "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale
+  -- and it will be dropped once the TUI lands.
+- Full Textual TUI: build the real TUI as a new **module** in
+  `klea_utils/ui/tui`, following the web-UI pattern -- shared components (like
+  `klea_utils/ui/web/nicegui/components`), each app composing and customising
+  its own screen (`klea_agent`, `klea_rag`).  Planned: session sidebar
+  (list/switch/create), streaming transcript, inspect/status panes,
+  mode/access/model selectors (see the Configuration/UX item), tool results,
+  and permission + HITL forms.  Replaces the REPL.
+- Cross-frontend sessions: any frontend should list existing sessions and load
+  one.  Sessions already live server-side in
+  `{graph.paths.user_data_dir}/sessions.db` keyed by `(user_id, chat_id)` and
+  are reached over HTTP, so this is **not** solved by a shared client data
+  folder -- the client folders hold only logs and the web's browser -> `user_id`
+  map.  The missing piece is a shared, persistent `user_id` (the web generates
+  a random per-browser UUID in `app.storage.user`; the REPL sends `""`).  Plan:
+  a stable identity (config/env such as `KLEA_USER_ID`, with a `--user-id`
+  override) shared by the frontends, plus a `klea sessions` subcommand to
+  list/delete sessions (the user can then load a chosen one in the TUI).
+  Caveat: unifying the frontend folders is not the fix -- `app_name` is both
+  the data dir *and* the log file name, so the server, web and TUI cannot share
+  one `app_name` without colliding on `{app_name}.log`.  Not needed now; settle
+  the design (likely an ADR) before starting.
 
 ## Streaming / tool UX
 

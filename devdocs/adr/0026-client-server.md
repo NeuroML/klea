@@ -32,8 +32,9 @@ Should Klea be a single monolithic app or a client-server product?
   consume ``nml-mcp`` or the RAG service over HTTP/MCP.
 * Must keep the graph, the API, and the UIs on independent lifecycles
   (``graph/base.py`` ``run_graph_*`` seam, ``api/sse.py`` SSE, NiceGUI
-  vs Textual TUI) so the same orchestrator can be served locally, in a
-  container, or on HF without forking the app.
+  web UI vs the terminal REPL, a Textual TUI being planned) so the same
+  orchestrator can be served locally, in a container, or on HF without
+  forking the app.
 * Must let tools run in isolated servers (``nml-mcp`` stdio-subprocess
   via ``BaseLangGraph._bundled_server_config`` per ``ADR-0004``, plus
   per-domain third-party MCP servers via ``MCPConfig``) and be
@@ -86,8 +87,9 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
   klea_utils/api/utils.py:87`` ``check_api_is_ready`` + ``split_server_url``);
   external ``MCP Clients`` (``Person(extagent)`` in ``c4-system-context.md``)
   consume ``nml-mcp``/RAG over HTTP/MCP without a Klea CLI.  NiceGUI
-  (``klea-rag web``) and Textual (``klea-rag cli`` REPL) are both SSE
-  consumers of the same ``/query/stream``.
+  (``klea-rag web``) and the terminal REPL (``klea-rag cli``; a full
+  Textual TUI is planned) are both SSE consumers of the same
+  ``/query/stream``.
 * Deployment: local ``uv pip install -r requirements-dev.txt`` + per-app
   ``graph.base`` + session SQLite (``sessions.db``) vs shared
   ``deployments/huggingface/Dockerfile`` container (``HuggingFace`` ->
@@ -146,7 +148,8 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
 
 * Good, because same code serves local, HuggingFace, and shared infra
 * Good, because ``nml-mcp`` is reusable over HTTP/MCP without Klea
-* Good, because TUI, NiceGUI, and external agents share one SSE stream
+* Good, because the terminal client (REPL; TUI planned), NiceGUI, and
+  external agents share one SSE stream
 * Bad, because per-invocation health-probe + SSE handshake even locally
 
 ### Monolithic app (Claude Code/opencode style)
@@ -156,6 +159,11 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
 
 ## More Information
 
+* Update (2026-10-09): the terminal client is a lightweight
+  ``input()``-based REPL (``utils_pkg/klea_utils/ui/tui/repl.py``), not a
+  Textual TUI.  A full Textual TUI -- shared components in
+  ``klea_utils/ui/tui``, composed per app like the NiceGUI components -- is
+  planned; see ``devdocs/backlog.md``.
 * Code: ``utils_pkg/klea_utils/graph/base.py:70`` (``BaseLangGraph``),
   ``klea_utils/api/*`` (``make_app``, ``sse.py``, ``chat.py``,
   ``sessions_db.py``), ``klea_utils/ui/cli.py`` (``spawn_server`` +

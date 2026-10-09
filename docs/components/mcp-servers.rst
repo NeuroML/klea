@@ -269,7 +269,7 @@ that would touch a path outside the project directory (the directory the
 server runs in), or a sensitive file inside it (env files, private keys,
 cloud config), pauses the run and asks the user, per path, to allow it
 **once**, allow it **for the session**, or **deny** it.  The ask is shown in
-the web UI and TUI; a session approval is remembered for the chat, and a
+the web UI and terminal REPL; a session approval is remembered for the chat, and a
 denied path returns a non-halting error so the run continues.  Path discovery
 is layered -- a tool's declared ``checkpaths``, the paths the tool picker
 declares, and heuristics (including the tokens of a shell command) -- with

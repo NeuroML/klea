@@ -111,7 +111,7 @@ def run_nicegui_server(
     reload: bool = False,
     nicegui_url: str = "0.0.0.0:7860",
     storage_secret: str = "klea-nicegui-secret-change-me",
-    app_name: str = "klea-web",
+    app_name: str = "klea-agent-web",
     favicon: str | Path | None = None,
 ) -> None:
     """Start the NiceGUI web server with a Klea page.

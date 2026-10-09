@@ -36,6 +36,7 @@
 
 ### Changed
 
+- The agent client identities are now `klea-agent-tui` / `klea-agent-web` (previously `klea-tui` / `klea-web`), matching the `klea-{agent,rag}-{tui,web}` scheme the RAG clients already use; the log file and NiceGUI user-data directory names change accordingly, and existing agent web storage under `klea-web` is not migrated.
 - `read_file` returns one bounded page by default and enforces a server-side character budget; the `max_chars` parameter is no longer exposed to the model, so a large file is read by paging (via the result's `next_offset`/`next_char_offset`) instead of in a single call.
 - The RAG embedding model is now fixed (not user-modifiable): vector stores are embedded once at startup, so a per-request/chat embedding override could not be honoured; the model dialog shows the role as locked.
 - The tool caller node is skipped entirely when there is nothing to dispatch (no tool calls, or no MCP client): it no longer emits progress/inspection events or writes an empty tool-results update for a skipped round, consistent with the other nodes.

@@ -86,7 +86,9 @@ klea_utils/
 ├── tools.py        # MCP CallToolResult helpers (textualize content blocks)
 ├── ui/             # User interface frontends
 │   ├── stores_create.py # CLI for store creation (klea-stores-create)
-│   ├── tui/        # Textual/TUI chat client (repl.py)
+│   ├── tui/        # terminal REPL (temporary test client, not the TUI;
+│   │               #   full Textual TUI planned) -- repl.py, future shared
+│   │               #   TUI components composed per app (like nicegui/)
 │   └── web/        # Web frontends
 │       ├── nicegui/   # NiceGUI shared components + process entry (ADR-0031)
 │       │   ├── components/  # Reusable page pieces coordinated via PageContext:

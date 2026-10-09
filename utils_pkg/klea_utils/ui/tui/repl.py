@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Shared async REPL for Klea chat interfaces.
+Lightweight async REPL for Klea terminal clients.
+
+This is a minimal ``input()``-based REPL for quick testing with simple
+queries, **not** the TUI.  It is temporary and will be dropped once the full
+Textual TUI (shared components in this package, composed per app) exists; see
+``devdocs/backlog.md``.
 
 File: klea_utils/ui/tui/repl.py
 
@@ -125,7 +130,7 @@ async def run_repl(
     title: str,
     single_query: str = "",
     app_prefix: str = "klea",
-    app_name: str = "klea-tui",
+    app_name: str = "klea-agent-tui",
 ) -> None:
     """Run an interactive or single-query chat REPL.
 
