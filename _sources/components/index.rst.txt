@@ -36,6 +36,7 @@ works and how they fit together; for the general ideas behind them, see
    rag
    mcp-servers
    tools
+   commands
    web-ui
    agent
    utils

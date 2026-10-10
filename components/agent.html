@@ -207,6 +207,7 @@
 <li class="toctree-l2"><a class="reference internal" href="rag.html">Klea RAG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="mcp-servers.html">MCP servers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="commands.html">Session commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="web-ui.html">Web interface</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Klea Utils</a></li>
@@ -379,6 +380,13 @@ step results and delivered.</p></li>
 <p>Conversation history is summarised per session, so long-running chats stay
 within the model’s context window.</p>
 </section>
+<section id="session-commands">
+<h2>Session commands<a class="headerlink" href="#session-commands" title="Link to this heading">¶</a></h2>
+<p>A run is steered with in-session <code class="docutils literal notranslate"><span class="pre">/commands</span></code>: type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for
+the menu.  <code class="docutils literal notranslate"><span class="pre">/mode</span></code> sets the operating mode, and <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the
+available commands.  Commands run without the model – a client command in
+the frontend, a graph command in the graph.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a>.</p>
+</section>
 <section id="project-context">
 <h2>Project context<a class="headerlink" href="#project-context" title="Link to this heading">¶</a></h2>
 <p>The agent reads a project instruction file from its working directory and
@@ -483,6 +491,7 @@ until this lands.</p></li>
 <li><a class="reference internal" href="#operating-modes">Operating modes</a></li>
 <li><a class="reference internal" href="#how-a-task-runs">How a task runs</a></li>
 <li><a class="reference internal" href="#memory">Memory</a></li>
+<li><a class="reference internal" href="#session-commands">Session commands</a></li>
 <li><a class="reference internal" href="#project-context">Project context</a></li>
 <li><a class="reference internal" href="#tool-access">Tool access</a></li>
 <li><a class="reference internal" href="#status">Status</a></li>

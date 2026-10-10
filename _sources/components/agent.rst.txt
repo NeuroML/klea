@@ -71,6 +71,14 @@ Memory
 Conversation history is summarised per session, so long-running chats stay
 within the model's context window.
 
+Session commands
+----------------
+
+A run is steered with in-session ``/commands``: type ``/`` in the input for
+the menu.  ``/mode`` sets the operating mode, and ``/help`` lists the
+available commands.  Commands run without the model -- a client command in
+the frontend, a graph command in the graph.  See :doc:`commands`.
+
 Project context
 ---------------
 

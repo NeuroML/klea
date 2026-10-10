@@ -48,7 +48,7 @@ commands: the browser fetches the server's command catalogue and merges it
 with the commands it handles itself.  A client-side command (such as
 ``/help``) runs in the browser; a server-side command (such as ``/mode``, the
 agent's operating mode) is sent to the agent.  An unknown command is reported
-locally and never sent.
+locally and never sent.  See :doc:`commands` for the list.
 
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer
