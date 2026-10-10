@@ -23,6 +23,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
@@ -195,3 +196,96 @@ async def _mcp_call(
     content_type = response.headers.get("content-type", "")
     logger.debug(f"MCP response\n{url = }\n{content_type = }")
     return _parse_mcp_response(response.text, content_type, url)
+
+
+def _base_headers(headers: dict[str, str] | None = None) -> dict[str, str]:
+    """Return the Klea default headers merged with *headers*."""
+    merged = {"User-Agent": _user_agent(), "Accept": "application/json"}
+    if headers:
+        merged.update(headers)
+    return merged
+
+
+async def _finish_rest(
+    do_call: Callable[[], Awaitable[httpx.Response]],
+    url: str,
+    retries: int,
+) -> Any:
+    """Run *do_call* with retries and return the decoded JSON body.
+
+    :raises SearchProviderError: On a transport failure, non-2xx status, or
+        unreadable JSON.
+    """
+    retryer = _make_retryer_httpx(attempts=retries)
+    try:
+        response = await retryer(do_call)
+    except httpx.HTTPStatusError as exc:
+        raise SearchProviderError(
+            f"HTTP {exc.response.status_code} from {url}"
+        ) from exc
+    except (httpx.HTTPError, TimeoutError) as exc:
+        raise SearchProviderError(f"Request to {url} failed: {exc}") from exc
+    try:
+        return response.json()
+    except ValueError as exc:
+        raise SearchProviderError(f"Invalid JSON from {url}: {exc}") from exc
+
+
+async def _rest_get_json(
+    session: SearchSession | None,
+    url: str,
+    params: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    retries: int = DEFAULT_RETRIES,
+) -> Any:
+    """GET *url* and return the decoded JSON body (keyed REST providers).
+
+    :raises SearchProviderError: On any transport or protocol failure.
+    """
+    if session is None:
+        raise SearchProviderError("HTTP session not initialized")
+    merged = _base_headers(headers)
+
+    async def _do_get() -> httpx.Response:
+        response = await session.get(
+            url,
+            params=params,
+            headers=merged,
+            timeout=httpx.Timeout(timeout),
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        return response
+
+    return await _finish_rest(_do_get, url, retries)
+
+
+async def _rest_post_json(
+    session: SearchSession | None,
+    url: str,
+    json_body: dict[str, Any],
+    headers: dict[str, str] | None = None,
+    timeout: float = DEFAULT_TIMEOUT,
+    retries: int = DEFAULT_RETRIES,
+) -> Any:
+    """POST *json_body* to *url* and return the decoded JSON body.
+
+    :raises SearchProviderError: On any transport or protocol failure.
+    """
+    if session is None:
+        raise SearchProviderError("HTTP session not initialized")
+    merged = _base_headers(headers)
+
+    async def _do_post() -> httpx.Response:
+        response = await session.post(
+            url,
+            json=json_body,
+            headers=merged,
+            timeout=httpx.Timeout(timeout),
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        return response
+
+    return await _finish_rest(_do_post, url, retries)
