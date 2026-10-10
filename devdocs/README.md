@@ -48,6 +48,7 @@ Structure:
 | `system/web-ui-testing.md` | Web (NiceGUI) UI testing: in-process user simulation, fake backend, per-package `tests/ui/web/` |
 | `system/file-tools.md` | File-tool contract and edge-case matrix: text/binary/encoding rules, `read_file` paging, known containment limits |
 | `system/graph-resume.md` | Confirmed LangGraph fault-tolerance/resume semantics: what a node error preserves, `None`-input resume, edge cases |
+| `system/session-commands.md` | Session commands: catalogue, the client/server split, and the per-command contract (ADR-0047) |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
 | `adr/0003-mcp-iserror-compliance.md` | ADR-0003: Strictly require MCP isError for tool execution failures |
@@ -91,6 +92,10 @@ Structure:
 | `adr/0041-plan-step-granularity-and-parallelism.md` | ADR-0041: Plan step granularity, explicit dependencies and parallel step execution |
 | `adr/0042-session-model-defaults-and-provider-credentials.md` | ADR-0042: Per-session model defaults and provider-scoped credentials |
 | `adr/0043-graph-fault-tolerance-and-resume.md` | ADR-0043: Graph fault tolerance: transient retry, checkpoint resume, and cancellation (single active run per thread) |
+| `adr/0044-dynamic-tool-call-schema.md` | ADR-0044: Strict-safe dynamic tool-call schema for the tools picker |
+| `adr/0045-per-run-node-context.md` | ADR-0045: Per-run NodeContext replaces shared LLM node state |
+| `adr/0046-hitl-interrupt-resume.md` | ADR-0046: Human-in-the-loop: interrupt and resume |
+| `adr/0047-session-command-framework.md` | ADR-0047: Session command framework: a user-invoked command surface |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

@@ -1,10 +1,11 @@
 # Session commands: catalogue and contract
 
-Status: in progress.  The framework is decided in ADR-0047
-(`adr/0047-session-command-framework.md`); this note holds the concrete,
-**provisional** command catalogue and the per-command contract.  It evolves
-as each command is implemented; a command whose decision is hard to reverse
-may graduate to its own ADR.
+Status: implemented (framework).  The framework is decided in ADR-0047
+(`adr/0047-session-command-framework.md`); this note holds the command
+catalogue and the per-command contract.  The framework, the web routing /
+autocomplete, and the first commands (`/help`, `/mode`) are implemented;
+further commands are added as they land, and a command whose decision is hard
+to reverse may graduate to its own ADR.
 
 ## Model (from ADR-0047)
 
@@ -96,19 +97,15 @@ published yet): `/access`, `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`,
 
 ### Client commands (frontend-owned)
 
-Each frontend defines these; the backend does not know them.
+Each frontend defines these; the backend does not know them.  Only
+implemented commands are registered (and so rendered in the ``/``-menu).
 
 | command | klass | capabilities | summary |
 |---|---|---|---|
 | `/help [cmd]` | ui | - | list commands, or detail one |
-| `/commands` | ui | - | list the catalogue |
-| `/new` | ui | - | start a new chat |
-| `/sessions` | ui | - | list and switch sessions |
-| `/rename <name>` | ui | - | rename the current chat |
-| `/export` | ui | - | export the transcript to Markdown |
-| `/model` | ui | - | open the model picker |
-| `/theme` | ui | - | choose the web theme |
-| `/upload [path]` | session-state | `file_picker`, `local_fs` | attach a client file to the session |
+
+Planned client commands (not registered yet): `/commands`, `/new`,
+`/sessions`, `/rename`, `/export`, `/model`, `/theme`, `/upload`.
 
 Notes:
 
@@ -124,6 +121,9 @@ Notes:
   dispatch the same command so there is one path.
 * Custom `/prompt` commands (opencode-style templates) expand to a normal
   query and persist normally; `/skills` is the placeholder for that surface.
+* A leading `//` is not a command (the frontend and backend both treat it as
+  ordinary text and send it as-is); a true single-slash escape is deferred
+  since both sides must agree on it.
 
 ## Operator configuration
 

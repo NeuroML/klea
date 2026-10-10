@@ -183,6 +183,7 @@ When the code below changes, update the matching devdoc in the same change:
 | `mcp/access.py` and MCP tool annotations | `system/mcp-permissions.md`, ADR-0037 |
 | `mcp/tool_impls/*.py` and `mcp/server/bundled_tools.py` | `system/file-tools.md`, `system/mcp-permissions.md` |
 | web UI theme tokens | `system/web-theming.md` |
+| `commands/` (`common.py`, `graph.py`, `nodes/command.py`), `api/commands.py`, the web command component, node prompts | `system/session-commands.md`, ADR-0047 |
 
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
 semantic classes): `devdocs/system/web-theming.md`.
