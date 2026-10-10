@@ -166,6 +166,11 @@ class PageContext:
     #: (e.g. operating mode / access level in ``query_extra``) onto that chat.
     chat_created_hooks: list[Callable[[Any], None]] = field(default_factory=list)
     switch_chat: Callable[[str], None] = field(default=_noop_arg)
+    #: Hooks invoked with a chat's data dict whenever a graph ``context`` event
+    #: updates its session context, so a context control (operating mode /
+    #: tool access) can reconcile its per-chat preference with the checkpointed
+    #: value the server just reported (e.g. after a ``/mode`` command).
+    context_hooks: list[Callable[[Any], None]] = field(default_factory=list)
     #: Return the active chat id, creating and registering one (server-side
     #: creation, chat-list refresh, created-hooks) when none is active.
     #: Registered by the input area; lets client-command output (e.g. ``/help``)
