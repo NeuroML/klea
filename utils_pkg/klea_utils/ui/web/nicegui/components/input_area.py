@@ -111,6 +111,35 @@ def attach_input(ctx: PageContext) -> None:
 
         ctx.submit_interrupt = submit_interrupt
 
+        def ensure_active_chat() -> str:
+            """Return the active chat id, creating and registering one if none.
+
+            Shared by the send path and by client-command output (``/help``),
+            so a command entered before the first message still lands in a chat
+            (ADR-0047).
+            """
+            if ctx.chat_id:
+                return ctx.chat_id
+            current = coolname.generate_slug(2)
+            ctx.chat_id = current
+            safe_set_user("chat_id", current)
+            new_chat = ensure_chat(ctx.user_id, current)
+            for hook in ctx.chat_created_hooks:
+                hook(new_chat)
+            background_tasks.create(
+                create_chat_on_server(ctx.server_url, ctx.user_id, current)
+            )
+            # Populate model_info for the newly created chat so the
+            # "Choose models" dialog has roles to render.  Without this
+            # the status pane stays empty and the dialog silently no-ops
+            # for chats started by typing the first message.
+            if ctx.fetch_model_info is not None:
+                background_tasks.create(ctx.fetch_model_info())
+            ctx.refresh_chat_list()
+            return current
+
+        ctx.ensure_active_chat = ensure_active_chat
+
         def send() -> None:
             """Append the current input text as a user message, then stream."""
             raw = text.value
@@ -149,25 +178,8 @@ def attach_input(ctx: PageContext) -> None:
             query = raw
             text.value = ""
 
-            current = ctx.chat_id
+            current = ensure_active_chat()
             logger.debug("current=%s query_len=%d", current, len(query))
-            if not current:
-                current = coolname.generate_slug(2)
-                ctx.chat_id = current
-                safe_set_user("chat_id", current)
-                new_chat = ensure_chat(ctx.user_id, current)
-                for hook in ctx.chat_created_hooks:
-                    hook(new_chat)
-                background_tasks.create(
-                    create_chat_on_server(ctx.server_url, ctx.user_id, current)
-                )
-                # Populate model_info for the newly created chat so the
-                # "Choose models" dialog has roles to render.  Without this
-                # the status pane stays empty and the dialog silently no-ops
-                # for chats started by typing the first message.
-                if ctx.fetch_model_info is not None:
-                    background_tasks.create(ctx.fetch_model_info())
-                ctx.refresh_chat_list()
 
             ensure_chat(ctx.user_id, current)["messages"].append(
                 {"text": query, "stamp": stamp, "role": "user", "header": ""}

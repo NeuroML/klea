@@ -230,12 +230,10 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
 
 
 def _render(ctx: PageContext, text: str) -> None:
-    """Append a ``system`` block to the active chat, or notify when none."""
-    if not ctx.chat_id:
-        ui.notification(text, close_button=True)
-        return
+    """Append a ``system`` block to the active chat, creating one if needed."""
+    chat_id = ctx.ensure_active_chat()
     stamp = datetime.now().astimezone().strftime("%X")
-    ensure_chat(ctx.user_id, ctx.chat_id)["messages"].append(
+    ensure_chat(ctx.user_id, chat_id)["messages"].append(
         {"text": text, "stamp": stamp, "role": "system", "header": ""}
     )
     ctx.render_chat_area()

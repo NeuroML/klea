@@ -29,6 +29,11 @@ def _noop() -> None:
     """No-op default for callbacks that are not yet/never registered."""
 
 
+def _noop_str() -> str:
+    """No-op default returning an empty string (no active chat)."""
+    return ""
+
+
 def _noop_arg(_: str) -> None:
     """No-op default for one-argument callbacks (e.g. chat switching)."""
 
@@ -161,6 +166,11 @@ class PageContext:
     #: (e.g. operating mode / access level in ``query_extra``) onto that chat.
     chat_created_hooks: list[Callable[[Any], None]] = field(default_factory=list)
     switch_chat: Callable[[str], None] = field(default=_noop_arg)
+    #: Return the active chat id, creating and registering one (server-side
+    #: creation, chat-list refresh, created-hooks) when none is active.
+    #: Registered by the input area; lets client-command output (e.g. ``/help``)
+    #: land in a chat even when the first input is a command (ADR-0047).
+    ensure_active_chat: Callable[[], str] = field(default=_noop_str)
 
     def chat_is_streaming(self, chat_id: str) -> bool:
         """Return whether *chat_id* has an active run on this page.

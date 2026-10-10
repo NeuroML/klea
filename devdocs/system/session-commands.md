@@ -46,7 +46,10 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
   (the frontend's own client commands plus the server catalogue from
   `GET /commands`); `//` escapes a literal `/`.  `ui`/client commands run
   locally; an unknown command is an error plus `/help`; a server command is
-  forwarded as the query.  A `/`-menu over the merged catalogue provides
+  forwarded as the query.  A client command's output is rendered as a
+  `system` block in the active chat, creating one if the command is the
+  session's first input (a chat is the transcript host, so the output is not
+  a transient notification).  A `/`-menu over the merged catalogue provides
   autocompletion and filters by `capabilities`.
 * Backend: `chat_core` recognises a known leading-`/` graph command; the
   graph command node (conditional edge right after `Initializing`, then

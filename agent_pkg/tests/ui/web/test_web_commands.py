@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from klea_utils.ui.web.nicegui.state import chats
 from nicegui import ui
 from nicegui.testing.user_interaction import UserInteraction
 
@@ -57,6 +58,25 @@ async def test_help_renders_in_the_chat(fake_backend, agent_user):
     _send(agent_user, "/help")
     await agent_user.should_see("Available commands:", retries=50)
     await agent_user.should_see("/help")
+
+
+async def test_help_without_a_chat_creates_one(fake_backend, agent_user):
+    """A client command before the first message still creates a chat."""
+    before = set(chats)
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "/help")
+    await agent_user.should_see("Available commands:", retries=50)
+
+    new_chats = [chats[key] for key in set(chats) - before]
+    assert new_chats
+    system_texts = [
+        message["text"]
+        for data in new_chats
+        for message in data["messages"]
+        if message["role"] == "system"
+    ]
+    assert any("Available commands:" in text for text in system_texts)
 
 
 async def test_unknown_command_is_rejected_locally(fake_backend, agent_user):
