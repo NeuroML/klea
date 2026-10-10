@@ -13,12 +13,30 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 from datetime import datetime
+from typing import Any
 
 import httpx
 
 from .state import chats, ensure_chat
 
 logger = logging.getLogger(__name__)
+
+
+async def fetch_commands(server_url: str) -> list[dict[str, Any]]:
+    """Fetch the server-side session-command catalogue (ADR-0047).
+
+    :param server_url: Base URL of the backend API server.
+    :returns: The command metadata dicts, or ``[]`` on failure.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(f"{server_url}/commands")
+            if resp.status_code == 200:
+                return resp.json().get("commands", [])
+            logger.warning("GET /commands status=%d", resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch commands: %s", e)
+    return []
 
 
 async def hydrate_chats(server_url: str, user_id: str) -> None:

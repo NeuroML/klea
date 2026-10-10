@@ -198,6 +198,29 @@ class Command:
             "implemented": self.implemented,
         }
 
+    @classmethod
+    def from_metadata(cls, data: Mapping[str, Any]) -> "Command":
+        """Reconstruct a :class:`Command` from :meth:`metadata` output.
+
+        Used by a frontend to add the server catalogue to its own client
+        commands.  The handler is not carried over (``None``).
+
+        :param data: A ``metadata()`` dict.
+        :returns: The reconstructed command.
+        """
+        return cls(
+            name=data["name"],
+            summary=data.get("summary", ""),
+            side=data.get("side", "client"),
+            klass=data.get("klass", "ui"),
+            aliases=tuple(data.get("aliases", ())),
+            arg_hint=data.get("arg_hint", ""),
+            while_streaming=data.get("while_streaming", "allow"),
+            persists=data.get("persists", "none"),
+            capabilities=frozenset(data.get("capabilities", ())),
+            implemented=data.get("implemented", True),
+        )
+
 
 @dataclass
 class CommandContext:
