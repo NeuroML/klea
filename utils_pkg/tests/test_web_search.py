@@ -14,11 +14,13 @@ import httpx
 import klea_utils.api.utils as api_utils
 import pytest
 from klea_utils.mcp.tool_impls.search.base import SERVICE_ORDER
+from klea_utils.mcp.tool_impls.search.brave import BraveProvider
 from klea_utils.mcp.tool_impls.search.errors import SearchProviderError
 from klea_utils.mcp.tool_impls.search.exa import ExaProvider
 from klea_utils.mcp.tool_impls.search.firecrawl import FirecrawlProvider
 from klea_utils.mcp.tool_impls.search.hosted import MAX_SNIPPET_CHARS
 from klea_utils.mcp.tool_impls.search.parallel import ParallelProvider
+from klea_utils.mcp.tool_impls.search.serper import SerperProvider
 from klea_utils.mcp.tool_impls.search.tavily import TavilyProvider
 from klea_utils.mcp.tool_impls.search.transport import (
     _iter_sse_payloads,
@@ -50,14 +52,23 @@ class _FakeResponse:
                 f"HTTP {self.status_code}", request=request, response=response
             )
 
+    def json(self):
+        return json.loads(self.text)
+
 
 class _FakePostSession:
-    """Session-like object capturing POST calls and returning a canned reply."""
+    """Session-like object capturing GET/POST calls and returning a reply."""
 
     def __init__(self, response: _FakeResponse | None = None, error=None):
         self._response = response
         self._error = error
         self.calls: list[tuple[str, str, dict]] = []
+
+    async def get(self, url, **kwargs):
+        self.calls.append(("GET", url, kwargs))
+        if self._error is not None:
+            raise self._error
+        return self._response
 
     async def post(self, url, **kwargs):
         self.calls.append(("POST", url, kwargs))
@@ -73,6 +84,10 @@ class _FlakyPostSession:
         self._response = response
         self.attempts = 0
         self.calls: list[tuple[str, str, dict]] = []
+
+    async def get(self, url, **kwargs):
+        # Not used by the retry tests this drives; satisfies SearchSession.
+        raise AssertionError("_FlakyPostSession.get is not exercised")
 
     async def post(self, url, **kwargs):
         self.calls.append(("POST", url, kwargs))
@@ -346,3 +361,77 @@ async def test_non_json_provider_content_raises(monkeypatch):
     session = _FakePostSession(_FakeResponse(text=_mcp_body("not json")))
     with pytest.raises(SearchProviderError):
         await TavilyProvider().search(session, "q", 1)
+
+
+def test_brave_unavailable_without_key(monkeypatch):
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    assert BraveProvider().is_available() is False
+
+
+async def test_brave_parses_and_sends_token(monkeypatch):
+    monkeypatch.setenv("BRAVE_API_KEY", "brv-secret")
+    payload = json.dumps(
+        {
+            "web": {
+                "results": [
+                    {
+                        "title": "B",
+                        "url": "https://b",
+                        "description": "brave snippet",
+                        "page_age": "2024-05-01",
+                    }
+                ]
+            }
+        }
+    )
+    session = _FakePostSession(_FakeResponse(text=payload))
+    provider = BraveProvider()
+    assert provider.is_available() is True
+    results = await provider.search(session, "q", 3)
+    assert (results[0].title, results[0].url, results[0].snippet) == (
+        "B",
+        "https://b",
+        "brave snippet",
+    )
+    assert results[0].published == "2024-05-01"
+    method, url, kwargs = session.calls[0]
+    assert method == "GET"
+    assert url == "https://api.search.brave.com/res/v1/web/search"
+    assert kwargs["params"] == {"q": "q", "count": 3}
+    assert kwargs["headers"]["X-Subscription-Token"] == "brv-secret"
+
+
+def test_serper_unavailable_without_key(monkeypatch):
+    monkeypatch.delenv("SERPER_API_KEY", raising=False)
+    assert SerperProvider().is_available() is False
+
+
+async def test_serper_parses_and_sends_key(monkeypatch):
+    monkeypatch.setenv("SERPER_API_KEY", "serper-secret")
+    payload = json.dumps(
+        {
+            "organic": [
+                {
+                    "title": "S",
+                    "link": "https://s",
+                    "snippet": "serper snippet",
+                    "date": "May 1, 2024",
+                }
+            ]
+        }
+    )
+    session = _FakePostSession(_FakeResponse(text=payload))
+    provider = SerperProvider()
+    assert provider.is_available() is True
+    results = await provider.search(session, "q", 5)
+    assert (results[0].title, results[0].url, results[0].snippet) == (
+        "S",
+        "https://s",
+        "serper snippet",
+    )
+    assert results[0].published == "May 1, 2024"
+    method, url, kwargs = session.calls[0]
+    assert method == "POST"
+    assert url == "https://google.serper.dev/search"
+    assert kwargs["json"] == {"q": "q", "num": 5}
+    assert kwargs["headers"]["X-API-KEY"] == "serper-secret"
