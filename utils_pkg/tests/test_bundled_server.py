@@ -35,6 +35,7 @@ def test_all_bundled_wrappers_carry_bundled_tag():
     }
     assert names == {
         "web_fetch",
+        "web_search",
         "list_files",
         "find_files",
         "read_file",
@@ -51,6 +52,14 @@ def test_all_bundled_wrappers_carry_bundled_tag():
 def test_web_fetch_tags():
     assert _tags(bundled_tools.web_fetch) == {BUNDLED, "web"}
     assert _tool_info(bundled_tools.web_fetch).checkpaths is None
+
+
+def test_web_search_tags():
+    info = _tool_info(bundled_tools.web_search)
+    assert _tags(bundled_tools.web_search) == {BUNDLED, "web", "search"}
+    assert info.checkpaths is None
+    assert info.read_only is True
+    assert info.open_world is True
 
 
 def test_list_files_tags_and_checkpaths():
@@ -137,7 +146,7 @@ def test_context_wrapper_contract():
     fastmcp's tool registration rewrites each signature (moving Context after
     the data params), so membership is checked, not position."""
 
-    for name in ("web_fetch", "download_file"):
+    for name in ("web_fetch", "web_search", "download_file"):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
     for name in (
@@ -158,6 +167,7 @@ async def test_bundle_server_registers_expected_tools():
     by_name = {t.name: t for t in tools}
     assert set(by_name) == {
         "web_fetch",
+        "web_search",
         "list_files",
         "find_files",
         "read_file",
@@ -180,6 +190,7 @@ async def test_bundle_server_registers_expected_tools():
         "working_directory"
     ]
     assert by_name["web_fetch"].meta is None
+    assert by_name["web_search"].meta is None
 
 
 async def test_bundle_server_annotation_hints():
@@ -192,6 +203,12 @@ async def test_bundle_server_annotation_hints():
         assert ann is not None, name
         assert ann.readOnlyHint is True, name
         assert ann.destructiveHint is None, name
+
+    search = tools["web_search"]
+    assert search.annotations is not None
+    assert search.annotations.readOnlyHint is True
+    assert search.annotations.destructiveHint is None
+    assert search.annotations.openWorldHint is True
 
     download = tools["download_file"]
     assert download.annotations is not None
@@ -226,6 +243,7 @@ async def test_bundle_server_serves_via_inprocess_client():
         names = [t.name for t in tools]
     assert {
         "web_fetch",
+        "web_search",
         "list_files",
         "find_files",
         "read_file",
