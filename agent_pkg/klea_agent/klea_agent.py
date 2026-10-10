@@ -18,9 +18,11 @@ from typing import Any, final, override
 
 from fastmcp.client.client import CallToolResult
 from fastmcp.mcp_config import MCPConfig
+from klea_utils.commands.graph import graph_command_router
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
+from klea_utils.nodes.command import CommandNode
 from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
 from klea_utils.nodes.guard_router import GuardRouterNode
@@ -31,6 +33,7 @@ from klea_utils.tools import last_tool_error_text
 from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
 
+from klea_agent.commands import build_agent_commands
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
 from klea_agent.nodes.await_human import AwaitHuman
@@ -315,6 +318,17 @@ class KleaAgent(BaseLangGraph):
         """
         return "inform" if state.mode.note else "proceed"
 
+    async def _command_router(self, state: KleaAgentState) -> str:
+        """Route a known server-side ``/command`` to the command node (ADR-0047).
+
+        Delegates to :func:`graph_command_router`; only commands with
+        ``side == "server"`` are handled here (client-side commands are the
+        frontend's responsibility).
+
+        :returns: ``"command"`` or ``"continue"``.
+        """
+        return graph_command_router(self._command_registry, state)
+
     @override
     def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:
         """Surface the operating mode as a ``context`` event.
@@ -495,12 +509,11 @@ class KleaAgent(BaseLangGraph):
         # deferred until the ADR-0029 retrieval phase), so a scientific
         # request routes to the informing node instead of silently downgrading
         # to an unverified answer.
+        source_available = self.retriever_config is not None and self.stores is not None
         self._mode_decision_node = ModeDecision(
             logger=self.logger,
             label="Determining mode",
-            source_available=(
-                self.retriever_config is not None and self.stores is not None
-            ),
+            source_available=source_available,
         )
         self.workflow.add_node(
             self._mode_decision_node.label, self._mode_decision_node.execute
@@ -511,6 +524,20 @@ class KleaAgent(BaseLangGraph):
         self.workflow.add_node(
             self._mode_informer_node.label, self._mode_informer_node.execute
         )
+
+        # Session commands (ADR-0047): the user-invoked counterpart of the tool
+        # picker/caller.  A known server-side ``/command`` runs in this node and
+        # ends the run; it reuses the inspect stream contract for provenance.
+        self._command_registry, self._command_handlers = build_agent_commands(
+            source_available=source_available
+        )
+        self._command_node = CommandNode(
+            logger=self.logger,
+            label="Running command",
+            registry=self._command_registry,
+            handlers=self._command_handlers,
+        )
+        self.workflow.add_node(self._command_node.label, self._command_node.execute)
 
         # Guard nodes
         self._guard_node = GuardNode(
@@ -675,9 +702,17 @@ class KleaAgent(BaseLangGraph):
             )
 
         self.workflow.add_edge(START, self._init_graph_state_node.label)
-        self.workflow.add_edge(
-            self._init_graph_state_node.label, self._mode_decision_node.label
+        # Session commands (ADR-0047): a known server-side ``/command`` runs in
+        # the command node and ends; anything else continues to mode/guard/route.
+        self.workflow.add_conditional_edges(
+            self._init_graph_state_node.label,
+            self._command_router,
+            {
+                "command": self._command_node.label,
+                "continue": self._mode_decision_node.label,
+            },
         )
+        self.workflow.add_edge(self._command_node.label, END)
         # ADR-0030: a mode that cannot run (e.g. Scientific without a curated
         # source) is informed, not silently downgraded; proceed otherwise.
         self.workflow.add_conditional_edges(
