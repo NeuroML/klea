@@ -125,6 +125,19 @@ Notes:
 * Custom `/prompt` commands (opencode-style templates) expand to a normal
   query and persist normally; `/skills` is the placeholder for that surface.
 
+## Operator configuration
+
+A deployment can disable session commands via the app config
+(``general.commands.disabled``, ADR-0047):
+
+```json
+{"general": {"commands": {"disabled": ["run", "cwd"]}}}
+```
+
+A disabled command is not registered, so it is neither published by
+``GET /commands`` nor runnable (a direct call is treated as unknown).  Names
+are canonical (lower-case, without the leading slash).
+
 ## Pointers
 
 * Decision: `adr/0047-session-command-framework.md`.

@@ -263,17 +263,23 @@ class CommandRegistry:
         """Return every command, sorted by name."""
         return [self._commands[name] for name in sorted(self._commands)]
 
-    def for_capabilities(self, capabilities: Iterable[str]) -> list[Command]:
-        """Return the commands a frontend with *capabilities* can expose.
+    def available(self, capabilities: Iterable[str] | None = None) -> list[Command]:
+        """Return the publicly available commands, sorted by name.
 
-        A command is included when its required capabilities are a subset of
-        the frontend's.
+        Only ``implemented`` commands are returned: a command still marked
+        ``implemented=False`` is not published (so ``GET /commands``, ``/help``
+        and the frontend menu never show a not-yet-real command).  When
+        *capabilities* is given, commands requiring a capability the frontend
+        lacks are excluded too.
 
-        :param capabilities: The frontend's capabilities.
-        :returns: The matching commands, sorted by name.
+        :param capabilities: The frontend's capabilities, or ``None`` for all.
+        :returns: The available commands, sorted by name.
         """
-        available = frozenset(capabilities)
-        return [c for c in self.all() if c.capabilities <= available]
+        commands = [c for c in self.all() if c.implemented]
+        if capabilities is not None:
+            have = frozenset(capabilities)
+            commands = [c for c in commands if c.capabilities <= have]
+        return commands
 
     def dispatch(self, parsed: ParsedCommand, ctx: CommandContext) -> CommandResult:
         """Run *parsed* against the registry and return its result.
@@ -319,7 +325,7 @@ def render_help(
     """
     if name:
         command = registry.get(name)
-        if command is None:
+        if command is None or not command.implemented:
             return CommandResult.fail(
                 f"Unknown command: /{name}. Type /help for the list."
             )
@@ -329,15 +335,12 @@ def render_help(
         lines = [header, f"  {command.summary}"]
         if command.aliases:
             lines.append(f"  aliases: {', '.join('/' + a for a in command.aliases)}")
-        if not command.implemented:
-            lines.append("  (not implemented yet)")
         return CommandResult(output=lines)
 
     lines = ["Available commands:"]
-    for command in registry.for_capabilities(capabilities):
+    for command in registry.available(capabilities):
         usage = f"/{command.name}"
         if command.arg_hint:
             usage += f" {command.arg_hint}"
-        marker = "" if command.implemented else " (not implemented yet)"
-        lines.append(f"  {usage:<24} {command.summary}{marker}")
+        lines.append(f"  {usage:<24} {command.summary}")
     return CommandResult(output=lines)

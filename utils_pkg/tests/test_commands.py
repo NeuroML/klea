@@ -126,8 +126,15 @@ def _registry() -> CommandRegistry:
     )
     registry.register(
         Command(
+            name="open",
+            summary="open a client file",
+            capabilities=frozenset({CAP_LOCAL_FS}),
+        )
+    )
+    registry.register(
+        Command(
             name="upload",
-            summary="attach a client file",
+            summary="attach a client file (not implemented)",
             capabilities=frozenset({CAP_LOCAL_FS}),
             implemented=False,
         )
@@ -146,7 +153,7 @@ class TestCommandRegistry:
 
     def test_all_is_sorted(self):
         names = [c.name for c in _registry().all()]
-        assert names == ["help", "mode", "upload"]
+        assert names == ["help", "mode", "open", "upload"]
 
     def test_duplicate_name_raises(self):
         registry = _registry()
@@ -163,13 +170,17 @@ class TestCommandRegistry:
         with pytest.raises(ValueError):
             registry.register(Command(name="bad name", summary="x"))
 
-    def test_for_capabilities_filters(self):
+    def test_available_excludes_unimplemented(self):
+        # ``upload`` is a stub; it is never published.
+        assert [c.name for c in _registry().available()] == ["help", "mode", "open"]
+
+    def test_available_filters_by_capabilities(self):
         registry = _registry()
-        assert [c.name for c in registry.for_capabilities([])] == ["help", "mode"]
-        assert [c.name for c in registry.for_capabilities([CAP_LOCAL_FS])] == [
+        assert [c.name for c in registry.available([])] == ["help", "mode"]
+        assert [c.name for c in registry.available([CAP_LOCAL_FS])] == [
             "help",
             "mode",
-            "upload",
+            "open",
         ]
 
 
@@ -209,13 +220,16 @@ class TestRenderHelp:
         joined = "\n".join(result.output)
         assert "/help" in joined
         assert "/mode" in joined
-        assert "/upload" not in joined  # requires a capability the frontend lacks
+        # ``/open`` needs a capability the frontend lacks; ``/upload`` is a stub.
+        assert "/open" not in joined
+        assert "/upload" not in joined
 
-    def test_stub_is_marked(self):
+    def test_stub_is_never_shown(self):
         result = render_help(_registry(), [CAP_LOCAL_FS])
         joined = "\n".join(result.output)
-        assert "/upload" in joined
-        assert "not implemented" in joined
+        assert "/open" in joined  # capability satisfied
+        assert "/upload" not in joined  # still a stub, never published
+        assert "not implemented" not in joined
 
     def test_detail_for_one_command(self):
         result = render_help(_registry(), [], name="mode")
