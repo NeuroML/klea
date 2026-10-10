@@ -397,6 +397,11 @@
     <span class="c1"># app UI writes it; the shared stream driver forwards it.</span>
     <span class="n">query_extra</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
 
+    <span class="c1">#: Merged command catalogue (the frontend's client commands plus the</span>
+    <span class="c1">#: server catalogue fetched from ``GET /commands``); ``None`` until the</span>
+    <span class="c1">#: initial load fetches it (ADR-0047).</span>
+    <span class="n">command_catalogue</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+
     <span class="c1"># Element references (filled by components at attach time)</span>
     <span class="n">dark</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">left_drawer</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>

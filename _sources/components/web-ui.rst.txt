@@ -43,6 +43,13 @@ main input box is disabled until you answer or cancel, and reloading the page
 re-shows a pending ask.  Answering (or requesting a revision) resumes the
 same run with its state intact.
 
+Type ``/`` in the input for a command menu.  ``/help`` lists the available
+commands: the browser fetches the server's command catalogue and merges it
+with the commands it handles itself.  A client-side command (such as
+``/help``) runs in the browser; a server-side command (such as ``/mode``, the
+agent's operating mode) is sent to the agent.  An unknown command is reported
+locally and never sent.
+
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer
    :width: 80%

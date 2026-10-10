@@ -358,9 +358,38 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.overrides</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_model_overrides</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sessions_db</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionStore</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.commands.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">parse_command</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">mask_sensitive</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_command_persist_mode</span><span class="p">(</span><span class="n">graph</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a command query's persistence, or ``None`` when not a command.</span>
+
+<span class="sd">    Commands are ephemeral by default (their graph-state change is</span>
+<span class="sd">    checkpointed, but no chat rows are written); a command with</span>
+<span class="sd">    ``persists="message"`` is recorded like a normal turn.  A ``None`` result</span>
+<span class="sd">    means the query is not a command (or the app has no command framework, e.g.</span>
+<span class="sd">    RAG), so the caller persists normally.</span>
+
+<span class="sd">    :param graph: The app graph (carries ``command_registry`` when it uses the</span>
+<span class="sd">        session-command framework).</span>
+<span class="sd">    :param query: The user query, or ``None`` on a resume.</span>
+<span class="sd">    :returns: ``True`` (command that persists), ``False`` (ephemeral command),</span>
+<span class="sd">        or ``None`` (not a command).</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">query</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">parsed</span> <span class="o">=</span> <span class="n">parse_command</span><span class="p">(</span><span class="n">query</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">parsed</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">registry</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="s2">"command_registry"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">registry</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">command</span> <span class="o">=</span> <span class="n">registry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parsed</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="k">if</span> <span class="n">parsed</span><span class="o">.</span><span class="n">name</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">command</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">command</span><span class="o">.</span><span class="n">persists</span> <span class="o">==</span> <span class="s2">"message"</span><span class="p">)</span>
+
 
 <span class="c1">#: Idle gap, in seconds, after which :func:`_heartbeat` emits a ``ping`` SSE</span>
 <span class="c1">#: frame.  A long-running tool (e.g. ``run_command``) emits no graph events</span>
@@ -539,8 +568,11 @@
         <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="c1"># A command turn is ephemeral by default (ADR-0047): its state change is</span>
+    <span class="c1"># checkpointed, but no chat rows are written.</span>
+    <span class="n">ephemeral_command</span> <span class="o">=</span> <span class="n">_command_persist_mode</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
     <span class="n">store</span><span class="o">.</span><span class="n">create_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">user_turn</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">user_turn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
         <span class="c1"># Record the user turn when the run starts (not only on success), so</span>
         <span class="c1"># a turn that fails mid-run is still visible and retryable.</span>
         <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"user"</span><span class="p">,</span> <span class="n">user_turn</span><span class="p">)</span>
@@ -579,7 +611,8 @@
             <span class="c1"># The run paused for human input: persist the question and return</span>
             <span class="c1"># it (there is no final answer yet).</span>
             <span class="n">question</span> <span class="o">=</span> <span class="n">_interrupt_question</span><span class="p">(</span><span class="n">pending</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
-            <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="n">question</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
+                <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="n">question</span><span class="p">)</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                 <span class="s2">"run_query(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">): paused for input"</span><span class="p">,</span>
                 <span class="n">user_id</span><span class="p">,</span>
@@ -587,7 +620,8 @@
             <span class="p">)</span>
             <span class="k">return</span> <span class="n">question</span>
         <span class="n">message</span> <span class="o">=</span> <span class="n">result</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
-        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
+            <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="s2">"assistant"</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
             <span class="s2">"run_query(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">): answer </span><span class="si">%d</span><span class="s2"> chars"</span><span class="p">,</span>
             <span class="n">user_id</span><span class="p">,</span>
@@ -702,8 +736,10 @@
         <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
     <span class="p">)</span>
 
+    <span class="c1"># A command turn is ephemeral by default (ADR-0047); see run_query.</span>
+    <span class="n">ephemeral_command</span> <span class="o">=</span> <span class="n">_command_persist_mode</span><span class="p">(</span><span class="n">graph</span><span class="p">,</span> <span class="n">query</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">False</span>
     <span class="n">store</span><span class="o">.</span><span class="n">create_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">user_turn</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">user_turn</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
         <span class="c1"># Record the user turn when the run starts (not on completion), so a</span>
         <span class="c1"># turn that fails mid-run is still visible and retryable; the</span>
         <span class="c1"># assistant row is written on ``complete``.</span>
@@ -757,24 +793,26 @@
                         <span class="c1"># The run paused for human input: persist the question</span>
                         <span class="c1"># so a reloaded chat shows it (the answer is a later</span>
                         <span class="c1"># user turn).</span>
-                        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span>
-                            <span class="n">user_id</span><span class="p">,</span>
-                            <span class="n">chat_id</span><span class="p">,</span>
-                            <span class="s2">"assistant"</span><span class="p">,</span>
-                            <span class="n">_interrupt_event_question</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
-                        <span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
+                            <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span>
+                                <span class="n">user_id</span><span class="p">,</span>
+                                <span class="n">chat_id</span><span class="p">,</span>
+                                <span class="s2">"assistant"</span><span class="p">,</span>
+                                <span class="n">_interrupt_event_question</span><span class="p">(</span><span class="n">event</span><span class="p">),</span>
+                            <span class="p">)</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                             <span class="s2">"stream_response(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">): paused for input"</span><span class="p">,</span>
                             <span class="n">user_id</span><span class="p">,</span>
                             <span class="n">chat_id</span><span class="p">,</span>
                         <span class="p">)</span>
                     <span class="k">elif</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
-                        <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span>
-                            <span class="n">user_id</span><span class="p">,</span>
-                            <span class="n">chat_id</span><span class="p">,</span>
-                            <span class="s2">"assistant"</span><span class="p">,</span>
-                            <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                        <span class="p">)</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
+                            <span class="n">store</span><span class="o">.</span><span class="n">add_message</span><span class="p">(</span>
+                                <span class="n">user_id</span><span class="p">,</span>
+                                <span class="n">chat_id</span><span class="p">,</span>
+                                <span class="s2">"assistant"</span><span class="p">,</span>
+                                <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                            <span class="p">)</span>
                         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
                             <span class="s2">"stream_response(user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">): complete"</span><span class="p">,</span>
                             <span class="n">user_id</span><span class="p">,</span>

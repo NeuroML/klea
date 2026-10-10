@@ -320,7 +320,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_chat_on_server</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">commands</span><span class="p">,</span> <span class="n">stream</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -352,6 +352,8 @@
             <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex-grow chat-input"</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">text</span>
+        <span class="c1"># `/`-command autocomplete over the merged catalogue (ADR-0047).</span>
+        <span class="n">commands</span><span class="o">.</span><span class="n">attach_autocomplete</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">_effective_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Model info for the active scope (chat, else session defaults)."""</span>
@@ -413,7 +415,16 @@
 
         <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Append the current input text as a user message, then stream."""</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="n">raw</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">raw</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">return</span>
+            <span class="c1"># Session commands (ADR-0047): a client/unknown command is handled</span>
+            <span class="c1"># locally and never sent; a server command falls through to the send</span>
+            <span class="c1"># path below, where the graph's command node runs it.  Handled</span>
+            <span class="c1"># before the setup/streaming guards so /help works even when models</span>
+            <span class="c1"># are not configured.</span>
+            <span class="k">if</span> <span class="n">commands</span><span class="o">.</span><span class="n">handle_command</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">raw</span><span class="p">):</span>
+                <span class="n">text</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s2">""</span>
                 <span class="k">return</span>
             <span class="k">if</span> <span class="n">_awaiting_input</span><span class="p">():</span>
                 <span class="c1"># The status-region form is the input while paused; ignore a</span>
@@ -437,7 +448,7 @@
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"send ignored: a run is already streaming"</span><span class="p">)</span>
                 <span class="k">return</span>
             <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
-            <span class="n">query</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="n">raw</span>
             <span class="n">text</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s2">""</span>
 
             <span class="n">current</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>

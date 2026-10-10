@@ -313,7 +313,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
 <span class="c1">#: Recognised transcript roles; anything else falls back to ``agent``.</span>
-<span class="n">_ROLES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">)</span>
+<span class="n">_ROLES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"system"</span><span class="p">)</span>
 
 <span class="c1">#: MIME types rendered as a unified diff (``text/x-diff`` is the de-facto</span>
 <span class="c1">#: type; ``text/x-patch`` is git's).  Rendered as a fenced block, which</span>
@@ -389,8 +389,8 @@
 
 <span class="sd">        :param text: Message text (markdown); also the fallback body.</span>
 <span class="sd">        :param stamp: Timestamp string.</span>
-<span class="sd">        :param role: ``"user"``, ``"agent"`` or ``"tool"``; unknown values</span>
-<span class="sd">            fall back to ``"agent"``.</span>
+<span class="sd">        :param role: ``"user"``, ``"agent"``, ``"tool"`` or ``"system"`` (a</span>
+<span class="sd">            client command's output); unknown values fall back to ``"agent"``.</span>
 <span class="sd">        :param collapsed: ``True`` if the text is collapsed to 4 lines.</span>
 <span class="sd">        :param idx: Message index (used for expand/collapse tracking).</span>
 <span class="sd">        :param header: Optional small bold header, e.g. a tool block's</span>
