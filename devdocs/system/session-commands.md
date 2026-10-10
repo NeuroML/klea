@@ -8,10 +8,13 @@ may graduate to its own ADR.
 
 ## Model (from ADR-0047)
 
-Commands are **user-invoked tool calls**.  A single catalogue is shared by
-all frontends via `GET /commands`; each frontend routes an input starting
-with `/` by the command's class, and the graph exposes a command node that
-mirrors `ToolsPicker` / `ToolsCallerNode`.
+Commands are **user-invoked tool calls**.  The backend publishes its
+**server-side** catalogue via `GET /commands`; each frontend owns its
+**client-side** commands and merges the two for its menu and validation, so
+the graph never needs to know a frontend's commands (a client-side command
+reaching the graph is simply unknown).  Each frontend routes an input
+starting with `/` by the command's class; the graph exposes a command node
+that mirrors `ToolsPicker` / `ToolsCallerNode`.
 
 Catalogue entry fields:
 
@@ -38,11 +41,12 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
 
 ## Dispatch
 
-* Frontend: `/`-prefixed input is parsed against the catalogue (`//` escapes
-  a literal `/`).  `ui`/client commands run locally; an unknown command is
-  an error plus `/help`; a graph command is forwarded as the query.  A
-  `/`-menu (from `GET /commands`) provides autocompletion and filters by
-  `capabilities`.
+* Frontend: `/`-prefixed input is parsed against the **merged** catalogue
+  (the frontend's own client commands plus the server catalogue from
+  `GET /commands`); `//` escapes a literal `/`.  `ui`/client commands run
+  locally; an unknown command is an error plus `/help`; a server command is
+  forwarded as the query.  A `/`-menu over the merged catalogue provides
+  autocompletion and filters by `capabilities`.
 * Backend: `chat_core` recognises a known leading-`/` graph command; the
   graph command node (conditional edge right after `Initializing`, then
   `END`) resolves, dispatches to the app registry, mutates state, sets
@@ -71,29 +75,40 @@ stored files.  Uploads are user-provided and not regenerable, hence the
 data dir rather than the cache dir (cache holds regenerable/derived data:
 catalog, UA list, ingestion, DOI).
 
-## Catalogue (provisional)
+## Catalogue
 
-| command | side | klass | persists | while_streaming | capabilities | summary |
-|---|---|---|---|---|---|---|
-| `/help [cmd]` | client | ui | none | allow | - | list commands (or detail one) |
-| `/commands` | client | ui | none | allow | - | list the catalogue |
-| `/new` | client | ui | none | allow | - | start a new chat |
-| `/sessions` | client | ui | none | allow | - | list and switch sessions |
-| `/rename <name>` | client | ui | none | allow | - | rename the current chat |
-| `/export` | client | ui | none | allow | - | export the transcript to Markdown |
-| `/model` | client | ui | none | allow | - | open the model picker |
-| `/theme` | client | ui | none | allow | - | choose the web theme |
-| `/upload <path>` | client | session-state | checkpoint | allow | `file_picker`, `local_fs` | attach a client file to discovery |
-| `/mode [general\|scientific]` | server | session-state | checkpoint | block | - | set the operating mode |
-| `/access [read_only\|full]` | server | session-state | checkpoint | block | - | set the tool access level |
-| `/cwd [path]` | server | session-state | checkpoint | block | - | set the session project root (own ADR) |
-| `/file <path>` | server | workflow | checkpoint | block | - | add a backend file to discovery |
-| `/webfetch <url>` | server | workflow | checkpoint | block | - | fetch a URL into discovery |
-| `/compact` | server | workflow | checkpoint | block | - | summarise/shorten memory |
-| `/plan` | server | workflow | checkpoint | block | - | enter plan/review |
-| `/init` | server | workflow | message | block | - | write `AGENTS.md` |
-| `/run <cmd>` | server | workflow | message | block | - | run a command via the `run_command` tool |
-| `/skills` | - | - | - | - | - | deferred (kanban): prompt/skill templates |
+Two sources are merged by each frontend: the **server catalogue** served by
+`GET /commands`, and the **client commands** each frontend defines.  A
+frontend validates input against the merge and forwards only server commands
+to the graph.  Only **implemented** commands are published: a command still
+in code as `implemented=False` is filtered out of `GET /commands`, `/help`,
+and the menu (`CommandRegistry.available`).
+
+### Server catalogue (`GET /commands`)
+
+| command | klass | persists | while_streaming | summary |
+|---|---|---|---|---|
+| `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
+
+Planned server commands (present in code as `implemented=False`, not
+published yet): `/access`, `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`,
+`/plan`, `/init`.
+
+### Client commands (frontend-owned)
+
+Each frontend defines these; the backend does not know them.
+
+| command | klass | capabilities | summary |
+|---|---|---|---|
+| `/help [cmd]` | ui | - | list commands, or detail one |
+| `/commands` | ui | - | list the catalogue |
+| `/new` | ui | - | start a new chat |
+| `/sessions` | ui | - | list and switch sessions |
+| `/rename <name>` | ui | - | rename the current chat |
+| `/export` | ui | - | export the transcript to Markdown |
+| `/model` | ui | - | open the model picker |
+| `/theme` | ui | - | choose the web theme |
+| `/upload [path]` | session-state | `file_picker`, `local_fs` | attach a client file to the session |
 
 Notes:
 

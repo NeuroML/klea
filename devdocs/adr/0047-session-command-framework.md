@@ -74,8 +74,9 @@ marked **(chosen)**.
   * C2 Inside the existing entry router (after guard/mode).
   * C3 Before `Initializing`.
 * **D. Framework location and catalogue transport**
-  * **D1 Shared `klea_utils` core + per-app registry + `GET /commands`,
-    universal catalogue (chosen).**
+  * **D1 Shared `klea_utils` core + a per-app registry; `GET /commands`
+    publishes the app's server-side catalogue, and each frontend owns its
+    client-side commands and merges them (chosen).**
   * D2 Shared core + a shared Python spec imported by both sides.
   * D3 Per-frontend hardcoded lists.
 * **E. Location model for files/commands**
@@ -104,10 +105,14 @@ marked **(chosen)**.
 
 Chosen options: **A3, B2, C1, D1, E1, F1, G1, H1, I1**.
 
-Commands are modeled as **user-invoked tool calls**.  A single command
-catalogue is shared by all frontends; each frontend routes an input that
-starts with `/` by the command's class, and the graph exposes a command node
-that is the user-facing counterpart of the tool picker/caller.
+Commands are modeled as **user-invoked tool calls**.  The backend publishes
+its **server-side** catalogue via `GET /commands`; each frontend owns its own
+**client-side** commands and merges the two for its menu and validation, so
+the graph never needs to know a frontend's commands (no circular dependency;
+a client-side command reaching the graph is simply unknown).  Each frontend
+routes an input that starts with `/` by the command's class, and the graph
+exposes a command node that is the user-facing counterpart of the tool
+picker/caller.
 
 ### Taxonomy
 
@@ -133,12 +138,13 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
 
 ### Dispatch
 
-* **Frontend**: an input beginning with `/` is parsed against the catalogue
-  (with a `//` escape for a literal leading slash).  `ui` / client commands
-  are handled locally; an unknown command is an error plus `/help`; a
-  graph-related command is forwarded **as the query** ("the frontend treats
-  it as text input").  A `/`-menu (from the catalogue) provides
-  autocompletion.
+* **Frontend**: an input beginning with `/` is parsed against the merged
+  catalogue (the frontend's own client commands plus the server catalogue
+  fetched from `GET /commands`), with a `//` escape for a literal leading
+  slash.  `ui` / client commands are handled locally; an unknown command is an
+  error plus `/help`; a server command is forwarded **as the query** ("the
+  frontend treats it as text input").  A `/`-menu over the merged catalogue
+  provides autocompletion.
 * **Backend**: `chat_core` recognises a leading `/` that is a known graph
   command and marks the turn accordingly; the graph's **command node**
   handles it.  The node mirrors `ToolsPicker` / `ToolsCallerNode`: a
@@ -266,8 +272,10 @@ separate decision, deferred.
 
 ### D1 Shared core + `GET /commands` (chosen)
 
-* Good, because one source serves Python frontends and remote non-Python
-  clients, and handlers stay with their app.
+* Good, because the API publishes the server-side catalogue for any frontend
+  and the graph keeps only server-side commands (no circular dependency on a
+  frontend's command list), while client-side commands stay with each
+  frontend and handlers stay with their app.
 
 ### D2 Shared Python spec
 
