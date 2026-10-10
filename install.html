@@ -206,6 +206,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="components/rag.html">Klea RAG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="components/web-ui.html">Web interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="components/utils.html">Klea Utils</a></li>
@@ -699,33 +700,40 @@ providers resolved to the OpenAI or Anthropic surface (see
 <td><p>Optional GitHub token for the repository <code class="docutils literal notranslate"><span class="pre">github</span></code> tool (higher rate
 limits and private repositories).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TAVILY_API_KEY</span></code> / <code class="docutils literal notranslate"><span class="pre">EXA_API_KEY</span></code> / <code class="docutils literal notranslate"><span class="pre">PARALLEL_API_KEY</span></code> /
+<code class="docutils literal notranslate"><span class="pre">FIRECRAWL_API_KEY</span></code> / <code class="docutils literal notranslate"><span class="pre">BRAVE_API_KEY</span></code> / <code class="docutils literal notranslate"><span class="pre">SERPER_API_KEY</span></code></p></td>
+<td><p>Optional API keys for the bundled <code class="docutils literal notranslate"><span class="pre">web_search</span></code> tool.  A key only
+raises that provider’s rate limits; the tool works with none set (the
+Tavily, Exa, Parallel and Firecrawl hosted endpoints are keyless,
+while Brave and Serper are used only when keyed).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code></p></td>
 <td><p>Console log level (level name or number; see <a class="reference internal" href="#logging">Logging</a>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code></p></td>
 <td><p>Per-call wall-clock backstop for tool calls, in seconds (default
 <code class="docutils literal notranslate"><span class="pre">900</span></code>; <code class="docutils literal notranslate"><span class="pre">0</span></code> disables).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code></p></td>
 <td><p>Allow Klea-authored tools to run as root; refused by default.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code></p></td>
 <td><p>Ceiling for <code class="docutils literal notranslate"><span class="pre">run_command</span></code>’s <code class="docutils literal notranslate"><span class="pre">timeout_seconds</span></code> in seconds
 (default <code class="docutils literal notranslate"><span class="pre">600</span></code>).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_MODELS_DEV_URL</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_MODELS_DEV_URL</span></code></p></td>
 <td><p>Override the models.dev catalog URL (offline mirror / enterprise
 proxy).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code></p></td>
 <td><p>Contact email sent to DOI services (Crossref, OpenAlex) during store
 ingestion, for their polite pool.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code></p></td>
 <td><p>Absolute directory for the web client’s per-session storage (see
 <a class="reference internal" href="#web-client-user-storage">Web client user storage</a>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RUNNING_IN_DOCKER</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RUNNING_IN_DOCKER</span></code></p></td>
 <td><p>Internal: skip graph-diagram export on startup (set by the container
 image).</p></td>
 </tr>
@@ -735,9 +743,9 @@ image).</p></td>
 <p>These are shell/process environment variables.  Values set only in the env
 file do <strong>not</strong> reach spawned MCP server subprocesses (which inherit the
 process environment), so tool-related variables such as
-<code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code> and
-<code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code> must be exported in the environment that
-launches the app.</p>
+<code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code>, <code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code>,
+<code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code> and the <code class="docutils literal notranslate"><span class="pre">web_search</span></code> provider keys must be
+exported in the environment that launches the app.</p>
 </section>
 </section>
 <section id="logging">

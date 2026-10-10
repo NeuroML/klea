@@ -359,6 +359,12 @@ The environment variables Klea reads, and what they control:
    * - ``GITHUB_TOKEN``
      - Optional GitHub token for the repository ``github`` tool (higher rate
        limits and private repositories).
+   * - ``TAVILY_API_KEY`` / ``EXA_API_KEY`` / ``PARALLEL_API_KEY`` /
+       ``FIRECRAWL_API_KEY`` / ``BRAVE_API_KEY`` / ``SERPER_API_KEY``
+     - Optional API keys for the bundled ``web_search`` tool.  A key only
+       raises that provider's rate limits; the tool works with none set (the
+       Tavily, Exa, Parallel and Firecrawl hosted endpoints are keyless,
+       while Brave and Serper are used only when keyed).
    * - ``KLEA_LOG_LEVEL``
      - Console log level (level name or number; see `Logging`_).
    * - ``KLEA_TOOL_CALL_TIMEOUT``
@@ -385,9 +391,9 @@ The environment variables Klea reads, and what they control:
 These are shell/process environment variables.  Values set only in the env
 file do **not** reach spawned MCP server subprocesses (which inherit the
 process environment), so tool-related variables such as
-``KLEA_TOOL_CALL_TIMEOUT``, ``KLEA_ALLOW_ROOT_TOOLS`` and
-``KLEA_RUN_COMMAND_MAX_TIMEOUT`` must be exported in the environment that
-launches the app.
+``KLEA_TOOL_CALL_TIMEOUT``, ``KLEA_ALLOW_ROOT_TOOLS``,
+``KLEA_RUN_COMMAND_MAX_TIMEOUT`` and the ``web_search`` provider keys must be
+exported in the environment that launches the app.
 
 .. _logging:
 

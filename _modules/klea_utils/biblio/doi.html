@@ -205,6 +205,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
@@ -337,6 +338,33 @@
 <span class="c1">#: between saves loses at most this many fresh resolutions (they are</span>
 <span class="c1">#: simply re-queried on the next run).</span>
 <span class="n">_SAVE_BATCH_SIZE</span> <span class="o">=</span> <span class="mi">25</span>
+
+<span class="c1">#: Honest client identity sent to the DOI services (Crossref/OpenAlex/</span>
+<span class="c1">#: Semantic Scholar).  It is not required to resolve DOIs, but identifies</span>
+<span class="c1">#: Klea and avoids httpx's default anonymous ``python-httpx/&lt;version&gt;``</span>
+<span class="c1">#: string; the polite pool is requested separately via the ``mailto``</span>
+<span class="c1">#: query parameter.</span>
+<span class="n">_UA_PREFIX</span> <span class="o">=</span> <span class="s2">"klea-ingest/"</span>
+<span class="n">_user_agent_cache</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_user_agent</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the honest ingest User-Agent, versioned with klea_utils.</span>
+
+<span class="sd">    Reads the installed ``klea_utils`` version from package metadata; falls</span>
+<span class="sd">    back to ``dev`` when metadata is unavailable (e.g. an editable checkout</span>
+<span class="sd">    without installed distribution metadata).</span>
+<span class="sd">    """</span>
+    <span class="k">global</span> <span class="n">_user_agent_cache</span>
+    <span class="k">if</span> <span class="n">_user_agent_cache</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">importlib.metadata</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageNotFoundError</span><span class="p">,</span> <span class="n">version</span>
+
+            <span class="n">version_str</span> <span class="o">=</span> <span class="n">version</span><span class="p">(</span><span class="s2">"klea_utils"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">PackageNotFoundError</span><span class="p">:</span>
+            <span class="n">version_str</span> <span class="o">=</span> <span class="s2">""</span>
+        <span class="n">_user_agent_cache</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_UA_PREFIX</span><span class="si">}{</span><span class="n">version_str</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'dev'</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="n">_user_agent_cache</span>
 
 
 <div class="viewcode-block" id="BiblioRecord">
@@ -479,7 +507,8 @@
 
 <span class="sd">    Polite-pool attribution is sent when ``KLEA_INGEST_MAILTO`` (or the</span>
 <span class="sd">    ``mailto`` argument) is set -- Crossref and OpenAlex both honour a</span>
-<span class="sd">    ``mailto`` parameter to raise their rate limits.</span>
+<span class="sd">    ``mailto`` parameter to raise their rate limits.  Requests also carry an</span>
+<span class="sd">    honest ``User-Agent: klea-ingest/&lt;version&gt;``.</span>
 <span class="sd">    """</span>
 
     <span class="c1">#: Services, in round-robin order.</span>
@@ -517,7 +546,11 @@
         <span class="c1"># is persisted every ``_SAVE_BATCH_SIZE`` of them and on close(),</span>
         <span class="c1"># so a long run does not rewrite the whole file per resolution.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_pending_saves</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timeout</span><span class="p">,</span> <span class="n">transport</span><span class="o">=</span><span class="n">transport</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_client</span> <span class="o">=</span> <span class="n">httpx</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span>
+            <span class="n">timeout</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">timeout</span><span class="p">,</span>
+            <span class="n">transport</span><span class="o">=</span><span class="n">transport</span><span class="p">,</span>
+            <span class="n">headers</span><span class="o">=</span><span class="p">{</span><span class="s2">"User-Agent"</span><span class="p">:</span> <span class="n">_user_agent</span><span class="p">()},</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Self</span><span class="p">:</span>
         <span class="k">return</span> <span class="bp">self</span>

@@ -112,5 +112,6 @@ The agent is unreleased.  Notably still in progress:
 .. seealso::
 
    * :doc:`mcp-servers` -- the tools the agent can call
+   * :doc:`tools` -- the bundled tools it can call
    * :doc:`web-ui` -- the interface, including the mode and access selectors
    * :doc:`../cli/klea` -- the agent CLI reference

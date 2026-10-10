@@ -3,7 +3,7 @@
   <head><meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Web interface" href="web-ui.html"><link rel="prev" title="Klea RAG" href="rag.html">
+<link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Tools" href="tools.html"><link rel="prev" title="Klea RAG" href="rag.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
     <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
@@ -206,6 +206,7 @@
 <li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">Components</a><input aria-label="Toggle navigation of Components" checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="rag.html">Klea RAG</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="web-ui.html">Web interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Klea Utils</a></li>
@@ -399,14 +400,14 @@ to expose, and whether to allow local or web-facing tools.  Two groups:</p>
 <code class="docutils literal notranslate"><span class="pre">local</span></code> (filesystem / process on the host) or <code class="docutils literal notranslate"><span class="pre">web</span></code> (interacts with
 external URLs / web APIs).</p></li>
 <li><p><strong>Domain / functional</strong> groups tools by purpose, for example <code class="docutils literal notranslate"><span class="pre">files</span></code>,
-<code class="docutils literal notranslate"><span class="pre">code</span></code>, <code class="docutils literal notranslate"><span class="pre">download</span></code>, <code class="docutils literal notranslate"><span class="pre">neuroml</span></code>, <code class="docutils literal notranslate"><span class="pre">neuroml-db</span></code>, <code class="docutils literal notranslate"><span class="pre">osb</span></code>.</p></li>
+<code class="docutils literal notranslate"><span class="pre">code</span></code>, <code class="docutils literal notranslate"><span class="pre">download</span></code>, <code class="docutils literal notranslate"><span class="pre">search</span></code>, <code class="docutils literal notranslate"><span class="pre">neuroml</span></code>, <code class="docutils literal notranslate"><span class="pre">neuroml-db</span></code>, <code class="docutils literal notranslate"><span class="pre">osb</span></code>.</p></li>
 </ul>
 <p>Every tool also carries the <code class="docutils literal notranslate"><span class="pre">bundled</span></code> tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 <code class="docutils literal notranslate"><span class="pre">include_tags:</span> <span class="pre">[&quot;bundled&quot;]</span></code>.  Specific current assignments:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">find_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">grep</span><span class="p">,</span> <span class="n">write_file</span><span class="p">,</span> <span class="n">edit_file</span><span class="p">,</span> <span class="n">download_file</span><span class="p">,</span> <span class="n">run_command</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">bundled</span>  <span class="n">web_fetch</span><span class="p">,</span> <span class="n">web_search</span><span class="p">,</span> <span class="n">list_files</span><span class="p">,</span> <span class="n">find_files</span><span class="p">,</span> <span class="n">read_file</span><span class="p">,</span> <span class="n">grep</span><span class="p">,</span> <span class="n">write_file</span><span class="p">,</span> <span class="n">edit_file</span><span class="p">,</span> <span class="n">download_file</span><span class="p">,</span> <span class="n">run_command</span> <span class="p">(</span><span class="n">each</span> <span class="n">also</span> <span class="n">has</span> <span class="n">its</span> <span class="n">scope</span> <span class="o">+</span> <span class="n">functional</span> <span class="n">tags</span><span class="p">)</span>
 
-<span class="n">Web</span> <span class="n">scope</span><span class="p">:</span>   <span class="n">web_fetch</span> <span class="p">(</span><span class="n">bundled</span><span class="p">),</span> <span class="n">download_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">download</span><span class="p">)</span>
+<span class="n">Web</span> <span class="n">scope</span><span class="p">:</span>   <span class="n">web_fetch</span> <span class="p">(</span><span class="n">bundled</span><span class="p">),</span> <span class="n">web_search</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">search</span><span class="p">),</span> <span class="n">download_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">download</span><span class="p">)</span>
 <span class="n">Local</span> <span class="n">scope</span><span class="p">:</span> <span class="n">list_files</span> <span class="o">/</span> <span class="n">find_files</span> <span class="o">/</span> <span class="n">read_file</span> <span class="o">/</span> <span class="n">grep</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">),</span>
              <span class="n">write_file</span> <span class="o">/</span> <span class="n">edit_file</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">files</span><span class="p">,</span> <span class="n">destructive</span><span class="p">),</span>
              <span class="n">run_command</span> <span class="p">(</span><span class="n">bundled</span><span class="p">,</span> <span class="n">code</span><span class="p">),</span>
@@ -462,11 +463,20 @@ empty, and <code class="docutils literal notranslate"><span class="pre">read_fil
 directory’s entries (<code class="docutils literal notranslate"><span class="pre">nearby</span></code>) plus a <code class="docutils literal notranslate"><span class="pre">note</span></code> when the target is missing.
 This keeps an empty filtered result from being mistaken for an empty
 directory, or a typo for a missing project.</p>
+<p><code class="docutils literal notranslate"><span class="pre">web_search</span></code> performs web discovery over a keyless-first provider pool
+(Tavily, Exa, Parallel and Firecrawl hosted MCP endpoints need no API key;
+Brave and Serper are used only when their key is set).  It is read-only and
+open-world.  Results are normalised to <code class="docutils literal notranslate"><span class="pre">title</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>, <code class="docutils literal notranslate"><span class="pre">snippet</span></code>,
+<code class="docutils literal notranslate"><span class="pre">published</span></code> and <code class="docutils literal notranslate"><span class="pre">score</span></code>, with the serving <code class="docutils literal notranslate"><span class="pre">provider</span></code> named in the
+response, and a rate-limited or failing provider falls through to the next.
+A key only raises that provider’s limits; keys are optional and read from
+the process environment (see <code class="docutils literal notranslate"><span class="pre">docs/install.rst</span></code>).  See ADR-0048.</p>
 </section>
 <section id="the-bundled-tools-server">
 <h3>The bundled tools server<a class="headerlink" href="#the-bundled-tools-server" title="Link to this heading">¶</a></h3>
-<p>Klea ships a set of common tools (web fetch, file list/read/search/edit,
-download) as a shared MCP server in <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.server</span></code>.  Applications
+<p>Klea ships a set of common tools (web fetch/search, file list/read/search/edit,
+download) as a shared MCP server in <code class="docutils literal notranslate"><span class="pre">klea_utils.mcp.server</span></code>.  The individual
+bundled tools are indexed on the <a class="reference internal" href="tools.html"><span class="doc">Tools</span></a> page.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP
 via the <code class="docutils literal notranslate"><span class="pre">klea-mcp</span></code> CLI for remote deployments.</p>
@@ -576,12 +586,12 @@ authoring Klea’s own MCP tools</p></li>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="web-ui.html">
+          <a class="next-page" href="tools.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Web interface</div>
+                <div class="title">Tools</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>

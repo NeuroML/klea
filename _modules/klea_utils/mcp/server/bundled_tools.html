@@ -205,6 +205,7 @@
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../../components/rag.html">Klea RAG</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../components/web-ui.html">Web interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../../components/utils.html">Klea Utils</a></li>
@@ -332,6 +333,11 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_command</span> <span class="k">as</span> <span class="n">run_command_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_fetch</span> <span class="k">as</span> <span class="n">web_fetch_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+    <span class="n">MAX_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_search</span> <span class="k">as</span> <span class="n">web_search_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.write_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">write_file</span> <span class="k">as</span> <span class="n">write_file_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
 
@@ -376,6 +382,49 @@
         <span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span>
         <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
         <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="web_search">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.web_search">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"search"</span><span class="p">},</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">web_search</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="n">MAX_MAX_RESULTS</span><span class="p">)]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search the web and return ranked results with snippets.</span>
+
+<span class="sd">    Use this tool to discover current information, documentation, or sources</span>
+<span class="sd">    online, then read a chosen result with the web fetch tool.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - You need to find information on the web (discovery).</span>
+<span class="sd">    - You want links and snippets before fetching a page.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading the content of a specific URL (use the web fetch tool instead).</span>
+<span class="sd">    - Downloading a file to disk (use the download file tool instead).</span>
+
+<span class="sd">    Example: web_search(query="NeuroML specification")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: Free-text search query.</span>
+<span class="sd">        max_results: Maximum number of results to return (1-20).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with query, provider, results (list of title, url,</span>
+<span class="sd">        snippet, published, score), and error.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">web_search_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
 
