@@ -261,13 +261,17 @@ Last updated: 2026-10-10.
   the LangGraph checkpoint and clear the workspace (see Session deletion
   cleanup).
 
-- Remaining session commands (P4 of ADR-0047): `/run`, `/compact`, `/plan`,
-  `/init`, `/export`, `/skills`.  `/run` (server-side `run_command`, no chat
-  LLM round-trip) is the cleanest token-free command; `/compact` uses the
-  summarise node to shorten memory; `/plan` enters the existing HITL plan
-  review; `/init` writes project guidance to `AGENTS.md`; `/skills` is the
-  custom prompt-template surface.  Client-only commands (`/new`, `/sessions`,
-  `/rename`, `/model`, `/theme`, `/commands`) are small, frontend-owned wins.
+- Remaining session commands (P4 of ADR-0047): `/run`, `/compact`, `/init`.
+  `/run` (server-side `run_command`, no chat LLM round-trip) is the cleanest
+  token-free command; `/compact` uses the summarise node to shorten memory;
+  `/init` writes project guidance to `AGENTS.md`.  Client-only commands
+  (`/new`, `/sessions`, `/rename`, `/model`, `/export`, `/commands`) are
+  small, frontend-owned wins.  Dropped as not applicable: `/plan` (Klea has no
+  plan mode -- read-only is the access level, not a workflow) and `/theme`
+  (Klea offers only light/dark, toggled in the header; not worth a command).
+
+- `/skills` (ADR-0047): **deferred** -- skills are not designed yet, so the
+  command surface is undefined.  Design skills support first.
 
 ## Streaming / tool UX
 

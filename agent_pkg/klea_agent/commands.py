@@ -106,15 +106,6 @@ _STUB_COMMANDS: tuple[Command, ...] = (
         implemented=False,
     ),
     Command(
-        name="plan",
-        summary="Enter plan review",
-        side="server",
-        klass="workflow",
-        persists="checkpoint",
-        while_streaming="block",
-        implemented=False,
-    ),
-    Command(
         name="init",
         summary="Write project guidance to AGENTS.md",
         side="server",

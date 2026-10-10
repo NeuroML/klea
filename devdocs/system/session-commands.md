@@ -101,11 +101,10 @@ and the menu (`CommandRegistry.available`).
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/plan`,
-`/init`.  The attachment trio (`/file`, `/upload`, `/webfetch`) plus the
-session workspace is **deferred pending a use-case decision** -- see the
-backlog for the options (convert-to-workspace vs ingest-and-retrieve vs
-in-prompt).
+published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/init`.
+The attachment trio (`/file`, `/upload`, `/webfetch`) plus the session
+workspace is **deferred pending a use-case decision** -- see the backlog for
+the options (convert-to-workspace vs ingest-and-retrieve vs in-prompt).
 
 ### Client commands (frontend-owned)
 
@@ -117,7 +116,7 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/help [cmd]` | ui | - | list commands, or detail one |
 
 Planned client commands (not registered yet): `/commands`, `/new`,
-`/sessions`, `/rename`, `/export`, `/model`, `/theme`, `/upload`.
+`/sessions`, `/rename`, `/export`, `/model`, `/upload`.
 
 Notes:
 
@@ -132,7 +131,8 @@ Notes:
 * `/mode`/`/access`/`/cwd` change checkpointed graph state; the UI selectors
   dispatch the same command so there is one path.
 * Custom `/prompt` commands (opencode-style templates) expand to a normal
-  query and persist normally; `/skills` is the placeholder for that surface.
+  query and persist normally.  `/skills` is **deferred**: skills are not
+  designed yet, so the surface is not defined (see backlog).
 * A leading `//` is not a command (the frontend and backend both treat it as
   ordinary text and send it as-is); a true single-slash escape is deferred
   since both sides must agree on it.
