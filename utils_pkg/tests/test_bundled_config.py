@@ -127,7 +127,8 @@ async def test_filtered_stdio_client_lists_only_matching_tags():
 
 async def test_web_scope_exposes_web_tools():
     """include_tags=["web"] now matches every web-scoped bundled tool
-    (web_fetch and download_file) since the scope tag is ``web``."""
+    (web_fetch, web_search, search_papers and download_file) since the scope
+    tag is ``web``."""
     from fastmcp import Client
     from fastmcp.mcp_config import MCPConfig
 
@@ -138,7 +139,12 @@ async def test_web_scope_exposes_web_tools():
     client = Client(MCPConfig(mcpServers={"bundled": entry}))
     async with client:
         tools = await client.list_tools()
-    assert {t.name for t in tools} == {"web_fetch", "download_file"}
+    assert {t.name for t in tools} == {
+        "web_fetch",
+        "web_search",
+        "search_papers",
+        "download_file",
+    }
 
 
 async def test_disabled_entry_is_never_registered():

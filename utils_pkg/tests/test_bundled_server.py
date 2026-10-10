@@ -36,6 +36,7 @@ def test_all_bundled_wrappers_carry_bundled_tag():
     assert names == {
         "web_fetch",
         "web_search",
+        "search_papers",
         "list_files",
         "find_files",
         "read_file",
@@ -57,6 +58,14 @@ def test_web_fetch_tags():
 def test_web_search_tags():
     info = _tool_info(bundled_tools.web_search)
     assert _tags(bundled_tools.web_search) == {BUNDLED, "web", "search"}
+    assert info.checkpaths is None
+    assert info.read_only is True
+    assert info.open_world is True
+
+
+def test_search_papers_tags():
+    assert _tags(bundled_tools.search_papers) == {BUNDLED, "web"}
+    info = _tool_info(bundled_tools.search_papers)
     assert info.checkpaths is None
     assert info.read_only is True
     assert info.open_world is True
@@ -146,7 +155,7 @@ def test_context_wrapper_contract():
     fastmcp's tool registration rewrites each signature (moving Context after
     the data params), so membership is checked, not position."""
 
-    for name in ("web_fetch", "web_search", "download_file"):
+    for name in ("web_fetch", "web_search", "search_papers", "download_file"):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
     for name in (
@@ -168,6 +177,7 @@ async def test_bundle_server_registers_expected_tools():
     assert set(by_name) == {
         "web_fetch",
         "web_search",
+        "search_papers",
         "list_files",
         "find_files",
         "read_file",
@@ -191,6 +201,7 @@ async def test_bundle_server_registers_expected_tools():
     ]
     assert by_name["web_fetch"].meta is None
     assert by_name["web_search"].meta is None
+    assert by_name["search_papers"].meta is None
 
 
 async def test_bundle_server_annotation_hints():
@@ -198,11 +209,19 @@ async def test_bundle_server_annotation_hints():
     marked destructive + open world."""
     tools = {t.name: t for t in await bundle_server.list_tools()}
 
-    for name in ("web_fetch", "list_files", "find_files", "read_file", "grep"):
+    for name in (
+        "web_fetch",
+        "search_papers",
+        "list_files",
+        "find_files",
+        "read_file",
+        "grep",
+    ):
         ann = tools[name].annotations
         assert ann is not None, name
         assert ann.readOnlyHint is True, name
         assert ann.destructiveHint is None, name
+    assert tools["search_papers"].annotations.openWorldHint is True
 
     search = tools["web_search"]
     assert search.annotations is not None
@@ -244,6 +263,7 @@ async def test_bundle_server_serves_via_inprocess_client():
     assert {
         "web_fetch",
         "web_search",
+        "search_papers",
         "list_files",
         "find_files",
         "read_file",

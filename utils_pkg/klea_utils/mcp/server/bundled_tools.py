@@ -21,6 +21,16 @@ from klea_utils.mcp.tool_impls.edit_file import edit_file as edit_file_impl
 from klea_utils.mcp.tool_impls.find_files import find_files as find_files_impl
 from klea_utils.mcp.tool_impls.grep import grep as grep_impl
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
+from klea_utils.mcp.tool_impls.papers.search import (
+    DEFAULT_MAX_RESULTS as PAPERS_DEFAULT_MAX_RESULTS,
+)
+from klea_utils.mcp.tool_impls.papers.search import (
+    MAX_RESULTS_LIMIT,
+    Domain,
+)
+from klea_utils.mcp.tool_impls.papers.search import (
+    search_papers as search_papers_impl,
+)
 from klea_utils.mcp.tool_impls.read_file import read_file as read_file_impl
 from klea_utils.mcp.tool_impls.run_command import (
     DEFAULT_MAX_OUTPUT_CHARS,
@@ -77,6 +87,89 @@ async def web_fetch(
         url=url,
         timeout=timeout,
         max_chars=max_chars,
+    )
+    return to_result(result)
+
+
+@tool_meta(ToolInfo(tags={BUNDLED_TAG, "web"}, read_only=True, open_world=True))
+async def search_papers(
+    ctx: Context,
+    query: Annotated[
+        str,
+        Field(
+            description="Keywords to search for, e.g. 'hodgkin huxley'", min_length=1
+        ),
+    ],
+    domain: Annotated[
+        Domain,
+        Field(
+            description=(
+                "'general' for all fields, or 'life-sciences' to search "
+                "biomedical literature (Europe PMC, PubMed) first"
+            )
+        ),
+    ] = "general",
+    preprints: Annotated[
+        bool,
+        Field(
+            description=(
+                "Also search preprints (not peer reviewed). Set only when the "
+                "user asks for preprints, or the peer reviewed results are "
+                "not enough"
+            )
+        ),
+    ] = False,
+    max_results: Annotated[
+        int,
+        Field(
+            description=(
+                "Maximum number of peer reviewed results, and separately of "
+                "preprint results"
+            ),
+            ge=1,
+            le=MAX_RESULTS_LIMIT,
+        ),
+    ] = PAPERS_DEFAULT_MAX_RESULTS,
+) -> ToolResult:
+    """Search academic papers by keywords.
+
+    Use this tool to find published research papers on a topic, with their
+    title, authors, year, journal, DOI, link and abstract.  Peer reviewed
+    papers are searched first; preprints are only included when
+    ``preprints`` is true, and are marked with ``peer_reviewed: false``.
+
+    Use when:
+    - Finding papers or references on a scientific topic.
+    - Looking for the source of a model, method or result.
+
+    Do not use for:
+    - Reading the full text of a paper (use the web fetch or download file
+      tool with the paper's url instead).
+    - General web pages, news or docs (use the web search tool instead).
+
+    When you cite a preprint, tell the user it has not been peer reviewed.
+
+    Example: search_papers(query="hodgkin huxley", domain="life-sciences")
+
+    Args:
+        query: Keywords to search for.
+        domain: 'general' or 'life-sciences'.
+        preprints: Also search preprints, listed after the peer reviewed results.
+        max_results: Maximum results from the peer reviewed sources, and
+            separately from the preprint sources.
+
+    Returns:
+        Dictionary with query, domain, preprints, results (title, authors,
+        year, journal, abstract, doi, url, peer_reviewed, source), error and
+        note.
+    """
+    session = ctx.lifespan_context.get("http_session")
+    result = await search_papers_impl(
+        session=session,
+        query=query,
+        domain=domain,
+        preprints=preprints,
+        max_results=max_results,
     )
     return to_result(result)
 

@@ -207,6 +207,11 @@ addresses are refused unless the caller passes `allow_internal_hosts=True`.
 returns result URLs as data without dereferencing them, so fetching a result
 remains `web_fetch`'s job (with its SSRF guard).  See ADR-0048.
 
+`search_papers` (`klea_utils.mcp.tool_impls.papers`) does not use the guard:
+it only calls fixed public scholarly API hosts (OpenAlex, Crossref, Semantic
+Scholar, Europe PMC, PubMed, arXiv) and the model cannot choose the URL.  It is
+annotated read-only (and open world), so it is available in `read_only` mode.
+
 Known best-effort limitation (accepted for now): the guard checks only the
 *initial* URL.  An httpx client that follows redirects
 (`follow_redirects=True`) could still be redirected onto an internal host
