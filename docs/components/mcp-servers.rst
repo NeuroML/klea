@@ -105,9 +105,9 @@ Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, web_search, list_files, find_files, read_file, grep, write_file, edit_file, download_file, run_command (each also has its scope + functional tags)
+   bundled  web_fetch, web_search, search_papers, list_files, find_files, read_file, grep, write_file, edit_file, download_file, run_command (each also has its scope + functional tags)
 
-   Web scope:   web_fetch (bundled), web_search (bundled, search), download_file (bundled, download)
+   Web scope:   web_fetch (bundled), search_papers (bundled), web_search (bundled, search), download_file (bundled, download)
    Local scope: list_files / find_files / read_file / grep (bundled, files),
                 write_file / edit_file (bundled, files, destructive),
                 run_command (bundled, code),

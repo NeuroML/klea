@@ -110,6 +110,14 @@ their httpx session via the lifespan context.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.mcp.tool_impls.papers.search
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.record
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.mcp.tool_impls.list_files
    :members:
    :show-inheritance:

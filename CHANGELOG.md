@@ -6,6 +6,7 @@
 
 ### Added
 
+- Bundled read-only `search_papers` tool: academic paper search by keywords, returning title, authors, year, journal, abstract, DOI, link and a `peer_reviewed` flag. Peer reviewed sources come first: OpenAlex and Crossref (plus Semantic Scholar when `SEMANTIC_SCHOLAR_API_KEY` is set) are rotated per call with fallback on rate limits, errors or results without abstracts, and `domain: "life-sciences"` searches Europe PMC first, then PubMed (NCBI E-utilities) as its fallback. Preprints (arXiv, and Europe PMC preprints such as bioRxiv) are only searched with `preprints: true` and are listed after the peer reviewed results.
 - Cross-encoder reranking: fused retrieval results are re-scored by a local cross-encoder (default `cross-encoder/ms-marco-MiniLM-L-6-v2`, configurable via `general.cross_encoder_model`) before the recency blend; the model is loaded once at startup and its weights are downloaded and cached by Hugging Face on first use.
 - Custom model endpoints (`custom:<model>:<url>`) accept a full endpoint URL and select the wire API from its path (`/chat/completions`, `/responses`, or `/v1/messages`); a bare base URL still defaults to OpenAI Chat Completions.
 - New optional `anthropic` extra (`langchain-anthropic`) for the native Anthropic provider and custom `/messages` endpoints.

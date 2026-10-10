@@ -17,6 +17,10 @@ The bundled filesystem tools -- `read_file`, `write_file`, `edit_file`,
   themselves (ADR-0007 update 2026-10-08).  `permission.py` retains the
   boundary helpers used by that gate.
 
+The bundled web tools that do not touch the filesystem (`web_fetch`,
+`search_papers`) are out of scope here; their network safety is covered in
+`mcp-permissions.md`.
+
 Recording the contract here keeps the definition in one place (the tools were
 originally written without an enumerated edge-case contract, which let
 `read_file` misreport truncated reads).
