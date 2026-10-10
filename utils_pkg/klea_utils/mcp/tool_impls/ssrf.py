@@ -88,7 +88,7 @@ async def check_ssrf_async(url: str, timeout: float = _SSRF_DNS_TIMEOUT) -> str 
             asyncio.to_thread(check_ssrf, url),
             timeout=timeout,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         host = urlparse(url).hostname or url
         logger.warning(f"SSRF DNS timeout for {host}")
         return f"DNS timeout for {host}"

@@ -29,7 +29,7 @@ import os
 import sqlite3
 import threading
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -177,7 +177,7 @@ class SessionStore:
     # ------------------------------------------------------------------
 
     def _now(self) -> float:
-        return datetime.now(timezone.utc).timestamp()
+        return datetime.now(UTC).timestamp()
 
     def _json_dumps(self, obj: Any) -> str:
         return json.dumps(obj, ensure_ascii=False)
