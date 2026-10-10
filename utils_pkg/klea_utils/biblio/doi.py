@@ -36,6 +36,33 @@ _JATS_TAG_RE = re.compile(r"<[^>]+>")
 #: simply re-queried on the next run).
 _SAVE_BATCH_SIZE = 25
 
+#: Honest client identity sent to the DOI services (Crossref/OpenAlex/
+#: Semantic Scholar).  It is not required to resolve DOIs, but identifies
+#: Klea and avoids httpx's default anonymous ``python-httpx/<version>``
+#: string; the polite pool is requested separately via the ``mailto``
+#: query parameter.
+_UA_PREFIX = "klea-ingest/"
+_user_agent_cache: str | None = None
+
+
+def _user_agent() -> str:
+    """Return the honest ingest User-Agent, versioned with klea_utils.
+
+    Reads the installed ``klea_utils`` version from package metadata; falls
+    back to ``dev`` when metadata is unavailable (e.g. an editable checkout
+    without installed distribution metadata).
+    """
+    global _user_agent_cache
+    if _user_agent_cache is None:
+        try:
+            from importlib.metadata import PackageNotFoundError, version
+
+            version_str = version("klea_utils")
+        except PackageNotFoundError:
+            version_str = ""
+        _user_agent_cache = f"{_UA_PREFIX}{version_str or 'dev'}"
+    return _user_agent_cache
+
 
 class BiblioRecord(BaseModel):
     """Normalised bibliographic record shared across the DOI services."""
@@ -169,7 +196,8 @@ class DoiResolver:
 
     Polite-pool attribution is sent when ``KLEA_INGEST_MAILTO`` (or the
     ``mailto`` argument) is set -- Crossref and OpenAlex both honour a
-    ``mailto`` parameter to raise their rate limits.
+    ``mailto`` parameter to raise their rate limits.  Requests also carry an
+    honest ``User-Agent: klea-ingest/<version>``.
     """
 
     #: Services, in round-robin order.
@@ -207,7 +235,11 @@ class DoiResolver:
         # is persisted every ``_SAVE_BATCH_SIZE`` of them and on close(),
         # so a long run does not rewrite the whole file per resolution.
         self._pending_saves = 0
-        self._client = httpx.Client(timeout=self.timeout, transport=transport)
+        self._client = httpx.Client(
+            timeout=self.timeout,
+            transport=transport,
+            headers={"User-Agent": _user_agent()},
+        )
 
     def __enter__(self) -> Self:
         return self
