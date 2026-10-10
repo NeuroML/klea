@@ -25,14 +25,6 @@ SERVICE_ORDER = ("tavily", "exa", "parallel", "firecrawl")
 KEYED_SERVICE_ORDER = ("brave", "serper")
 
 
-class SearchProviderError(Exception):
-    """Raised by a provider adapter when a search request fails.
-
-    The resolver catches this (and any other exception) and falls back to
-    the next provider in the pool.
-    """
-
-
 class SearchSession(Protocol):
     """Minimal HTTP interface the search transport needs.
 
@@ -71,8 +63,9 @@ class SearchResult(BaseModel):
 class SearchProvider(Protocol):
     """Protocol for a web search backend.
 
-    :mod:`klea_utils.mcp.tool_impls.search.providers` implements this; the resolver uses
-    only ``name``, :meth:`is_available`, and :meth:`search`.
+    The per-provider modules under :mod:`klea_utils.mcp.tool_impls.search`
+    implement this; the resolver uses only ``name``, :meth:`is_available`,
+    and :meth:`search`.
     """
 
     #: Stable provider identifier, e.g. ``"tavily"``.
