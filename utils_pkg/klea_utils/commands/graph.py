@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from klea_utils.commands.common import CommandRegistry, ParsedCommand, parse_command
+from klea_utils.commands.common import ParsedCommand, parse_command
 
 
 @dataclass
@@ -43,19 +43,18 @@ class GraphCommandResult:
 GraphCommandHandler = Callable[[BaseModel, ParsedCommand], GraphCommandResult]
 
 
-def graph_command_router(registry: CommandRegistry, state: BaseModel) -> str:
-    """Return ``"command"`` for a known server-side command, else ``"continue"``.
+def command_query_router(state: BaseModel) -> str:
+    """Return ``"command"`` for a command query, else ``"continue"``.
 
-    A client-side command is not routed here (the frontend handles it); an
-    unknown or non-command query also continues to the normal path.
+    The router makes a single decision: is the query syntactically a command
+    (a leading ``/``, with ``//`` escaping a literal slash) or a general
+    query?  The command node does the rest -- validating the name, dispatching
+    an executable command, or replying with a direct message for an unknown,
+    client-side, or not-yet-implemented command.
 
-    :param registry: The app's command catalogue.
     :param state: The graph state (its ``query`` is inspected).
     :returns: ``"command"`` or ``"continue"``.
     """
-    parsed = parse_command(getattr(state, "query", ""))
-    if parsed and parsed.name:
-        command = registry.get(parsed.name)
-        if command is not None and command.side == "server":
-            return "command"
+    if parse_command(getattr(state, "query", "")) is not None:
+        return "command"
     return "continue"

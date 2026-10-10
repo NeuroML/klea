@@ -62,19 +62,36 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
 
     @override
     async def execute(self, state: BaseModel) -> dict[str, Any]:
-        """Dispatch the command in ``state.query`` and end the run."""
+        """Dispatch the command in ``state.query`` and end the run.
+
+        An executable command runs (its ``inspect`` event records the effect).
+        An unknown, client-side, not-yet-implemented, or malformed command is
+        rejected with a direct user message; the inspect event is reserved for
+        a command's actual effect, not for rejections.
+        """
         self._emit_progress()
         query = getattr(state, "query", "")
         parsed = parse_command(query)
-        command = self._registry.get(parsed.name) if parsed and parsed.name else None
-        if parsed is None or command is None:
+        if parsed is None:
+            # Defensive: the router only sends command queries here.
             self.logger.warning(f"command node reached without a command: {query!r}")
             return {"message_for_user": "No command was recognised."}
+        if parsed.error:
+            return self._reject(state, query, parsed.error)
+        command = self._registry.get(parsed.name)
+        if command is None:
+            self.logger.debug(f"unknown command: {parsed.name}")
+            return self._reject(
+                state,
+                query,
+                f"Unknown command: /{parsed.name}. Type /help for the list.",
+            )
         handler = self._handlers.get(command.name)
         if not command.implemented or handler is None:
-            message = f"Command /{command.name} is not implemented yet."
-            self._emit_inspect(command, message, {})
-            return {"message_for_user": message}
+            self.logger.debug(f"unimplemented command: {command.name}")
+            return self._reject(
+                state, query, f"Command /{command.name} is not implemented yet."
+            )
         self.logger.debug(f"running command /{command.name} args={parsed.args}")
         result = handler(state, parsed)
         self._emit_inspect(command, result.summary or result.message, result.details)
@@ -82,6 +99,12 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
         updates["message_for_user"] = result.message
         if command.persists != "message":
             self._drop_command_message(state, query, updates)
+        return updates
+
+    def _reject(self, state: BaseModel, query: str, message: str) -> dict[str, Any]:
+        """Return a direct rejection reply and drop the command turn."""
+        updates: dict[str, Any] = {"message_for_user": message}
+        self._drop_command_message(state, query, updates)
         return updates
 
     @staticmethod
