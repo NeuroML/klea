@@ -25,6 +25,8 @@ from fastapi import HTTPException, Request
 from klea_utils.api import chat_common, chat_core, overrides
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.commands.common import Command as CommandSpec
+from klea_utils.commands.common import CommandRegistry, Persists
 from klea_utils.llm import LLMModel
 from langgraph.types import Command
 
@@ -762,3 +764,65 @@ class TestSingleFlightAndCancel:
         # No assistant row on cancel; thread is free for a new run.
         assert [m["role"] for m in store.get_messages("u", "c")] == ["user"]
         assert not request.app.state.active_runs.is_active("user_u:chat_c")
+
+
+class TestCommandPersistMode:
+    """``_command_persist_mode`` classifies a query for command persistence."""
+
+    @staticmethod
+    def _graph(persists: Persists = "checkpoint"):
+        registry = CommandRegistry()
+        registry.register(
+            CommandSpec(name="mode", summary="", side="server", persists=persists)
+        )
+        return SimpleNamespace(command_registry=registry)
+
+    def test_ephemeral_command(self):
+        assert chat_core._command_persist_mode(self._graph(), "/mode") is False
+
+    def test_message_command_persists(self):
+        assert chat_core._command_persist_mode(self._graph("message"), "/mode") is True
+
+    def test_plain_query_is_not_a_command(self):
+        assert chat_core._command_persist_mode(self._graph(), "hello") is None
+
+    def test_resume_is_not_a_command(self):
+        assert chat_core._command_persist_mode(self._graph(), None) is None
+
+    def test_app_without_a_registry(self):
+        assert chat_core._command_persist_mode(SimpleNamespace(), "/mode") is None
+
+
+class TestCommandPersistence:
+    """A command turn writes no chat rows unless it persists messages."""
+
+    async def _run(self, store, graph, query):
+        registry = CommandRegistry()
+        registry.register(
+            CommandSpec(name="mode", summary="", side="server", persists="checkpoint")
+        )
+        registry.register(
+            CommandSpec(name="init", summary="", side="server", persists="message")
+        )
+        graph.command_registry = registry
+        return await chat_core.run_query(
+            _make_request(store, graph), query=query, user_id="u", chat_id="c"
+        )
+
+    async def test_ephemeral_command_writes_no_rows(self, store, graph):
+        await self._run(store, graph, "/mode general")
+        assert store.get_messages("u", "c") == []
+
+    async def test_message_command_writes_rows(self, store, graph):
+        await self._run(store, graph, "/init")
+        assert [m["role"] for m in store.get_messages("u", "c")] == [
+            "user",
+            "assistant",
+        ]
+
+    async def test_plain_query_still_writes_rows(self, store, graph):
+        await self._run(store, graph, "hello")
+        assert [m["role"] for m in store.get_messages("u", "c")] == [
+            "user",
+            "assistant",
+        ]

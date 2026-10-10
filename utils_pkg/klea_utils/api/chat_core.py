@@ -55,9 +55,38 @@ from klea_utils.api.hitl import (
 )
 from klea_utils.api.overrides import resolve_model_overrides
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.commands.common import parse_command
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
+
+
+def _command_persist_mode(graph: Any, query: str | None) -> bool | None:
+    """Return a command query's persistence, or ``None`` when not a command.
+
+    Commands are ephemeral by default (their graph-state change is
+    checkpointed, but no chat rows are written); a command with
+    ``persists="message"`` is recorded like a normal turn.  A ``None`` result
+    means the query is not a command (or the app has no command framework, e.g.
+    RAG), so the caller persists normally.
+
+    :param graph: The app graph (carries ``command_registry`` when it uses the
+        session-command framework).
+    :param query: The user query, or ``None`` on a resume.
+    :returns: ``True`` (command that persists), ``False`` (ephemeral command),
+        or ``None`` (not a command).
+    """
+    if not query:
+        return None
+    parsed = parse_command(query)
+    if parsed is None:
+        return None
+    registry = getattr(graph, "command_registry", None)
+    if registry is None:
+        return None
+    command = registry.get(parsed.name) if parsed.name else None
+    return bool(command is not None and command.persists == "message")
+
 
 #: Idle gap, in seconds, after which :func:`_heartbeat` emits a ``ping`` SSE
 #: frame.  A long-running tool (e.g. ``run_command``) emits no graph events
@@ -234,8 +263,11 @@ async def run_query(
         interrupt_id=interrupt_id,
     )
 
+    # A command turn is ephemeral by default (ADR-0047): its state change is
+    # checkpointed, but no chat rows are written.
+    ephemeral_command = _command_persist_mode(graph, query) is False
     store.create_chat(user_id, chat_id)
-    if user_turn:
+    if user_turn and not ephemeral_command:
         # Record the user turn when the run starts (not only on success), so
         # a turn that fails mid-run is still visible and retryable.
         store.add_message(user_id, chat_id, "user", user_turn)
@@ -274,7 +306,8 @@ async def run_query(
             # The run paused for human input: persist the question and return
             # it (there is no final answer yet).
             question = _interrupt_question(pending[0])
-            store.add_message(user_id, chat_id, "assistant", question)
+            if not ephemeral_command:
+                store.add_message(user_id, chat_id, "assistant", question)
             logger.info(
                 "run_query(user_id=%s chat_id=%s): paused for input",
                 user_id,
@@ -282,7 +315,8 @@ async def run_query(
             )
             return question
         message = result if isinstance(result, str) else str(result)
-        store.add_message(user_id, chat_id, "assistant", message)
+        if not ephemeral_command:
+            store.add_message(user_id, chat_id, "assistant", message)
         logger.info(
             "run_query(user_id=%s chat_id=%s): answer %d chars",
             user_id,
@@ -394,8 +428,10 @@ async def stream_response(
         interrupt_id=interrupt_id,
     )
 
+    # A command turn is ephemeral by default (ADR-0047); see run_query.
+    ephemeral_command = _command_persist_mode(graph, query) is False
     store.create_chat(user_id, chat_id)
-    if user_turn:
+    if user_turn and not ephemeral_command:
         # Record the user turn when the run starts (not on completion), so a
         # turn that fails mid-run is still visible and retryable; the
         # assistant row is written on ``complete``.
@@ -449,24 +485,26 @@ async def stream_response(
                         # The run paused for human input: persist the question
                         # so a reloaded chat shows it (the answer is a later
                         # user turn).
-                        store.add_message(
-                            user_id,
-                            chat_id,
-                            "assistant",
-                            _interrupt_event_question(event),
-                        )
+                        if not ephemeral_command:
+                            store.add_message(
+                                user_id,
+                                chat_id,
+                                "assistant",
+                                _interrupt_event_question(event),
+                            )
                         logger.info(
                             "stream_response(user_id=%s chat_id=%s): paused for input",
                             user_id,
                             chat_id,
                         )
                     elif t == "complete":
-                        store.add_message(
-                            user_id,
-                            chat_id,
-                            "assistant",
-                            event.get("message_for_user", ""),
-                        )
+                        if not ephemeral_command:
+                            store.add_message(
+                                user_id,
+                                chat_id,
+                                "assistant",
+                                event.get("message_for_user", ""),
+                            )
                         logger.info(
                             "stream_response(user_id=%s chat_id=%s): complete",
                             user_id,
