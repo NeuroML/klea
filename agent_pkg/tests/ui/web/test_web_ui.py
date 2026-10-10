@@ -103,3 +103,44 @@ async def test_no_mode_request_before_a_selection(fake_backend, agent_user):
 
     body = fake_backend.stream_bodies()[-1]
     assert "mode" not in (body.get("extra") or {})
+
+
+def _access_command_metadata() -> dict:
+    """Server-side ``/access`` catalogue entry so the input is forwarded."""
+    return {
+        "name": "access",
+        "summary": "Show or set the tool access level",
+        "arg_hint": "[read_only|full]",
+        "side": "server",
+        "klass": "session-state",
+        "while_streaming": "block",
+        "persists": "checkpoint",
+        "capabilities": [],
+        "implemented": True,
+        "aliases": [],
+    }
+
+
+async def test_access_command_reconciles_the_selector(fake_backend, agent_user):
+    """An ``/access`` command's context event updates the per-chat preference."""
+    before = set(chats)
+    fake_backend.commands = [_access_command_metadata()]
+    fake_backend.stream_events = [
+        {
+            "type": "context",
+            "data": {
+                "requested": "general",
+                "mode": "general",
+                "access_level": "read_only",
+            },
+        },
+        {"type": "complete", "message_for_user": "Tool access level set to read_only."},
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "/access read_only")
+    await agent_user.should_see("Tool access level set to read_only.", retries=50)
+
+    new_chats = _new_chats(before)
+    assert new_chats
+    assert any(data.get("access_pref") == "read_only" for data in new_chats)

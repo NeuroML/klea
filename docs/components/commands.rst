@@ -51,6 +51,10 @@ These are sent to the graph and run there.
      - ``/mode [general|scientific]``
      - Show or set the agent's operating mode (see :doc:`agent`); with no
        argument it reports the current mode.
+   * - ``/access``
+     - ``/access [read_only|full]``
+     - Show or set the tool access level; with no argument it reports the
+       current level.
 
 Disabling commands
 ------------------

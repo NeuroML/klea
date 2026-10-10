@@ -3,7 +3,8 @@
 Status: implemented (framework).  The framework is decided in ADR-0047
 (`adr/0047-session-command-framework.md`); this note holds the command
 catalogue and the per-command contract.  The framework, the web routing /
-autocomplete, and the first commands (`/help`, `/mode`) are implemented;
+autocomplete, and the first commands (`/help`, `/mode`, `/access`) are
+implemented;
 further commands are added as they land, and a command whose decision is hard
 to reverse may graduate to its own ADR.
 
@@ -97,10 +98,11 @@ and the menu (`CommandRegistry.available`).
 | command | klass | persists | while_streaming | summary |
 |---|---|---|---|---|
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
+| `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/access`, `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`,
-`/plan`, `/init`.
+published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/plan`,
+`/init`.
 
 ### Client commands (frontend-owned)
 
