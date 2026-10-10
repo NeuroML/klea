@@ -99,15 +99,15 @@ to expose, and whether to allow local or web-facing tools.  Two groups:
   ``local`` (filesystem / process on the host) or ``web`` (interacts with
   external URLs / web APIs).
 * **Domain / functional** groups tools by purpose, for example ``files``,
-  ``code``, ``download``, ``neuroml``, ``neuroml-db``, ``osb``.
+  ``code``, ``download``, ``search``, ``neuroml``, ``neuroml-db``, ``osb``.
 
 Every tool also carries the ``bundled`` tag when it comes from the common
 bundled server, so enabling the whole common set is a single
 ``include_tags: ["bundled"]``.  Specific current assignments::
 
-   bundled  web_fetch, list_files, find_files, read_file, grep, write_file, edit_file, download_file, run_command (each also has its scope + functional tags)
+   bundled  web_fetch, web_search, list_files, find_files, read_file, grep, write_file, edit_file, download_file, run_command (each also has its scope + functional tags)
 
-   Web scope:   web_fetch (bundled), download_file (bundled, download)
+   Web scope:   web_fetch (bundled), web_search (bundled, search), download_file (bundled, download)
    Local scope: list_files / find_files / read_file / grep (bundled, files),
                 write_file / edit_file (bundled, files, destructive),
                 run_command (bundled, code),
@@ -168,10 +168,19 @@ directory's entries (``nearby``) plus a ``note`` when the target is missing.
 This keeps an empty filtered result from being mistaken for an empty
 directory, or a typo for a missing project.
 
+``web_search`` performs web discovery over a keyless-first provider pool
+(Tavily, Exa, Parallel and Firecrawl hosted MCP endpoints need no API key;
+Brave and Serper are used only when their key is set).  It is read-only and
+open-world.  Results are normalised to ``title``, ``url``, ``snippet``,
+``published`` and ``score``, with the serving ``provider`` named in the
+response, and a rate-limited or failing provider falls through to the next.
+A key only raises that provider's limits; keys are optional and read from
+the process environment (see ``docs/install.rst``).  See ADR-0048.
+
 The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Klea ships a set of common tools (web fetch, file list/read/search/edit,
+Klea ships a set of common tools (web fetch/search, file list/read/search/edit,
 download) as a shared MCP server in ``klea_utils.mcp.server``.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP
