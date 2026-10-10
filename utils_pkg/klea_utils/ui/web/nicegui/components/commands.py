@@ -135,6 +135,56 @@ def _render_result(ctx: PageContext, result: CommandResult) -> None:
         ui.notification(result.notice, close_button=True)
 
 
+def attach_autocomplete(ctx: PageContext, text: Any) -> None:
+    """Attach a ``/``-command autocomplete menu to the chat input (ADR-0047).
+
+    As the user types ``/prefix``, a menu lists the matching commands from the
+    merged catalogue; clicking one inserts ``/name `` into the input.
+
+    :param ctx: The page context (its ``command_catalogue`` backs the list).
+    :param text: The chat ``ui.textarea`` element.
+    """
+    with text:
+        menu = ui.menu().props("auto-close=false")
+
+    def _matches(value: str) -> list[Command]:
+        registry: CommandRegistry | None = ctx.command_catalogue
+        value = value.strip()
+        if registry is None or not value.startswith("/") or " " in value:
+            return []
+        prefix = value[1:].lower()
+        return [
+            command
+            for command in registry.available(WEB_CAPABILITIES)
+            if command.name.startswith(prefix)
+        ]
+
+    def _choose(command: Command) -> None:
+        text.value = f"/{command.name} "
+        menu.close()
+
+    def _refresh(_event: Any = None) -> None:
+        matches = _matches(text.value or "")
+        menu.clear()
+        if not matches:
+            menu.close()
+            return
+        with menu:
+            for command in matches:
+                usage = f"/{command.name}"
+                if command.arg_hint:
+                    usage += f" {command.arg_hint}"
+                with ui.menu_item(on_click=lambda c=command: _choose(c)):
+                    with ui.item_section():
+                        ui.label(usage).classes("font-mono text-sm")
+                    with ui.item_section():
+                        ui.label(command.summary).classes("text-xs text-grey-6")
+        menu.open()
+
+    text.on("update:model-value", _refresh)
+    text.on("blur", menu.close)
+
+
 def _render(ctx: PageContext, text: str) -> None:
     """Append a ``system`` block to the active chat, or notify when none."""
     if not ctx.chat_id:

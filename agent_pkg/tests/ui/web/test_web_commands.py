@@ -55,6 +55,19 @@ async def test_unknown_command_is_rejected_locally(fake_backend, agent_user):
     assert fake_backend.stream_bodies() == []
 
 
+async def test_slash_lists_matching_commands(fake_backend, agent_user):
+    """Typing ``/`` opens a menu of matching commands from the catalogue."""
+    fake_backend.commands = [_mode_metadata()]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    agent_user.find(ui.textarea).type("/")
+    # The simulation sets ``.value`` without dispatching the client event that
+    # drives the menu, so fire it explicitly (NiceGUI camelCases the name).
+    agent_user.find(ui.textarea).trigger("update:modelValue")
+    await agent_user.should_see("/help", retries=50)
+    await agent_user.should_see("/mode", retries=50)
+
+
 async def test_server_command_is_forwarded(fake_backend, agent_user):
     """A server command is forwarded to the graph as the query."""
     fake_backend.commands = [_mode_metadata()]

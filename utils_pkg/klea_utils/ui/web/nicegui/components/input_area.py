@@ -47,6 +47,8 @@ def attach_input(ctx: PageContext) -> None:
             .classes("flex-grow chat-input")
         )
         ctx.text = text
+        # `/`-command autocomplete over the merged catalogue (ADR-0047).
+        commands.attach_autocomplete(ctx, text)
 
         def _effective_model_info() -> dict:
             """Model info for the active scope (chat, else session defaults)."""
