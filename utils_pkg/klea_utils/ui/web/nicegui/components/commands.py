@@ -154,6 +154,17 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
     # palette opened while typing uses this list instead.  ``ui.menu`` remains
     # the right choice for click-triggered context menus (e.g. the chat-list
     # row menu).
+    #
+    # NOTE (future reference): keyboard navigation (Up/Down to highlight, Tab
+    # to complete, Escape to close) is deliberately not implemented.  The
+    # command is fully usable by typing it and pressing Enter, so this list is
+    # an enhancement, not the only path.  A Vue key modifier such as
+    # ``keydown.tab.exact.prevent`` is unconditional: it would block plain Tab
+    # (breaking focus order out of the chat box) even while the list is
+    # closed.  Doing it properly needs a client-side ``js_handler`` that
+    # conditionally calls ``preventDefault()``, plus combobox ARIA wiring.
+    # Revisit only if the catalogue grows enough that typing the full command
+    # becomes a chore.
 
     def _matches(value: str) -> list[Command]:
         registry: CommandRegistry | None = ctx.command_catalogue
