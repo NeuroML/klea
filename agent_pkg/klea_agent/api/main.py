@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from klea_utils.api.app import make_app
+from klea_utils.api.commands import create_commands_router
 from klea_utils.api.context import create_context_router
 from klea_utils.api.credentials import create_credentials_router
 from klea_utils.api.health import create_health_router
@@ -32,6 +33,7 @@ app = make_app(
     version="0.0.1",
     routers=[
         create_chat_router(),
+        create_commands_router(),
         create_context_router(),
         create_credentials_router(),
         create_health_router(),

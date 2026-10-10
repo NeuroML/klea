@@ -534,14 +534,16 @@ class KleaAgent(BaseLangGraph):
         general = getattr(getattr(self, "app_config", None), "general", None)
         commands_config = getattr(general, "commands", None)
         disabled_commands = list(getattr(commands_config, "disabled", []) or [])
-        self._command_registry, self._command_handlers = build_agent_commands(
+        #: The app's command catalogue (ADR-0047); read by the ``GET /commands``
+        #: endpoint via ``app.state.graph``.
+        self.command_registry, self._command_handlers = build_agent_commands(
             source_available=source_available,
             disabled=disabled_commands,
         )
         self._command_node = CommandNode(
             logger=self.logger,
             label="Running command",
-            registry=self._command_registry,
+            registry=self.command_registry,
             handlers=self._command_handlers,
         )
         self.workflow.add_node(self._command_node.label, self._command_node.execute)
