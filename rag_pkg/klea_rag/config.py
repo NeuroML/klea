@@ -62,7 +62,7 @@ class GeneralConfig(BaseModel):
     #: deployment declare unannotated tools as read-only so they stay usable.
     tool_access: dict[str, ToolAccessOverride] = Field(
         default_factory=dict,
-        description="Per-tool read_only/destructive overrides (ADR-0037)",
+        description="Per-tool read_only/destructive overrides",
     )
 
     @model_validator(mode="after")

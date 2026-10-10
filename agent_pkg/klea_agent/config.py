@@ -19,23 +19,38 @@ from klea_utils.mcp.server.config import BundledToolsConfig
 from pydantic import BaseModel, Field
 
 
+class CommandsConfig(BaseModel):
+    """Session-command settings (ADR-0047)."""
+
+    #: Command names the operator disables.  A disabled command is not
+    #: registered, so it is neither published by ``GET /commands`` nor runnable
+    #: (a direct call is treated as unknown).  Names are canonical (lower-case,
+    #: without the leading slash).
+    disabled: list[str] = Field(
+        default_factory=list,
+        description="Session-command names to disable",
+    )
+
+
 class GeneralConfig(BaseModel):
     """General, domain-agnostic application settings (agent)."""
 
     #: The shared bundled tools server is on by default for the agent
     #: (batteries-included research agent); deployers can disable or filter it.
     bundled_tools: BundledToolsConfig = Field(default_factory=BundledToolsConfig)
+    #: Session-command settings (ADR-0047).
+    commands: CommandsConfig = Field(default_factory=CommandsConfig)
     #: Tool invocation access level (ADR-0037).  ``read_only`` hides and
     #: rejects mutating tools; per-request payloads may override it.
     access_level: AccessLevel = Field(
         default="full",
-        description="Tool access level: 'read_only' or 'full' (ADR-0037)",
+        description="Tool access level: 'read_only' or 'full'",
     )
     #: Per-tool capability overrides (ADR-0037), applied over MCP annotations
     #: for tools that do not annotate (or annotate inaccurately).
     tool_access: dict[str, ToolAccessOverride] = Field(
         default_factory=dict,
-        description="Per-tool read_only/destructive overrides (ADR-0037)",
+        description="Per-tool read_only/destructive overrides",
     )
 
 

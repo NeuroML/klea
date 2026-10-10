@@ -529,8 +529,14 @@ class KleaAgent(BaseLangGraph):
         # Session commands (ADR-0047): the user-invoked counterpart of the tool
         # picker/caller.  A known server-side ``/command`` runs in this node and
         # ends the run; it reuses the inspect stream contract for provenance.
+        # Operator-disabled commands (ADR-0047): guarded like the other
+        # ``app_config`` reads so the graph also compiles without a full setup.
+        general = getattr(getattr(self, "app_config", None), "general", None)
+        commands_config = getattr(general, "commands", None)
+        disabled_commands = list(getattr(commands_config, "disabled", []) or [])
         self._command_registry, self._command_handlers = build_agent_commands(
-            source_available=source_available
+            source_available=source_available,
+            disabled=disabled_commands,
         )
         self._command_node = CommandNode(
             logger=self.logger,

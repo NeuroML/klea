@@ -71,7 +71,7 @@ class ChatPayload(BaseModel):
     # app config ``general.access_level`` in charge.
     access_level: AccessLevel | None = Field(
         default=None,
-        description="Tool access level override: 'read_only' or 'full' (ADR-0037)",
+        description="Tool access level override: 'read_only' or 'full'",
     )
 
     @model_validator(mode="after")

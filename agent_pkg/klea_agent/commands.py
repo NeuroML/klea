@@ -18,6 +18,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Iterable
 
 from klea_utils.commands.common import Command, CommandRegistry, ParsedCommand
 from klea_utils.commands.graph import GraphCommandHandler, GraphCommandResult
@@ -27,6 +28,18 @@ from klea_agent.nodes.mode_router import decide_mode
 from klea_agent.schemas import Mode
 
 logger = logging.getLogger(__name__)
+
+#: The implemented server-side command.  Further commands land here as they
+#: are built; client-side commands belong to the frontends, not this module.
+_MODE_COMMAND = Command(
+    name="mode",
+    summary="Show or set the operating mode",
+    side="server",
+    klass="session-state",
+    persists="checkpoint",
+    while_streaming="block",
+    arg_hint="[general|scientific]",
+)
 
 #: Server-side commands that are documented but not implemented yet.
 #: Registered so the command node can reply "not implemented yet" to a direct
@@ -156,29 +169,26 @@ def _handle_mode(source_available: bool) -> GraphCommandHandler:
 
 
 def build_agent_commands(
-    *, source_available: bool
+    *, source_available: bool, disabled: Iterable[str] = ()
 ) -> tuple[CommandRegistry, dict[str, GraphCommandHandler]]:
-    """Build the agent's command registry and graph handlers.
+    """Build the agent's server-side command registry and graph handlers.
 
     :param source_available: Whether a curated knowledge source is configured
         (Scientific mode precondition, ADR-0030).
+    :param disabled: Command names the operator disabled (ADR-0047): a disabled
+        command is not registered, so it is neither published nor runnable.
     :returns: ``(registry, handlers)`` -- the catalogue and the graph handler
         map the command node dispatches to.
     """
+    disabled_names = {name.strip().lower() for name in disabled}
     registry = CommandRegistry()
-    registry.register(
-        Command(
-            name="mode",
-            summary="Show or set the operating mode",
-            side="server",
-            klass="session-state",
-            persists="checkpoint",
-            while_streaming="block",
-            arg_hint="[general|scientific]",
-        )
-    )
-    handlers: dict[str, GraphCommandHandler] = {"mode": _handle_mode(source_available)}
-    for stub in _STUB_COMMANDS:
-        registry.register(stub)
+    for command in (_MODE_COMMAND, *_STUB_COMMANDS):
+        if command.name in disabled_names:
+            logger.info(f"session command /{command.name} disabled by config")
+            continue
+        registry.register(command)
+    handlers: dict[str, GraphCommandHandler] = {}
+    if registry.get("mode") is not None:
+        handlers["mode"] = _handle_mode(source_available)
     logger.debug(f"agent command catalogue: {len(registry.all())} command(s)")
     return registry, handlers

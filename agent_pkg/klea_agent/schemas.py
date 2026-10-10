@@ -456,7 +456,7 @@ class Mode(BaseModel):
     )
     assurance: Literal["unverified", "verified"] = Field(
         default="unverified",
-        description="Result assurance level (ADR-0030 invariant 4)",
+        description="Result assurance level",
     )
     note: str = Field(
         default="",

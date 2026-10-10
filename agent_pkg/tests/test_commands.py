@@ -59,6 +59,24 @@ class TestCatalogue:
         assert registry.get("runlocal") is None
 
 
+class TestDisabledCommands:
+    def test_disabled_command_is_not_registered(self):
+        registry, handlers = build_agent_commands(
+            source_available=False, disabled=["mode"]
+        )
+        assert registry.get("mode") is None
+        assert "mode" not in handlers
+
+    def test_disabled_is_case_insensitive_and_trimmed(self):
+        registry, _ = build_agent_commands(source_available=False, disabled=["  MODE "])
+        assert registry.get("mode") is None
+
+    def test_other_commands_are_unaffected(self):
+        registry, _ = build_agent_commands(source_available=False, disabled=["mode"])
+        # A server stub (not yet implemented) is still registered.
+        assert registry.get("access") is not None
+
+
 class TestModeHandler:
     async def test_set_general(self):
         events: list = []
