@@ -243,6 +243,27 @@ class TestRenderHelp:
 
 
 class TestCommandMetadata:
+    def test_from_metadata_round_trips(self):
+        command = Command(
+            name="mode",
+            summary="set the mode",
+            side="server",
+            klass="session-state",
+            aliases=("m",),
+            arg_hint="[x]",
+            while_streaming="block",
+            persists="checkpoint",
+            capabilities=frozenset({CAP_LOCAL_FS}),
+        )
+        restored = Command.from_metadata(command.metadata())
+        assert restored.name == "mode"
+        assert restored.side == "server"
+        assert restored.aliases == ("m",)
+        assert restored.while_streaming == "block"
+        assert restored.persists == "checkpoint"
+        assert restored.capabilities == frozenset({CAP_LOCAL_FS})
+        assert restored.handler is None
+
     def test_metadata_shape(self):
         command = Command(
             name="mode",

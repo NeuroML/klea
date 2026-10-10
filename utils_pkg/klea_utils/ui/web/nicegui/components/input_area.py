@@ -17,7 +17,7 @@ from nicegui.events import GenericEventArguments
 
 from klea_utils.llm import missing_required_roles
 from klea_utils.ui.web.nicegui.client import create_chat_on_server
-from klea_utils.ui.web.nicegui.components import stream
+from klea_utils.ui.web.nicegui.components import commands, stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
 from klea_utils.ui.web.nicegui.state import (
@@ -108,7 +108,16 @@ def attach_input(ctx: PageContext) -> None:
 
         def send() -> None:
             """Append the current input text as a user message, then stream."""
-            if not text.value.strip():
+            raw = text.value
+            if not raw.strip():
+                return
+            # Session commands (ADR-0047): a client/unknown command is handled
+            # locally and never sent; a server command falls through to the send
+            # path below, where the graph's command node runs it.  Handled
+            # before the setup/streaming guards so /help works even when models
+            # are not configured.
+            if commands.handle_command(ctx, raw):
+                text.value = ""
                 return
             if _awaiting_input():
                 # The status-region form is the input while paused; ignore a
@@ -132,7 +141,7 @@ def attach_input(ctx: PageContext) -> None:
                 logger.debug("send ignored: a run is already streaming")
                 return
             stamp = datetime.now().astimezone().strftime("%X")
-            query = text.value
+            query = raw
             text.value = ""
 
             current = ctx.chat_id

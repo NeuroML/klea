@@ -130,6 +130,7 @@ def _add_css_overrides() -> None:
         "    --klea-surface: #e0e0e0;\n"
         "    --klea-bubble-user: #e8f0fe;\n"
         "    --klea-bubble-tool: #f0f0f0;\n"
+        "    --klea-bubble-system: #eef1f6;\n"
         "    --klea-attention: #e65100;\n"
         "  }\n"
         "  body.body--dark {\n"
@@ -149,6 +150,7 @@ def _add_css_overrides() -> None:
         "    --klea-surface: #161616;\n"
         "    --klea-bubble-user: #1e2a3a;\n"
         "    --klea-bubble-tool: #262626;\n"
+        "    --klea-bubble-system: #23272e;\n"
         "    --klea-attention: #ffb74d;\n"
         "  }\n"
         # Neutral interactive icons and the inactive segmented option; the
@@ -176,6 +178,7 @@ def _add_css_overrides() -> None:
         "  .chat-bubble--user { background: var(--klea-bubble-user); }\n"
         "  .chat-bubble--agent { background: transparent; }\n"
         "  .chat-bubble--tool { background: var(--klea-bubble-tool); }\n"
+        "  .chat-bubble--system { background: var(--klea-bubble-system); }\n"
         # Quasar's grey text classes use fixed literals, so map the ones we use
         # onto the tokens in dark mode.
         "  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }\n"

@@ -38,6 +38,8 @@ class FakeBackend:
         self.chat_models: dict = {}
         self.credentials: list[dict] = []
         self.catalogue: dict = {"providers": [], "models": []}
+        #: Server-side session-command catalogue (``GET /commands``, ADR-0047).
+        self.commands: list[dict] = []
         #: Events returned by ``POST /query/stream`` as an SSE body.
         self.stream_events: list[dict] = []
         self.requests: list[httpx.Request] = []
@@ -58,6 +60,8 @@ class FakeBackend:
             )
         if parts == ["query", "cancel"] and method == "POST":
             return httpx.Response(204)
+        if parts == ["commands"] and method == "GET":
+            return httpx.Response(200, json={"commands": self.commands})
         if parts and parts[0] == "credentials":
             return httpx.Response(200, json=self.credentials)
         if parts and parts[0] == "chat":

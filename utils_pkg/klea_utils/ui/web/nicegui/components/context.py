@@ -92,6 +92,11 @@ class PageContext:
     # app UI writes it; the shared stream driver forwards it.
     query_extra: dict[str, Any] = field(default_factory=dict)
 
+    #: Merged command catalogue (the frontend's client commands plus the
+    #: server catalogue fetched from ``GET /commands``); ``None`` until the
+    #: initial load fetches it (ADR-0047).
+    command_catalogue: Any = None
+
     # Element references (filled by components at attach time)
     dark: Any = None
     left_drawer: Any = None

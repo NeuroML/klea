@@ -10,7 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from nicegui import ui
 
 #: Recognised transcript roles; anything else falls back to ``agent``.
-_ROLES = ("user", "agent", "tool")
+_ROLES = ("user", "agent", "tool", "system")
 
 #: MIME types rendered as a unified diff (``text/x-diff`` is the de-facto
 #: type; ``text/x-patch`` is git's).  Rendered as a fenced block, which
@@ -84,8 +84,8 @@ class ChatBubble(ui.element):
 
         :param text: Message text (markdown); also the fallback body.
         :param stamp: Timestamp string.
-        :param role: ``"user"``, ``"agent"`` or ``"tool"``; unknown values
-            fall back to ``"agent"``.
+        :param role: ``"user"``, ``"agent"``, ``"tool"`` or ``"system"`` (a
+            client command's output); unknown values fall back to ``"agent"``.
         :param collapsed: ``True`` if the text is collapsed to 4 lines.
         :param idx: Message index (used for expand/collapse tracking).
         :param header: Optional small bold header, e.g. a tool block's

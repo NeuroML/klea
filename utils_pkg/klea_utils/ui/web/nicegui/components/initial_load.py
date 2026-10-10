@@ -18,7 +18,8 @@ from nicegui import background_tasks, ui
 
 from klea_utils.api.utils import check_api_is_ready
 from klea_utils.llm import missing_required_roles
-from klea_utils.ui.web.nicegui.client import hydrate_chats
+from klea_utils.ui.web.nicegui.client import fetch_commands, hydrate_chats
+from klea_utils.ui.web.nicegui.components.commands import build_catalogue
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import user_storage_or_none
 from klea_utils.ui.web.nicegui.state import chats, missing_credentials
@@ -93,6 +94,17 @@ def attach_initial_load(ctx: PageContext) -> None:
             logger.debug("hydrate done, chats keys=%s", list(chats.keys()))
         except Exception as e:  # noqa: BLE001
             logger.warning("hydrate failed: %s", e)
+
+        # Fetch the server-side command catalogue and merge it with the
+        # frontend's own client commands (ADR-0047).
+        try:
+            server_commands = await fetch_commands(ctx.server_url)
+            ctx.command_catalogue = build_catalogue(server_commands)
+            logger.debug(
+                "command catalogue: %d server command(s)", len(server_commands)
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("command catalogue fetch failed: %s", e)
 
         # Per-session default models: needed for the first-run CTA and the
         # status pane.  Fetch before rendering so the CTA shows immediately.
