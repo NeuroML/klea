@@ -62,6 +62,7 @@ variable and never need paired light/dark rules.
 | `--klea-surface` | `#e0e0e0` | `#161616` | bar surfaces (footer); Quasar sets no footer background |
 | `--klea-bubble-user` | `#e8f0fe` | `#1e2a3a` | user transcript block surface |
 | `--klea-bubble-tool` | `#f0f0f0` | `#262626` | tool transcript block surface |
+| `--klea-bubble-system` | `#eef1f6` | `#23272e` | system transcript block surface (a client command's output) |
 | `--q-primary` | `#1976D2` (Quasar default) | `#64b5f6` | primary brand colour |
 | `--q-dark-page` | n/a (light theme) | `#1d1d1d` | dark page background, set to match the `q-dark` panels/drawers |
 
@@ -103,10 +104,11 @@ themes:
   `.q-footer` has no background of its own, so the app pins one.  The
   shared footer component stacks the disclaimer and the footer text on this
   one line.
-- `.chat-bubble--user` / `.chat-bubble--agent` / `.chat-bubble--tool` -- the
-  full-width transcript block surfaces (`chat_bubble.py`): user tinted, agent
-  transparent, tool neutral.  Code/diff blocks keep the `ui.code` box;
-  markdown bodies add `chat-markdown` with pre-wrap.
+- `.chat-bubble--user` / `.chat-bubble--agent` / `.chat-bubble--tool` /
+  `.chat-bubble--system` -- the full-width transcript block surfaces
+  (`chat_bubble.py`): user tinted, agent transparent, tool neutral, system (a
+  client command's output) a slightly different neutral.  Code/diff blocks
+  keep the `ui.code` box; markdown bodies add `chat-markdown` with pre-wrap.
 - `.chat-input` -- the chat textarea: `0.5rem` corner radius (not Quasar's
   pill) and a vertical resize handle.
 - `.nicegui-code-noformat` -- strips the `ui.code` wrapper box/border/shadow
