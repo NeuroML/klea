@@ -126,6 +126,11 @@ Last updated: 2026-10-09.
 - Sphinx build: importing `mcp` / `fastmcp` fails only inside the Sphinx
   process (not reproduced in isolation; 2026-10-02 session).  Unresolved;
   revisit if the MCP autodoc paths must build.
+- Session deletion cleanup: `DELETE /chat/{user_id}/{chat_id}` removes the
+  store row but **not** the chat's LangGraph checkpoint (only
+  `DELETE /chat/{user_id}` purges checkpoints via `adelete_thread`).  Fix the
+  per-chat delete to purge its checkpoint, and -- once the session workspace
+  lands (ADR-0047) -- clear `{user_data_dir}/sessions/{user_id}/{chat_id}/`.
 
 ## Configuration / UX
 
@@ -182,11 +187,6 @@ Last updated: 2026-10-09.
     tools; `run_command` is advisory, not a sandbox.  A per-session root must
     let the operator bound what a session may choose, not let the model name an
     arbitrary root.
-- Slash-command input (general session-command framework).  Introduce
-  `/`-commands handled in the web (and TUI) frontends as an extensible
-  framework -- `/cd` for the session root above, plus potential `/mode`,
-  `/access`, `/model`, etc. -- rather than a one-off command.  The framework is
-  frontend work; `/cd` depends on the session-root capability.
 
 ## Frontends / TUI
 
@@ -216,6 +216,19 @@ Last updated: 2026-10-09.
   the data dir *and* the log file name, so the server, web and TUI cannot share
   one `app_name` without colliding on `{app_name}.log`.  Not needed now; settle
   the design (likely an ADR) before starting.
+- Session-command framework (ADR-0047; catalogue in
+  `system/session-commands.md`): a `/`-command surface shared by all frontends
+  (web first; the temporary REPL is not touched).  Commands are user-invoked
+  tool calls -- UI-local ones run in the frontend, graph ones in a command node
+  (mirroring the tool picker/caller) right after `Initializing`; graph-state
+  changes are checkpointed (no `sessions.db` divergence).  A universal
+  catalogue is served via `GET /commands`; each frontend filters by capability.
+  Phases: P1 framework (shared core, `GET /commands`, web routing + `/`-menu,
+  `/help`, documented stubs); P2 graph command node + `/mode`,`/access` (unify
+  with the selectors); P3 session workspace + `/file`,`/upload`,`/webfetch` +
+  the chat-delete lifecycle fix; P4 `/run`,`/compact`,`/plan`,`/init`,`/export`,
+  `/skills`.  `/cwd` (project root) reuses the framework once the
+  per-session-root ADR lands.  `/runlocal` is intentionally omitted.
 
 ## Streaming / tool UX
 
