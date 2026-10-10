@@ -26,13 +26,23 @@ KEYED_SERVICE_ORDER = ("brave", "serper")
 
 
 class SearchSession(Protocol):
-    """Minimal HTTP interface the search transport needs.
+    """Minimal HTTP interface the search providers need.
 
     Kept structural and distinct from the broader MCP ``SessionLike`` so
-    provider adapters and their tests only need an HTTP ``post`` (the hosted
-    search endpoints are POST-only JSON-RPC); :class:`httpx.AsyncClient`
-    satisfies it.
+    provider adapters and their tests only need what they use: ``post`` for
+    the hosted MCP JSON-RPC endpoints and the Serper REST API, and ``get``
+    for the Brave REST API.  :class:`httpx.AsyncClient` satisfies both.
     """
+
+    async def get(
+        self,
+        url: str,
+        *,
+        params: Any | None = None,
+        headers: Any | None = None,
+        timeout: Any = None,
+        follow_redirects: bool = False,
+    ) -> Any: ...
 
     async def post(
         self,
