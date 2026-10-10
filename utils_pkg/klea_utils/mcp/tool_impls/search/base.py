@@ -2,28 +2,55 @@
 """
 Shared types and the provider protocol for web search.
 
-File: klea_utils/search/base.py
+File: klea_utils/mcp/tool_impls/search/base.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from typing import Protocol
+from typing import Any, Protocol
 
-from klea_utils.mcp.tool_impls.session import SessionLike
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 #: Default provider priority: the keyless hosted services, best-quality
 #: first.  Queries are tried in this order with fallback to the next on a
-#: rate limit or error (see :class:`~klea_utils.search.resolver`).
+#: rate limit or error (see :class:`~klea_utils.mcp.tool_impls.search.resolver`).
 SERVICE_ORDER = ("tavily", "exa", "parallel", "firecrawl")
 
 #: Providers that require an API key.  They are appended after the keyless
 #: pool only when their key is present in the environment.
 KEYED_SERVICE_ORDER = ("brave", "serper")
+
+
+class SearchProviderError(Exception):
+    """Raised by a provider adapter when a search request fails.
+
+    The resolver catches this (and any other exception) and falls back to
+    the next provider in the pool.
+    """
+
+
+class SearchSession(Protocol):
+    """Minimal HTTP interface the search transport needs.
+
+    Kept structural and distinct from the broader MCP ``SessionLike`` so
+    provider adapters and their tests only need an HTTP ``post`` (the hosted
+    search endpoints are POST-only JSON-RPC); :class:`httpx.AsyncClient`
+    satisfies it.
+    """
+
+    async def post(
+        self,
+        url: str,
+        *,
+        json: Any | None = None,
+        headers: Any | None = None,
+        timeout: Any = None,
+        follow_redirects: bool = False,
+    ) -> Any: ...
 
 
 class SearchResult(BaseModel):
@@ -44,7 +71,7 @@ class SearchResult(BaseModel):
 class SearchProvider(Protocol):
     """Protocol for a web search backend.
 
-    :mod:`klea_utils.search.providers` implements this; the resolver uses
+    :mod:`klea_utils.mcp.tool_impls.search.providers` implements this; the resolver uses
     only ``name``, :meth:`is_available`, and :meth:`search`.
     """
 
@@ -57,7 +84,7 @@ class SearchProvider(Protocol):
 
     async def search(
         self,
-        session: SessionLike | None,
+        session: SearchSession | None,
         query: str,
         max_results: int,
         timeout: float,
