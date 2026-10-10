@@ -181,7 +181,8 @@ The bundled tools server
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 Klea ships a set of common tools (web fetch/search, file list/read/search/edit,
-download) as a shared MCP server in ``klea_utils.mcp.server``.  Applications
+download) as a shared MCP server in ``klea_utils.mcp.server``.  The individual
+bundled tools are indexed on the :doc:`tools` page.  Applications
 auto-launch it as a stdio subprocess by default, so users get the common
 tools with no extra setup; the same server can be run standalone over HTTP
 via the ``klea-mcp`` CLI for remote deployments.
