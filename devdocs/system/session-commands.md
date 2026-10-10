@@ -49,8 +49,12 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
   forwarded as the query.  A client command's output is rendered as a
   `system` block in the active chat, creating one if the command is the
   session's first input (a chat is the transcript host, so the output is not
-  a transient notification).  A `/`-menu over the merged catalogue provides
-  autocompletion and filters by `capabilities`.
+  a transient notification).  A suggestion list over the merged catalogue
+  (filtered by `capabilities`) autocompletes as the user types `/prefix` and
+  inserts a command when an item is clicked.  Keyboard navigation (Up/Down,
+  Tab, Escape) is deliberately omitted: typing the command and pressing Enter
+  is sufficient, and an unconditional Vue key modifier would break Tab focus
+  order out of the chat box.
 * Backend: `chat_core` recognises a known leading-`/` graph command; the
   graph command node (conditional edge right after `Initializing`, then
   `END`) resolves, dispatches to the app registry, mutates state, sets
