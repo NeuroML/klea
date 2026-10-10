@@ -87,8 +87,11 @@ def attach_mode_ui(ctx: PageContext) -> None:
         # Keep the request sent with the next query aligned with this chat.
         # Needed because ``Mode`` is a whole-object state field (no reducer):
         # an empty query_extra after a reload would send the server default
-        # and silently reset the checkpointed mode on the next query.
-        if ctx.query_extra.get("mode") != requested:
+        # and silently reset the checkpointed mode on the next query.  Only
+        # sync once a chat exists: before that an empty query_extra must stay
+        # empty, so a default is not seeded (which ``_adopt_pending`` would
+        # then stamp as a real per-chat preference).
+        if current_chat and ctx.query_extra.get("mode") != requested:
             ctx.query_extra["mode"] = requested
             logger.debug(
                 "user=%s chat=%s sync query_extra mode=%s",
@@ -116,5 +119,19 @@ def attach_mode_ui(ctx: PageContext) -> None:
             chat["mode_pref"] = pending
             logger.debug("adopted pending mode=%s for new chat", pending)
 
+    def _sync_from_context(chat: dict) -> None:
+        """Reconcile this chat's preference with the checkpointed mode.
+
+        A ``/mode`` graph command changes the checkpointed state, which is
+        streamed back as a ``context`` event.  Without this the stale
+        ``mode_pref`` (which ``resolve_chat_choice`` prefers over the context)
+        would keep the selector on the old mode.
+        """
+        requested = (chat.get("context") or {}).get("requested")
+        if requested in MODES:
+            chat["mode_pref"] = requested
+            logger.debug("synced mode_pref=%s from context", requested)
+
     ctx.status_extras.append(_render)
     ctx.chat_created_hooks.append(_adopt_pending)
+    ctx.context_hooks.append(_sync_from_context)
