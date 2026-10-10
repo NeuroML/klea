@@ -233,11 +233,41 @@ Last updated: 2026-10-10.
   changes are checkpointed (no `sessions.db` divergence).  A universal
   catalogue is served via `GET /commands`; each frontend filters by capability.
   Phases: P1 framework (shared core, `GET /commands`, web routing + `/`-menu,
-  `/help`, documented stubs); P2 graph command node + `/mode`,`/access` (unify
-  with the selectors); P3 session workspace + `/file`,`/upload`,`/webfetch` +
-  the chat-delete lifecycle fix; P4 `/run`,`/compact`,`/plan`,`/init`,`/export`,
-  `/skills`.  `/cwd` (project root) reuses the framework once the
-  per-session-root ADR lands.  `/runlocal` is intentionally omitted.
+  `/help`, documented stubs) and P2 (graph command node + `/mode`,`/access`,
+  unified with the selectors) are **done**; P3 and P4 remain (below).
+  `/cwd` (project root) reuses the framework once the per-session-root ADR
+  lands.  `/runlocal` is intentionally omitted.
+
+- Session workspace + attachment commands (`/file`, `/upload`, `/webfetch`;
+  P3 of ADR-0047): **deferred -- decide the use cases before implementing.**
+  Do not build these until we agree what they are *for*; they otherwise
+  duplicate existing tools (`/file` vs `read_file`, `/webfetch` vs
+  `web_fetch`/`download_file`).  Strongest candidate: the ChatGPT-style
+  "attach a document" flow (the user attaches a PDF -- local, uploaded, or
+  fetched -- and the agent analyses it), which also fills a real gap: the
+  agent cannot parse a PDF today (`read_file` is binary-blind; Docling lives
+  in the batch `StoresBuilder`, not a single-file helper).  Design options:
+  (A) Docling-convert the file to Markdown in the session workspace and let
+  the agent read it on demand via `read_file`/`grep` -- works now, no prompt
+  bloat, token-friendly; (B) chunk/embed into a store and retrieve -- needs
+  the ADR-0029 retrieval phase (not built; the agent has no retrieval node);
+  (C) put the text in the always-rendered `Discovery` context -- simplest but
+  bloats every Planner/answer prompt, which is why the "save tokens"
+  rationale argues *against* it.  Open questions: pick an option; keep the
+  original file alongside the converted text; add a small `Discovery` pointer
+  so the agent knows the attachment exists; `/upload` needs the frontend
+  `file_picker` capability plus an upload widget; the `[ingest]` extra
+  (Docling) becomes a dependency.  Coupled fix: per-chat `DELETE` must purge
+  the LangGraph checkpoint and clear the workspace (see Session deletion
+  cleanup).
+
+- Remaining session commands (P4 of ADR-0047): `/run`, `/compact`, `/plan`,
+  `/init`, `/export`, `/skills`.  `/run` (server-side `run_command`, no chat
+  LLM round-trip) is the cleanest token-free command; `/compact` uses the
+  summarise node to shorten memory; `/plan` enters the existing HITL plan
+  review; `/init` writes project guidance to `AGENTS.md`; `/skills` is the
+  custom prompt-template surface.  Client-only commands (`/new`, `/sessions`,
+  `/rename`, `/model`, `/theme`, `/commands`) are small, frontend-owned wins.
 
 ## Streaming / tool UX
 

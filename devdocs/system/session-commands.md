@@ -102,7 +102,10 @@ and the menu (`CommandRegistry.available`).
 
 Planned server commands (present in code as `implemented=False`, not
 published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/plan`,
-`/init`.
+`/init`.  The attachment trio (`/file`, `/upload`, `/webfetch`) plus the
+session workspace is **deferred pending a use-case decision** -- see the
+backlog for the options (convert-to-workspace vs ingest-and-retrieve vs
+in-prompt).
 
 ### Client commands (frontend-owned)
 
