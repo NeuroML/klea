@@ -8,11 +8,19 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import json
+
 import httpx
 import klea_utils.api.utils as api_utils
 import pytest
-from klea_utils.mcp.tool_impls.search.base import SearchProviderError
-from klea_utils.mcp.tool_impls.search.providers import (
+from klea_utils.mcp.tool_impls.search.base import SERVICE_ORDER
+from klea_utils.mcp.tool_impls.search.errors import SearchProviderError
+from klea_utils.mcp.tool_impls.search.exa import ExaProvider
+from klea_utils.mcp.tool_impls.search.firecrawl import FirecrawlProvider
+from klea_utils.mcp.tool_impls.search.hosted import MAX_SNIPPET_CHARS
+from klea_utils.mcp.tool_impls.search.parallel import ParallelProvider
+from klea_utils.mcp.tool_impls.search.tavily import TavilyProvider
+from klea_utils.mcp.tool_impls.search.transport import (
     _iter_sse_payloads,
     _mcp_call,
     _user_agent,
@@ -182,3 +190,159 @@ async def test_mcp_call_retries_transient_status():
     result = await _mcp_call(session, "https://svc.example/mcp", "web_search", {})
     assert result == {"content": []}
     assert session.attempts == 3
+
+
+def _mcp_body(text: str) -> str:
+    """Wrap *text* as the JSON-RPC result of a tools/call MCP response."""
+    return json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "result": {"content": [{"type": "text", "text": text}]},
+        }
+    )
+
+
+def test_hosted_provider_names_match_service_order():
+    assert SERVICE_ORDER == ("tavily", "exa", "parallel", "firecrawl")
+    for cls in (TavilyProvider, ExaProvider, ParallelProvider, FirecrawlProvider):
+        assert cls().is_available() is True
+
+
+async def test_tavily_keyless_parses_results(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    payload = json.dumps(
+        {
+            "results": [
+                {"url": "https://a", "title": "A", "content": "snip", "score": 1.5}
+            ]
+        }
+    )
+    session = _FakePostSession(_FakeResponse(text=_mcp_body(payload)))
+    results = await TavilyProvider().search(session, "q", 5)
+    assert len(results) == 1
+    assert (results[0].url, results[0].title, results[0].snippet) == (
+        "https://a",
+        "A",
+        "snip",
+    )
+    assert results[0].score == 1.5
+    _, _, kwargs = session.calls[0]
+    assert kwargs["headers"]["X-Tavily-Access-Mode"] == "keyless"
+    assert "Authorization" not in kwargs["headers"]
+    assert kwargs["json"]["params"] == {
+        "name": "tavily_search",
+        "arguments": {"query": "q", "max_results": 5},
+    }
+
+
+async def test_tavily_keyed_uses_bearer(monkeypatch):
+    monkeypatch.setenv("TAVILY_API_KEY", "tvly-secret")
+    session = _FakePostSession(_FakeResponse(text=_mcp_body('{"results": []}')))
+    await TavilyProvider().search(session, "q", 3)
+    headers = session.calls[0][2]["headers"]
+    assert headers["Authorization"] == "Bearer tvly-secret"
+    assert "X-Tavily-Access-Mode" not in headers
+
+
+async def test_exa_keyless_parses_text_blocks(monkeypatch):
+    monkeypatch.delenv("EXA_API_KEY", raising=False)
+    text = (
+        "Title: First\nURL: https://one\nPublished: 2024-01-02\nAuthor: A\n"
+        "Highlights:\nExcerpt one\n\n"
+        "Title: Second\nURL: https://two\nPublished: N/A\nAuthor: B\n"
+        "Highlights:\nExcerpt two"
+    )
+    session = _FakePostSession(_FakeResponse(text=_mcp_body(text)))
+    results = await ExaProvider().search(session, "q", 2)
+    assert [r.url for r in results] == ["https://one", "https://two"]
+    assert results[0].title == "First"
+    assert results[0].published == "2024-01-02"
+    assert "Excerpt one" in results[0].snippet
+    assert results[1].published is None
+    assert "x-api-key" not in session.calls[0][2]["headers"]
+    assert session.calls[0][2]["json"]["params"]["arguments"] == {
+        "query": "q",
+        "numResults": 2,
+        "type": "auto",
+    }
+
+
+async def test_exa_keyed_uses_api_key_header(monkeypatch):
+    monkeypatch.setenv("EXA_API_KEY", "exa-secret")
+    body = _mcp_body("Title: T\nURL: https://u\nPublished: N/A\nHighlights:\nx")
+    session = _FakePostSession(_FakeResponse(text=body))
+    await ExaProvider().search(session, "q", 1)
+    assert session.calls[0][2]["headers"]["x-api-key"] == "exa-secret"
+
+
+async def test_parallel_keyed_parses_excerpts(monkeypatch):
+    monkeypatch.setenv("PARALLEL_API_KEY", "par-secret")
+    payload = json.dumps(
+        {
+            "results": [
+                {
+                    "url": "https://p",
+                    "title": "P",
+                    "publish_date": "2025-01-01",
+                    "excerpts": ["e1", "e2"],
+                }
+            ]
+        }
+    )
+    session = _FakePostSession(_FakeResponse(text=_mcp_body(payload)))
+    results = await ParallelProvider().search(session, "q", 3)
+    assert results[0].url == "https://p"
+    assert results[0].snippet == "e1\ne2"
+    assert results[0].published == "2025-01-01"
+    _, _, kwargs = session.calls[0]
+    assert kwargs["headers"]["Authorization"] == "Bearer par-secret"
+    assert kwargs["json"]["params"]["arguments"] == {
+        "objective": "q",
+        "search_queries": ["q"],
+    }
+
+
+async def test_parallel_keyless_has_no_auth(monkeypatch):
+    monkeypatch.delenv("PARALLEL_API_KEY", raising=False)
+    session = _FakePostSession(_FakeResponse(text=_mcp_body('{"results": []}')))
+    await ParallelProvider().search(session, "q", 3)
+    assert "Authorization" not in session.calls[0][2]["headers"]
+
+
+async def test_firecrawl_parses_and_keyless(monkeypatch):
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    payload = json.dumps(
+        {
+            "success": True,
+            "data": {"web": [{"url": "https://f", "title": "F", "description": "d"}]},
+        }
+    )
+    session = _FakePostSession(_FakeResponse(text=_mcp_body(payload)))
+    results = await FirecrawlProvider().search(session, "q", 4)
+    assert (results[0].url, results[0].snippet) == ("https://f", "d")
+    _, _, kwargs = session.calls[0]
+    assert kwargs["json"]["params"]["arguments"] == {"query": "q", "limit": 4}
+    assert "Authorization" not in kwargs["headers"]
+
+
+async def test_firecrawl_keyed_uses_bearer(monkeypatch):
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-secret")
+    session = _FakePostSession(_FakeResponse(text=_mcp_body('{"data": {"web": []}}')))
+    await FirecrawlProvider().search(session, "q", 4)
+    assert session.calls[0][2]["headers"]["Authorization"] == "Bearer fc-secret"
+
+
+async def test_snippet_is_capped(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    payload = json.dumps({"results": [{"url": "https://a", "content": "x" * 5000}]})
+    session = _FakePostSession(_FakeResponse(text=_mcp_body(payload)))
+    results = await TavilyProvider().search(session, "q", 1)
+    assert len(results[0].snippet) == MAX_SNIPPET_CHARS
+
+
+async def test_non_json_provider_content_raises(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    session = _FakePostSession(_FakeResponse(text=_mcp_body("not json")))
+    with pytest.raises(SearchProviderError):
+        await TavilyProvider().search(session, "q", 1)
