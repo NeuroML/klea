@@ -16,7 +16,7 @@ from klea_agent.commands import build_agent_commands
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import KleaAgentState
 from klea_utils.commands.common import Command, CommandRegistry
-from klea_utils.commands.graph import GraphCommandResult, graph_command_router
+from klea_utils.commands.graph import GraphCommandResult, command_query_router
 from klea_utils.llm import LLMModel
 from klea_utils.nodes.command import CommandNode
 from langchain_core.messages import HumanMessage
@@ -47,12 +47,12 @@ class TestCatalogue:
         assert mode.implemented is True
         assert "mode" in handlers
 
-    def test_client_commands_present_but_stubs(self):
+    def test_client_commands_are_not_in_the_graph_catalogue(self):
+        # The backend cannot know client-side commands (that would be a
+        # circular dependency); the frontends own them and handle them locally.
         registry, _ = build_agent_commands(source_available=False)
-        help_command = registry.get("help")
-        assert help_command is not None
-        assert help_command.side == "client"
-        assert help_command.implemented is False
+        assert registry.get("help") is None
+        assert registry.get("model") is None
 
     def test_runlocal_is_omitted(self):
         registry, _ = build_agent_commands(source_available=False)
@@ -93,6 +93,26 @@ class TestNodeBehaviour:
         updates = await node.execute(_state("/access full"))
         assert "not implemented" in updates["message_for_user"]
 
+    async def test_unknown_command_rejected(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/nope"))
+        assert "Unknown command" in updates["message_for_user"]
+        # The command turn is dropped from the message history.
+        assert updates["messages"] == []
+
+    async def test_client_command_is_unknown_to_the_graph(self):
+        # A client-side command is not in the graph catalogue, so the graph
+        # treats it as unknown (the frontend intercepts it before this point).
+        node = _agent_node([])
+        updates = await node.execute(_state("/help"))
+        assert "Unknown command" in updates["message_for_user"]
+
+    async def test_reject_emits_no_inspect(self):
+        events: list = []
+        node = _agent_node(events)
+        await node.execute(_state("/nope"))
+        assert not any(e.get("type") == "inspect" for e in events)
+
     async def test_inspect_event_names_the_command(self):
         events: list = []
         node = _agent_node(events)
@@ -124,25 +144,20 @@ class TestNodeBehaviour:
 
 
 class TestRouter:
-    def test_server_command_routes_to_node(self):
-        registry, _ = build_agent_commands(source_available=False)
-        assert graph_command_router(registry, _state("/mode scientific")) == "command"
+    def test_command_query_routes_to_node(self):
+        assert command_query_router(_state("/mode scientific")) == "command"
 
-    def test_stub_server_command_still_routes(self):
-        registry, _ = build_agent_commands(source_available=False)
-        assert graph_command_router(registry, _state("/run ls")) == "command"
-
-    def test_client_command_continues(self):
-        registry, _ = build_agent_commands(source_available=False)
-        assert graph_command_router(registry, _state("/help")) == "continue"
+    def test_any_leading_slash_routes_to_node(self):
+        # The router only decides command-vs-general; the node validates.
+        assert command_query_router(_state("/run ls")) == "command"
+        assert command_query_router(_state("/help")) == "command"
+        assert command_query_router(_state("/nope")) == "command"
 
     def test_plain_query_continues(self):
-        registry, _ = build_agent_commands(source_available=False)
-        assert graph_command_router(registry, _state("hello there")) == "continue"
+        assert command_query_router(_state("hello there")) == "continue"
 
-    def test_unknown_command_continues(self):
-        registry, _ = build_agent_commands(source_available=False)
-        assert graph_command_router(registry, _state("/nope")) == "continue"
+    def test_escaped_literal_slash_continues(self):
+        assert command_query_router(_state("//not a command")) == "continue"
 
 
 @pytest.mark.asyncio

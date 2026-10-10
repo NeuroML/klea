@@ -18,7 +18,7 @@ from typing import Any, final, override
 
 from fastmcp.client.client import CallToolResult
 from fastmcp.mcp_config import MCPConfig
-from klea_utils.commands.graph import graph_command_router
+from klea_utils.commands.graph import command_query_router
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
@@ -319,15 +319,16 @@ class KleaAgent(BaseLangGraph):
         return "inform" if state.mode.note else "proceed"
 
     async def _command_router(self, state: KleaAgentState) -> str:
-        """Route a known server-side ``/command`` to the command node (ADR-0047).
+        """Route a command query to the command node (ADR-0047).
 
-        Delegates to :func:`graph_command_router`; only commands with
-        ``side == "server"`` are handled here (client-side commands are the
-        frontend's responsibility).
+        A single decision: a query with a leading ``/`` (command syntax) goes
+        to the command node, which validates and dispatches or rejects;
+        anything else continues to the normal path.  Delegates to
+        :func:`command_query_router`.
 
         :returns: ``"command"`` or ``"continue"``.
         """
-        return graph_command_router(self._command_registry, state)
+        return command_query_router(state)
 
     @override
     def context_snapshot(self, state: dict[str, Any]) -> dict[str, Any] | None:

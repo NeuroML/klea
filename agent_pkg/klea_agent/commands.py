@@ -2,10 +2,13 @@
 """
 Agent session-command catalogue and graph handlers (ADR-0047).
 
-Builds the agent's :class:`CommandRegistry` (the catalogue shared with the
-frontends via ``GET /commands``) and the graph handlers the command node
-dispatches to.  ``/mode`` is the first implemented graph command; the rest are
-documented stubs that reply "not implemented yet" until each lands.  See
+Builds the agent's **server-side** command catalogue (served to frontends via
+``GET /commands``) and the graph handlers the command node dispatches to.
+Client-side commands (``/model``, ``/help``, ...) belong to the frontends, not
+here: the backend cannot know them without a circular dependency, so a
+client-side command reaching the graph is simply unknown.  ``/mode`` is the
+first implemented graph command; the rest are documented stubs that reply
+"not implemented yet" until each lands.  See
 ``devdocs/system/session-commands.md``.
 
 File: klea_agent/commands.py
@@ -25,11 +28,10 @@ from klea_agent.schemas import Mode
 
 logger = logging.getLogger(__name__)
 
-#: Catalogue entries that are documented but not implemented yet.  Registered
-#: so ``GET /commands`` and ``/help`` are complete; the command node replies
-#: "not implemented yet" for the server-side ones.
+#: Server-side commands that are documented but not implemented yet.
+#: Registered so the command node can reply "not implemented yet" to a direct
+#: client; the public catalogue filters them out (``CommandRegistry.available``).
 _STUB_COMMANDS: tuple[Command, ...] = (
-    # Server-side (graph) stubs.
     Command(
         name="access",
         summary="Show or set the tool access level",
@@ -105,67 +107,6 @@ _STUB_COMMANDS: tuple[Command, ...] = (
         klass="workflow",
         persists="message",
         while_streaming="block",
-        implemented=False,
-    ),
-    # Client-side (frontend) stubs.
-    Command(
-        name="help",
-        summary="List commands, or show one command's usage",
-        side="client",
-        arg_hint="[command]",
-        implemented=False,
-    ),
-    Command(
-        name="commands",
-        summary="List the command catalogue",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="new",
-        summary="Start a new chat",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="sessions",
-        summary="List and switch sessions",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="rename",
-        summary="Rename the current chat",
-        side="client",
-        arg_hint="<name>",
-        implemented=False,
-    ),
-    Command(
-        name="export",
-        summary="Export the transcript to Markdown",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="model",
-        summary="Open the model picker",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="theme",
-        summary="Choose the web theme",
-        side="client",
-        implemented=False,
-    ),
-    Command(
-        name="upload",
-        summary="Attach a file from your machine to the session",
-        side="client",
-        klass="session-state",
-        persists="checkpoint",
-        capabilities=frozenset({"file_picker", "local_fs"}),
-        arg_hint="[path]",
         implemented=False,
     ),
 )
