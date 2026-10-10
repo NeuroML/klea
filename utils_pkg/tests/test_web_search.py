@@ -13,6 +13,7 @@ import json
 import httpx
 import klea_utils.api.utils as api_utils
 import pytest
+from klea_utils.mcp.tool_impls import web_search as web_search_module
 from klea_utils.mcp.tool_impls.search.base import SERVICE_ORDER, SearchResult
 from klea_utils.mcp.tool_impls.search.brave import BraveProvider
 from klea_utils.mcp.tool_impls.search.errors import SearchProviderError
@@ -27,6 +28,10 @@ from klea_utils.mcp.tool_impls.search.transport import (
     _iter_sse_payloads,
     _mcp_call,
     _user_agent,
+)
+from klea_utils.mcp.tool_impls.web_search import (
+    DEFAULT_MAX_RESULTS,
+    web_search,
 )
 
 
@@ -559,3 +564,50 @@ async def test_resolver_restricts_to_named_providers():
     assert out["provider"] == "b"
     assert first.calls == 0
     assert second.calls == 1
+
+
+class _FakeResolver:
+    """Records calls and returns a canned response (for tool-impl tests)."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def search(self, session, query, max_results, providers=None):
+        self.calls.append((session, query, max_results, providers))
+        return {
+            "query": query,
+            "provider": "fake",
+            "results": [{"url": "https://x", "title": "X", "snippet": ""}],
+            "error": "",
+        }
+
+
+async def test_web_search_delegates_to_resolver(monkeypatch):
+    fake = _FakeResolver()
+    monkeypatch.setattr(web_search_module, "WebSearchResolver", lambda: fake)
+    out = await web_search(None, "hello", max_results=3, providers=["tavily"])
+    assert out["provider"] == "fake"
+    assert out["results"][0]["url"] == "https://x"
+    assert fake.calls[0] == (None, "hello", 3, ["tavily"])
+
+
+async def test_web_search_uses_default_max_results(monkeypatch):
+    fake = _FakeResolver()
+    monkeypatch.setattr(web_search_module, "WebSearchResolver", lambda: fake)
+    await web_search(None, "hello")
+    assert fake.calls[0][2] == DEFAULT_MAX_RESULTS
+    assert fake.calls[0][3] is None
+
+
+async def test_web_search_empty_query_errors():
+    out = await web_search(None, "   ")
+    assert out["provider"] == ""
+    assert out["error"] == "Empty search query."
+
+
+async def test_web_search_no_session_all_providers_fail(monkeypatch):
+    _clear_search_keys(monkeypatch)
+    out = await web_search(None, "hello")
+    assert out["provider"] == ""
+    assert out["results"] == []
+    assert out["error"]
