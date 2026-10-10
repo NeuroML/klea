@@ -9,6 +9,19 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from nicegui import ui
+from nicegui.testing.user_interaction import UserInteraction
+
+
+def _suggestion_items(user, usage: str) -> list:
+    """Autocomplete items whose label text contains *usage*."""
+    return [
+        item
+        for item in user.find(ui.item).elements
+        if any(
+            usage in (getattr(descendant, "text", "") or "")
+            for descendant in item.descendants()
+        )
+    ]
 
 
 def _send(user, text: str) -> None:
@@ -61,11 +74,34 @@ async def test_slash_lists_matching_commands(fake_backend, agent_user):
     await agent_user.open("/")
     await agent_user.should_not_see("Backend is starting")
     agent_user.find(ui.textarea).type("/")
-    # The simulation sets ``.value`` without dispatching the client event that
-    # drives the menu, so fire it explicitly (NiceGUI camelCases the name).
-    agent_user.find(ui.textarea).trigger("update:modelValue")
     await agent_user.should_see("/help", retries=50)
     await agent_user.should_see("/mode", retries=50)
+
+
+async def test_slash_filters_by_prefix(fake_backend, agent_user):
+    """The menu lists only commands matching the typed prefix."""
+    fake_backend.commands = [_mode_metadata()]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    agent_user.find(ui.textarea).type("/mo")
+    await agent_user.should_see("/mode", retries=50)
+    await agent_user.should_not_see("/help")
+
+
+async def test_clicking_a_suggestion_completes_and_closes(fake_backend, agent_user):
+    """Clicking a suggestion fills the input and hides the list (ADR-0047)."""
+    fake_backend.commands = [_mode_metadata()]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    agent_user.find(ui.textarea).type("/mo")
+    await agent_user.should_see("/mode", retries=50)
+
+    items = _suggestion_items(agent_user, "/mode")
+    assert len(items) == 1
+    UserInteraction(agent_user, {items[0]}, None).click()
+
+    assert agent_user.find(ui.textarea).elements.pop().value == "/mode "
+    assert _suggestion_items(agent_user, "/mode") == []
 
 
 async def test_server_command_is_forwarded(fake_backend, agent_user):

@@ -135,21 +135,33 @@ def _render_result(ctx: PageContext, result: CommandResult) -> None:
         ui.notification(result.notice, close_button=True)
 
 
-def attach_autocomplete(ctx: PageContext, text: Any) -> None:
-    """Attach a ``/``-command autocomplete menu to the chat input (ADR-0047).
+def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
+    """Attach a ``/``-command autocomplete list to the chat input (ADR-0047).
 
-    As the user types ``/prefix``, a menu lists the matching commands from the
-    merged catalogue; clicking one inserts ``/name `` into the input.
+    As the user types ``/prefix``, *suggestions* (a container above the input)
+    is populated with the matching commands from the merged catalogue;
+    clicking one inserts ``/name `` into the input.
 
     :param ctx: The page context (its ``command_catalogue`` backs the list).
     :param text: The chat ``ui.textarea`` element.
+    :param suggestions: The container element the suggestions render into.
     """
-    with text:
-        menu = ui.menu().props("auto-close=false")
+    # NOTE (future reference): this is a plain list, not ``ui.menu``.  A
+    # Quasar ``QMenu`` (``ui.menu``) is click-anchored: it must be nested
+    # inside the element that opens it (a ``ui.button``) and shown by that
+    # click.  Opening one programmatically from a textarea / row - even with
+    # an explicit ``target`` selector - does not render it, so a command
+    # palette opened while typing uses this list instead.  ``ui.menu`` remains
+    # the right choice for click-triggered context menus (e.g. the chat-list
+    # row menu).
 
     def _matches(value: str) -> list[Command]:
         registry: CommandRegistry | None = ctx.command_catalogue
-        value = value.strip()
+        # ``lstrip`` (not ``strip``): the trailing space inserted after a
+        # chosen command is what ends the completion, so it must survive for
+        # the ``" " in value`` check below (``strip`` would remove it and the
+        # chosen command would keep matching).
+        value = value.lstrip()
         if registry is None or not value.startswith("/") or " " in value:
             return []
         prefix = value[1:].lower()
@@ -160,29 +172,50 @@ def attach_autocomplete(ctx: PageContext, text: Any) -> None:
         ]
 
     def _choose(command: Command) -> None:
+        # Setting the value fires ``on_value_change`` -> ``_refresh``, which
+        # hides the list (the trailing space makes it a non-command).
+        logger.debug(f"autocomplete: chose /{command.name}")
         text.value = f"/{command.name} "
-        menu.close()
 
     def _refresh(_event: Any = None) -> None:
-        matches = _matches(text.value or "")
-        menu.clear()
+        value = text.value or ""
+        matches = _matches(value)
+        logger.debug(f"autocomplete refresh {value = } {[c.name for c in matches] = }")
+        suggestions.clear()
         if not matches:
-            menu.close()
+            suggestions.set_visibility(False)
             return
-        with menu:
+        with (
+            suggestions,
+            ui.card()
+            .tight()
+            .classes("w-full")
+            .style("max-height: 40vh; overflow-y: auto;"),
+        ):
             for command in matches:
                 usage = f"/{command.name}"
                 if command.arg_hint:
                     usage += f" {command.arg_hint}"
-                with ui.menu_item(on_click=lambda c=command: _choose(c)):
-                    with ui.item_section():
-                        ui.label(usage).classes("font-mono text-sm")
-                    with ui.item_section():
-                        ui.label(command.summary).classes("text-xs text-grey-6")
-        menu.open()
+                with (
+                    ui.item(on_click=lambda c=command: _choose(c))
+                    .props("clickable dense")
+                    .classes("w-full cursor-pointer"),
+                    # A single section keeps the summary next to the command
+                    # (two sections would split the row into equal halves);
+                    # ``gap-3`` sets the spacing between the two labels.
+                    ui.item_section().classes("w-full"),
+                    ui.row().classes("w-full items-baseline gap-3"),
+                ):
+                    ui.label(usage).classes("font-mono text-sm")
+                    ui.label(command.summary).classes("text-sm text-grey-6")
+        suggestions.set_visibility(True)
 
-    text.on("update:model-value", _refresh)
-    text.on("blur", menu.close)
+    # ``on_value_change`` fires on the real client event and in the test
+    # simulation (which sets the value directly), unlike the raw
+    # ``update:model-value`` listener.  The list hides itself when the value is
+    # no longer a command prefix, so no blur handler is needed.
+    text.on_value_change(_refresh)
+    logger.debug("autocomplete: on_value_change registered")
 
 
 def _render(ctx: PageContext, text: str) -> None:

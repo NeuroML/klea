@@ -40,6 +40,10 @@ def attach_input(ctx: PageContext) -> None:
 
     :param ctx: The shared page context; ``text`` is filled in here.
     """
+    # `/`-command autocomplete (ADR-0047): a suggestion list shown just above
+    # the input row while a command is being typed.
+    suggestions = ui.column().classes("w-full").style("gap: 0;")
+    suggestions.set_visibility(False)
     with ui.row().classes("w-full no-wrap items-end py-4"):
         text = (
             ui.textarea(placeholder="Start a conversation")
@@ -47,8 +51,7 @@ def attach_input(ctx: PageContext) -> None:
             .classes("flex-grow chat-input")
         )
         ctx.text = text
-        # `/`-command autocomplete over the merged catalogue (ADR-0047).
-        commands.attach_autocomplete(ctx, text)
+        commands.attach_autocomplete(ctx, text, suggestions)
 
         def _effective_model_info() -> dict:
             """Model info for the active scope (chat, else session defaults)."""
