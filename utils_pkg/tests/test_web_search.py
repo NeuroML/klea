@@ -13,13 +13,14 @@ import json
 import httpx
 import klea_utils.api.utils as api_utils
 import pytest
-from klea_utils.mcp.tool_impls.search.base import SERVICE_ORDER
+from klea_utils.mcp.tool_impls.search.base import SERVICE_ORDER, SearchResult
 from klea_utils.mcp.tool_impls.search.brave import BraveProvider
 from klea_utils.mcp.tool_impls.search.errors import SearchProviderError
 from klea_utils.mcp.tool_impls.search.exa import ExaProvider
 from klea_utils.mcp.tool_impls.search.firecrawl import FirecrawlProvider
 from klea_utils.mcp.tool_impls.search.hosted import MAX_SNIPPET_CHARS
 from klea_utils.mcp.tool_impls.search.parallel import ParallelProvider
+from klea_utils.mcp.tool_impls.search.resolver import WebSearchResolver
 from klea_utils.mcp.tool_impls.search.serper import SerperProvider
 from klea_utils.mcp.tool_impls.search.tavily import TavilyProvider
 from klea_utils.mcp.tool_impls.search.transport import (
@@ -435,3 +436,126 @@ async def test_serper_parses_and_sends_key(monkeypatch):
     assert url == "https://google.serper.dev/search"
     assert kwargs["json"] == {"q": "q", "num": 5}
     assert kwargs["headers"]["X-API-KEY"] == "serper-secret"
+
+
+class _StubProvider:
+    """Minimal SearchProvider for resolver tests."""
+
+    def __init__(
+        self,
+        name: str,
+        results: list[SearchResult] | None = None,
+        error: Exception | None = None,
+    ):
+        self.name = name
+        self._results = results or []
+        self._error = error
+        self.calls = 0
+
+    def is_available(self) -> bool:
+        return True
+
+    async def search(self, session, query, max_results, timeout):
+        self.calls += 1
+        if self._error is not None:
+            raise self._error
+        return self._results
+
+
+def _clear_search_keys(monkeypatch):
+    for var in (
+        "TAVILY_API_KEY",
+        "EXA_API_KEY",
+        "PARALLEL_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "BRAVE_API_KEY",
+        "SERPER_API_KEY",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+
+def test_resolver_default_pool_is_keyless_only(monkeypatch):
+    _clear_search_keys(monkeypatch)
+    resolver = WebSearchResolver()
+    assert [p.name for p in resolver.available_providers()] == [
+        "tavily",
+        "exa",
+        "parallel",
+        "firecrawl",
+    ]
+
+
+def test_resolver_appends_keyed_provider_when_key_present(monkeypatch):
+    _clear_search_keys(monkeypatch)
+    monkeypatch.setenv("BRAVE_API_KEY", "brv")
+    resolver = WebSearchResolver()
+    assert [p.name for p in resolver.available_providers()] == [
+        "tavily",
+        "exa",
+        "parallel",
+        "firecrawl",
+        "brave",
+    ]
+
+
+async def test_resolver_falls_back_on_provider_error():
+    bad = _StubProvider("bad", error=SearchProviderError("boom"))
+    good = _StubProvider("good", results=[SearchResult(title="T", url="https://u")])
+    resolver = WebSearchResolver(providers=[bad, good])
+    out = await resolver.search(_FakePostSession(), "q", 5)
+    assert out["provider"] == "good"
+    assert out["error"] == ""
+    assert out["results"][0]["url"] == "https://u"
+    assert (bad.calls, good.calls) == (1, 1)
+
+
+async def test_resolver_falls_back_on_empty_result():
+    empty = _StubProvider("empty", results=[])
+    good = _StubProvider("good", results=[SearchResult(url="https://u")])
+    resolver = WebSearchResolver(providers=[empty, good])
+    out = await resolver.search(_FakePostSession(), "q", 5)
+    assert out["provider"] == "good"
+    assert empty.calls == 1
+
+
+async def test_resolver_all_providers_fail():
+    first = _StubProvider("a", error=SearchProviderError("a down"))
+    second = _StubProvider("b", error=SearchProviderError("b down"))
+    resolver = WebSearchResolver(providers=[first, second])
+    out = await resolver.search(_FakePostSession(), "q", 5)
+    assert out["provider"] == ""
+    assert out["results"] == []
+    assert "No results" in out["error"]
+    assert "a down" in out["error"] and "b down" in out["error"]
+
+
+async def test_resolver_empty_query_is_error():
+    resolver = WebSearchResolver(providers=[_StubProvider("x")])
+    out = await resolver.search(_FakePostSession(), "   ", 5)
+    assert out["error"] == "Empty search query."
+
+
+async def test_resolver_no_available_providers():
+
+    class _Unavailable:
+        name = "nope"
+
+        def is_available(self) -> bool:
+            return False
+
+        async def search(self, *a, **k):  # pragma: no cover
+            raise AssertionError("should not be called")
+
+    resolver = WebSearchResolver(providers=[_Unavailable()])
+    out = await resolver.search(_FakePostSession(), "q", 5)
+    assert out["error"] == "No search provider is available."
+
+
+async def test_resolver_restricts_to_named_providers():
+    first = _StubProvider("a", results=[SearchResult(url="https://a")])
+    second = _StubProvider("b", results=[SearchResult(url="https://b")])
+    resolver = WebSearchResolver(providers=[first, second])
+    out = await resolver.search(_FakePostSession(), "q", 5, providers=["b"])
+    assert out["provider"] == "b"
+    assert first.calls == 0
+    assert second.calls == 1
