@@ -202,6 +202,11 @@ Outbound HTTP tools (`web_fetch`, `download_file`) share an SSRF guard in
 requests to loopback, private, link-local, reserved, or multicast
 addresses are refused unless the caller passes `allow_internal_hosts=True`.
 
+`web_search` is not an SSRF surface: it POSTs to a fixed set of provider hosts
+(Tavily/Exa/Parallel/Firecrawl hosted MCP, or the Brave/Serper REST APIs) and
+returns result URLs as data without dereferencing them, so fetching a result
+remains `web_fetch`'s job (with its SSRF guard).  See ADR-0048.
+
 Known best-effort limitation (accepted for now): the guard checks only the
 *initial* URL.  An httpx client that follows redirects
 (`follow_redirects=True`) could still be redirected onto an internal host

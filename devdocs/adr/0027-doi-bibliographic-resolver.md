@@ -54,8 +54,8 @@ how should load be spread and cached so a re-ingest never re-queries?
   cascade (chosen)** -- ``klea_utils/biblio/doi.py`` ``DoiResolver``
   queries the three APIs in round-robin order (``crossref -> openalex ->
   semscholar`` rotation) per new DOI, falling back to the next when the
-  previous is rate-limited (429/5xx via ``tenacity.AsyncRetrying`` +
-  ``_make_retryer_httpx``, see ``ADR-0005``) or returns no record.  The
+  previous returns no record or errors (HTTP 429/5xx are logged and the next
+  service is tried; there is no per-provider backoff).  The
   resolved record's title/authors/year/journal/DOI override all lower
   tiers.  Results are cached to ``.klea-cache/doi-cache.json`` (and its
   backing ``.klea-cache`` file) on disk so a re-ingest never re-queries;
@@ -73,13 +73,16 @@ Chosen option: "C. Round-robin sequential fallback with disk cache +
 tiered cascade".
 
 * ``utils_pkg/klea_utils/biblio/doi.py`` ``DoiResolver`` (used by
-  ``klea_utils/stores/ingestion.py`` ``chunk_all`` via
-  ``DoiResolver(httpx_session)``): ``OPENALEX``, ``CROSSREF``,
-  ``SEMANTIC_SCHOLAR`` endpoint list, per-DOI ``_fetch`` with
-  ``exponential backoff`` (``tenacity`` from ``AGENTS.md``), ``KLEA_INGEST_MAILTO``
-  polite-pool ``User-Agent`` when set (higher rate limits), and
-  ``doi-cache.json`` read/write (``json`` on disk, ``.klea-cache/doi-cache.json``
-  track in the original ``devdocs/system/store-create.md`` cache layout).
+  ``klea_utils/stores/ingestion.py`` ``chunk_all`` as
+  ``DoiResolver(cache_dir=...)``): a ``CROSSREF`` / ``OPENALEX`` /
+  ``SEMANTIC_SCHOLAR`` service list queried via per-service
+  ``_query_<service>`` methods in round-robin order with fallback to the
+  next (no per-provider retry/backoff), ``KLEA_INGEST_MAILTO`` sent as a
+  ``mailto`` query parameter to Crossref and OpenAlex for the polite pool
+  (higher rate limits) when set, an honest ``User-Agent:
+  klea-ingest/<version>`` on every request, and ``doi-cache.json``
+  read/write (``json`` on disk, ``.klea-cache/doi-cache.json`` track in the
+  original ``devdocs/system/store-create.md`` cache layout).
   Cache key: canonical DOI string; value: ``BiblioRecord`` (title,
   authors, year, journal, DOI).
 * ``klea_utils/biblio/extract.py`` ``_extract_biblio`` tiered cascade:
@@ -108,11 +111,11 @@ tiered cascade".
 * Good, because lower tiers (``pdf-info``/``docling``/``regex``) only
   fill what the DOI service did not, so an authoritative record is not
   diluted by OCR artifacts.
-* Bad, because the three API clients (``httpx`` via ``http_session``
-  lifespan per ``ADR-0005``) still share the per-worker ``AsyncClient``
-  that also serves ``nml-mcp`` search; a burst of DOI resolutions can
-  briefly contend with repository search traffic in the same worker,
-  though the batch is small (25 per batch) and sequential within a file.
+* Bad, because ``DoiResolver`` keeps its own short-lived synchronous
+  ``httpx.Client`` (it does not use the app's shared lifespan
+  ``http_session``, ``ADR-0005``) and runs inside the worker that also
+  serves ingestion; calls are sequential per file and the batch is small
+  (25 per batch), so contention is limited.
 * Bad, because ``doi-cache.json`` is human-readable JSON (not a SQLite
   store) so very large DOI sets pay a full-file rewrite at the ``25``
   batch boundary; acceptable for the current corpus sizes (< 10k DOIs).
@@ -120,7 +123,7 @@ tiered cascade".
 ### Confirmation
 
 * ``utils_pkg/tests/test_biblio_doi.py`` covers ``DoiResolver`` round-
-  robin ordering, ``KLEA_INGEST_MAILTO`` polite-pool header, and
+  robin ordering, the honest ``klea-ingest/<version>`` ``User-Agent``, and
   ``doi-cache.json`` read/write without re-query; ``test_stores_ingestion.py``
   covers the ``DEFAULT`` gap-fill + ``_sources`` provenance.
 * ``klea-stores-create chunk`` writes ``metadata-map.template.json``
@@ -150,8 +153,8 @@ tiered cascade".
   (``_extract_biblio`` cascade + ``_merge_biblio`` gap-fill),
   ``stores/ingestion.py`` (``chunk_all`` per-file ``DEFAULT``
   pre-fill), ``biblio/docling.py`` / ``biblio/pdf.py``/``biblio/regex.py``
-  (lower tiers), ``AGENTS.md`` HTTP conventions (shared ``httpx``
-  session via ``lifespan``).
+  (lower tiers); ``AGENTS.md`` HTTP conventions (httpx; this resolver uses
+  its own short-lived synchronous client).
 * Related: ``ADR-0001`` (worker-isolated chunking that calls the
   cascade per file), ``devdocs/system/store-create.md`` (chunk/store/
   build cache layout with ``doi-cache.json``), ``docs/concepts/rag.rst``

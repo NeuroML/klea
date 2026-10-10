@@ -60,7 +60,6 @@ neuroml_mcp/
 ├── tools/         # Auto-discovered tools
 │   ├── code_tools.py     # Code execution tools
 │   ├── neuroml_tools.py  # NeuroML model tools
-│   ├── web_tools.py      # Web search tools
 │   └── sandbox/           # Sandboxed code execution
 │       ├── docker.py     # Docker sandbox
 │       ├── local.py      # Local subprocess sandbox

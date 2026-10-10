@@ -76,8 +76,10 @@ release planned.
 - CLI, FastAPI server, NiceGUI web UI, Streamlit, and TUI
 - Bring-your-own LLM: OpenAI-compatible, Anthropic, HuggingFace, and custom
   endpoints, with runtime model switching and prompt caching
-- NeuroML MCP tools: model validation, OSB and NeuroML-DB lookups, web search,
-  and sandboxed code execution
+- NeuroML MCP tools: model validation, OSB and NeuroML-DB lookups, and
+  sandboxed code execution
+- Bundled tools: web fetch and web search, file read/list/search/edit,
+  downloads, and shell commands
 
 The packages included, one in each folder are:
 

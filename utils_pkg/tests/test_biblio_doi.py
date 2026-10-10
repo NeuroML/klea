@@ -17,6 +17,7 @@ from klea_utils.biblio.doi import (
     _normalize_crossref,
     _normalize_openalex,
     _normalize_semantic_scholar,
+    _user_agent,
     normalize_doi,
 )
 
@@ -188,6 +189,24 @@ def test_resolve_all_services_fail(tmp_path):
         assert resolver.resolve("10.2345/def.6789") is None
     finally:
         resolver.close()
+
+
+def test_resolver_sends_honest_user_agent(tmp_path):
+    """Requests identify Klea with a versioned honest User-Agent."""
+    seen = {}
+
+    def route(service, request):
+        seen["user_agent"] = request.headers.get("user-agent")
+        return httpx.Response(200, json=CROSSREF_JSON)
+
+    resolver = _make_resolver(tmp_path, _handler_for(route))
+    try:
+        resolver.resolve("10.1234/abc.5678")
+    finally:
+        resolver.close()
+
+    assert seen["user_agent"] == _user_agent()
+    assert seen["user_agent"].startswith("klea-ingest/")
 
 
 def test_resolve_cache_hit_skips_network(tmp_path):

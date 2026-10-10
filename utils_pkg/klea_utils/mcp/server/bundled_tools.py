@@ -30,6 +30,11 @@ from klea_utils.mcp.tool_impls.run_command import (
 )
 from klea_utils.mcp.tool_impls.run_command import run_command as run_command_impl
 from klea_utils.mcp.tool_impls.web_fetch import web_fetch as web_fetch_impl
+from klea_utils.mcp.tool_impls.web_search import (
+    DEFAULT_MAX_RESULTS,
+    MAX_MAX_RESULTS,
+)
+from klea_utils.mcp.tool_impls.web_search import web_search as web_search_impl
 from klea_utils.mcp.tool_impls.write_file import write_file as write_file_impl
 from klea_utils.mcp.tool_result import to_result
 
@@ -72,6 +77,46 @@ async def web_fetch(
         url=url,
         timeout=timeout,
         max_chars=max_chars,
+    )
+    return to_result(result)
+
+
+@tool_meta(
+    ToolInfo(tags={BUNDLED_TAG, "web", "search"}, read_only=True, open_world=True)
+)
+async def web_search(
+    ctx: Context,
+    query: Annotated[str, Field(min_length=1)],
+    max_results: Annotated[int, Field(ge=1, le=MAX_MAX_RESULTS)] = DEFAULT_MAX_RESULTS,
+) -> ToolResult:
+    """Search the web and return ranked results with snippets.
+
+    Use this tool to discover current information, documentation, or sources
+    online, then read a chosen result with the web fetch tool.
+
+    Use when:
+    - You need to find information on the web (discovery).
+    - You want links and snippets before fetching a page.
+
+    Do not use for:
+    - Reading the content of a specific URL (use the web fetch tool instead).
+    - Downloading a file to disk (use the download file tool instead).
+
+    Example: web_search(query="NeuroML specification")
+
+    Args:
+        query: Free-text search query.
+        max_results: Maximum number of results to return (1-20).
+
+    Returns:
+        Dictionary with query, provider, results (list of title, url,
+        snippet, published, score), and error.
+    """
+    session = ctx.lifespan_context.get("http_session")
+    result = await web_search_impl(
+        session=session,
+        query=query,
+        max_results=max_results,
     )
     return to_result(result)
 

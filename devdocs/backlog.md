@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-09.
+Last updated: 2026-10-10.
 
 ## Cancellation / concurrency
 
@@ -54,6 +54,15 @@ Last updated: 2026-10-09.
 - Retrieval tool: no `search_stores`-style tool wires the RAG vector stores
   into the agent yet (retrieval is optional/deferred per the control-flow
   note).
+- `web_search` configuration: the provider pool uses a fixed default order
+  (`tavily`, `exa`, `parallel`, `firecrawl`, then any available keyed
+  `brave`/`serper`) and provider keys are read from the process environment.
+  A `general.web_search` JSON config (provider order/enable) is not
+  implemented because the tool runs in the bundled stdio subprocess, which
+  does not receive the app config; it would need `_bundled_server_config()`
+  to forward settings (and keys) into the subprocess `env`.  Also deferred:
+  an explicit `rank` field and truncating results to `max_results` (Parallel
+  ignores the count).  See ADR-0048.
 - ADR-0039 deferred items: graph-level read/staleness gate; `apply_patch` /
   multi-edit; per-model edit-format auto-selection; post-edit LSP
   diagnostics/auto-format.
