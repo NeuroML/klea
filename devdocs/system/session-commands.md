@@ -18,6 +18,15 @@ reaching the graph is simply unknown).  Each frontend routes an input
 starting with `/` by the command's class; the graph exposes a command node
 that mirrors `ToolsPicker` / `ToolsCallerNode`.
 
+**Invocation, not LLM usage, is the distinction.**  A command is *user*-invoked
+(a `/`-prefixed input), never chosen by the model.  The *dispatch* is
+deterministic: the graph routes a `/`-query straight to the command node,
+skipping the guard/mode/planner LLM nodes.  But a command's handler **may**
+itself use an LLM -- a workflow command such as `/compact` (summarise memory)
+or `/init` (generate project guidance) does.  So "user-invoked" does not mean
+"LLM-free": some commands are pure state changes (`/mode`, `/access`), others
+call a model.
+
 Catalogue entry fields:
 
 ```

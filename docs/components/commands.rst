@@ -2,9 +2,11 @@ Session commands
 ================
 
 Klea's frontends accept session commands: type ``/`` at the start of the
-input for a menu of the available commands, then press Enter.  Commands act
-on the session itself -- for example changing the agent's operating mode --
-without the model being involved.
+input for a menu of the available commands, then press Enter.  A command is
+invoked by the user (not chosen by the model) and acts on the session itself
+-- for example changing the agent's operating mode -- instead of being a
+normal query.  Some commands use a model internally; the distinction is who
+invokes them, not whether they use an LLM.
 
 The frontend fetches the backend's server-side command catalogue
 (``GET /commands``) and merges it with the commands it handles itself.  A

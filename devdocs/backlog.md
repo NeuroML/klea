@@ -261,14 +261,20 @@ Last updated: 2026-10-10.
   the LangGraph checkpoint and clear the workspace (see Session deletion
   cleanup).
 
-- Remaining session commands (P4 of ADR-0047): `/run`, `/compact`, `/init`.
-  `/run` (server-side `run_command`, no chat LLM round-trip) is the cleanest
-  token-free command; `/compact` uses the summarise node to shorten memory;
-  `/init` writes project guidance to `AGENTS.md`.  Client-only commands
-  (`/new`, `/sessions`, `/rename`, `/model`, `/export`, `/commands`) are
-  small, frontend-owned wins.  Dropped as not applicable: `/plan` (Klea has no
-  plan mode -- read-only is the access level, not a workflow) and `/theme`
-  (Klea offers only light/dark, toggled in the header; not worth a command).
+- Remaining session commands (P4 of ADR-0047): `/compact`, `/init`.  `/compact`
+  uses the summarise node to shorten memory; `/init` writes project guidance
+  to `AGENTS.md`.  Client-only commands (`/new`, `/sessions`, `/rename`,
+  `/model`, `/export`, `/commands`) are small, frontend-owned wins.  Dropped
+  as not applicable: `/plan` (Klea has no plan mode -- read-only is the access
+  level, not a workflow) and `/theme` (Klea offers only light/dark, toggled in
+  the header; not worth a command).
+
+- `/run` (P4 of ADR-0047): **deferred -- design under consideration.**  The
+  command runs a shell command server-side as a user-invoked action (the
+  model does not choose it), but the open question is whether (and how) its
+  output should enter the model's context; provenance (a user-run command must
+  not look like the model's own tool call) is the crux.  Full notes and the
+  chosen "B'" shape: `system/run-command.md`.
 
 - `/skills` (ADR-0047): **deferred** -- skills are not designed yet, so the
   command surface is undefined.  Design skills support first.
