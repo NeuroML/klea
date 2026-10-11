@@ -315,9 +315,11 @@
           <section id="session-commands">
 <h1>Session commands<a class="headerlink" href="#session-commands" title="Link to this heading">¶</a></h1>
 <p>Klea’s frontends accept session commands: type <code class="docutils literal notranslate"><span class="pre">/</span></code> at the start of the
-input for a menu of the available commands, then press Enter.  Commands act
-on the session itself – for example changing the agent’s operating mode –
-without the model being involved.</p>
+input for a menu of the available commands, then press Enter.  A command is
+invoked by the user (not chosen by the model) and acts on the session itself
+– for example changing the agent’s operating mode – instead of being a
+normal query.  Some commands use a model internally; the distinction is who
+invokes them, not whether they use an LLM.</p>
 <p>The frontend fetches the backend’s server-side command catalogue
 (<code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/commands</span></code>) and merges it with the commands it handles itself.  A
 <strong>client</strong> command runs in the frontend; a <strong>server</strong> command is sent to the
@@ -367,6 +369,11 @@ The RAG frontends do not expose any yet.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">/mode</span> <span class="pre">[general|scientific]</span></code></p></td>
 <td><p>Show or set the agent’s operating mode (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>); with no
 argument it reports the current mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/access</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/access</span> <span class="pre">[read_only|full]</span></code></p></td>
+<td><p>Show or set the tool access level; with no argument it reports the
+current level.</p></td>
 </tr>
 </tbody>
 </table>

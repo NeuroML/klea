@@ -333,6 +333,11 @@
 <span class="w">    </span><span class="sd">"""No-op default for callbacks that are not yet/never registered."""</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_noop_str</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""No-op default returning an empty string (no active chat)."""</span>
+    <span class="k">return</span> <span class="s2">""</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_noop_arg</span><span class="p">(</span><span class="n">_</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""No-op default for one-argument callbacks (e.g. chat switching)."""</span>
 
@@ -467,6 +472,16 @@
     <span class="c1">#: (e.g. operating mode / access level in ``query_extra``) onto that chat.</span>
     <span class="n">chat_created_hooks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span>
+    <span class="c1">#: Hooks invoked with a chat's data dict whenever a graph ``context`` event</span>
+    <span class="c1">#: updates its session context, so a context control (operating mode /</span>
+    <span class="c1">#: tool access) can reconcile its per-chat preference with the checkpointed</span>
+    <span class="c1">#: value the server just reported (e.g. after a ``/mode`` command).</span>
+    <span class="n">context_hooks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="c1">#: Return the active chat id, creating and registering one (server-side</span>
+    <span class="c1">#: creation, chat-list refresh, created-hooks) when none is active.</span>
+    <span class="c1">#: Registered by the input area; lets client-command output (e.g. ``/help``)</span>
+    <span class="c1">#: land in a chat even when the first input is a command (ADR-0047).</span>
+    <span class="n">ensure_active_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_str</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PageContext.chat_is_streaming">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.context.PageContext.chat_is_streaming">[docs]</a>

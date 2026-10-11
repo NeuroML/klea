@@ -346,6 +346,10 @@
 
 <span class="sd">    :param ctx: The shared page context; ``text`` is filled in here.</span>
 <span class="sd">    """</span>
+    <span class="c1"># `/`-command autocomplete (ADR-0047): a suggestion list shown just above</span>
+    <span class="c1"># the input row while a command is being typed.</span>
+    <span class="n">suggestions</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span><span class="o">.</span><span class="n">style</span><span class="p">(</span><span class="s2">"gap: 0;"</span><span class="p">)</span>
+    <span class="n">suggestions</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full no-wrap items-end py-4"</span><span class="p">):</span>
         <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">textarea</span><span class="p">(</span><span class="n">placeholder</span><span class="o">=</span><span class="s2">"Start a conversation"</span><span class="p">)</span>
@@ -353,8 +357,7 @@
             <span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex-grow chat-input"</span><span class="p">)</span>
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">text</span>
-        <span class="c1"># `/`-command autocomplete over the merged catalogue (ADR-0047).</span>
-        <span class="n">commands</span><span class="o">.</span><span class="n">attach_autocomplete</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+        <span class="n">commands</span><span class="o">.</span><span class="n">attach_autocomplete</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">suggestions</span><span class="p">)</span>
 
         <span class="k">def</span><span class="w"> </span><span class="nf">_effective_model_info</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Model info for the active scope (chat, else session defaults)."""</span>
@@ -414,6 +417,35 @@
 
         <span class="n">ctx</span><span class="o">.</span><span class="n">submit_interrupt</span> <span class="o">=</span> <span class="n">submit_interrupt</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">ensure_active_chat</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Return the active chat id, creating and registering one if none.</span>
+
+<span class="sd">            Shared by the send path and by client-command output (``/help``),</span>
+<span class="sd">            so a command entered before the first message still lands in a chat</span>
+<span class="sd">            (ADR-0047).</span>
+<span class="sd">            """</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="n">coolname</span><span class="o">.</span><span class="n">generate_slug</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span> <span class="o">=</span> <span class="n">current</span>
+            <span class="n">safe_set_user</span><span class="p">(</span><span class="s2">"chat_id"</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
+            <span class="n">new_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_created_hooks</span><span class="p">:</span>
+                <span class="n">hook</span><span class="p">(</span><span class="n">new_chat</span><span class="p">)</span>
+            <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+                <span class="n">create_chat_on_server</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="c1"># Populate model_info for the newly created chat so the</span>
+            <span class="c1"># "Choose models" dialog has roles to render.  Without this</span>
+            <span class="c1"># the status pane stays empty and the dialog silently no-ops</span>
+            <span class="c1"># for chats started by typing the first message.</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span><span class="p">())</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">current</span>
+
+        <span class="n">ctx</span><span class="o">.</span><span class="n">ensure_active_chat</span> <span class="o">=</span> <span class="n">ensure_active_chat</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">send</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">            </span><span class="sd">"""Append the current input text as a user message, then stream."""</span>
             <span class="n">raw</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">value</span>
@@ -452,25 +484,8 @@
             <span class="n">query</span> <span class="o">=</span> <span class="n">raw</span>
             <span class="n">text</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s2">""</span>
 
-            <span class="n">current</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="n">ensure_active_chat</span><span class="p">()</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"current=</span><span class="si">%s</span><span class="s2"> query_len=</span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">current</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">query</span><span class="p">))</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">current</span><span class="p">:</span>
-                <span class="n">current</span> <span class="o">=</span> <span class="n">coolname</span><span class="o">.</span><span class="n">generate_slug</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span> <span class="o">=</span> <span class="n">current</span>
-                <span class="n">safe_set_user</span><span class="p">(</span><span class="s2">"chat_id"</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
-                <span class="n">new_chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">hook</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_created_hooks</span><span class="p">:</span>
-                    <span class="n">hook</span><span class="p">(</span><span class="n">new_chat</span><span class="p">)</span>
-                <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
-                    <span class="n">create_chat_on_server</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)</span>
-                <span class="p">)</span>
-                <span class="c1"># Populate model_info for the newly created chat so the</span>
-                <span class="c1"># "Choose models" dialog has roles to render.  Without this</span>
-                <span class="c1"># the status pane stays empty and the dialog silently no-ops</span>
-                <span class="c1"># for chats started by typing the first message.</span>
-                <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                    <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">fetch_model_info</span><span class="p">())</span>
-                <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
 
             <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">current</span><span class="p">)[</span><span class="s2">"messages"</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
                 <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">query</span><span class="p">,</span> <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span><span class="p">,</span> <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
