@@ -221,7 +221,10 @@ async def test_bundle_server_annotation_hints():
         assert ann is not None, name
         assert ann.readOnlyHint is True, name
         assert ann.destructiveHint is None, name
-    assert tools["search_papers"].annotations.openWorldHint is True
+
+    papers = tools["search_papers"]
+    assert papers.annotations is not None
+    assert papers.annotations.openWorldHint is True
 
     search = tools["web_search"]
     assert search.annotations is not None

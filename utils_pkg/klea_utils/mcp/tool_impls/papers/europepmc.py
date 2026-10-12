@@ -35,8 +35,11 @@ def _authors(result: dict) -> list[str]:
 
 
 def _year(result: dict) -> int | None:
+    raw = result.get("pubYear")
+    if not raw:
+        return None
     try:
-        return int(result.get("pubYear"))
+        return int(raw)
     except (TypeError, ValueError):
         return None
 

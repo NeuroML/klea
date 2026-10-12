@@ -86,7 +86,9 @@ def _doi(entry: ET.Element, article: ET.Element) -> str | None:
 
 def _normalize(entry: ET.Element) -> PaperRecord | None:
     citation = entry.find("MedlineCitation")
-    article = citation.find("Article") if citation is not None else None
+    if citation is None:
+        return None
+    article = citation.find("Article")
     if article is None:
         return None
     pmid = _text(citation.find("PMID"))
