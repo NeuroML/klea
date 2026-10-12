@@ -32,6 +32,12 @@ These only read; they are available at every access level.
        setup; optional provider API keys raise rate limits (see
        :doc:`../install`).
      - ``web``, ``search``
+   * - ``search_papers``
+     - Search academic papers and return title, authors, year, journal,
+       abstract, DOI and link, with a flag for peer reviewed or preprint.
+       Works with no setup; an optional Semantic Scholar key adds one more
+       source (see :doc:`../install`).
+     - ``web``
    * - ``list_files``
      - List files and directories in the project.
      - ``local``, ``files``

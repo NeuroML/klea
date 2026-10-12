@@ -708,33 +708,39 @@ raises that provider’s rate limits; the tool works with none set (the
 Tavily, Exa, Parallel and Firecrawl hosted endpoints are keyless,
 while Brave and Serper are used only when keyed).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SEMANTIC_SCHOLAR_API_KEY</span></code></p></td>
+<td><p>Optional Semantic Scholar API key for the <code class="docutils literal notranslate"><span class="pre">search_papers</span></code> tool.
+Semantic Scholar is only searched when this is set, since its search
+endpoint rate-limits nearly every request without a key.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code></p></td>
 <td><p>Console log level (level name or number; see <a class="reference internal" href="#logging">Logging</a>).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_TOOL_CALL_TIMEOUT</span></code></p></td>
 <td><p>Per-call wall-clock backstop for tool calls, in seconds (default
 <code class="docutils literal notranslate"><span class="pre">900</span></code>; <code class="docutils literal notranslate"><span class="pre">0</span></code> disables).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_ALLOW_ROOT_TOOLS</span></code></p></td>
 <td><p>Allow Klea-authored tools to run as root; refused by default.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_RUN_COMMAND_MAX_TIMEOUT</span></code></p></td>
 <td><p>Ceiling for <code class="docutils literal notranslate"><span class="pre">run_command</span></code>’s <code class="docutils literal notranslate"><span class="pre">timeout_seconds</span></code> in seconds
 (default <code class="docutils literal notranslate"><span class="pre">600</span></code>).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_MODELS_DEV_URL</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_MODELS_DEV_URL</span></code></p></td>
 <td><p>Override the models.dev catalog URL (offline mirror / enterprise
 proxy).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code></p></td>
-<td><p>Contact email sent to DOI services (Crossref, OpenAlex) during store
-ingestion, for their polite pool.</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code></p></td>
+<td><p>Contact email sent to Crossref and OpenAlex, for their polite pool,
+during store ingestion (DOI resolution) and by the <code class="docutils literal notranslate"><span class="pre">search_papers</span></code>
+tool, which also sends it to PubMed (NCBI E-utilities).</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code></p></td>
 <td><p>Absolute directory for the web client’s per-session storage (see
 <a class="reference internal" href="#web-client-user-storage">Web client user storage</a>).</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">RUNNING_IN_DOCKER</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">RUNNING_IN_DOCKER</span></code></p></td>
 <td><p>Internal: skip graph-diagram export on startup (set by the container
 image).</p></td>
 </tr>

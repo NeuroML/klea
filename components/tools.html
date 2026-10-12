@@ -350,20 +350,27 @@ setup; optional provider API keys raise rate limits (see
 <a class="reference internal" href="../install.html"><span class="doc">Installation</span></a>).</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">web</span></code>, <code class="docutils literal notranslate"><span class="pre">search</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">list_files</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">search_papers</span></code></p></td>
+<td><p>Search academic papers and return title, authors, year, journal,
+abstract, DOI and link, with a flag for peer reviewed or preprint.
+Works with no setup; an optional Semantic Scholar key adds one more
+source (see <a class="reference internal" href="../install.html"><span class="doc">Installation</span></a>).</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">web</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">list_files</span></code></p></td>
 <td><p>List files and directories in the project.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">local</span></code>, <code class="docutils literal notranslate"><span class="pre">files</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">find_files</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">find_files</span></code></p></td>
 <td><p>Find files by name or path pattern across the project.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">local</span></code>, <code class="docutils literal notranslate"><span class="pre">files</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">read_file</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">read_file</span></code></p></td>
 <td><p>Read a file as text (documents such as PDF are converted to Markdown);
 large files are read a page at a time.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">local</span></code>, <code class="docutils literal notranslate"><span class="pre">files</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">grep</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grep</span></code></p></td>
 <td><p>Search the contents of the project’s files with a regular expression.</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">local</span></code>, <code class="docutils literal notranslate"><span class="pre">files</span></code></p></td>
 </tr>

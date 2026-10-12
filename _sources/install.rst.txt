@@ -365,6 +365,10 @@ The environment variables Klea reads, and what they control:
        raises that provider's rate limits; the tool works with none set (the
        Tavily, Exa, Parallel and Firecrawl hosted endpoints are keyless,
        while Brave and Serper are used only when keyed).
+   * - ``SEMANTIC_SCHOLAR_API_KEY``
+     - Optional Semantic Scholar API key for the ``search_papers`` tool.
+       Semantic Scholar is only searched when this is set, since its search
+       endpoint rate-limits nearly every request without a key.
    * - ``KLEA_LOG_LEVEL``
      - Console log level (level name or number; see `Logging`_).
    * - ``KLEA_TOOL_CALL_TIMEOUT``
@@ -379,8 +383,9 @@ The environment variables Klea reads, and what they control:
      - Override the models.dev catalog URL (offline mirror / enterprise
        proxy).
    * - ``KLEA_INGEST_MAILTO``
-     - Contact email sent to DOI services (Crossref, OpenAlex) during store
-       ingestion, for their polite pool.
+     - Contact email sent to Crossref and OpenAlex, for their polite pool,
+       during store ingestion (DOI resolution) and by the ``search_papers``
+       tool, which also sends it to PubMed (NCBI E-utilities).
    * - ``NICEGUI_STORAGE_PATH``
      - Absolute directory for the web client's per-session storage (see
        `Web client user storage`_).

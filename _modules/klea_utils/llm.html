@@ -1877,7 +1877,7 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">resolve_user_agent</span><span class="p">(</span><span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return ``&lt;prefix&gt;/&lt;version&gt;`` for the running application.</span>
 
-<span class="sd">    Mirrors ``web_fetch._honest_user_agent``: the version is read from the</span>
+<span class="sd">    Mirrors ``web_fetch.honest_user_agent``: the version is read from the</span>
 <span class="sd">    installed distribution named *prefix* (``importlib.metadata`` normalises</span>
 <span class="sd">    separators, so the graph name doubles as the distribution name --</span>
 <span class="sd">    ``klea-agent`` -&gt; ``klea_agent``) and falls back to ``dev`` when metadata</span>

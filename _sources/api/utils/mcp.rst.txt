@@ -106,6 +106,10 @@ their httpx session via the lifespan context.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.mcp.tool_impls.user_agent
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.mcp.tool_impls.web_fetch
    :members:
    :show-inheritance:
@@ -159,6 +163,54 @@ their httpx session via the lifespan context.
    :show-inheritance:
 
 .. automodule:: klea_utils.mcp.tool_impls.sqlite_query
+   :members:
+   :show-inheritance:
+
+Paper search sources
+--------------------
+
+Framework-agnostic sources that search scholarly APIs and return normalised
+:class:`~klea_utils.mcp.tool_impls.papers.record.PaperRecord` objects.
+:class:`klea_utils.mcp.tool_impls.papers.search.PaperSearchResolver` rotates
+and falls back across them, and the ``search_papers`` bundled tool wraps it.
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.search
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.record
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.errors
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.http
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.openalex
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.crossref
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.semantic_scholar
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.europepmc
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.pubmed
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.mcp.tool_impls.papers.arxiv
    :members:
    :show-inheritance:
 

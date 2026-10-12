@@ -319,20 +319,22 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">tempfile</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Self</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">BiblioRecord</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.normalize</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">normalize_crossref</span><span class="p">,</span>
+    <span class="n">normalize_doi</span><span class="p">,</span>
+    <span class="n">normalize_openalex</span><span class="p">,</span>
+    <span class="n">normalize_semantic_scholar</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.regex</span><span class="w"> </span><span class="kn">import</span> <span class="n">DOI_RE</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-<span class="c1">#: JATS/XML tags found in Crossref abstracts.</span>
-<span class="n">_JATS_TAG_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">"&lt;[^&gt;]+&gt;"</span><span class="p">)</span>
 
 <span class="c1">#: Persist the DOI cache at most once per this many newly-resolved DOIs.</span>
 <span class="c1">#: :meth:`DoiResolver.close` always flushes whatever is left, so a crash</span>
@@ -366,133 +368,6 @@
             <span class="n">version_str</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="n">_user_agent_cache</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_UA_PREFIX</span><span class="si">}{</span><span class="n">version_str</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'dev'</span><span class="si">}</span><span class="s2">"</span>
     <span class="k">return</span> <span class="n">_user_agent_cache</span>
-
-
-<div class="viewcode-block" id="BiblioRecord">
-<a class="viewcode-back" href="../../../api/utils/biblio.html#klea_utils.biblio.doi.BiblioRecord">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">BiblioRecord</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-<span class="w">    </span><span class="sd">"""Normalised bibliographic record shared across the DOI services."""</span>
-
-    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">authors</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">year</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">journal</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">abstract</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
-
-
-
-<div class="viewcode-block" id="normalize_doi">
-<a class="viewcode-back" href="../../../api/utils/biblio.html#klea_utils.biblio.doi.normalize_doi">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">normalize_doi</span><span class="p">(</span><span class="n">doi</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Normalise a DOI by stripping common URL/prefix wrappers.</span>
-
-<span class="sd">    ``https://doi.org/10.x/y``, ``http://dx.doi.org/10.x/y`` and</span>
-<span class="sd">    ``doi: 10.x/y`` all become ``10.x/y``.  Trailing punctuation is</span>
-<span class="sd">    removed, and a trailing URL path after the DOI suffix is stripped</span>
-<span class="sd">    (a valid DOI suffix contains no ``/``, e.g. the path in</span>
-<span class="sd">    ``10.1073/pnas.2201699120/-/DCSupplemental``).</span>
-
-<span class="sd">    :param doi: DOI string, possibly wrapped in a URL or prefix</span>
-<span class="sd">    :returns: Normalised DOI, or ``""`` when *doi* is empty</span>
-<span class="sd">    """</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">doi</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">""</span>
-    <span class="n">value</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">doi</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="n">value</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span>
-        <span class="sa">r</span><span class="s2">"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)"</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span>
-    <span class="p">)</span>
-    <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">".,;:)]}"</span><span class="p">)</span>
-    <span class="c1"># A valid DOI is ``10.&lt;registrant&gt;/&lt;suffix&gt;``; anything after the</span>
-    <span class="c1"># second slash is a URL path, not part of the DOI.</span>
-    <span class="n">parts</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
-    <span class="k">return</span> <span class="n">value</span></div>
-
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_strip_tags</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Strip XML/JATS tags from a string and collapse whitespace."""</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="n">_JATS_TAG_RE</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s2">" "</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">"\s+"</span><span class="p">,</span> <span class="s2">" "</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-    <span class="k">return</span> <span class="n">text</span> <span class="ow">or</span> <span class="kc">None</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_reconstruct_inverted_index</span><span class="p">(</span><span class="n">inverted</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Rebuild an abstract from OpenAlex's word-&gt;positions map."""</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">inverted</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">positioned</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">for</span> <span class="n">word</span><span class="p">,</span> <span class="n">positions</span> <span class="ow">in</span> <span class="n">inverted</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-        <span class="k">for</span> <span class="n">position</span> <span class="ow">in</span> <span class="n">positions</span><span class="p">:</span>
-            <span class="n">positioned</span><span class="p">[</span><span class="n">position</span><span class="p">]</span> <span class="o">=</span> <span class="n">word</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">positioned</span><span class="p">:</span>
-        <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">positioned</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="k">for</span> <span class="n">pos</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">positioned</span><span class="p">))</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_crossref</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Normalise a Crossref ``/works/{doi}`` response."""</span>
-    <span class="n">message</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-    <span class="n">titles</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-    <span class="n">authors</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">author</span> <span class="ow">in</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
-        <span class="n">given</span> <span class="o">=</span> <span class="n">author</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"given"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
-        <span class="n">family</span> <span class="o">=</span> <span class="n">author</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"family"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">given</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">family</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="p">(</span><span class="n">author</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">name</span><span class="p">:</span>
-            <span class="n">authors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-    <span class="n">year</span> <span class="o">=</span> <span class="kc">None</span>
-    <span class="n">issued</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"issued"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-    <span class="n">date_parts</span> <span class="o">=</span> <span class="n">issued</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"date-parts"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-    <span class="k">if</span> <span class="n">date_parts</span> <span class="ow">and</span> <span class="n">date_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
-        <span class="n">year</span> <span class="o">=</span> <span class="n">date_parts</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
-    <span class="n">container</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"container-title"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-    <span class="k">return</span> <span class="n">BiblioRecord</span><span class="p">(</span>
-        <span class="n">title</span><span class="o">=</span><span class="p">(</span><span class="n">titles</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">titles</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">authors</span><span class="o">=</span><span class="n">authors</span><span class="p">,</span>
-        <span class="n">year</span><span class="o">=</span><span class="n">year</span><span class="p">,</span>
-        <span class="n">journal</span><span class="o">=</span><span class="p">(</span><span class="n">container</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">container</span> <span class="k">else</span> <span class="kc">None</span><span class="p">),</span>
-        <span class="n">abstract</span><span class="o">=</span><span class="n">_strip_tags</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"abstract"</span><span class="p">)),</span>
-        <span class="n">doi</span><span class="o">=</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"DOI"</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_openalex</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Normalise an OpenAlex ``/works/doi:{doi}`` response."""</span>
-    <span class="n">authors</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">for</span> <span class="n">authorship</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"authorships"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
-        <span class="n">author</span> <span class="o">=</span> <span class="n">authorship</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"author"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-        <span class="n">name</span> <span class="o">=</span> <span class="n">author</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display_name"</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">name</span><span class="p">:</span>
-            <span class="n">authors</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
-    <span class="n">source</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"primary_location"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-    <span class="n">raw_doi</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"doi"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">BiblioRecord</span><span class="p">(</span>
-        <span class="n">title</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">),</span>
-        <span class="n">authors</span><span class="o">=</span><span class="n">authors</span><span class="p">,</span>
-        <span class="n">year</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"publication_year"</span><span class="p">),</span>
-        <span class="n">journal</span><span class="o">=</span><span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display_name"</span><span class="p">),</span>
-        <span class="n">abstract</span><span class="o">=</span><span class="n">_reconstruct_inverted_index</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"abstract_inverted_index"</span><span class="p">)),</span>
-        <span class="n">doi</span><span class="o">=</span><span class="n">normalize_doi</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">raw_doi</span><span class="p">))</span> <span class="k">if</span> <span class="n">raw_doi</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_semantic_scholar</span><span class="p">(</span><span class="n">data</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Normalise a Semantic Scholar ``/paper/DOI:{doi}`` response."""</span>
-    <span class="n">authors</span> <span class="o">=</span> <span class="p">[</span><span class="n">a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"authors"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">a</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)]</span>
-    <span class="n">external</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"externalIds"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-    <span class="k">return</span> <span class="n">BiblioRecord</span><span class="p">(</span>
-        <span class="n">title</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">),</span>
-        <span class="n">authors</span><span class="o">=</span><span class="n">authors</span><span class="p">,</span>
-        <span class="n">year</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"year"</span><span class="p">),</span>
-        <span class="n">journal</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"venue"</span><span class="p">),</span>
-        <span class="n">abstract</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"abstract"</span><span class="p">),</span>
-        <span class="n">doi</span><span class="o">=</span><span class="n">external</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"DOI"</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="p">)</span>
 
 
 <div class="viewcode-block" id="DoiResolver">
@@ -654,7 +529,7 @@
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mailto</span><span class="p">:</span>
             <span class="n">params</span><span class="p">[</span><span class="s2">"mailto"</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mailto</span>
         <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_json</span><span class="p">(</span><span class="sa">f</span><span class="s2">"https://api.crossref.org/works/</span><span class="si">{</span><span class="n">doi</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">_normalize_crossref</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">normalize_crossref</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_query_openalex</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">params</span> <span class="o">=</span> <span class="p">{}</span>
@@ -663,7 +538,7 @@
         <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_json</span><span class="p">(</span>
             <span class="sa">f</span><span class="s2">"https://api.openalex.org/works/doi:</span><span class="si">{</span><span class="n">doi</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">_normalize_openalex</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">normalize_openalex</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_query_semantic_scholar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">doi</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"fields"</span><span class="p">:</span> <span class="s2">"title,authors,abstract,year,venue,externalIds"</span><span class="p">}</span>
@@ -671,7 +546,7 @@
             <span class="sa">f</span><span class="s2">"https://api.semanticscholar.org/graph/v1/paper/DOI:</span><span class="si">{</span><span class="n">doi</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
             <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">_normalize_semantic_scholar</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_or_none</span><span class="p">(</span><span class="n">normalize_semantic_scholar</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_record_or_none</span><span class="p">(</span><span class="n">normalizer</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BiblioRecord</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>

@@ -325,6 +325,18 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.find_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_files</span> <span class="k">as</span> <span class="n">find_files_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.grep</span><span class="w"> </span><span class="kn">import</span> <span class="n">grep</span> <span class="k">as</span> <span class="n">grep_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_files</span> <span class="k">as</span> <span class="n">list_files_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_MAX_RESULTS</span> <span class="k">as</span> <span class="n">PAPERS_DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MAX_RESULTS</span> <span class="k">as</span> <span class="n">PAPERS_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">Domain</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">search_papers</span> <span class="k">as</span> <span class="n">search_papers_impl</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.read_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_file</span> <span class="k">as</span> <span class="n">read_file_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">DEFAULT_MAX_OUTPUT_CHARS</span><span class="p">,</span>
@@ -336,7 +348,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_fetch</span> <span class="k">as</span> <span class="n">web_fetch_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
-    <span class="n">MAX_MAX_RESULTS</span><span class="p">,</span>
+    <span class="n">MAX_RESULTS</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_search</span> <span class="k">as</span> <span class="n">web_search_impl</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.write_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">write_file</span> <span class="k">as</span> <span class="n">write_file_impl</span>
@@ -388,6 +400,90 @@
 
 
 
+<div class="viewcode-block" id="search_papers">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.search_papers">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">},</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_papers</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">"Keywords to search for, e.g. 'hodgkin huxley'"</span><span class="p">,</span> <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">),</span>
+    <span class="p">],</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="n">Domain</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"'general' for all fields, or 'life-sciences' to search "</span>
+                <span class="s2">"biomedical literature (Europe PMC, PubMed) first"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"general"</span><span class="p">,</span>
+    <span class="n">preprints</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Also search preprints (not peer reviewed). Set only when the "</span>
+                <span class="s2">"user asks for preprints, or the peer reviewed results are "</span>
+                <span class="s2">"not enough"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Maximum number of peer reviewed results, and separately of "</span>
+                <span class="s2">"preprint results"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">le</span><span class="o">=</span><span class="n">PAPERS_MAX_RESULTS</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">PAPERS_DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search academic papers by keywords.</span>
+
+<span class="sd">    Use this tool to find published research papers on a topic, with their</span>
+<span class="sd">    title, authors, year, journal, DOI, link and abstract.  Peer reviewed</span>
+<span class="sd">    papers are searched first; preprints are only included when</span>
+<span class="sd">    ``preprints`` is true, and are marked with ``peer_reviewed: false``.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Finding papers or references on a scientific topic.</span>
+<span class="sd">    - Looking for the source of a model, method or result.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading a paper's full text (use the web fetch or download tool).</span>
+<span class="sd">    - General web pages, news or docs (use the web search tool instead).</span>
+
+<span class="sd">    When you cite a preprint, tell the user it has not been peer reviewed.</span>
+
+<span class="sd">    Example: search_papers(query="hodgkin huxley", domain="life-sciences")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: Keywords to search for.</span>
+<span class="sd">        domain: 'general' or 'life-sciences'.</span>
+<span class="sd">        preprints: Also search preprints, listed after the peer reviewed results.</span>
+<span class="sd">        max_results: Maximum results from the peer reviewed sources and preprints.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with query, domain, preprints, results (title, authors,</span>
+<span class="sd">        year, journal, abstract, doi, url, peer_reviewed, source), error and</span>
+<span class="sd">        note.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">search_papers_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span>
+        <span class="n">preprints</span><span class="o">=</span><span class="n">preprints</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
 <div class="viewcode-block" id="web_search">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.web_search">[docs]</a>
 <span class="nd">@tool_meta</span><span class="p">(</span>
@@ -396,7 +492,7 @@
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">web_search</span><span class="p">(</span>
     <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
     <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
-    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="n">MAX_MAX_RESULTS</span><span class="p">)]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="n">MAX_RESULTS</span><span class="p">)]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Search the web and return ranked results with snippets.</span>
 

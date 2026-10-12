@@ -24,6 +24,20 @@ Regex extraction
    :members:
    :show-inheritance:
 
+Bibliographic records
+---------------------
+
+.. automodule:: klea_utils.biblio.models
+   :members:
+   :show-inheritance:
+
+Record normalisers
+------------------
+
+.. automodule:: klea_utils.biblio.normalize
+   :members:
+   :show-inheritance:
+
 DOI resolution
 --------------
 
