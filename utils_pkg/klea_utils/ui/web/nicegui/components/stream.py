@@ -2,10 +2,11 @@
 """
 SSE stream handling component for Klea pages.
 
-Contains the pure state-mutation logic (:func:`apply_stream_event`,
-unit-testable without NiceGUI) and the UI-driving coroutine
-(:func:`run_stream`) that consumes the backend's ``/query/stream``
-events and updates the chat panel, status pane and inspector.
+The pure event-to-state reducer moved to
+:mod:`klea_utils.ui.stream_events` (shared with the terminal client); this
+module keeps the UI-driving coroutines (:func:`run_stream`,
+:func:`stop_stream`) that consume the backend's ``/query/stream`` events and
+update the chat panel, status pane and inspector.
 
 See ``devdocs/system/streams.md`` and ``devdocs/system/api-sse-sequence.md``.
 
@@ -24,132 +25,11 @@ import httpx
 from nicegui import background_tasks
 
 from klea_utils.api.sse import request_cancel, stream_events
-from klea_utils.ui.state import ChatData, InspectorMarker, ensure_chat
+from klea_utils.ui.state import InspectorMarker, ensure_chat
+from klea_utils.ui.stream_events import apply_stream_event
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
-
-
-def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
-    """Apply one stream event's pure state mutations to the *chat* dict.
-
-    Mutates *chat* in place (token usage, status sections, inspector
-    entries, and, on completion, the final message) and returns the
-    action the UI layer reacts to:
-
-    ==============  =====================================================
-    return value    meaning
-    ==============  =====================================================
-    ``"usage"``     token usage totals were incremented
-    ``"state"``     a status-pane section was stored
-    ``"inspect"``   an inspection entry was appended
-    ``"context"``   session context (e.g. the operating mode) was stored
-    ``"complete"``  the final assistant message was appended
-    ``"error"``     the backend signalled an error
-    ``None``        no state change (progress / info / token events)
-    ==============  =====================================================
-
-    Inspector entries are appended to ``inspector_entries`` as they
-    arrive; the caller renders each one incrementally.  A per-query
-    marker is prepended by the caller at stream start.
-
-    :param chat: Chat session dict (see ``state.ensure_chat``).
-    :param event: Parsed SSE event dict from ``stream_events``.
-    :returns: Action string described above, or ``None``.
-    """
-    t = event.get("type")
-
-    if t == "context":
-        # App-defined session context (e.g. the agent's operating mode,
-        # ADR-0030), carried verbatim into the chat dict so
-        # the page can render it (status) without app-specific
-        # knowledge of every event type.
-        chat.setdefault("context", {}).update(event.get("data", {}))
-        return "context"
-
-    if t == "inspect":
-        data = event.get("data", {})
-        chat.setdefault("inspector_entries", []).append(
-            {
-                "type": t,
-                "node": event.get("node", ""),
-                "heading": data.get("heading", ""),
-                "summary": data.get("summary", ""),
-                "details": data.get("details", {}),
-                "timing_seconds": data.get("timing_seconds", None),
-            }
-        )
-        return "inspect"
-
-    if t == "usage":
-        data = event.get("data", {})
-        details = data.get("details", {})
-        usage = chat.setdefault(
-            "token_usage",
-            {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
-        )
-        for key in ("input_tokens", "output_tokens", "total_tokens"):
-            usage[key] += details.get(key, 0)
-        return "usage"
-
-    if t == "state":
-        data = event.get("data", {})
-        node = event.get("node", "")
-        # Sections are keyed by ``data["key"]`` when set, else by node label,
-        # so nodes can share one section (e.g. a live plan updated by the
-        # Planner and the Evaluator) instead of each owning a duplicate.
-        section_key = data.get("key") or node
-        chat.setdefault("state_sections", {})[section_key] = {
-            "heading": data.get("heading", ""),
-            "display": data.get("display", ""),
-            "summary": data.get("summary", ""),
-            "details": data.get("details", {}),
-            "preformatted": data.get("preformatted", False),
-        }
-        return "state"
-
-    if t == "complete":
-        message = event.get("message_for_user", "")
-        stamp = datetime.now().astimezone().strftime("%X")
-        chat.setdefault("messages", []).append(
-            {"text": message, "stamp": stamp, "role": "agent", "header": ""}
-        )
-        return "complete"
-
-    if t == "tool":
-        # Chat-renderable tool output (e.g. a file edit's diff).  One message
-        # per entry so each renders as its own full-width block, before the
-        # final answer.  ``mime`` selects the renderer; ``display`` is the
-        # text fallback.
-        data = event.get("data", {})
-        stamp = datetime.now().astimezone().strftime("%X")
-        for entry in data.get("tools", []):
-            if not entry.get("data") and not entry.get("display"):
-                continue
-            chat.setdefault("messages", []).append(
-                {
-                    "text": entry.get("display", ""),
-                    "stamp": stamp,
-                    "role": "tool",
-                    "header": entry.get("header", entry.get("title", "")),
-                    "mime": entry.get("mime", ""),
-                    "data": entry.get("data", ""),
-                    "meta": entry.get("meta", {}),
-                    "is_error": bool(entry.get("is_error", False)),
-                }
-            )
-        return "tool"
-
-    if t == "interrupt":
-        # The run paused for HITL input (ADR-0046): store the ask so the
-        # status region can render the form; cleared when the next turn starts.
-        chat["interrupt"] = event.get("data", {})
-        return "interrupt"
-
-    if t == "error":
-        return "error"
-
-    return None
 
 
 def _retry_stream(ctx: PageContext, query: str, chat_id: str) -> None:

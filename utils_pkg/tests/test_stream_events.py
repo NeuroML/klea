@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for the shared NiceGUI stream event application logic.
+Tests for the shared stream-event reducer and the NiceGUI stream driver.
 
 The :func:`apply_stream_event` function is pure (mutates the chat dict
 only), so it is unit-tested without any NiceGUI rendering.
@@ -26,11 +26,9 @@ from klea_utils.api.sse import (
     stream_events_sync,
 )
 from klea_utils.ui.state import chats, ensure_chat, interrupt_display
+from klea_utils.ui.stream_events import apply_stream_event
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.components.stream import (
-    apply_stream_event,
-    stop_stream,
-)
+from klea_utils.ui.web.nicegui.components.stream import stop_stream
 
 
 @pytest.fixture

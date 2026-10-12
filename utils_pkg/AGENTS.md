@@ -87,6 +87,7 @@ klea_utils/
 ├── ui/             # User interface frontends
 │   ├── stores_create.py # CLI for store creation (klea-stores-create)
 │   ├── state.py    # framework-agnostic chat/session state store (web + TUI)
+│   ├── stream_events.py # pure stream-event reducer (web + TUI)
 │   ├── tui/        # terminal REPL (temporary test client, not the TUI;
 │   │               #   full Textual TUI planned) -- repl.py, future shared
 │   │               #   TUI components composed per app (like nicegui/)
@@ -96,7 +97,7 @@ klea_utils/
 │       │   │   ├── context.py   # PageContext (config, mutable state, element refs,
 │       │   │   │                 #   callbacks; query_extra / status_extras slots)
 │       │   │   ├── bootstrap.py # run_nicegui_server(page_builder=...) -- ui.run entry
-│       │   │   ├── stream.py    # apply_stream_event (pure) + run_stream (SSE -> UI)
+│       │   │   ├── stream.py    # run_stream/stop_stream (SSE -> UI); reducer in ui/stream_events.py
 │       │   │   ├── status_pane.py # right drawer; app content slot (ctx.status_extras)
 │       │   │   └── ... chat_bubble, chat_area, chat_list, header, inspector,
 │       │   │         input_area, initial_load, model_dialog, storage, theme
