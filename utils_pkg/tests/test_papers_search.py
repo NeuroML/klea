@@ -80,12 +80,21 @@ class _FakeSession:
         return [url for url, _ in self.calls]
 
 
+def _fresh_resolver(monkeypatch, *, rotation_start: int = 0):
+    """Point the module entry point at a fresh resolver with a set rotation."""
+    monkeypatch.setattr(
+        search,
+        "_DEFAULT_RESOLVER",
+        search.PaperSearchResolver(rotation=itertools.count(rotation_start)),
+    )
+
+
 @pytest.fixture(autouse=True)
 def _hermetic(monkeypatch):
     monkeypatch.delenv("SEMANTIC_SCHOLAR_API_KEY", raising=False)
     monkeypatch.delenv("KLEA_INGEST_MAILTO", raising=False)
     # Start every test with OpenAlex as the primary general source.
-    monkeypatch.setattr(search, "_ROTATION", itertools.count())
+    _fresh_resolver(monkeypatch)
     # No real waiting between throttled requests.
     monkeypatch.setattr(arxiv, "_THROTTLE", Throttle(min_interval=0.0))
     monkeypatch.setattr(semantic_scholar, "_THROTTLE", Throttle(min_interval=0.0))
@@ -208,7 +217,7 @@ async def test_openalex_parsing_keeps_full_doi_and_filters_journals():
 
 
 async def test_crossref_parsing_strips_abstract_tags(monkeypatch):
-    monkeypatch.setattr(search, "_ROTATION", itertools.count(1))
+    _fresh_resolver(monkeypatch, rotation_start=1)
     session = _FakeSession({CROSSREF_WORKS_URL: _crossref([_crossref_item()])})
 
     result = await search_papers(session, "hodgkin huxley")
@@ -222,7 +231,7 @@ async def test_crossref_parsing_strips_abstract_tags(monkeypatch):
 
 
 async def test_crossref_drops_ssrn_preprints(monkeypatch):
-    monkeypatch.setattr(search, "_ROTATION", itertools.count(1))
+    _fresh_resolver(monkeypatch, rotation_start=1)
     ssrn = _crossref_item(title="SSRN preprint")
     ssrn["DOI"] = "10.2139/ssrn.3193693"
     ssrn["container-title"] = ["SSRN Electronic Journal"]
@@ -530,7 +539,7 @@ async def test_falls_back_on_connection_error():
 
 
 async def test_results_without_abstracts_fall_back_to_next_source(monkeypatch):
-    monkeypatch.setattr(search, "_ROTATION", itertools.count(1))
+    _fresh_resolver(monkeypatch, rotation_start=1)
     session = _FakeSession(
         {
             CROSSREF_WORKS_URL: _crossref([_crossref_item(abstract=None)]),
@@ -545,7 +554,7 @@ async def test_results_without_abstracts_fall_back_to_next_source(monkeypatch):
 
 
 async def test_results_without_abstracts_kept_as_last_resort(monkeypatch):
-    monkeypatch.setattr(search, "_ROTATION", itertools.count(1))
+    _fresh_resolver(monkeypatch, rotation_start=1)
     session = _FakeSession(
         {
             CROSSREF_WORKS_URL: _crossref([_crossref_item(abstract=None)]),
