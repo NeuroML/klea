@@ -172,6 +172,10 @@ class PageContext:
     #: Rename a chat session (``chat_id``, ``name``); registered by the
     #: chat-list component and used by the client ``/rename`` command (ADR-0047).
     rename_chat: Callable[[str, str], None] = field(default=_noop_args)
+    #: Open the model/credential dialog from a synchronous caller; registered by
+    #: the model-dialog component and used by the client ``/model`` command
+    #: (ADR-0047).
+    show_model_dialog: Callable[[], None] = field(default=_noop)
     #: Hooks invoked with a chat's data dict whenever a graph ``context`` event
     #: updates its session context, so a context control (operating mode /
     #: tool access) can reconcile its per-chat preference with the checkpointed

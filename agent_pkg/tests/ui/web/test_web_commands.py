@@ -115,15 +115,15 @@ async def test_clicking_a_suggestion_completes_and_closes(fake_backend, agent_us
     fake_backend.commands = [_mode_metadata()]
     await agent_user.open("/")
     await agent_user.should_not_see("Backend is starting")
-    agent_user.find(ui.textarea).type("/mo")
-    await agent_user.should_see("/mode", retries=50)
+    agent_user.find(ui.textarea).type("/hel")
+    await agent_user.should_see("/help", retries=50)
 
-    items = _suggestion_items(agent_user, "/mode")
+    items = _suggestion_items(agent_user, "/help")
     assert len(items) == 1
     UserInteraction(agent_user, {items[0]}, None).click()
 
-    assert agent_user.find(ui.textarea).elements.pop().value == "/mode "
-    assert _suggestion_items(agent_user, "/mode") == []
+    assert agent_user.find(ui.textarea).elements.pop().value == "/help "
+    assert _suggestion_items(agent_user, "/help") == []
 
 
 async def test_server_command_is_forwarded(fake_backend, agent_user):
@@ -224,3 +224,27 @@ async def test_rename_command_renames_the_session(fake_backend, agent_user):
 
     new_chats = [chats[key] for key in set(chats) - before]
     assert any(data["name"] == "My Renamed Session" for data in new_chats)
+
+
+def test_model_handler_calls_the_dialog_hook_silently():
+    """``/model`` opens the model dialog and produces no chat output."""
+    calls: list[str] = []
+    context = CommandContext(services={"show_model_dialog": lambda: calls.append("m")})
+    result = client_commands().dispatch(ParsedCommand(name="model"), context)
+    assert calls == ["m"]
+    assert result.output == []
+    assert result.error == ""
+
+
+async def test_model_command_opens_the_model_dialog(fake_backend, agent_user):
+    """``/model`` opens the model/credential dialog (ADR-0047)."""
+    fake_backend.session_models = {
+        "chat": {"model": "m1", "required": True, "credential": {}}
+    }
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    # The dialog is created only when opened.
+    await agent_user.should_not_see("Manage API keys")
+
+    _send(agent_user, "/model")
+    await agent_user.should_see("Manage API keys", retries=50)

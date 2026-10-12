@@ -49,6 +49,9 @@ _NEW_CHAT_SERVICE = "new_chat"
 #: ``CommandContext.services`` key for the "rename a chat" hook (``/rename``).
 _RENAME_CHAT_SERVICE = "rename_chat"
 
+#: ``CommandContext.services`` key for the "open the model dialog" hook.
+_MODEL_DIALOG_SERVICE = "show_model_dialog"
+
 
 def client_commands() -> CommandRegistry:
     """Return the web frontend's own client-side commands (ADR-0047).
@@ -84,6 +87,16 @@ def client_commands() -> CommandRegistry:
             arg_hint="<name>",
             while_streaming="allow",
             handler=_handle_rename,
+        )
+    )
+    registry.register(
+        Command(
+            name="model",
+            summary="Open the model and API-key configuration",
+            side="client",
+            klass="ui",
+            while_streaming="allow",
+            handler=_handle_model,
         )
     )
     return registry
@@ -143,6 +156,20 @@ def _handle_rename(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     return CommandResult.ok(f"Renamed session to {name!r}")
 
 
+def _handle_model(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Open the model/credential dialog for the active scope (ADR-0047).
+
+    Silent on success: the dialog is the feedback, so no ``system`` bubble is
+    rendered.  The active chat's scope is chosen by the dialog itself (session
+    scope when no chat is active).
+    """
+    show = context.service(_MODEL_DIALOG_SERVICE)
+    if show is None:
+        return CommandResult.fail("Model configuration is not supported here.")
+    show()
+    return CommandResult()
+
+
 def handle_command(ctx: PageContext, text: str) -> bool:
     """Handle *text* as a command if it is one; return ``True`` when consumed.
 
@@ -180,6 +207,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
             _REGISTRY_SERVICE: registry,
             _NEW_CHAT_SERVICE: ctx.new_chat,
             _RENAME_CHAT_SERVICE: ctx.rename_chat,
+            _MODEL_DIALOG_SERVICE: ctx.show_model_dialog,
         },
     )
     result = registry.dispatch(parsed, context)

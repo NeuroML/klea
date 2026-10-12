@@ -25,7 +25,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from nicegui import ui
+from nicegui import background_tasks, ui
 
 from klea_utils.api.sse import (
     fetch_active_models,
@@ -911,6 +911,17 @@ def attach_model_info(ctx: PageContext) -> None:
 
         dialog.open()
 
+    def _show_model_dialog() -> None:
+        """Open the model dialog from a synchronous caller (the ``/model`` command).
+
+        ``_model_config_dialog`` is async (it may fetch model info and stored
+        credentials); schedule it as a background task.  It builds its dialog
+        inside ``ctx.dialog_container``, so it is safe off the event slot
+        (ADR-0047).
+        """
+        background_tasks.create(_model_config_dialog())
+
     ctx.fetch_model_info = _fetch_model_info
     ctx.fetch_session_model_info = _fetch_session_model_info
     ctx.model_config_dialog = _model_config_dialog
+    ctx.show_model_dialog = _show_model_dialog
