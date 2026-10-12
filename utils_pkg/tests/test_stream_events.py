@@ -25,12 +25,12 @@ from klea_utils.api.sse import (
     stream_events,
     stream_events_sync,
 )
+from klea_utils.ui.state import chats, ensure_chat, interrupt_display
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.stream import (
     apply_stream_event,
     stop_stream,
 )
-from klea_utils.ui.web.nicegui.state import chats, ensure_chat, interrupt_display
 
 
 @pytest.fixture

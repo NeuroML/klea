@@ -24,8 +24,8 @@ import httpx
 from nicegui import background_tasks
 
 from klea_utils.api.sse import request_cancel, stream_events
+from klea_utils.ui.state import ChatData, InspectorMarker, ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import ChatData, InspectorMarker, ensure_chat
 
 logger = logging.getLogger(__name__)
 

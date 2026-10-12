@@ -86,6 +86,7 @@ klea_utils/
 ├── tools.py        # MCP CallToolResult helpers (textualize content blocks)
 ├── ui/             # User interface frontends
 │   ├── stores_create.py # CLI for store creation (klea-stores-create)
+│   ├── state.py    # framework-agnostic chat/session state store (web + TUI)
 │   ├── tui/        # terminal REPL (temporary test client, not the TUI;
 │   │               #   full Textual TUI planned) -- repl.py, future shared
 │   │               #   TUI components composed per app (like nicegui/)
@@ -101,8 +102,7 @@ klea_utils/
 │       │   │         input_area, initial_load, model_dialog, storage, theme
 │       │   ├── client.py  # server API client (sessions, models, chat)
 │       │   ├── entry.py   # default_storage_env, app_name_from_argv
-│       │   ├── parser.py  # argparse for the app entry point
-│       │   └── state.py   # frontend chat/session state store
+│       │   └── parser.py  # argparse for the app entry point
 │       └── streamlit/ # Streamlit web UI
 ```
 

@@ -17,7 +17,7 @@ from typing import Any
 
 import httpx
 
-from .state import chats, ensure_chat
+from klea_utils.ui.state import chats, ensure_chat
 
 logger = logging.getLogger(__name__)
 

@@ -107,6 +107,7 @@ async def utils_user(fake_backend: FakeBackend):
     """A simulated user on a page composing the shared components."""
     pytest.importorskip("nicegui")
 
+    from klea_utils.ui.state import chats
     from klea_utils.ui.web.nicegui.components import (
         chat_area,
         chat_list,
@@ -120,7 +121,6 @@ async def utils_user(fake_backend: FakeBackend):
         theme,
     )
     from klea_utils.ui.web.nicegui.components.context import PageContext
-    from klea_utils.ui.web.nicegui.state import chats
     from nicegui import ui
     from nicegui.testing.user_simulation import user_simulation
 

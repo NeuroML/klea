@@ -8,13 +8,13 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import (
+from klea_utils.ui.state import (
     chat_indicator,
     missing_credentials,
     resolve_chat_choice,
     resolve_choice,
 )
+from klea_utils.ui.web.nicegui.components.context import PageContext
 
 OPTIONS = ("general", "scientific")
 

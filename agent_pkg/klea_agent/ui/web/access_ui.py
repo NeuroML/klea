@@ -17,9 +17,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+from klea_utils.ui.state import chats, resolve_chat_choice
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats, resolve_chat_choice
 
 logger = logging.getLogger(__name__)
 

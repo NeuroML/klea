@@ -120,13 +120,13 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 def _isolate_chat_store():
     """Keep the process-global chat store from leaking between tests.
 
-    ``klea_utils.ui.web.nicegui.state.chats`` is process-global.  Without this,
+    ``klea_utils.ui.state.chats`` is process-global.  Without this,
     a chat one test creates leaks into the next; its random coolname slug can
     contain a substring another test searches for (e.g. "ok" in "okapi"), so
     ``should_see`` matches early and the test proceeds before its background
     stream POST is recorded.
     """
-    from klea_utils.ui.web.nicegui.state import chats
+    from klea_utils.ui.state import chats
 
     snapshot = dict(chats)
     yield
