@@ -732,3 +732,39 @@ async def test_bundled_wrapper_reports_failure_as_error():
 
     assert result.is_error is True
     assert "HTTP session not initialized" in result.structured_content["error"]
+
+
+async def _live_search(query: str, max_results: int = 10) -> dict:
+    """Search the real scholarly APIs (life-sciences: Europe PMC first)."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        return await search_papers(
+            client, query, domain="life-sciences", max_results=max_results
+        )
+
+
+@pytest.mark.parametrize(
+    ("query", "expected_doi"),
+    [
+        ("NeuroML", "10.7554/eLife.95135"),
+        ("Open Source Brain", "10.1016/j.neuron.2019.05.019"),
+    ],
+)
+async def test_live_search_finds_known_paper(query, expected_doi):
+    """The real APIs return a known paper for a distinctive query.
+
+    Not ``localonly``: the queries are unique enough to be stable, and the test
+    skips (rather than fails) when no source can be reached, so offline runs
+    and transient outages do not break the suite.
+    """
+    expected = expected_doi.lower()
+    result: dict = {}
+    dois: set[str] = set()
+    # Two attempts: a transient rate limit can leave only a fallback source.
+    for _ in range(2):
+        result = await _live_search(query)
+        dois = {(record["doi"] or "").lower() for record in result["results"]}
+        if expected in dois:
+            return
+    if not result["results"]:
+        pytest.skip(f"no paper source reachable: {result['error'] or result['note']}")
+    assert expected in dois, f"{expected_doi} missing from {sorted(dois)}"
