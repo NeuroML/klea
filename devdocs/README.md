@@ -34,6 +34,7 @@ Structure:
 | File | Topic |
 |------|-------|
 | `backlog.md` | Consolidated open-work backlog (HITL, agent path, tools, scientific mode, infra, UX, testing) |
+| `tui-implementation-plan.md` | Working checklist for the Textual TUI build: phased steps with status (ADR-0050) |
 | `system/c4-system-context.md` | C4 model Level 1: system context diagram (whole Klea product as the system in scope) |
 | `system/c4-container.md` | C4 model Level 2: container diagram (Klea packages/services, datastores, shared lib, and their interactions + external systems) |
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
