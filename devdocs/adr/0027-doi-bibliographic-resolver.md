@@ -159,6 +159,11 @@ tiered cascade".
   cascade per file), ``devdocs/system/store-create.md`` (chunk/store/
   build cache layout with ``doi-cache.json``), ``docs/concepts/rag.rst``
   174 (reference-material grouping by file with bibliographic header).
+* Shared pattern: ``devdocs/system/external-source-pools.md`` describes the
+  keyless-first pool + sequential-fallback architecture this resolver shares
+  with web search (ADR-0048) and paper search (ADR-0049); this resolver's
+  adaptations are the round-robin rotation, the on-disk cache, and the sync
+  client it owns inside ingestion workers.
 * Commits: ``90844d4`` (tiered cascade), ``8160381`` (heading-chain
   template: DOI-derived ``url_doi`` + ``_sources``), ``908cb4e``
   (regex tier), ``dois`` batching + atomic JSON hygiene alongside

@@ -182,6 +182,7 @@ When the code below changes, update the matching devdoc in the same change:
 | node prompts / `_optional_section` | `system/prompt-conventions.md` |
 | `mcp/access.py` and MCP tool annotations | `system/mcp-permissions.md`, ADR-0037 |
 | `mcp/tool_impls/*.py` and `mcp/server/bundled_tools.py` | `system/file-tools.md`, `system/mcp-permissions.md` |
+| `biblio/doi.py`, `mcp/tool_impls/{search,papers}/*`, `mcp/tool_impls/user_agent.py` | `system/external-source-pools.md`, ADR-0027/0048/0049 |
 | web UI theme tokens | `system/web-theming.md` |
 | `commands/` (`common.py`, `graph.py`, `nodes/command.py`), `api/commands.py`, the web command component, node prompts | `system/session-commands.md`, `docs/components/commands.rst`, ADR-0047 |
 

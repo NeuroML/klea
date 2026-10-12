@@ -38,6 +38,7 @@ Structure:
 | `system/c4-container.md` | C4 model Level 2: container diagram (Klea packages/services, datastores, shared lib, and their interactions + external systems) |
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
 | `system/mcp-permissions.md` | Filesystem permissions for MCP tools: the current in-tool check, why it cannot cover third-party servers, and what opencode does instead |
+| `system/external-source-pools.md` | External source pools: the shared keyless-first provider-pool + sequential-fallback pattern (DOI resolver, web search, paper search) and each one's adaptations |
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
@@ -96,6 +97,8 @@ Structure:
 | `adr/0045-per-run-node-context.md` | ADR-0045: Per-run NodeContext replaces shared LLM node state |
 | `adr/0046-hitl-interrupt-resume.md` | ADR-0046: Human-in-the-loop: interrupt and resume |
 | `adr/0047-session-command-framework.md` | ADR-0047: Session command framework: a user-invoked command surface |
+| `adr/0048-web-search-providers.md` | ADR-0048: Web search tool: keyless-first provider pool with sequential fallback |
+| `adr/0049-paper-search-tool.md` | ADR-0049: Paper search tool: peer-reviewed-first scholarly source pool with preprint gating |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

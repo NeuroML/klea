@@ -182,6 +182,9 @@ behave.
   ADR-0004 (bundled stdio server), ADR-0005 (httpx single stack),
   ADR-0037 (tool access levels), ADR-0040 (display convention),
   `devdocs/system/mcp-permissions.md` (network/SSRF boundary).
+* Shared pattern: `devdocs/system/external-source-pools.md` (the
+  keyless-first pool + sequential-fallback architecture); paper search
+  (ADR-0049) is the third pool following the same shape.
 * Deferred: `general.web_search` JSON config and forwarding provider keys to
   the bundled subprocess (`devdocs/backlog.md`); optional explicit `rank`
   and truncation to `max_results` (Parallel ignores the count).
