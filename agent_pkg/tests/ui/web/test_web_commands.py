@@ -176,3 +176,51 @@ async def test_new_starts_a_fresh_session(fake_backend, agent_user):
     # ``/new`` opened an empty session and sent nothing to the graph.
     assert sum(not data["messages"] for data in new_chats) == 1
     assert len(fake_backend.stream_bodies()) == 1
+
+
+def test_rename_handler_requires_a_name():
+    """``/rename`` with no name is a usage error (ADR-0047)."""
+    result = client_commands().dispatch(
+        ParsedCommand(name="rename", raw_args="   "), CommandContext(chat_id="c1")
+    )
+    assert result.error
+    assert "Usage: /rename" in result.error
+
+
+def test_rename_handler_requires_an_active_chat():
+    """``/rename`` with no active session is an error."""
+    result = client_commands().dispatch(
+        ParsedCommand(name="rename", raw_args="New Name"), CommandContext(chat_id="")
+    )
+    assert "No active session" in result.error
+
+
+def test_rename_handler_calls_the_hook_with_the_raw_name():
+    """The full argument (spaces preserved) reaches the rename hook."""
+    calls: list[tuple[str, str]] = []
+    context = CommandContext(
+        chat_id="c1",
+        services={"rename_chat": lambda chat_id, name: calls.append((chat_id, name))},
+    )
+    result = client_commands().dispatch(
+        ParsedCommand(name="rename", raw_args="My New Name"), context
+    )
+    assert calls == [("c1", "My New Name")]
+    assert any("My New Name" in line for line in result.output)
+
+
+async def test_rename_command_renames_the_session(fake_backend, agent_user):
+    """``/rename`` renames the active session (ADR-0047)."""
+    before = set(chats)
+    marker = "zzz-rename-marker-zzz"
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": marker}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see(marker, retries=50)
+
+    _send(agent_user, "/rename My Renamed Session")
+    await agent_user.should_see("Renamed session", retries=50)
+
+    new_chats = [chats[key] for key in set(chats) - before]
+    assert any(data["name"] == "My Renamed Session" for data in new_chats)

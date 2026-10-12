@@ -46,6 +46,9 @@ _REGISTRY_SERVICE = "registry"
 #: ``CommandContext.services`` key for the "start a new chat" hook (``/new``).
 _NEW_CHAT_SERVICE = "new_chat"
 
+#: ``CommandContext.services`` key for the "rename a chat" hook (``/rename``).
+_RENAME_CHAT_SERVICE = "rename_chat"
+
 
 def client_commands() -> CommandRegistry:
     """Return the web frontend's own client-side commands (ADR-0047).
@@ -70,6 +73,17 @@ def client_commands() -> CommandRegistry:
             klass="ui",
             while_streaming="allow",
             handler=_handle_new,
+        )
+    )
+    registry.register(
+        Command(
+            name="rename",
+            summary="Rename the current session",
+            side="client",
+            klass="ui",
+            arg_hint="<name>",
+            while_streaming="allow",
+            handler=_handle_rename,
         )
     )
     return registry
@@ -111,6 +125,24 @@ def _handle_new(context: CommandContext, parsed: ParsedCommand) -> CommandResult
     return CommandResult()
 
 
+def _handle_rename(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Rename the active session via the frontend's ``rename_chat`` hook.
+
+    The name is the raw argument (spaces preserved); an empty name or no active
+    session is a usage error.
+    """
+    name = parsed.raw_args.strip()
+    if not name:
+        return CommandResult.fail("Usage: /rename <new name>")
+    if not context.chat_id:
+        return CommandResult.fail("No active session to rename.")
+    rename = context.service(_RENAME_CHAT_SERVICE)
+    if rename is None:
+        return CommandResult.fail("Renaming a session is not supported here.")
+    rename(context.chat_id, name)
+    return CommandResult.ok(f"Renamed session to {name!r}")
+
+
 def handle_command(ctx: PageContext, text: str) -> bool:
     """Handle *text* as a command if it is one; return ``True`` when consumed.
 
@@ -147,6 +179,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
         services={
             _REGISTRY_SERVICE: registry,
             _NEW_CHAT_SERVICE: ctx.new_chat,
+            _RENAME_CHAT_SERVICE: ctx.rename_chat,
         },
     )
     result = registry.dispatch(parsed, context)

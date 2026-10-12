@@ -124,9 +124,10 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 |---|---|---|---|
 | `/help [cmd]` | ui | - | list commands, or detail one |
 | `/new` | ui | - | start a new session |
+| `/rename <name>` | ui | - | rename the current session |
 
 Planned client commands (not registered yet): `/commands`,
-`/sessions`, `/rename`, `/export`, `/model`, `/upload`.
+`/sessions`, `/export`, `/model`, `/upload`.
 
 Notes:
 

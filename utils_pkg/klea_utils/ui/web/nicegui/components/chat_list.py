@@ -107,6 +107,22 @@ def attach_chat_list(ctx: PageContext) -> None:
         )
         ctx.refresh_chat_list()
 
+    def _apply_rename(chat_id: str, name: str) -> None:
+        """Rename *chat_id* locally and persist it on the server.
+
+        Shared by the chat-list rename dialog and the client ``/rename``
+        command (ADR-0047).  The server PATCH runs in the background so callers
+        stay synchronous.
+        """
+        chat = ensure_chat(ctx.user_id, chat_id)
+        chat["name"] = name
+        logger.debug("renaming chat=%s to %r", chat_id, name)
+        background_tasks.create(
+            rename_chat_on_server(ctx.server_url, ctx.user_id, chat_id, name)
+        )
+        ctx.refresh_chat_list()
+        ctx.refresh_status_pane()
+
     def _rename_chat(chat_id: str) -> None:
         """Open a dialog to rename a chat and persist on server."""
         chat = ensure_chat(ctx.user_id, chat_id)
@@ -114,12 +130,8 @@ def attach_chat_list(ctx: PageContext) -> None:
         dialog = ui.dialog()
 
         async def _save():
-            chat["name"] = inp.value
+            _apply_rename(chat_id, inp.value)
             dialog.close()
-            logger.debug("renaming chat=%s to %r", chat_id, inp.value)
-            await rename_chat_on_server(ctx.server_url, ctx.user_id, chat_id, inp.value)
-            ctx.refresh_chat_list()
-            ctx.refresh_status_pane()
 
         with dialog, ui.card():
             ui.label("Rename chat").classes("text-lg font-bold")
@@ -320,6 +332,7 @@ def attach_chat_list(ctx: PageContext) -> None:
 
     ctx.switch_chat = _switch_chat
     ctx.new_chat = _new_chat
+    ctx.rename_chat = _apply_rename
     ctx.refresh_chat_list = _render_chat_list.refresh
 
     # ---- Left drawer (rail mode by default) ----

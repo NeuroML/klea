@@ -169,6 +169,9 @@ class PageContext:
     #: Create and switch to a new chat session (registered by the chat-list
     #: component; used by the client ``/new`` command, ADR-0047).
     new_chat: Callable[[], None] = field(default=_noop)
+    #: Rename a chat session (``chat_id``, ``name``); registered by the
+    #: chat-list component and used by the client ``/rename`` command (ADR-0047).
+    rename_chat: Callable[[str, str], None] = field(default=_noop_args)
     #: Hooks invoked with a chat's data dict whenever a graph ``context`` event
     #: updates its session context, so a context control (operating mode /
     #: tool access) can reconcile its per-chat preference with the checkpointed
