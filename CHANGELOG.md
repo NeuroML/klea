@@ -40,6 +40,7 @@
 
 ### Changed
 
+- Entry routing: the `chat` route is now reserved for self-contained conversational/general-knowledge replies (including direct conversational edits such as shortening or rephrasing); a request that derives a result from earlier work or turns (summarise, compile, compare, synthesise) is routed to the `task` path so it is planned/checked and its deliverable persisted, instead of being answered inline by the router.
 - The agent client identities are now `klea-agent-tui` / `klea-agent-web` (previously `klea-tui` / `klea-web`), matching the `klea-{agent,rag}-{tui,web}` scheme the RAG clients already use; the log file and NiceGUI user-data directory names change accordingly, and existing agent web storage under `klea-web` is not migrated.
 - `read_file` returns one bounded page by default and enforces a server-side character budget; the `max_chars` parameter is no longer exposed to the model, so a large file is read by paging (via the result's `next_offset`/`next_char_offset`) instead of in a single call.
 - `read_file` streams plain-text files lazily instead of loading the whole file: memory is bounded by the page size, files larger than `max_bytes` are pageable rather than refused (`max_bytes` is now a per-call scan cap), and `total_lines` is `null` when a page does not reach EOF.  A large-file page that is truncated suggests using `grep` to locate the region and then reading around it with `offset`/`limit`.

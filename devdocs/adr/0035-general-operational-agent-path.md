@@ -310,6 +310,11 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   tool-free, reads conversation history for follow-ups, answers `chat` inline,
   and **defaults to `task` when unsure** (fail-closed).  It is the only place a
   model may answer the user directly, and it must not answer world-facts.
+  `chat` is a self-contained conversational/general-knowledge reply (including
+  direct conversational edits such as shortening or rephrasing); a request that
+  derives from earlier work/turns (summarise, compile, compare, synthesise) is
+  `task`, so it is planned/checked and its deliverable persisted rather than
+  answered inline from the lossy conversation (update 2026-10-12).
 * The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
   answers the user.  `plan.status` is the post-Planner routing source:
   `in_review` -> `AwaitHuman` (review), `needs_input` -> `AwaitHuman` (input),

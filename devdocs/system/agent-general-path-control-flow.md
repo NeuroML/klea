@@ -67,9 +67,13 @@ Evaluator (operational judge, per-step verdict map):
 
 Trivial chat: Guard + RouteDecision (2 calls); the router answers inline and the
 graph goes straight to ``AnswerUser``.  ``RouteDecision`` is deliberately
-narrow and tool-free -- it only decides "self-contained conversation vs needs
-the environment", defaulting to ``task`` (fail-closed) so a world-fact is never
-answered from assumption.
+narrow and tool-free -- it decides "self-contained conversational/general-knowledge
+reply vs needs the environment **or derives from earlier session work**",
+defaulting to ``task`` (fail-closed) so a world-fact is never answered from
+assumption and a derivation is never answered inline from the conversation.
+Routing a derivation to ``task`` is cheap when no environment work is needed:
+the Planner returns ``no_plan_required`` and the answer-composer writes (and
+persists) the result.
 
 ## Nodes
 
@@ -95,8 +99,8 @@ answer the user directly:
 
 | route | meaning | edge |
 |-------|---------|------|
-| ``chat`` | self-contained conversation/knowledge; the router wrote ``answer`` | ``AnswerUser`` |
-| ``task`` | needs the environment/workspace/session | ``Planner`` |
+| ``chat`` | self-contained conversational/general-knowledge reply (greeting, clarification, general fact, direct conversational edit); the router wrote ``answer``.  Does not derive from session work | ``AnswerUser`` |
+| ``task`` | needs the environment/workspace/session, **or** derives a result from earlier work/turns (summarise, compile, compare, synthesise) | ``Planner`` |
 
 The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``plan.status`` is the post-Planner routing source:

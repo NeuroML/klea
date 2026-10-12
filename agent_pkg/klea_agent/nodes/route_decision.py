@@ -21,13 +21,23 @@ from klea_utils.nodes.context import LLMNodeContext
 from klea_agent.schemas import KleaAgentState, RouteSchema
 
 
+# NOTE: ``chat`` deliberately also covers direct conversational edits (for
+# example "make that shorter" or "rephrase that"), so the router answers them
+# inline without the planning/evaluation stages.  The boundary is derivation:
+# a request that builds on, compiles, compares or synthesises earlier work or
+# turns is ``task``.  If we observe failure modes where such a derivation is
+# answered inline from the (lossy) conversation instead of routed to ``task``,
+# revisit this line.
 class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     """Narrow entry router: ``chat`` or ``task`` (ADR-0035).
 
-    ``chat`` is a self-contained general-conversation/knowledge request that
+    ``chat`` is a self-contained conversational/general-knowledge reply that
     the router answers inline (``answer``); the graph then goes straight to
     ``AnswerUser``.  ``task`` is anything that needs the current
-    environment/workspace/session; the Planner plans and the tool loop runs.
+    environment/workspace/session, **or** that derives a result from earlier
+    work or turns (summarising, compiling, comparing, synthesising); the Planner
+    plans and the tool loop runs (a synthesis needing no environment work is
+    still routed here -- see the ``no_plan_required`` plan status).
 
     The decision is **fail-closed**: the default is ``task``, so the router
     answers inline only when it is clearly general conversation/knowledge.
