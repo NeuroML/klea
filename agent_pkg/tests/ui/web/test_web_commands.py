@@ -110,6 +110,24 @@ async def test_slash_filters_by_prefix(fake_backend, agent_user):
     await agent_user.should_not_see("/help")
 
 
+async def test_autocomplete_ignores_plain_text(fake_backend, agent_user):
+    """Plain text (no leading ``/``) does not open the menu (ADR-0047)."""
+    fake_backend.commands = [_mode_metadata()]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    agent_user.find(ui.textarea).type("help")
+    assert _suggestion_items(agent_user, "/help") == []
+
+
+async def test_autocomplete_ignores_a_leading_space(fake_backend, agent_user):
+    """A leading space is not a command: the menu stays closed."""
+    fake_backend.commands = [_mode_metadata()]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    agent_user.find(ui.textarea).type(" /help")
+    assert _suggestion_items(agent_user, "/help") == []
+
+
 async def test_clicking_a_suggestion_completes_and_closes(fake_backend, agent_user):
     """Clicking a suggestion fills the input and hides the list (ADR-0047)."""
     fake_backend.commands = [_mode_metadata()]

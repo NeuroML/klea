@@ -42,8 +42,18 @@ class TestParseCommand:
         assert parsed.raw_args == ""
         assert parsed.error == ""
 
-    def test_name_is_lowercased_and_whitespace_stripped(self):
-        parsed = parse_command("  /Help  ")
+    def test_name_is_lowercased(self):
+        parsed = parse_command("/Help")
+        assert parsed is not None
+        assert parsed.name == "help"
+
+    def test_leading_whitespace_is_not_a_command(self):
+        # A command must start with ``/`` as its literal first character.
+        assert parse_command("  /help") is None
+        assert parse_command("\n/help") is None
+
+    def test_trailing_whitespace_is_tolerated(self):
+        parsed = parse_command("/help  ")
         assert parsed is not None
         assert parsed.name == "help"
 
@@ -81,6 +91,9 @@ class TestUnescapeCommand:
 
     def test_non_command_is_not_escaped(self):
         assert unescape_command("hello") is None
+
+    def test_leading_whitespace_is_not_an_escape(self):
+        assert unescape_command("  //help") is None
 
 
 class TestCommandResult:

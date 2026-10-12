@@ -362,10 +362,8 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
 
     def _matches(value: str) -> list[tuple[str, str, str]]:
         registry: CommandRegistry | None = ctx.command_catalogue
-        # ``lstrip`` (not ``strip``): the trailing space inserted after a
-        # chosen item is what ends the completion, so it must survive (``strip``
-        # would remove it and the chosen item would keep matching).
-        value = value.lstrip()
+        # A command is the whole input: it must start with ``/`` as its literal
+        # first character (no leading whitespace).
         if registry is None or not value.startswith("/"):
             return []
         body = value[1:]
@@ -386,6 +384,12 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
 
     def _refresh(_event: Any = None) -> None:
         value = text.value or ""
+        # Only ``/``-prefixed input is a command candidate; skip the match work
+        # (and the log) for ordinary typing.
+        if not value.startswith("/"):
+            suggestions.clear()
+            suggestions.set_visibility(False)
+            return
         matches = _matches(value)
         logger.debug(
             f"autocomplete refresh {value = } "

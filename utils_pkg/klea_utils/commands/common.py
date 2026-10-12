@@ -105,19 +105,18 @@ class ParsedCommand:
 def parse_command(text: str) -> ParsedCommand | None:
     """Parse *text* as a ``/command``, or return ``None``.
 
-    Only a leading ``/`` (after stripping surrounding whitespace) counts.  A
-    leading ``//`` is an *escaped* literal slash and is not a command (use
-    :func:`unescape_command` to recover the literal text).  A command with no
-    name, or with malformed quoting, is returned with :attr:`ParsedCommand.error`
-    set rather than raising.
+    Only a leading ``/`` as the **literal first character** counts (no leading
+    whitespace).  A leading ``//`` is an *escaped* literal slash and is not a
+    command (use :func:`unescape_command` to recover the literal text).  A
+    command with no name, or with malformed quoting, is returned with
+    :attr:`ParsedCommand.error` set rather than raising.
 
     :param text: The user input.
     :returns: A :class:`ParsedCommand`, or ``None`` when *text* is not a command.
     """
-    stripped = text.strip()
-    if not stripped.startswith("/") or stripped.startswith("//"):
+    if not text.startswith("/") or text.startswith("//"):
         return None
-    body = stripped[1:].strip()
+    body = text[1:].strip()
     if not body:
         return ParsedCommand(name="", error="No command name given.")
     tokens = body.split(maxsplit=1)
@@ -140,15 +139,15 @@ def unescape_command(text: str) -> str | None:
     """Return the literal input for an escaped command, or ``None``.
 
     A user types ``//foo`` to send the literal text ``/foo`` (a message, not
-    a command); this strips one slash.  Returns ``None`` when *text* is not an
-    escaped command.
+    a command); this strips one slash.  The ``//`` must be the **literal first
+    characters** (no leading whitespace).  Returns ``None`` when *text* is not
+    an escaped command.
 
     :param text: The user input.
     :returns: The unescaped text (``/foo``), or ``None``.
     """
-    stripped = text.strip()
-    if stripped.startswith("//"):
-        return stripped[1:]
+    if text.startswith("//"):
+        return text[1:]
     return None
 
 
