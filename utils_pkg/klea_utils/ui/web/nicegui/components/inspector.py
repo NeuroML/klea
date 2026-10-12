@@ -20,9 +20,9 @@ from typing import Any
 from nicegui import ui
 
 from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.state import chats
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.inspector_code import render_inspector_code
-from klea_utils.ui.web.nicegui.state import chats
 
 logger = logging.getLogger(__name__)
 

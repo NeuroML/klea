@@ -18,11 +18,11 @@ from nicegui import background_tasks, ui
 
 from klea_utils.api.utils import check_api_is_ready
 from klea_utils.llm import missing_required_roles
-from klea_utils.ui.web.nicegui.client import fetch_commands, hydrate_chats
+from klea_utils.ui.client import fetch_commands, hydrate_chats
+from klea_utils.ui.state import chats, missing_credentials
 from klea_utils.ui.web.nicegui.components.commands import build_catalogue
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import user_storage_or_none
-from klea_utils.ui.web.nicegui.state import chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 

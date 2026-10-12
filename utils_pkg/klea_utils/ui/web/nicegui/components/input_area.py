@@ -16,16 +16,16 @@ from nicegui import background_tasks, ui
 from nicegui.events import GenericEventArguments
 
 from klea_utils.llm import missing_required_roles
-from klea_utils.ui.web.nicegui.client import create_chat_on_server
-from klea_utils.ui.web.nicegui.components import commands, stream
-from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.components.storage import safe_set_user
-from klea_utils.ui.web.nicegui.state import (
+from klea_utils.ui.client import create_chat_on_server
+from klea_utils.ui.state import (
     chats,
     ensure_chat,
     interrupt_display,
     missing_credentials,
 )
+from klea_utils.ui.web.nicegui.components import commands, stream
+from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.storage import safe_set_user
 
 logger = logging.getLogger(__name__)
 

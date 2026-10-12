@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-In-memory chat state for the NiceGUI frontend.
+In-memory chat state shared by the Klea frontends.
 
-Keyed by ``{user_id}:{chat_id}`` so that colliding chat_ids across
-different users do not interfere.
+Framework-agnostic session-state store for the web (NiceGUI) and terminal
+(Textual) clients: the per-chat ``ChatData`` cache and the helpers that
+operate on it (create-or-get, sorting, choice resolution, credential checks).
+Keyed by ``{user_id}:{chat_id}`` so colliding chat_ids across different users
+do not interfere.
 
-File: klea_utils/ui/web/nicegui/state.py
+File: klea_utils/ui/state.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>

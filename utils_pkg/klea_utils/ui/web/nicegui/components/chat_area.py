@@ -20,10 +20,10 @@ from nicegui import ui
 
 from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
+from klea_utils.ui.state import TurnStatus, chats, missing_credentials
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import TurnStatus, chats, missing_credentials
 
 logger = logging.getLogger(__name__)
 

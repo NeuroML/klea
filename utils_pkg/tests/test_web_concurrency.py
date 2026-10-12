@@ -17,9 +17,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import asyncio
 
 import pytest
+from klea_utils.ui.state import chats
 from klea_utils.ui.web.nicegui.components import stream
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import chats
 
 
 class QueueStream:

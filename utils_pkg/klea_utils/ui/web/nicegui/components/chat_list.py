@@ -21,20 +21,20 @@ from datetime import datetime
 import coolname
 from nicegui import background_tasks, ui
 
-from klea_utils.ui.web.nicegui.client import (
+from klea_utils.ui.client import (
     create_chat_on_server,
     delete_chat_on_server,
     rename_chat_on_server,
 )
-from klea_utils.ui.web.nicegui.components import stream
-from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.components.storage import safe_set_user
-from klea_utils.ui.web.nicegui.state import (
+from klea_utils.ui.state import (
     chat_indicator,
     chats,
     ensure_chat,
     get_chats_sorted,
 )
+from klea_utils.ui.web.nicegui.components import stream
+from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.storage import safe_set_user
 
 logger = logging.getLogger(__name__)
 

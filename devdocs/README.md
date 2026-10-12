@@ -50,6 +50,7 @@ Structure:
 | `system/file-tools.md` | File-tool contract and edge-case matrix: text/binary/encoding rules, `read_file` paging, known containment limits |
 | `system/graph-resume.md` | Confirmed LangGraph fault-tolerance/resume semantics: what a node error preserves, `None`-input resume, edge cases |
 | `system/session-commands.md` | Session commands: catalogue, the client/server split, and the per-command contract (ADR-0047) |
+| `system/tui.md` | Terminal UI architecture and component contract: two-panel layout, one active session + picker, one-run model, invariants, web parity (ADR-0050) |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
 | `adr/0002-worker-retry.md` | ADR-0002: Retry worker batches that die with no results instead of marking them failed |
 | `adr/0003-mcp-iserror-compliance.md` | ADR-0003: Strictly require MCP isError for tool execution failures |
@@ -99,6 +100,7 @@ Structure:
 | `adr/0047-session-command-framework.md` | ADR-0047: Session command framework: a user-invoked command surface |
 | `adr/0048-web-search-providers.md` | ADR-0048: Web search tool: keyless-first provider pool with sequential fallback |
 | `adr/0049-paper-search-tool.md` | ADR-0049: Paper search tool: peer-reviewed-first scholarly source pool with preprint gating |
+| `adr/0050-textual-tui.md` | ADR-0050: Terminal UI: a Textual client with a single active session |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

@@ -31,8 +31,8 @@ from klea_utils.commands.common import (
     parse_command,
     render_help,
 )
+from klea_utils.ui.state import ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.state import ensure_chat
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.ui.web.nicegui.state import chats
+from klea_utils.ui.state import chats
 from nicegui import ui
 
 
