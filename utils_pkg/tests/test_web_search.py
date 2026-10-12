@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import json
+from urllib.parse import urlparse
 
 import httpx
 import klea_utils.api.utils as api_utils
@@ -611,3 +612,29 @@ async def test_web_search_no_session_all_providers_fail(monkeypatch):
     assert out["provider"] == ""
     assert out["results"] == []
     assert out["error"]
+
+
+async def test_live_web_search_finds_neuroml_site():
+    """The real provider pool surfaces the NeuroML project site from "NeuroML".
+
+    Not ``localonly``: the query is distinctive, and the test skips (rather
+    than fails) when no provider can be reached, so offline runs and transient
+    outages do not break the suite.
+    """
+    hosts: list[str] = []
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Two attempts: a transient rate limit can take a provider out.
+        for _ in range(2):
+            result = await web_search(
+                client, "NeuroML", max_results=DEFAULT_MAX_RESULTS
+            )
+            hosts = [urlparse(r["url"]).netloc for r in result["results"]]
+            if any(_is_neuroml_host(host) for host in hosts):
+                return
+    if not hosts:
+        pytest.skip("no web search provider reachable")
+    assert any(_is_neuroml_host(host) for host in hosts), hosts
+
+
+def _is_neuroml_host(host: str) -> bool:
+    return host == "neuroml.org" or host.endswith(".neuroml.org")
