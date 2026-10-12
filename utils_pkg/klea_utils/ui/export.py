@@ -31,13 +31,19 @@ _ROLE_LABELS = {
 def _message_label(message: Mapping[str, Any]) -> str:
     """Return the display label for a transcript message.
 
-    Tool messages carry their own ``header`` (for example ``run_command``);
-    the remaining roles map to a fixed label.
+    Tool messages are prefixed with ``Tool:`` and their ``header`` (for
+    example ``Tool: run_command``); the remaining roles map to a fixed label.
     """
     role = str(message.get("role") or "")
     if role == "tool":
-        return str(message.get("header") or "Tool")
+        header = str(message.get("header") or "").strip()
+        return f"Tool: {header}" if header else "Tool"
     return _ROLE_LABELS.get(role, role.capitalize() or "Message")
+
+
+def _clean_title(title: str) -> str:
+    """Collapse whitespace in *title* so it cannot break the ``#`` heading."""
+    return " ".join((title or "").split()) or "Klea session"
 
 
 def transcript_markdown(
@@ -48,18 +54,23 @@ def transcript_markdown(
 ) -> str:
     """Render *messages* as a Markdown transcript.
 
+    Each turn is a ``##`` heading (``## User``, ``## Assistant``,
+    ``## Tool: <name>``) rather than bold, so the role labels stay distinct
+    from any ``**bold**`` in the message content.
+
     :param messages: The chat's rendered transcript entries (each with
         ``role``/``text``/``stamp``, and ``header`` for tool blocks).
-    :param title: The document title (usually the session name).
+    :param title: The document title (usually the session name); whitespace is
+        collapsed and an empty title falls back to ``Klea session``.
     :param exported_at: An optional timestamp line (empty to omit).
     :returns: The Markdown document, ending in a newline.
     """
-    lines = [f"# {title}", ""]
+    lines = [f"# {_clean_title(title)}", ""]
     if exported_at:
         lines += [f"_Exported {exported_at}_", ""]
     for message in messages:
         stamp = str(message.get("stamp") or "")
-        heading = f"**{_message_label(message)}**"
+        heading = f"## {_message_label(message)}"
         if stamp:
             heading += f" ({stamp})"
         lines += [heading, "", str(message.get("text") or "").rstrip(), ""]
