@@ -17,7 +17,8 @@ import os
 from klea_utils.biblio.doi import _normalize_semantic_scholar
 from klea_utils.mcp.tool_impls.session import SessionLike
 
-from .http import PaperSourceError, Throttle, get_json
+from .errors import PaperSourceError
+from .http import Throttle, get_json
 from .record import PaperRecord, from_biblio, is_preprint
 
 logger = logging.getLogger(__name__)

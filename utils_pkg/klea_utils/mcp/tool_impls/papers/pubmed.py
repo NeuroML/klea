@@ -18,7 +18,8 @@ import xml.etree.ElementTree as ET
 
 from klea_utils.mcp.tool_impls.session import SessionLike
 
-from .http import PaperSourceError, Throttle, get_json, get_text
+from .errors import PaperSourceError
+from .http import Throttle, get_json, get_text
 from .record import PaperRecord, clean_doi
 
 logger = logging.getLogger(__name__)

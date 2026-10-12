@@ -18,16 +18,11 @@ import httpx
 from klea_utils.mcp.tool_impls.session import SessionLike
 from klea_utils.mcp.tool_impls.web_fetch import _honest_user_agent
 
+from .errors import PaperSourceError
+
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = httpx.Timeout(20.0)
-
-
-class PaperSourceError(Exception):
-    """Raised when a paper source cannot be queried (HTTP error, 429, bad body).
-
-    The search falls back to the next source when this is raised.
-    """
 
 
 class Throttle:

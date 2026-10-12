@@ -26,7 +26,7 @@ from typing import Any, Literal, get_args
 from klea_utils.mcp.tool_impls.session import SessionLike
 
 from . import arxiv, crossref, europepmc, openalex, pubmed, semantic_scholar
-from .http import PaperSourceError
+from .errors import PaperSourceError
 from .record import PaperRecord, truncate_abstract
 
 logger = logging.getLogger(__name__)

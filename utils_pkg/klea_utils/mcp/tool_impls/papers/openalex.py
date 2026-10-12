@@ -14,7 +14,8 @@ import os
 from klea_utils.biblio.doi import _normalize_openalex
 from klea_utils.mcp.tool_impls.session import SessionLike
 
-from .http import PaperSourceError, get_json
+from .errors import PaperSourceError
+from .http import get_json
 from .record import PaperRecord, clean_doi, from_biblio
 
 logger = logging.getLogger(__name__)
