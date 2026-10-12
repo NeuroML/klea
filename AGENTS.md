@@ -185,6 +185,7 @@ When the code below changes, update the matching devdoc in the same change:
 | `biblio/doi.py`, `mcp/tool_impls/{search,papers}/*`, `mcp/tool_impls/user_agent.py` | `system/external-source-pools.md`, ADR-0027/0048/0049 |
 | web UI theme tokens | `system/web-theming.md` |
 | `commands/` (`common.py`, `graph.py`, `nodes/command.py`), `api/commands.py`, the web command component, node prompts | `system/session-commands.md`, `docs/components/commands.rst`, ADR-0047 |
+| `utils_pkg/klea_utils/ui/tui/`, `{agent,rag}_pkg/*/ui/tui/`, `klea_utils/ui/{state,stream_events,client}.py` | `system/tui.md` (ADR-0050) |
 
 Web UI theming (design tokens, the `@layer overrides` cascade-layer contract,
 semantic classes): `devdocs/system/web-theming.md`.

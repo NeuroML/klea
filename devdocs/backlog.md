@@ -204,27 +204,36 @@ Last updated: 2026-10-10.
   quick testing with simple queries.  It is **not** the TUI -- the historical
   "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale
   -- and it will be dropped once the TUI lands.
-- Full Textual TUI: build the real TUI as a new **module** in
-  `klea_utils/ui/tui`, following the web-UI pattern -- shared components (like
-  `klea_utils/ui/web/nicegui/components`), each app composing and customising
-  its own screen (`klea_agent`, `klea_rag`).  Planned: session sidebar
-  (list/switch/create), streaming transcript, inspect/status panes,
-  mode/access/model selectors (see the Configuration/UX item), tool results,
-  and permission + HITL forms.  Replaces the REPL.
-- Cross-frontend sessions: any frontend should list existing sessions and load
-  one.  Sessions already live server-side in
-  `{graph.paths.user_data_dir}/sessions.db` keyed by `(user_id, chat_id)` and
-  are reached over HTTP, so this is **not** solved by a shared client data
-  folder -- the client folders hold only logs and the web's browser -> `user_id`
-  map.  The missing piece is a shared, persistent `user_id` (the web generates
-  a random per-browser UUID in `app.storage.user`; the REPL sends `""`).  Plan:
-  a stable identity (config/env such as `KLEA_USER_ID`, with a `--user-id`
-  override) shared by the frontends, plus a `klea sessions` subcommand to
-  list/delete sessions (the user can then load a chosen one in the TUI).
-  Caveat: unifying the frontend folders is not the fix -- `app_name` is both
-  the data dir *and* the log file name, so the server, web and TUI cannot share
-  one `app_name` without colliding on `{app_name}.log`.  Not needed now; settle
-  the design (likely an ADR) before starting.
+- Full Textual TUI: **design settled** (ADR-0050; architecture note
+  `system/tui.md`).  Build the real TUI as a shared module in
+  `klea_utils/ui/tui` with per-app composition (`klea_agent`, `klea_rag`),
+  mirroring the web-UI component split.  Session model: one active session in
+  the main loop plus a summonable picker (switch/resume/rename/delete;
+  switching blocked while streaming), one in-flight run always attached to the
+  active session, and a keyed store with a single active pointer.  Surface:
+  streaming transcript, a full-height right status panel (mode/access/model,
+  state sections, token usage) and a chat-panel inspector view, tool results,
+  `/`-commands, and permission + HITL forms.  Replaces the REPL (dropped once
+  parity lands).
+- Cross-frontend sessions / shared identity (**deferred; needs its own ADR**):
+  any frontend should list existing sessions and load one.  Sessions already
+  live server-side in `{graph.paths.user_data_dir}/sessions.db` keyed by
+  `(user_id, chat_id)` and are reached over HTTP, so this is **not** solved by
+  a shared client data folder -- the client folders hold only logs and the
+  web's browser -> `user_id` map.  The missing piece is a shared, persistent
+  `user_id`.  The TUI resolves its own `user_id` through a seam (`--user-id` >
+  `KLEA_USER_ID` > a persisted TUI-local UUID, ADR-0050) and does not share it
+  with the web yet.  Security caveat: the server has no auth and treats
+  `user_id` as an opaque client token (`sessions.py`), so a naive "most
+  recently used" identity would leak across users on a shared deployment and
+  must never be inferred server-side.  Intended direction when picked up: a
+  single **host-local canonical identity file** read by both the local web and
+  the TUI, with a localhost-only guard and first-run adoption (not MRU, which
+  oscillates and orphans prior sessions on adoption).  A `klea sessions`
+  subcommand to list/delete sessions is a companion nicety.  Caveat: unifying
+  the frontend folders is still not the fix -- `app_name` is both the data dir
+  and the log file name, so the server, web and TUI cannot share one
+  `app_name` without colliding on `{app_name}.log`.
 - Session-command framework (ADR-0047; catalogue in
   `system/session-commands.md`): a `/`-command surface shared by all frontends
   (web first; the temporary REPL is not touched).  Commands are user-invoked
