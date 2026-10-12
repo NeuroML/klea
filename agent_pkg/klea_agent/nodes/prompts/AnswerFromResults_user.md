@@ -30,6 +30,12 @@
 
 ---
 
+## Earlier results (artefacts)
+
+{artefacts}
+
+---
+
 ## User query
 
 {query}

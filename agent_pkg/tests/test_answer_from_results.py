@@ -13,12 +13,14 @@ import unittest
 
 from klea_agent.nodes.answer_from_results import AnswerFromResults, AnswerSchema
 from klea_agent.schemas import (
+    ArtefactSchema,
     GoalSchema,
     KleaAgentState,
     PlanSchema,
     StepSchema,
 )
 from klea_utils.nodes.context import LLMNodeContext
+from langchain_core.prompts import ChatPromptTemplate
 
 
 class TestAnswerFromResults(unittest.TestCase):
@@ -74,6 +76,32 @@ class TestAnswerFromResults(unittest.TestCase):
         variables = self._node()._get_prompt_variables(state, LLMNodeContext())
         self.assertIn("### AGENTS.md", variables["discovery"])
         self.assertIn("use uv", variables["discovery"])
+
+    def test_prompt_variables_include_artefacts(self):
+        state = self._state()
+        state.artefacts["earlier"] = ArtefactSchema(
+            id_="earlier", type_="result", content="earlier finding X"
+        )
+        variables = self._node()._get_prompt_variables(state, LLMNodeContext())
+        self.assertIn("earlier finding X", variables["artefacts"])
+
+    def test_prompt_artefacts_sentinel_when_empty(self):
+        variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())
+        self.assertEqual(variables["artefacts"], "(no artefacts)")
+
+    def test_user_prompt_renders_artefacts_section(self):
+        state = self._state()
+        state.artefacts["earlier"] = ArtefactSchema(
+            id_="earlier", type_="result", content="earlier finding X"
+        )
+        node = self._node()
+        variables = node._get_prompt_variables(state, LLMNodeContext())
+        template = ChatPromptTemplate(
+            [("human", node._load_prompt_file("AnswerFromResults_user"))]
+        )
+        text = template.format_messages(**variables)[0].content
+        self.assertIn("Earlier results (artefacts)", text)
+        self.assertIn("earlier finding X", text)
 
     def test_prompt_omits_plan_history_for_single_plan(self):
         variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())

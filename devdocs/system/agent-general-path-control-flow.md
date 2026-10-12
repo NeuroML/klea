@@ -323,9 +323,10 @@ only curated results cross into later tasks:
   the final reply.  ``AnswerFromResults`` auto-persists the completed task's
   deliverable as a concise ``ArtefactSchema`` (goal + result, keyed by a slug of
   the   goal so a re-run supersedes); failure persists nothing.
-  The Planner sees the rendered artefacts (`artefacts_text()`), so a later task
-  can build on an earlier one.  Intermediate tool/reasoning outputs never leak
-  into artefacts.
+  The Planner and ``AnswerFromResults`` see the rendered artefacts
+  (``artefacts_text()``), so a later task can build on an earlier one and the
+  final reply can draw on prior deliverables.  Intermediate tool/reasoning
+  outputs never leak into artefacts.
 
 ## Failure signals (levels)
 
@@ -474,7 +475,8 @@ semantics are in ``devdocs/system/graph-resume.md``.
 ``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success) or
 ``abort``/``unplannable`` (failure).  (A ``needs_input`` plan never reaches it:
 it pauses at the HITL input node.)  On success it writes ``message_for_user``
-from the goal, the completed plan and the observations, and persists the
+from the goal, the completed plan, the observations and the session artefacts
+(so the reply can draw on earlier tasks' deliverables), and persists the
 deliverable to ``artefacts`` (see Persistence); on failure it explains concisely
 what was attempted and why it could not be completed (using
 ``failure_reason``, the plan and the observations).  The outcome-specific

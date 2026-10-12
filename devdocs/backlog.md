@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-10.
+Last updated: 2026-10-12.
 
 ## Cancellation / concurrency
 
@@ -41,6 +41,11 @@ Last updated: 2026-10-10.
   catalogue-membership validation.
 - `add_artefact` tool; promote `_slug` / artefact-id derivation to a shared
   helper or `ArtefactSchema`.
+- Artefacts prompt bounding: `artefacts_text()` (rendered into the Planner and
+  the answer-composer prompts) is unbounded, so it grows with the session as
+  completed goals accumulate.  Bound it with an LRU policy (keep the most
+  recently written/used N, or cap total characters) applied inside
+  `artefacts_text` so every consumer shares the limit.
 - Session-as-invocation / "what next" ADR; cached project explorer.
 - Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path

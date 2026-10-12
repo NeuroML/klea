@@ -48,8 +48,9 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     Separate from the Evaluator by design: evaluation judges, this node
     generates.  It runs once at the end of a run -- on success (``plan_done``)
     or on failure (``abort``/``unplannable``/``failure_reason``) -- and turns
-    the goal, the plan and the observations into a reply.  On failure it
-    explains concisely what was attempted and why it could not be completed.
+    the goal, the plan, the session artefacts and the observations into a reply.
+    On failure it explains concisely what was attempted and why it could not be
+    completed.
     In scientific mode a grounded/cited variant replaces it; the Evaluator
     contract (judge only) stays the same.
 
@@ -107,7 +108,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
-        """Format prompt with the outcome, goal, plan, observations and query.
+        """Format prompt with the outcome, goal, plan, artefacts and query.
 
         The failure reason is folded into an ``outcome_details`` block that is
         empty on success, so the prompt never carries an empty label (prompt
@@ -115,6 +116,11 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         ``plan_history_block`` is a context-free signal (counts only) that the
         final plan followed iterations/human review; the raw feedback is
         deliberately not included (see :meth:`PlanSchema.revision_summary`).
+
+        ``artefacts`` is the session-scoped durable results store (ADR-0035), so
+        the synthesis can build on earlier tasks' deliverables; it is the
+        curated, addressable record, not the conversation transcript (memory
+        stays off for this node).
         """
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
@@ -129,6 +135,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
                 "Plan history", state.plan.revision_summary()
             ),
             "discovery": state.discovery_persistent.render(),
+            "artefacts": state.artefacts_text(),
             "observations": self._observations_text(state),
         }
         self.logger.debug(f"{variables = }")
