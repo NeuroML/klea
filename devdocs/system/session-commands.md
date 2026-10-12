@@ -126,9 +126,10 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/new` | ui | - | start a new session |
 | `/rename <name>` | ui | - | rename the current session |
 | `/model` | ui | - | open the model and API-key configuration |
+| `/export` | ui | - | export the session transcript as Markdown |
 
 Planned client commands (not registered yet): `/commands`,
-`/sessions`, `/export`, `/upload`.
+`/sessions`, `/upload`.
 
 Notes:
 

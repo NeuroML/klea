@@ -9,7 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from klea_utils.commands.common import CommandContext, ParsedCommand
-from klea_utils.ui.state import chats
+from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.web.nicegui.components.commands import client_commands
 from nicegui import ui
 from nicegui.testing.user_interaction import UserInteraction
@@ -248,3 +248,54 @@ async def test_model_command_opens_the_model_dialog(fake_backend, agent_user):
 
     _send(agent_user, "/model")
     await agent_user.should_see("Manage API keys", retries=50)
+
+
+def test_export_handler_requires_an_active_chat():
+    """``/export`` with no active session is an error."""
+    result = client_commands().dispatch(
+        ParsedCommand(name="export"), CommandContext(user_id="u", chat_id="")
+    )
+    assert "No active session" in result.error
+
+
+def test_export_handler_rejects_an_empty_session():
+    """``/export`` on a session with no messages is an error."""
+    result = client_commands().dispatch(
+        ParsedCommand(name="export"), CommandContext(user_id="u", chat_id="c-empty")
+    )
+    assert "nothing to export" in result.error
+
+
+def test_export_handler_saves_the_transcript():
+    """``/export`` hands a Markdown transcript to the save hook."""
+    ensure_chat("u", "c1")["messages"] = [
+        {"text": "hello", "stamp": "10:00:00", "role": "user", "header": ""},
+        {"text": "hi", "stamp": "10:00:01", "role": "agent", "header": ""},
+    ]
+    calls: list[tuple[str, str]] = []
+    context = CommandContext(
+        user_id="u",
+        chat_id="c1",
+        services={
+            "save_export": lambda filename, content: calls.append((filename, content))
+        },
+    )
+    result = client_commands().dispatch(ParsedCommand(name="export"), context)
+    assert len(calls) == 1
+    filename, content = calls[0]
+    assert filename.endswith(".md")
+    assert "hello" in content and "hi" in content
+    assert any("Exported the session transcript" in line for line in result.output)
+
+
+async def test_export_command_downloads_the_transcript(fake_backend, agent_user):
+    """``/export`` runs end to end and reports the export (ADR-0047)."""
+    marker = "zzz-export-marker-zzz"
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": marker}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see(marker, retries=50)
+
+    _send(agent_user, "/export")
+    await agent_user.should_see("Exported the session transcript", retries=50)

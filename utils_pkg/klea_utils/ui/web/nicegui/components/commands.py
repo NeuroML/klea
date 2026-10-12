@@ -31,6 +31,11 @@ from klea_utils.commands.common import (
     parse_command,
     render_help,
 )
+from klea_utils.ui.export import (
+    export_filename,
+    export_timestamp,
+    transcript_markdown,
+)
 from klea_utils.ui.state import ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
@@ -51,6 +56,15 @@ _RENAME_CHAT_SERVICE = "rename_chat"
 
 #: ``CommandContext.services`` key for the "open the model dialog" hook.
 _MODEL_DIALOG_SERVICE = "show_model_dialog"
+
+#: ``CommandContext.services`` key for the "save an export" hook (``/export``):
+#: ``(filename, content) -> None``.
+_SAVE_EXPORT_SERVICE = "save_export"
+
+
+def _save_export(filename: str, content: str) -> None:
+    """Deliver an export to the user as a browser download (default hook)."""
+    ui.download.content(content, filename)
 
 
 def client_commands() -> CommandRegistry:
@@ -97,6 +111,16 @@ def client_commands() -> CommandRegistry:
             klass="ui",
             while_streaming="allow",
             handler=_handle_model,
+        )
+    )
+    registry.register(
+        Command(
+            name="export",
+            summary="Export the session transcript as Markdown",
+            side="client",
+            klass="ui",
+            while_streaming="allow",
+            handler=_handle_export,
         )
     )
     return registry
@@ -170,6 +194,31 @@ def _handle_model(context: CommandContext, parsed: ParsedCommand) -> CommandResu
     return CommandResult()
 
 
+def _handle_export(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Export the active session's transcript as a Markdown download.
+
+    Reads the chat's rendered transcript from the shared state store and hands
+    the Markdown to the frontend's ``save_export`` hook (a browser download for
+    the web).  The durable server history is only the curated user/assistant
+    rows; this exports the richer in-session transcript (including tool/system
+    blocks) the frontend currently holds.
+    """
+    if not context.chat_id:
+        return CommandResult.fail("No active session to export.")
+    chat = ensure_chat(context.user_id, context.chat_id)
+    messages = chat.get("messages") or []
+    if not messages:
+        return CommandResult.fail("This session has nothing to export yet.")
+    save = context.service(_SAVE_EXPORT_SERVICE)
+    if save is None:
+        return CommandResult.fail("Exporting a session is not supported here.")
+    title = chat.get("name") or context.chat_id
+    content = transcript_markdown(messages, title=title, exported_at=export_timestamp())
+    filename = export_filename(title)
+    save(filename, content)
+    return CommandResult.ok(f"Exported the session transcript to {filename}.")
+
+
 def handle_command(ctx: PageContext, text: str) -> bool:
     """Handle *text* as a command if it is one; return ``True`` when consumed.
 
@@ -208,6 +257,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
             _NEW_CHAT_SERVICE: ctx.new_chat,
             _RENAME_CHAT_SERVICE: ctx.rename_chat,
             _MODEL_DIALOG_SERVICE: ctx.show_model_dialog,
+            _SAVE_EXPORT_SERVICE: _save_export,
         },
     )
     result = registry.dispatch(parsed, context)

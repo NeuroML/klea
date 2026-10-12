@@ -47,6 +47,13 @@ Last updated: 2026-10-12.
   recently written/used N, or cap total characters) applied inside
   `artefacts_text` so every consumer shares the limit.
 - Session-as-invocation / "what next" ADR; cached project explorer.
+- Full session export (needs review): a `full` export of the whole
+  session/graph state (the transcript plus `artefacts`, plan/observations,
+  `discovery`, mode/access and usage), rather than the transcript-only `/export`
+  (ADR-0047).  It is server-side -- the state lives in the LangGraph checkpoint
+  and only the `context_snapshot` projection is exposed today -- so it needs a
+  new endpoint and a serialisation design.  Research whether LangChain/LangGraph
+  checkpoint/state serialisation (or replay) can produce it directly.
 - Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path
   is missing (an agent may reach for `find /`).  `read_file`/`edit_file` now
@@ -204,6 +211,13 @@ Last updated: 2026-10-12.
 
 ## Frontends / TUI
 
+- Chat hydration via graph replay (needs review): frontends hydrate the
+  transcript from `sessions.db` messages, which stores only the curated
+  user/assistant rows (`chat_core` writes no tool/system rows), so tool blocks
+  and inspector-pane entries are lost on reload.  Consider reconstructing the
+  transcript (and inspection entries) from the LangGraph checkpoint/replay
+  instead of, or in addition to, the messages table.  Needs a design; overlaps
+  the full-session-export research above.
 - Terminal client status: the `cli` subcommand runs a lightweight
   `input()`-based REPL (`klea_utils/ui/tui/repl.py`), a temporary tool for
   quick testing with simple queries.  It is **not** the TUI -- the historical
