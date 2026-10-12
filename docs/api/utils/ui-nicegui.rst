@@ -9,11 +9,23 @@ components, never a full page.
 Shared frontend helpers
 -----------------------
 
-.. automodule:: klea_utils.ui.web.nicegui.state
+These are framework-agnostic: the NiceGUI web frontend and the (planned) TUI
+share one source of truth for chat/session state, the API client, the
+stream-event reducer, and transcript export.
+
+.. automodule:: klea_utils.ui.state
    :members:
    :show-inheritance:
 
-.. automodule:: klea_utils.ui.web.nicegui.client
+.. automodule:: klea_utils.ui.client
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.stream_events
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.export
    :members:
    :show-inheritance:
 
