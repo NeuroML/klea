@@ -8,6 +8,8 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from klea_utils.commands.common import CommandContext, ParsedCommand
+from klea_utils.ui.web.nicegui.components.commands import client_commands
 from klea_utils.ui.web.nicegui.state import chats
 from nicegui import ui
 from nicegui.testing.user_interaction import UserInteraction
@@ -133,3 +135,44 @@ async def test_server_command_is_forwarded(fake_backend, agent_user):
     _send(agent_user, "/mode general")
     await agent_user.should_see("ok", retries=50)
     assert fake_backend.stream_bodies()[-1]["query"] == "/mode general"
+
+
+def test_new_handler_calls_the_new_chat_hook_silently():
+    """``/new`` invokes the hook and produces no output (ADR-0047)."""
+    calls: list[str] = []
+    context = CommandContext(services={"new_chat": lambda: calls.append("new")})
+    result = client_commands().dispatch(ParsedCommand(name="new"), context)
+    assert calls == ["new"]
+    assert result.output == []
+    assert result.error == ""
+    assert result.notice == ""
+
+
+async def _wait_for(predicate, retries: int = 50, delay: float = 0.05) -> bool:
+    """Poll *predicate* until it is true (or give up after *retries*)."""
+    import asyncio
+
+    for _ in range(retries):
+        if predicate():
+            return True
+        await asyncio.sleep(delay)
+    return False
+
+
+async def test_new_starts_a_fresh_session(fake_backend, agent_user):
+    """``/new`` creates and switches to an empty session, without a run."""
+    before = set(chats)
+    marker = "zzz-answer-marker-zzz"
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": marker}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see(marker, retries=50)
+
+    _send(agent_user, "/new")
+    assert await _wait_for(lambda: len(set(chats) - before) == 2)
+
+    new_chats = [chats[key] for key in set(chats) - before]
+    # ``/new`` opened an empty session and sent nothing to the graph.
+    assert sum(not data["messages"] for data in new_chats) == 1
+    assert len(fake_backend.stream_bodies()) == 1

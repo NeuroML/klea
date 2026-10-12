@@ -319,6 +319,7 @@ def attach_chat_list(ctx: PageContext) -> None:
             ctx.toggle_icon.name = "keyboard_double_arrow_left"
 
     ctx.switch_chat = _switch_chat
+    ctx.new_chat = _new_chat
     ctx.refresh_chat_list = _render_chat_list.refresh
 
     # ---- Left drawer (rail mode by default) ----

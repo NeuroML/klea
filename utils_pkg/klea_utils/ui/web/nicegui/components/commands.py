@@ -43,6 +43,9 @@ WEB_CAPABILITIES: frozenset[str] = frozenset({CAP_FILE_PICKER})
 #: ``CommandContext.services`` key for the merged registry (used by ``/help``).
 _REGISTRY_SERVICE = "registry"
 
+#: ``CommandContext.services`` key for the "start a new chat" hook (``/new``).
+_NEW_CHAT_SERVICE = "new_chat"
+
 
 def client_commands() -> CommandRegistry:
     """Return the web frontend's own client-side commands (ADR-0047).
@@ -57,6 +60,16 @@ def client_commands() -> CommandRegistry:
             side="client",
             arg_hint="[command]",
             handler=_handle_help,
+        )
+    )
+    registry.register(
+        Command(
+            name="new",
+            summary="Start a new session",
+            side="client",
+            klass="ui",
+            while_streaming="allow",
+            handler=_handle_new,
         )
     )
     return registry
@@ -82,6 +95,20 @@ def _handle_help(context: CommandContext, parsed: ParsedCommand) -> CommandResul
     registry = context.service(_REGISTRY_SERVICE)
     name = parsed.args[0] if parsed.args else ""
     return render_help(registry, context.capabilities, name=name)
+
+
+def _handle_new(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Start a new session via the frontend's ``new_chat`` hook.
+
+    Silent on success: the effect is the view switching to a fresh chat, so no
+    ``system`` bubble is rendered (the client-command contract allows an
+    output-less result, ADR-0047).
+    """
+    new_chat = context.service(_NEW_CHAT_SERVICE)
+    if new_chat is None:
+        return CommandResult.fail("Starting a new session is not supported here.")
+    new_chat()
+    return CommandResult()
 
 
 def handle_command(ctx: PageContext, text: str) -> bool:
@@ -117,7 +144,10 @@ def handle_command(ctx: PageContext, text: str) -> bool:
         user_id=ctx.user_id,
         chat_id=ctx.chat_id,
         capabilities=WEB_CAPABILITIES,
-        services={_REGISTRY_SERVICE: registry},
+        services={
+            _REGISTRY_SERVICE: registry,
+            _NEW_CHAT_SERVICE: ctx.new_chat,
+        },
     )
     result = registry.dispatch(parsed, context)
     _render_result(ctx, result)

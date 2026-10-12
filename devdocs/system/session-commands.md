@@ -123,8 +123,9 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | command | klass | capabilities | summary |
 |---|---|---|---|
 | `/help [cmd]` | ui | - | list commands, or detail one |
+| `/new` | ui | - | start a new session |
 
-Planned client commands (not registered yet): `/commands`, `/new`,
+Planned client commands (not registered yet): `/commands`,
 `/sessions`, `/rename`, `/export`, `/model`, `/upload`.
 
 Notes:
