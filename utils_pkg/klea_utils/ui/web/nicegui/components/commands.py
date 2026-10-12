@@ -64,6 +64,7 @@ _SAVE_EXPORT_SERVICE = "save_export"
 
 def _save_export(filename: str, content: str) -> None:
     """Deliver an export to the user as a browser download (default hook)."""
+    logger.debug(f"command /export: downloading {filename = } {len(content) = }")
     ui.download.content(content, filename)
 
 
@@ -145,6 +146,7 @@ def _handle_help(context: CommandContext, parsed: ParsedCommand) -> CommandResul
     """Render ``/help`` from the merged registry."""
     registry = context.service(_REGISTRY_SERVICE)
     name = parsed.args[0] if parsed.args else ""
+    logger.debug(f"command /help: {name = }")
     return render_help(registry, context.capabilities, name=name)
 
 
@@ -157,7 +159,9 @@ def _handle_new(context: CommandContext, parsed: ParsedCommand) -> CommandResult
     """
     new_chat = context.service(_NEW_CHAT_SERVICE)
     if new_chat is None:
+        logger.warning("command /new: new_chat hook is not registered")
         return CommandResult.fail("Starting a new session is not supported here.")
+    logger.debug("command /new: starting a new session")
     new_chat()
     return CommandResult()
 
@@ -170,12 +174,16 @@ def _handle_rename(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     """
     name = parsed.raw_args.strip()
     if not name:
+        logger.warning("command /rename: no name given")
         return CommandResult.fail("Usage: /rename <new name>")
     if not context.chat_id:
+        logger.warning("command /rename: no active session to rename")
         return CommandResult.fail("No active session to rename.")
     rename = context.service(_RENAME_CHAT_SERVICE)
     if rename is None:
+        logger.warning("command /rename: rename_chat hook is not registered")
         return CommandResult.fail("Renaming a session is not supported here.")
+    logger.debug(f"command /rename: {context.chat_id = } {name = }")
     rename(context.chat_id, name)
     return CommandResult.ok(f"Renamed session to {name!r}")
 
@@ -189,7 +197,9 @@ def _handle_model(context: CommandContext, parsed: ParsedCommand) -> CommandResu
     """
     show = context.service(_MODEL_DIALOG_SERVICE)
     if show is None:
+        logger.warning("command /model: show_model_dialog hook is not registered")
         return CommandResult.fail("Model configuration is not supported here.")
+    logger.debug(f"command /model: opening the dialog {context.chat_id = }")
     show()
     return CommandResult()
 
@@ -204,17 +214,24 @@ def _handle_export(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     blocks) the frontend currently holds.
     """
     if not context.chat_id:
+        logger.warning("command /export: no active session to export")
         return CommandResult.fail("No active session to export.")
     chat = ensure_chat(context.user_id, context.chat_id)
     messages = chat.get("messages") or []
     if not messages:
+        logger.warning(f"command /export: nothing to export {context.chat_id = }")
         return CommandResult.fail("This session has nothing to export yet.")
     save = context.service(_SAVE_EXPORT_SERVICE)
     if save is None:
+        logger.warning("command /export: save_export hook is not registered")
         return CommandResult.fail("Exporting a session is not supported here.")
     title = chat.get("name") or context.chat_id
     content = transcript_markdown(messages, title=title, exported_at=export_timestamp())
     filename = export_filename(title)
+    logger.debug(
+        f"command /export: {context.chat_id = } {len(messages) = } "
+        f"{filename = } {len(content) = }"
+    )
     save(filename, content)
     return CommandResult.ok(f"Exported the session transcript to {filename}.")
 
@@ -234,20 +251,26 @@ def handle_command(ctx: PageContext, text: str) -> bool:
     parsed = parse_command(text)
     if parsed is None:
         return False
+    logger.debug(f"handle_command: {parsed.name = }")
     registry: CommandRegistry | None = ctx.command_catalogue
     if registry is None:
+        logger.warning("command catalogue not loaded; cannot handle command")
         _render(ctx, "The command catalogue is not loaded yet; try again.")
         return True
     if parsed.error:
+        logger.warning(f"command parse error: {parsed.error}")
         _render(ctx, parsed.error)
         return True
     command = registry.get(parsed.name) if parsed.name else None
     if command is None:
+        logger.warning(f"unknown command /{parsed.name}")
         _render(ctx, f"Unknown command: /{parsed.name}. Type /help for the list.")
         return True
     if command.side == "server":
         # Forward to the graph: the command node runs it (ADR-0047).
+        logger.info(f"forwarding server command /{command.name} to the graph")
         return False
+    logger.info(f"handling client command /{command.name}")
     context = CommandContext(
         user_id=ctx.user_id,
         chat_id=ctx.chat_id,
@@ -267,6 +290,10 @@ def handle_command(ctx: PageContext, text: str) -> bool:
 
 def _render_result(ctx: PageContext, result: CommandResult) -> None:
     """Render a client command's :class:`CommandResult` into the chat."""
+    logger.debug(
+        f"command result: {bool(result.error) = } {len(result.output) = } "
+        f"{bool(result.notice) = } {result.handled = }"
+    )
     lines = [*result.output]
     if result.error:
         lines.append(result.error)
@@ -372,6 +399,7 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
 
 def _render(ctx: PageContext, text: str) -> None:
     """Append a ``system`` block to the active chat, creating one if needed."""
+    logger.debug(f"rendering command output ({len(text)} chars)")
     chat_id = ctx.ensure_active_chat()
     stamp = datetime.now().astimezone().strftime("%X")
     ensure_chat(ctx.user_id, chat_id)["messages"].append(

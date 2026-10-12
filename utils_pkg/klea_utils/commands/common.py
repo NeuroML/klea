@@ -128,6 +128,7 @@ def parse_command(text: str) -> ParsedCommand | None:
             raw_args=raw_args,
             error="Malformed arguments (check quoting).",
         )
+    logger.debug(f"parsed command /{name} with {len(args)} arg(s)")
     return ParsedCommand(name=name, args=args, raw_args=raw_args)
 
 
@@ -328,7 +329,12 @@ class CommandRegistry:
                 f"Command /{command.name} is not implemented yet."
             )
         logger.debug(f"dispatching command /{command.name}")
-        return command.handler(ctx, parsed)
+        result = command.handler(ctx, parsed)
+        logger.debug(
+            f"command /{command.name} result: {result.handled = } "
+            f"{bool(result.error) = } {len(result.output) = }"
+        )
+        return result
 
 
 def render_help(

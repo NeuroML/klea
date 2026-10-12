@@ -14,6 +14,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -21,6 +22,8 @@ from typing import Any
 from pydantic import BaseModel
 
 from klea_utils.commands.common import ParsedCommand, parse_command
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -55,6 +58,8 @@ def command_query_router(state: BaseModel) -> str:
     :param state: The graph state (its ``query`` is inspected).
     :returns: ``"command"`` or ``"continue"``.
     """
-    if parse_command(getattr(state, "query", "")) is not None:
+    parsed = parse_command(getattr(state, "query", ""))
+    if parsed is not None:
+        logger.debug(f"command query routed to the command node: /{parsed.name}")
         return "command"
     return "continue"

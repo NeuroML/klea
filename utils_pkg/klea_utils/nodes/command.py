@@ -71,6 +71,7 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
         """
         self._emit_progress()
         query = getattr(state, "query", "")
+        self.logger.debug(f"command node dispatch: {query = }")
         parsed = parse_command(query)
         if parsed is None:
             # Defensive: the router only sends command queries here.
@@ -99,17 +100,21 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
         updates["message_for_user"] = result.message
         if command.persists != "message":
             self._drop_command_message(state, query, updates)
+        self.logger.debug(
+            f"command /{command.name} done: {command.persists = } "
+            f"{len(result.message) = }"
+        )
         return updates
 
     def _reject(self, state: BaseModel, query: str, message: str) -> dict[str, Any]:
         """Return a direct rejection reply and drop the command turn."""
+        self.logger.debug(f"rejecting command: {message!r}")
         updates: dict[str, Any] = {"message_for_user": message}
         self._drop_command_message(state, query, updates)
         return updates
 
-    @staticmethod
     def _drop_command_message(
-        state: BaseModel, query: str, updates: dict[str, Any]
+        self, state: BaseModel, query: str, updates: dict[str, Any]
     ) -> None:
         """Remove the command turn init appended, unless it is kept.
 
@@ -120,11 +125,13 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
         messages = list(getattr(state, "messages", []) or [])
         if messages and getattr(messages[-1], "content", None) == query:
             updates["messages"] = messages[:-1]
+            self.logger.debug("dropped the command turn from message history")
 
     def _emit_inspect(
         self, command: Command, summary: str, details: dict[str, Any]
     ) -> None:
         """Emit an ``inspect`` event recording the command and its outcome."""
+        self.logger.debug(f"emitting inspect for /{command.name}: {summary!r}")
         info = NodeStreamData(
             heading=f"/{command.name}", summary=summary, details=details
         )

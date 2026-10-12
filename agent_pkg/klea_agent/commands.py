@@ -131,13 +131,16 @@ def _handle_mode(source_available: bool) -> GraphCommandHandler:
 
     def handler(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
         requested = (parsed.args[0] if parsed.args else "").strip().lower()
+        logger.debug(f"command /mode: {requested = }")
         current = getattr(state, "mode", None)
         if not requested:
             resolved = getattr(current, "resolved", "general")
             requested_now = getattr(current, "requested", "general")
+            logger.debug(f"command /mode (report): {resolved = } {requested_now = }")
             message = f"Operating mode: {resolved} (requested: {requested_now})."
             return GraphCommandResult(message=message)
         if requested not in ("general", "scientific"):
+            logger.warning(f"command /mode: unknown mode {requested!r}")
             return GraphCommandResult(
                 message=f"Unknown mode: {requested}. Use general or scientific."
             )
@@ -173,10 +176,13 @@ def _handle_access(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResul
     :returns: The command result.
     """
     requested = (parsed.args[0] if parsed.args else "").strip().lower()
+    logger.debug(f"command /access: {requested = }")
     if not requested:
         current = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+        logger.debug(f"command /access (report): {current = }")
         return GraphCommandResult(message=f"Tool access level: {current}.")
     if requested not in ("read_only", "full"):
+        logger.warning(f"command /access: unknown access level {requested!r}")
         return GraphCommandResult(
             message=f"Unknown access level: {requested}. Use read_only or full."
         )
