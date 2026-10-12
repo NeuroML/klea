@@ -349,9 +349,27 @@ The RAG frontends do not expose any yet.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">/help</span> <span class="pre">[command]</span></code></p></td>
 <td><p>List the available commands, or show one command’s usage.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/new</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/new</span></code></p></td>
+<td><p>Start a new session.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/rename</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/rename</span> <span class="pre">&lt;name&gt;</span></code></p></td>
+<td><p>Rename the current session.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/model</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/model</span></code></p></td>
+<td><p>Open the model and API-key configuration.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/export</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/export</span></code></p></td>
+<td><p>Download the session transcript as Markdown.</p></td>
+</tr>
 </tbody>
 </table>
 </div>
+<p>A command may define <strong>subcommands</strong> (verbs); <code class="docutils literal notranslate"><span class="pre">/help</span> <span class="pre">&lt;command&gt;</span></code> lists them,
+and the <code class="docutils literal notranslate"><span class="pre">/</span></code> menu autocompletes them.</p>
 </section>
 <section id="graph-commands-server">
 <h2>Graph commands (server)<a class="headerlink" href="#graph-commands-server" title="Link to this heading">¶</a></h2>

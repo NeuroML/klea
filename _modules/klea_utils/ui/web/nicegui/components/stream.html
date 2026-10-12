@@ -306,10 +306,11 @@
 <span class="sd">"""</span>
 <span class="sd">SSE stream handling component for Klea pages.</span>
 
-<span class="sd">Contains the pure state-mutation logic (:func:`apply_stream_event`,</span>
-<span class="sd">unit-testable without NiceGUI) and the UI-driving coroutine</span>
-<span class="sd">(:func:`run_stream`) that consumes the backend's ``/query/stream``</span>
-<span class="sd">events and updates the chat panel, status pane and inspector.</span>
+<span class="sd">The pure event-to-state reducer moved to</span>
+<span class="sd">:mod:`klea_utils.ui.stream_events` (shared with the terminal client); this</span>
+<span class="sd">module keeps the UI-driving coroutines (:func:`run_stream`,</span>
+<span class="sd">:func:`stop_stream`) that consume the backend's ``/query/stream`` events and</span>
+<span class="sd">update the chat panel, status pane and inspector.</span>
 
 <span class="sd">See ``devdocs/system/streams.md`` and ``devdocs/system/api-sse-sequence.md``.</span>
 
@@ -328,135 +329,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.sse</span><span class="w"> </span><span class="kn">import</span> <span class="n">request_cancel</span><span class="p">,</span> <span class="n">stream_events</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">InspectorMarker</span><span class="p">,</span> <span class="n">ensure_chat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.stream_events</span><span class="w"> </span><span class="kn">import</span> <span class="n">apply_stream_event</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">InspectorMarker</span><span class="p">,</span> <span class="n">ensure_chat</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-
-
-<div class="viewcode-block" id="apply_stream_event">
-<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.stream.apply_stream_event">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">apply_stream_event</span><span class="p">(</span><span class="n">chat</span><span class="p">:</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Apply one stream event's pure state mutations to the *chat* dict.</span>
-
-<span class="sd">    Mutates *chat* in place (token usage, status sections, inspector</span>
-<span class="sd">    entries, and, on completion, the final message) and returns the</span>
-<span class="sd">    action the UI layer reacts to:</span>
-
-<span class="sd">    ==============  =====================================================</span>
-<span class="sd">    return value    meaning</span>
-<span class="sd">    ==============  =====================================================</span>
-<span class="sd">    ``"usage"``     token usage totals were incremented</span>
-<span class="sd">    ``"state"``     a status-pane section was stored</span>
-<span class="sd">    ``"inspect"``   an inspection entry was appended</span>
-<span class="sd">    ``"context"``   session context (e.g. the operating mode) was stored</span>
-<span class="sd">    ``"complete"``  the final assistant message was appended</span>
-<span class="sd">    ``"error"``     the backend signalled an error</span>
-<span class="sd">    ``None``        no state change (progress / info / token events)</span>
-<span class="sd">    ==============  =====================================================</span>
-
-<span class="sd">    Inspector entries are appended to ``inspector_entries`` as they</span>
-<span class="sd">    arrive; the caller renders each one incrementally.  A per-query</span>
-<span class="sd">    marker is prepended by the caller at stream start.</span>
-
-<span class="sd">    :param chat: Chat session dict (see ``state.ensure_chat``).</span>
-<span class="sd">    :param event: Parsed SSE event dict from ``stream_events``.</span>
-<span class="sd">    :returns: Action string described above, or ``None``.</span>
-<span class="sd">    """</span>
-    <span class="n">t</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"context"</span><span class="p">:</span>
-        <span class="c1"># App-defined session context (e.g. the agent's operating mode,</span>
-        <span class="c1"># ADR-0030), carried verbatim into the chat dict so</span>
-        <span class="c1"># the page can render it (status) without app-specific</span>
-        <span class="c1"># knowledge of every event type.</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"context"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{}))</span>
-        <span class="k">return</span> <span class="s2">"context"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"inspect"</span><span class="p">:</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="p">{</span>
-                <span class="s2">"type"</span><span class="p">:</span> <span class="n">t</span><span class="p">,</span>
-                <span class="s2">"node"</span><span class="p">:</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                <span class="s2">"heading"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                <span class="s2">"summary"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                <span class="s2">"details"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{}),</span>
-                <span class="s2">"timing_seconds"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"timing_seconds"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
-            <span class="p">}</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="s2">"inspect"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"usage"</span><span class="p">:</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">details</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">usage</span> <span class="o">=</span> <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span>
-            <span class="s2">"token_usage"</span><span class="p">,</span>
-            <span class="p">{</span><span class="s2">"input_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"total_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
-        <span class="p">)</span>
-        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"input_tokens"</span><span class="p">,</span> <span class="s2">"output_tokens"</span><span class="p">,</span> <span class="s2">"total_tokens"</span><span class="p">):</span>
-            <span class="n">usage</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">return</span> <span class="s2">"usage"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"state"</span><span class="p">:</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">node</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="c1"># Sections are keyed by ``data["key"]`` when set, else by node label,</span>
-        <span class="c1"># so nodes can share one section (e.g. a live plan updated by the</span>
-        <span class="c1"># Planner and the Evaluator) instead of each owning a duplicate.</span>
-        <span class="n">section_key</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"key"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">node</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"state_sections"</span><span class="p">,</span> <span class="p">{})[</span><span class="n">section_key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s2">"heading"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"heading"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="s2">"display"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="s2">"summary"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-            <span class="s2">"details"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{}),</span>
-            <span class="s2">"preformatted"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preformatted"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
-        <span class="p">}</span>
-        <span class="k">return</span> <span class="s2">"state"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
-        <span class="n">message</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
-        <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
-        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="p">{</span><span class="s2">"text"</span><span class="p">:</span> <span class="n">message</span><span class="p">,</span> <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span> <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">}</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="s2">"complete"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
-        <span class="c1"># Chat-renderable tool output (e.g. a file edit's diff).  One message</span>
-        <span class="c1"># per entry so each renders as its own full-width block, before the</span>
-        <span class="c1"># final answer.  ``mime`` selects the renderer; ``display`` is the</span>
-        <span class="c1"># text fallback.</span>
-        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tools"</span><span class="p">,</span> <span class="p">[]):</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">):</span>
-                <span class="k">continue</span>
-            <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                <span class="p">{</span>
-                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
-                    <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span>
-                    <span class="s2">"header"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
-                    <span class="s2">"mime"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="s2">"data"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
-                    <span class="s2">"meta"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
-                    <span class="s2">"is_error"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
-                <span class="p">}</span>
-            <span class="p">)</span>
-        <span class="k">return</span> <span class="s2">"tool"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
-        <span class="c1"># The run paused for HITL input (ADR-0046): store the ask so the</span>
-        <span class="c1"># status region can render the form; cleared when the next turn starts.</span>
-        <span class="n">chat</span><span class="p">[</span><span class="s2">"interrupt"</span><span class="p">]</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
-        <span class="k">return</span> <span class="s2">"interrupt"</span>
-
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"error"</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s2">"error"</span>
-
-    <span class="k">return</span> <span class="kc">None</span></div>
-
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_retry_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>

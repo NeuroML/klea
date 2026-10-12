@@ -325,20 +325,20 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">coolname</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.client</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">create_chat_on_server</span><span class="p">,</span>
     <span class="n">delete_chat_on_server</span><span class="p">,</span>
     <span class="n">rename_chat_on_server</span><span class="p">,</span>
 <span class="p">)</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">chat_indicator</span><span class="p">,</span>
     <span class="n">chats</span><span class="p">,</span>
     <span class="n">ensure_chat</span><span class="p">,</span>
     <span class="n">get_chats_sorted</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components</span><span class="w"> </span><span class="kn">import</span> <span class="n">stream</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -413,6 +413,22 @@
         <span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_apply_rename</span><span class="p">(</span><span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Rename *chat_id* locally and persist it on the server.</span>
+
+<span class="sd">        Shared by the chat-list rename dialog and the client ``/rename``</span>
+<span class="sd">        command (ADR-0047).  The server PATCH runs in the background so callers</span>
+<span class="sd">        stay synchronous.</span>
+<span class="sd">        """</span>
+        <span class="n">chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+        <span class="n">chat</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"renaming chat=</span><span class="si">%s</span><span class="s2"> to </span><span class="si">%r</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">rename_chat_on_server</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_rename_chat</span><span class="p">(</span><span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Open a dialog to rename a chat and persist on server."""</span>
         <span class="n">chat</span> <span class="o">=</span> <span class="n">ensure_chat</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
@@ -420,12 +436,8 @@
         <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
 
         <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_save</span><span class="p">():</span>
-            <span class="n">chat</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">=</span> <span class="n">inp</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">_apply_rename</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">inp</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
             <span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"renaming chat=</span><span class="si">%s</span><span class="s2"> to </span><span class="si">%r</span><span class="s2">"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">inp</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
-            <span class="k">await</span> <span class="n">rename_chat_on_server</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">inp</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
-            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
-            <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
 
         <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">():</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Rename chat"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
@@ -625,6 +637,8 @@
             <span class="n">ctx</span><span class="o">.</span><span class="n">toggle_icon</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"keyboard_double_arrow_left"</span>
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">switch_chat</span> <span class="o">=</span> <span class="n">_switch_chat</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">new_chat</span> <span class="o">=</span> <span class="n">_new_chat</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">rename_chat</span> <span class="o">=</span> <span class="n">_apply_rename</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span> <span class="o">=</span> <span class="n">_render_chat_list</span><span class="o">.</span><span class="n">refresh</span>
 
     <span class="c1"># ---- Left drawer (rail mode by default) ----</span>

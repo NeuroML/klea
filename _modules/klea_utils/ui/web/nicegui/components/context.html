@@ -472,6 +472,16 @@
     <span class="c1">#: (e.g. operating mode / access level in ``query_extra``) onto that chat.</span>
     <span class="n">chat_created_hooks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="kc">None</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">switch_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_arg</span><span class="p">)</span>
+    <span class="c1">#: Create and switch to a new chat session (registered by the chat-list</span>
+    <span class="c1">#: component; used by the client ``/new`` command, ADR-0047).</span>
+    <span class="n">new_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
+    <span class="c1">#: Rename a chat session (``chat_id``, ``name``); registered by the</span>
+    <span class="c1">#: chat-list component and used by the client ``/rename`` command (ADR-0047).</span>
+    <span class="n">rename_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_args</span><span class="p">)</span>
+    <span class="c1">#: Open the model/credential dialog from a synchronous caller; registered by</span>
+    <span class="c1">#: the model-dialog component and used by the client ``/model`` command</span>
+    <span class="c1">#: (ADR-0047).</span>
+    <span class="n">show_model_dialog</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
     <span class="c1">#: Hooks invoked with a chat's data dict whenever a graph ``context`` event</span>
     <span class="c1">#: updates its session context, so a context control (operating mode /</span>
     <span class="c1">#: tool access) can reconcile its per-chat preference with the checkpointed</span>
