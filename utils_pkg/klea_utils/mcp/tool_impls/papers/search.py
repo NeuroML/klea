@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 Domain = Literal["general", "life-sciences"]
 DOMAINS: tuple[str, ...] = get_args(Domain)
 DEFAULT_MAX_RESULTS = 10
-MAX_RESULTS_LIMIT = 25
+MAX_RESULTS = 25
 
 SearchFn = Callable[[SessionLike | None, str, int], Awaitable[list[PaperRecord]]]
 SourceList = list[tuple[str, SearchFn]]
@@ -176,7 +176,7 @@ class PaperSearchResolver:
         if domain not in DOMAINS:
             result["error"] = f"Unknown domain {domain!r}; use one of {list(DOMAINS)}."
             return result
-        limit = max(1, min(max_results, MAX_RESULTS_LIMIT))
+        limit = max(1, min(max_results, MAX_RESULTS))
 
         failures: list[str] = []
         answered: list[str] = []

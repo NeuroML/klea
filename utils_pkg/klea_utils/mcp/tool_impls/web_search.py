@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 #: Default number of results requested from the provider pool.
 DEFAULT_MAX_RESULTS = 8
 #: Maximum results a caller may request (matches the hosted providers' caps).
-MAX_MAX_RESULTS = 20
+MAX_RESULTS = 20
 
 
 async def web_search(

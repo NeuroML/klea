@@ -25,7 +25,9 @@ from klea_utils.mcp.tool_impls.papers.search import (
     DEFAULT_MAX_RESULTS as PAPERS_DEFAULT_MAX_RESULTS,
 )
 from klea_utils.mcp.tool_impls.papers.search import (
-    MAX_RESULTS_LIMIT,
+    MAX_RESULTS as PAPERS_MAX_RESULTS,
+)
+from klea_utils.mcp.tool_impls.papers.search import (
     Domain,
 )
 from klea_utils.mcp.tool_impls.papers.search import (
@@ -42,7 +44,7 @@ from klea_utils.mcp.tool_impls.run_command import run_command as run_command_imp
 from klea_utils.mcp.tool_impls.web_fetch import web_fetch as web_fetch_impl
 from klea_utils.mcp.tool_impls.web_search import (
     DEFAULT_MAX_RESULTS,
-    MAX_MAX_RESULTS,
+    MAX_RESULTS,
 )
 from klea_utils.mcp.tool_impls.web_search import web_search as web_search_impl
 from klea_utils.mcp.tool_impls.write_file import write_file as write_file_impl
@@ -127,7 +129,7 @@ async def search_papers(
                 "preprint results"
             ),
             ge=1,
-            le=MAX_RESULTS_LIMIT,
+            le=PAPERS_MAX_RESULTS,
         ),
     ] = PAPERS_DEFAULT_MAX_RESULTS,
 ) -> ToolResult:
@@ -143,8 +145,7 @@ async def search_papers(
     - Looking for the source of a model, method or result.
 
     Do not use for:
-    - Reading the full text of a paper (use the web fetch or download file
-      tool with the paper's url instead).
+    - Reading a paper's full text (use the web fetch or download tool).
     - General web pages, news or docs (use the web search tool instead).
 
     When you cite a preprint, tell the user it has not been peer reviewed.
@@ -155,8 +156,7 @@ async def search_papers(
         query: Keywords to search for.
         domain: 'general' or 'life-sciences'.
         preprints: Also search preprints, listed after the peer reviewed results.
-        max_results: Maximum results from the peer reviewed sources, and
-            separately from the preprint sources.
+        max_results: Maximum results from the peer reviewed sources and preprints.
 
     Returns:
         Dictionary with query, domain, preprints, results (title, authors,
@@ -180,7 +180,7 @@ async def search_papers(
 async def web_search(
     ctx: Context,
     query: Annotated[str, Field(min_length=1)],
-    max_results: Annotated[int, Field(ge=1, le=MAX_MAX_RESULTS)] = DEFAULT_MAX_RESULTS,
+    max_results: Annotated[int, Field(ge=1, le=MAX_RESULTS)] = DEFAULT_MAX_RESULTS,
 ) -> ToolResult:
     """Search the web and return ranked results with snippets.
 
