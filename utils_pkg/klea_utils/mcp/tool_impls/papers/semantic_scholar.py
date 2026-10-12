@@ -14,7 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 import os
 
-from klea_utils.biblio.doi import _normalize_semantic_scholar
+from klea_utils.biblio.normalize import normalize_semantic_scholar
 from klea_utils.mcp.tool_impls.session import SessionLike
 
 from .errors import PaperSourceError
@@ -70,7 +70,7 @@ async def search(
 
     records = []
     for paper in papers:
-        record = _normalize_semantic_scholar(paper)
+        record = normalize_semantic_scholar(paper)
         if not record.title:
             continue
         paper_record = from_biblio(

@@ -14,7 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
-from klea_utils.biblio.doi import _strip_tags
+from klea_utils.biblio.normalize import strip_tags
 from klea_utils.mcp.tool_impls.session import SessionLike
 
 from .errors import PaperSourceError
@@ -64,7 +64,7 @@ def _normalize(result: dict, preprints: bool) -> PaperRecord:
         authors=_authors(result),
         year=_year(result),
         journal=_venue(result, preprints),
-        abstract=_strip_tags(result.get("abstractText")),
+        abstract=strip_tags(result.get("abstractText")),
         doi=doi,
         url=url,
         peer_reviewed=not preprints,

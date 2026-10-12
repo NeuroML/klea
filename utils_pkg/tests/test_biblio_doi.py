@@ -12,13 +12,12 @@ import json
 import logging
 
 import httpx
-from klea_utils.biblio.doi import (
-    DoiResolver,
-    _normalize_crossref,
-    _normalize_openalex,
-    _normalize_semantic_scholar,
-    _user_agent,
+from klea_utils.biblio.doi import DoiResolver, _user_agent
+from klea_utils.biblio.normalize import (
+    normalize_crossref,
     normalize_doi,
+    normalize_openalex,
+    normalize_semantic_scholar,
 )
 
 logger = logging.getLogger(__name__)
@@ -103,7 +102,7 @@ def test_normalize_doi_strips_trailing_path():
 
 def test_normalize_crossref():
     """Crossref responses normalise, stripping JATS tags from the abstract."""
-    record = _normalize_crossref(CROSSREF_JSON)
+    record = normalize_crossref(CROSSREF_JSON)
     logger.info(f"crossref record: {record}")
     assert record.title == "A Crossref Sample Paper"
     assert record.authors == ["Jane Doe", "John Smith"]
@@ -115,7 +114,7 @@ def test_normalize_crossref():
 
 def test_normalize_openalex():
     """OpenAlex responses normalise, reconstructing the abstract index."""
-    record = _normalize_openalex(OPENALEX_JSON)
+    record = normalize_openalex(OPENALEX_JSON)
     logger.info(f"openalex record: {record}")
     assert record.title == "An OpenAlex Sample Paper"
     assert record.authors == ["Jane Doe", "John Smith"]
@@ -127,7 +126,7 @@ def test_normalize_openalex():
 
 def test_normalize_semantic_scholar():
     """Semantic Scholar responses normalise."""
-    record = _normalize_semantic_scholar(S2_JSON)
+    record = normalize_semantic_scholar(S2_JSON)
     logger.info(f"s2 record: {record}")
     assert record.title == "A Semantic Scholar Sample Paper"
     assert record.authors == ["Jane Doe", "John Smith"]

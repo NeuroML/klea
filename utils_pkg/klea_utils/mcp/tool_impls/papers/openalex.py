@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 import os
 
-from klea_utils.biblio.doi import _normalize_openalex
+from klea_utils.biblio.normalize import normalize_openalex
 from klea_utils.mcp.tool_impls.session import SessionLike
 
 from .errors import PaperSourceError
@@ -45,7 +45,7 @@ async def search(
 
     records = []
     for work in works:
-        record = _normalize_openalex(work)
+        record = normalize_openalex(work)
         if not record.title:
             continue
         landing = (work.get("primary_location") or {}).get("landing_page_url")

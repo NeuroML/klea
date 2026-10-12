@@ -19,8 +19,8 @@ from docling_core.types.doc.document import (
     ProvenanceItem,
     Size,
 )
-from klea_utils.biblio.doi import BiblioRecord
 from klea_utils.biblio.extract import extract_metadata, extract_metadata_from_text
+from klea_utils.biblio.models import BiblioRecord
 
 logger = logging.getLogger(__name__)
 

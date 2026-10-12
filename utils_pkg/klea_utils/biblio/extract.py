@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Protocol
 
 from .docling import extract_docling_structured, extract_layout_region
-from .doi import BiblioRecord, normalize_doi
+from .models import BiblioRecord
+from .normalize import normalize_doi
 from .pdf import extract_pdf_info
 from .regex import _scan_dois, extract_regex_metadata
 

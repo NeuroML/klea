@@ -15,20 +15,22 @@ import itertools
 import json
 import logging
 import os
-import re
 import tempfile
 from pathlib import Path
 from typing import Self
 
 import httpx
-from pydantic import BaseModel
 
+from .models import BiblioRecord
+from .normalize import (
+    normalize_crossref,
+    normalize_doi,
+    normalize_openalex,
+    normalize_semantic_scholar,
+)
 from .regex import DOI_RE
 
 logger = logging.getLogger(__name__)
-
-#: JATS/XML tags found in Crossref abstracts.
-_JATS_TAG_RE = re.compile(r"<[^>]+>")
 
 #: Persist the DOI cache at most once per this many newly-resolved DOIs.
 #: :meth:`DoiResolver.close` always flushes whatever is left, so a crash
@@ -62,127 +64,6 @@ def _user_agent() -> str:
             version_str = ""
         _user_agent_cache = f"{_UA_PREFIX}{version_str or 'dev'}"
     return _user_agent_cache
-
-
-class BiblioRecord(BaseModel):
-    """Normalised bibliographic record shared across the DOI services."""
-
-    title: str | None = None
-    authors: list[str] = []
-    year: int | None = None
-    journal: str | None = None
-    abstract: str | None = None
-    doi: str | None = None
-
-
-def normalize_doi(doi: str) -> str:
-    """Normalise a DOI by stripping common URL/prefix wrappers.
-
-    ``https://doi.org/10.x/y``, ``http://dx.doi.org/10.x/y`` and
-    ``doi: 10.x/y`` all become ``10.x/y``.  Trailing punctuation is
-    removed, and a trailing URL path after the DOI suffix is stripped
-    (a valid DOI suffix contains no ``/``, e.g. the path in
-    ``10.1073/pnas.2201699120/-/DCSupplemental``).
-
-    :param doi: DOI string, possibly wrapped in a URL or prefix
-    :returns: Normalised DOI, or ``""`` when *doi* is empty
-    """
-    if not doi:
-        return ""
-    value = str(doi).strip()
-    value = re.sub(
-        r"^(?:https?://(?:dx\.)?doi\.org/|doi:\s*)", "", value, flags=re.IGNORECASE
-    )
-    value = value.rstrip(".,;:)]}")
-    # A valid DOI is ``10.<registrant>/<suffix>``; anything after the
-    # second slash is a URL path, not part of the DOI.
-    parts = value.split("/", 2)
-    if len(parts) == 3:
-        value = f"{parts[0]}/{parts[1]}"
-    return value
-
-
-def _strip_tags(value: str | None) -> str | None:
-    """Strip XML/JATS tags from a string and collapse whitespace."""
-    if not value:
-        return None
-    text = _JATS_TAG_RE.sub(" ", value)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text or None
-
-
-def _reconstruct_inverted_index(inverted: dict | None) -> str | None:
-    """Rebuild an abstract from OpenAlex's word->positions map."""
-    if not inverted:
-        return None
-    positioned: dict[int, str] = {}
-    for word, positions in inverted.items():
-        for position in positions:
-            positioned[position] = word
-    if not positioned:
-        return None
-    return " ".join(positioned[pos] for pos in sorted(positioned))
-
-
-def _normalize_crossref(data: dict) -> BiblioRecord:
-    """Normalise a Crossref ``/works/{doi}`` response."""
-    message = data.get("message") or {}
-    titles = message.get("title") or []
-    authors = []
-    for author in message.get("author") or []:
-        given = author.get("given") or ""
-        family = author.get("family") or ""
-        name = f"{given} {family}".strip() or (author.get("name") or "")
-        if name:
-            authors.append(name)
-    year = None
-    issued = message.get("issued") or {}
-    date_parts = issued.get("date-parts") or []
-    if date_parts and date_parts[0]:
-        year = date_parts[0][0]
-    container = message.get("container-title") or []
-    return BiblioRecord(
-        title=(titles[0] if titles else None),
-        authors=authors,
-        year=year,
-        journal=(container[0] if container else None),
-        abstract=_strip_tags(message.get("abstract")),
-        doi=message.get("DOI") or None,
-    )
-
-
-def _normalize_openalex(data: dict) -> BiblioRecord:
-    """Normalise an OpenAlex ``/works/doi:{doi}`` response."""
-    authors = []
-    for authorship in data.get("authorships") or []:
-        author = authorship.get("author") or {}
-        name = author.get("display_name")
-        if name:
-            authors.append(name)
-    source = (data.get("primary_location") or {}).get("source") or {}
-    raw_doi = data.get("doi")
-    return BiblioRecord(
-        title=data.get("title"),
-        authors=authors,
-        year=data.get("publication_year"),
-        journal=source.get("display_name"),
-        abstract=_reconstruct_inverted_index(data.get("abstract_inverted_index")),
-        doi=normalize_doi(str(raw_doi)) if raw_doi else None,
-    )
-
-
-def _normalize_semantic_scholar(data: dict) -> BiblioRecord:
-    """Normalise a Semantic Scholar ``/paper/DOI:{doi}`` response."""
-    authors = [a.get("name") for a in (data.get("authors") or []) if a.get("name")]
-    external = data.get("externalIds") or {}
-    return BiblioRecord(
-        title=data.get("title"),
-        authors=authors,
-        year=data.get("year"),
-        journal=data.get("venue"),
-        abstract=data.get("abstract"),
-        doi=external.get("DOI") or None,
-    )
 
 
 class DoiResolver:
@@ -336,7 +217,7 @@ class DoiResolver:
         if self.mailto:
             params["mailto"] = self.mailto
         data = self._get_json(f"https://api.crossref.org/works/{doi}", params=params)
-        return self._record_or_none(_normalize_crossref, data)
+        return self._record_or_none(normalize_crossref, data)
 
     def _query_openalex(self, doi: str) -> BiblioRecord | None:
         params = {}
@@ -345,7 +226,7 @@ class DoiResolver:
         data = self._get_json(
             f"https://api.openalex.org/works/doi:{doi}", params=params
         )
-        return self._record_or_none(_normalize_openalex, data)
+        return self._record_or_none(normalize_openalex, data)
 
     def _query_semantic_scholar(self, doi: str) -> BiblioRecord | None:
         params = {"fields": "title,authors,abstract,year,venue,externalIds"}
@@ -353,7 +234,7 @@ class DoiResolver:
             f"https://api.semanticscholar.org/graph/v1/paper/DOI:{doi}",
             params=params,
         )
-        return self._record_or_none(_normalize_semantic_scholar, data)
+        return self._record_or_none(normalize_semantic_scholar, data)
 
     @staticmethod
     def _record_or_none(normalizer, data: dict | None) -> BiblioRecord | None:

@@ -10,7 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import re
 
-from klea_utils.biblio.doi import BiblioRecord
+from klea_utils.biblio.models import BiblioRecord
 
 #: Abstracts longer than this are cut, so a page of results stays small
 #: enough for the model's context.
@@ -39,8 +39,8 @@ class PaperRecord(BiblioRecord):
 def clean_doi(raw: str | None) -> str | None:
     """Strip a ``https://doi.org/`` or ``doi:`` prefix from an API-provided DOI.
 
-    Unlike :func:`klea_utils.biblio.doi.normalize_doi` this keeps everything
-    after the prefix: DOI suffixes may contain ``/`` (for example
+    Unlike :func:`klea_utils.biblio.normalize.normalize_doi` this keeps
+    everything after the prefix: DOI suffixes may contain ``/`` (for example
     ``10.1088/0957-4484/24/38/383001``).
     """
     if not raw:

@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 import os
 
-from klea_utils.biblio.doi import _normalize_crossref
+from klea_utils.biblio.normalize import normalize_crossref
 from klea_utils.mcp.tool_impls.session import SessionLike
 
 from .errors import PaperSourceError
@@ -47,7 +47,7 @@ async def search(
     for item in items:
         # The DOI resolver's normaliser reads a single DOI lookup response,
         # where the work sits under "message".
-        record = _normalize_crossref({"message": item})
+        record = normalize_crossref({"message": item})
         if not record.title:
             continue
         # SSRN registers its preprints as journal articles.
