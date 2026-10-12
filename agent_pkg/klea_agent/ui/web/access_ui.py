@@ -86,7 +86,10 @@ def attach_access_ui(ctx: PageContext) -> None:
             DEFAULT_ACCESS_LEVEL,
         )
 
-        if ctx.query_extra.get("access_level") != requested:
+        # Only sync once a chat exists: before that an empty query_extra must
+        # stay empty so a default is not seeded (which ``_adopt_pending`` would
+        # then stamp as a real per-chat preference).
+        if current_chat and ctx.query_extra.get("access_level") != requested:
             ctx.query_extra["access_level"] = requested
             logger.debug(
                 "user=%s chat=%s sync query_extra access_level=%s",
@@ -111,5 +114,19 @@ def attach_access_ui(ctx: PageContext) -> None:
             chat["access_pref"] = pending
             logger.debug("adopted pending access_level=%s for new chat", pending)
 
+    def _sync_from_context(chat: dict) -> None:
+        """Reconcile this chat's preference with the checkpointed level.
+
+        A ``/access`` graph command changes the checkpointed state, which is
+        streamed back as a ``context`` event; without this the stale
+        ``access_pref`` (which ``resolve_chat_choice`` prefers over the
+        context) would keep the selector on the old level.
+        """
+        level = (chat.get("context") or {}).get("access_level")
+        if level in ACCESS_LEVELS:
+            chat["access_pref"] = level
+            logger.debug("synced access_pref=%s from context", level)
+
     ctx.status_extras.append(_render)
     ctx.chat_created_hooks.append(_adopt_pending)
+    ctx.context_hooks.append(_sync_from_context)

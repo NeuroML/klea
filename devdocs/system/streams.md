@@ -53,6 +53,13 @@ continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
 before a call that would touch a path outside the permitted roots; ADR-0007
 update 2026-10-08).
 
+`context` carries the checkpointed session context (e.g. the agent operating
+mode / tool access, ADR-0030/0032).  The web frontend stores it on the chat and
+runs the page's `context_hooks`, so a context control reconciles its per-chat
+preference with the value the server just reported - for example after a
+`/mode` graph command changes the checkpointed mode (ADR-0047); without it the
+stale preference (resolved first) would keep the selector on the old value.
+
 ### `progress`
 
 `node` is the emitting node's label and is the stable identity the runner

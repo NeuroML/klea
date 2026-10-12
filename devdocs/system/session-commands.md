@@ -3,7 +3,8 @@
 Status: implemented (framework).  The framework is decided in ADR-0047
 (`adr/0047-session-command-framework.md`); this note holds the command
 catalogue and the per-command contract.  The framework, the web routing /
-autocomplete, and the first commands (`/help`, `/mode`) are implemented;
+autocomplete, and the first commands (`/help`, `/mode`, `/access`) are
+implemented;
 further commands are added as they land, and a command whose decision is hard
 to reverse may graduate to its own ADR.
 
@@ -16,6 +17,15 @@ the graph never needs to know a frontend's commands (a client-side command
 reaching the graph is simply unknown).  Each frontend routes an input
 starting with `/` by the command's class; the graph exposes a command node
 that mirrors `ToolsPicker` / `ToolsCallerNode`.
+
+**Invocation, not LLM usage, is the distinction.**  A command is *user*-invoked
+(a `/`-prefixed input), never chosen by the model.  The *dispatch* is
+deterministic: the graph routes a `/`-query straight to the command node,
+skipping the guard/mode/planner LLM nodes.  But a command's handler **may**
+itself use an LLM -- a workflow command such as `/compact` (summarise memory)
+or `/init` (generate project guidance) does.  So "user-invoked" does not mean
+"LLM-free": some commands are pure state changes (`/mode`, `/access`), others
+call a model.
 
 Catalogue entry fields:
 
@@ -46,8 +56,15 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
   (the frontend's own client commands plus the server catalogue from
   `GET /commands`); `//` escapes a literal `/`.  `ui`/client commands run
   locally; an unknown command is an error plus `/help`; a server command is
-  forwarded as the query.  A `/`-menu over the merged catalogue provides
-  autocompletion and filters by `capabilities`.
+  forwarded as the query.  A client command's output is rendered as a
+  `system` block in the active chat, creating one if the command is the
+  session's first input (a chat is the transcript host, so the output is not
+  a transient notification).  A suggestion list over the merged catalogue
+  (filtered by `capabilities`) autocompletes as the user types `/prefix` and
+  inserts a command when an item is clicked.  Keyboard navigation (Up/Down,
+  Tab, Escape) is deliberately omitted: typing the command and pressing Enter
+  is sufficient, and an unconditional Vue key modifier would break Tab focus
+  order out of the chat box.
 * Backend: `chat_core` recognises a known leading-`/` graph command; the
   graph command node (conditional edge right after `Initializing`, then
   `END`) resolves, dispatches to the app registry, mutates state, sets
@@ -90,10 +107,13 @@ and the menu (`CommandRegistry.available`).
 | command | klass | persists | while_streaming | summary |
 |---|---|---|---|---|
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
+| `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/access`, `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`,
-`/plan`, `/init`.
+published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/init`.
+The attachment trio (`/file`, `/upload`, `/webfetch`) plus the session
+workspace is **deferred pending a use-case decision** -- see the backlog for
+the options (convert-to-workspace vs ingest-and-retrieve vs in-prompt).
 
 ### Client commands (frontend-owned)
 
@@ -105,7 +125,7 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/help [cmd]` | ui | - | list commands, or detail one |
 
 Planned client commands (not registered yet): `/commands`, `/new`,
-`/sessions`, `/rename`, `/export`, `/model`, `/theme`, `/upload`.
+`/sessions`, `/rename`, `/export`, `/model`, `/upload`.
 
 Notes:
 
@@ -120,7 +140,8 @@ Notes:
 * `/mode`/`/access`/`/cwd` change checkpointed graph state; the UI selectors
   dispatch the same command so there is one path.
 * Custom `/prompt` commands (opencode-style templates) expand to a normal
-  query and persist normally; `/skills` is the placeholder for that surface.
+  query and persist normally.  `/skills` is **deferred**: skills are not
+  designed yet, so the surface is not defined (see backlog).
 * A leading `//` is not a command (the frontend and backend both treat it as
   ordinary text and send it as-is); a true single-slash escape is deferred
   since both sides must agree on it.

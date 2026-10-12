@@ -220,7 +220,7 @@ class TestMakeRetryerHttpx:
             nonlocal calls
             calls += 1
             if calls == 1:
-                raise asyncio.TimeoutError()
+                raise TimeoutError()
             return "ok"
 
         retryer = api_utils._make_retryer_httpx(attempts=5)
@@ -322,7 +322,6 @@ class TestSse:
                 return FakeStream()
 
         monkeypatch.setattr(httpx_mod, "AsyncClient", FakeClient)
-        import asyncio
 
         async def run():
             gen = sse.stream_events("q", "c", "http://x")
@@ -330,7 +329,7 @@ class TestSse:
                 await asyncio.wait_for(gen.__anext__(), timeout=0.5)
             except StopAsyncIteration:
                 pass
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         asyncio.run(run())
@@ -373,7 +372,6 @@ class TestSse:
                 return FakeStream()
 
         monkeypatch.setattr(httpx_mod, "AsyncClient", FakeClient)
-        import asyncio
 
         async def run():
             events = []

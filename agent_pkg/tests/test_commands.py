@@ -47,6 +47,15 @@ class TestCatalogue:
         assert mode.implemented is True
         assert "mode" in handlers
 
+    def test_access_is_implemented_and_server_side(self):
+        registry, handlers = build_agent_commands(source_available=False)
+        access = registry.get("access")
+        assert access is not None
+        assert access.side == "server"
+        assert access.klass == "session-state"
+        assert access.implemented is True
+        assert "access" in handlers
+
     def test_client_commands_are_not_in_the_graph_catalogue(self):
         # The backend cannot know client-side commands (that would be a
         # circular dependency); the frontends own them and handle them locally.
@@ -105,10 +114,38 @@ class TestModeHandler:
         assert "Unknown mode" in updates["message_for_user"]
 
 
+class TestAccessHandler:
+    async def test_set_read_only(self):
+        events: list = []
+        node = _agent_node(events)
+        updates = await node.execute(_state("/access read_only"))
+        assert updates["access_level"] == "read_only"
+        assert "read_only" in updates["message_for_user"]
+        # Ephemeral: the command turn is dropped from the message history.
+        assert updates["messages"] == []
+        assert any(e.get("type") == "inspect" for e in events)
+
+    async def test_set_full(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/access full"))
+        assert updates["access_level"] == "full"
+
+    async def test_report_current(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/access"))
+        assert "Tool access level" in updates["message_for_user"]
+
+    async def test_unknown_level(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/access bogus"))
+        assert "Unknown access level" in updates["message_for_user"]
+        assert "access_level" not in updates
+
+
 class TestNodeBehaviour:
     async def test_stub_replies_not_implemented(self):
         node = _agent_node([])
-        updates = await node.execute(_state("/access full"))
+        updates = await node.execute(_state("/cwd /tmp"))
         assert "not implemented" in updates["message_for_user"]
 
     async def test_unknown_command_rejected(self):

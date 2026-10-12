@@ -339,7 +339,10 @@ def render_help(
     """Render ``/help`` output for a frontend with *capabilities*.
 
     With *name*, show that command's detail; otherwise list the available
-    commands (filtered by capability), one per line.
+    commands (filtered by capability).  The output is Markdown - a bulleted
+    list with each usage in inline code - so a chat frontend renders one
+    command per line with a monospaced usage (plain newlines would collapse
+    into a single paragraph).
 
     :param registry: The command registry.
     :param capabilities: The frontend's capabilities.
@@ -352,18 +355,19 @@ def render_help(
             return CommandResult.fail(
                 f"Unknown command: /{name}. Type /help for the list."
             )
-        header = f"/{command.name}"
+        usage = f"/{command.name}"
         if command.arg_hint:
-            header += f" {command.arg_hint}"
-        lines = [header, f"  {command.summary}"]
+            usage += f" {command.arg_hint}"
+        lines = [f"`{usage}`", "", command.summary]
         if command.aliases:
-            lines.append(f"  aliases: {', '.join('/' + a for a in command.aliases)}")
+            aliases = ", ".join(f"`/{alias}`" for alias in command.aliases)
+            lines += ["", f"aliases: {aliases}"]
         return CommandResult(output=lines)
 
-    lines = ["Available commands:"]
+    lines = ["Available commands:", ""]
     for command in registry.available(capabilities):
         usage = f"/{command.name}"
         if command.arg_hint:
             usage += f" {command.arg_hint}"
-        lines.append(f"  {usage:<24} {command.summary}")
+        lines.append(f"- `{usage}` - {command.summary}")
     return CommandResult(output=lines)

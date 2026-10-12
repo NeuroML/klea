@@ -292,6 +292,12 @@ async def run_stream(
                     ctx.turn_status_label.set_text(heading)
                 continue
             action = apply_stream_event(current_chat, event)
+            if action == "context":
+                # Reconcile context controls (mode / access) with the
+                # checkpointed value the server just reported, e.g. after a
+                # ``/mode`` command (ADR-0032, ADR-0047).
+                for hook in ctx.context_hooks:
+                    hook(current_chat)
             if action in ("usage", "state", "context"):
                 if _active():
                     ctx.refresh_status_pane()

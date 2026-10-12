@@ -234,7 +234,7 @@ class TestRenderHelp:
     def test_detail_for_one_command(self):
         result = render_help(_registry(), [], name="mode")
         joined = "\n".join(result.output)
-        assert joined.startswith("/mode [general|scientific]")
+        assert "`/mode [general|scientific]`" in joined
         assert "set the mode" in joined
 
     def test_detail_unknown(self):

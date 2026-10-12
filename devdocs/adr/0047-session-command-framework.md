@@ -156,7 +156,8 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
   (`Initializing -> {command | continue}`) plus `add_edge(CommandNode, END)`
   (agent; the analogue after `Initializing` in RAG).  Running after init is
   required because `InitGraphState` resets `message_for_user`; commands skip
-  guard/mode/planner (trusted user input, no LLM).
+  guard/mode/planner because they are trusted, user-invoked input (the routing
+  needs no LLM; a command's handler may still use one).
 
 ### State and persistence
 
