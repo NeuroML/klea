@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Server API client for the NiceGUI frontend.
+Server API client shared by the Klea frontends.
 
+Thin httpx wrappers over the backend's session / model / credential /
+command endpoints, used by the web (NiceGUI) and terminal (Textual) clients.
 All functions accept the *server_url* as their first argument so the
 caller can point them at any running Klea backend without shared state.
 
-File: klea_utils/ui/web/nicegui/client.py
+File: klea_utils/ui/client.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>

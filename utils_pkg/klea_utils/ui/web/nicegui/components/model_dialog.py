@@ -46,8 +46,7 @@ from klea_utils.llm import (
     parse_model_name,
     requires_api_key,
 )
-from klea_utils.ui.state import ensure_chat
-from klea_utils.ui.web.nicegui.client import (
+from klea_utils.ui.client import (
     clear_credential,
     clear_model_override,
     clear_session_model_override,
@@ -55,6 +54,7 @@ from klea_utils.ui.web.nicegui.client import (
     set_model_override,
     set_session_model_override,
 )
+from klea_utils.ui.state import ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)

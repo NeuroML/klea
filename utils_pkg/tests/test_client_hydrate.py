@@ -14,8 +14,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 import httpx
 import pytest
+from klea_utils.ui import client
 from klea_utils.ui.state import chats
-from klea_utils.ui.web.nicegui import client
 
 
 @pytest.fixture(autouse=True)
