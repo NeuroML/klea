@@ -12,6 +12,7 @@ import json
 import logging
 
 import httpx
+import pytest
 from klea_utils.biblio.doi import DoiResolver, _user_agent
 from klea_utils.biblio.normalize import (
     normalize_crossref,
@@ -340,6 +341,33 @@ def test_resolve_invalid_doi_skips_network(tmp_path):
         assert resolver.resolve("https://doi.org/10.1234") is None
     finally:
         resolver.close()
+
+
+@pytest.mark.parametrize(
+    ("doi", "expected_title", "expected_year"),
+    [
+        ("10.7554/eLife.95135", "neuroml ecosystem", 2025),
+        ("10.1016/j.neuron.2019.05.019", "open source brain", 2019),
+    ],
+)
+def test_live_resolve_known_doi(tmp_path, doi, expected_title, expected_year):
+    """The real DOI services resolve a known DOI to the right record.
+
+    Not ``localonly``: skips when no service can be reached, so offline runs
+    and transient outages do not break the suite.
+    """
+    record = None
+    # Two attempts: a transient rate limit on the primary service can fall
+    # through to none.
+    for _ in range(2):
+        with DoiResolver(cache_dir=str(tmp_path)) as resolver:
+            record = resolver.resolve(doi)
+        if record is not None:
+            break
+    if record is None:
+        pytest.skip(f"no DOI service reachable for {doi}")
+    assert expected_title in (record.title or "").lower()
+    assert record.year == expected_year
 
 
 if __name__ == "__main__":
