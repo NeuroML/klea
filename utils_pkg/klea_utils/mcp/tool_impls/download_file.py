@@ -21,7 +21,7 @@ import httpx
 from klea_utils.api.utils import _make_retryer_httpx
 from klea_utils.mcp.tool_impls.session import SessionLike
 from klea_utils.mcp.tool_impls.ssrf import _MAX_REDIRECTS, check_ssrf_async
-from klea_utils.mcp.tool_impls.web_fetch import _honest_user_agent
+from klea_utils.mcp.tool_impls.web_fetch import honest_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ async def download_file(
                         "GET",
                         current_url,
                         params=current_params,
-                        headers={"User-Agent": _honest_user_agent()},
+                        headers={"User-Agent": honest_user_agent()},
                         timeout=httpx.Timeout(timeout)
                         if not isinstance(timeout, httpx.Timeout)
                         else timeout,
@@ -128,7 +128,7 @@ async def download_file(
                     response = await session.get(  # type: ignore[attr-defined]
                         current_url,
                         params=current_params,
-                        headers={"User-Agent": _honest_user_agent()},
+                        headers={"User-Agent": honest_user_agent()},
                         timeout=timeout,
                         follow_redirects=False,
                     )
@@ -136,7 +136,7 @@ async def download_file(
                 response = await session.get(  # type: ignore[attr-defined]
                     current_url,
                     params=current_params,
-                    headers={"User-Agent": _honest_user_agent()},
+                    headers={"User-Agent": honest_user_agent()},
                     timeout=timeout,
                     follow_redirects=False,
                 )

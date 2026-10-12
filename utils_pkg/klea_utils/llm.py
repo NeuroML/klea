@@ -1469,7 +1469,7 @@ _OPENCODE_HOST_SUFFIX = "opencode.ai"
 def resolve_user_agent(prefix: str) -> str:
     """Return ``<prefix>/<version>`` for the running application.
 
-    Mirrors ``web_fetch._honest_user_agent``: the version is read from the
+    Mirrors ``web_fetch.honest_user_agent``: the version is read from the
     installed distribution named *prefix* (``importlib.metadata`` normalises
     separators, so the graph name doubles as the distribution name --
     ``klea-agent`` -> ``klea_agent``) and falls back to ``dev`` when metadata

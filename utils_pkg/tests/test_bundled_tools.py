@@ -363,12 +363,12 @@ async def test_web_fetch_cloudflare_challenge_retries_honest_ua():
     browser_ua = session.calls[0][2]["headers"]["User-Agent"]
     honest_ua = session.calls[1][2]["headers"]["User-Agent"]
     assert browser_ua == _TEST_USER_AGENT
-    assert honest_ua == web_fetch_module._honest_user_agent()
+    assert honest_ua == web_fetch_module.honest_user_agent()
     assert honest_ua.startswith(web_fetch_module._HONEST_UA_PREFIX)
 
 
 def test_honest_user_agent_uses_package_version():
-    ua = web_fetch_module._honest_user_agent()
+    ua = web_fetch_module.honest_user_agent()
     assert ua.startswith("klea-web-fetch/")
     # Version tag resolves to the installed klea_utils version or 'dev'.
     tag = ua.split("/", 1)[1]
@@ -378,13 +378,16 @@ def test_honest_user_agent_uses_package_version():
 def test_honest_user_agent_fallback_when_no_metadata(monkeypatch):
     import importlib.metadata
 
-    monkeypatch.setattr(web_fetch_module, "_honest_user_agent_cache", None)
+    from klea_utils.mcp.tool_impls import user_agent as user_agent_module
+
+    monkeypatch.setattr(user_agent_module, "_VERSION_CACHE", None)
+    monkeypatch.setattr(user_agent_module, "_UA_CACHE", {})
 
     def _no_version(name):
         raise importlib.metadata.PackageNotFoundError(name)
 
     monkeypatch.setattr(importlib.metadata, "version", _no_version)
-    ua = web_fetch_module._honest_user_agent()
+    ua = web_fetch_module.honest_user_agent()
     assert ua == "klea-web-fetch/dev"
 
 

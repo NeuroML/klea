@@ -24,6 +24,7 @@ from platformdirs import PlatformDirs
 from klea_utils.api.utils import _make_retryer_httpx
 from klea_utils.mcp.tool_impls.session import SessionLike
 from klea_utils.mcp.tool_impls.ssrf import _MAX_REDIRECTS, check_ssrf_async
+from klea_utils.mcp.tool_impls.user_agent import klea_user_agent
 from klea_utils.paths import get_cache_dir
 
 logger = logging.getLogger(__name__)
@@ -52,26 +53,16 @@ _HONEST_UA_PREFIX = "klea-web-fetch/"
 _UA_LIST: list[str] | None = None
 _UA_RESOLVED_AT: float = 0.0
 _UA_LOCK = asyncio.Lock()
-_honest_user_agent_cache: str | None = None
 
 
-def _honest_user_agent() -> str:
-    """Return the honest client User-Agent, versioned with klea_utils.
+def honest_user_agent() -> str:
+    """Return the honest client User-Agent for web fetches.
 
-    Reads the installed ``klea_utils`` version from package metadata; falls
-    back to an unversioned string when metadata is unavailable (e.g. an
-    editable checkout without installed distribution metadata).
+    E.g. ``klea-web-fetch/<version>``; shared by the download and repository
+    tools that reuse this identity (see
+    :func:`klea_utils.mcp.tool_impls.user_agent.klea_user_agent`).
     """
-    global _honest_user_agent_cache
-    if _honest_user_agent_cache is None:
-        try:
-            from importlib.metadata import PackageNotFoundError, version
-
-            version_str = version("klea_utils")
-        except PackageNotFoundError:
-            version_str = ""
-        _honest_user_agent_cache = f"{_HONEST_UA_PREFIX}{version_str or 'dev'}"
-    return _honest_user_agent_cache
+    return klea_user_agent(_HONEST_UA_PREFIX)
 
 
 async def _fetch_user_agents() -> list[str]:
@@ -421,7 +412,7 @@ async def web_fetch(
         ok = await _stream_once(browser_ua)
         if not ok:
             # Cloudflare challenge: one retry with the honest client UA.
-            await _stream_once(_honest_user_agent())
+            await _stream_once(honest_user_agent())
 
     retryer = _make_retryer_httpx(attempts=retries)
     try:

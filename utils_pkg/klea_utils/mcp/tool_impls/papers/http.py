@@ -16,13 +16,16 @@ from typing import Any
 import httpx
 
 from klea_utils.mcp.tool_impls.session import SessionLike
-from klea_utils.mcp.tool_impls.web_fetch import _honest_user_agent
+from klea_utils.mcp.tool_impls.user_agent import klea_user_agent
 
 from .errors import PaperSourceError
 
 logger = logging.getLogger(__name__)
 
 REQUEST_TIMEOUT = httpx.Timeout(20.0)
+#: Honest client identity for the scholarly APIs (see
+#: :func:`klea_utils.mcp.tool_impls.user_agent.klea_user_agent`).
+_UA_PREFIX = "klea-paper-search/"
 
 
 class Throttle:
@@ -65,7 +68,7 @@ async def _get(
     if session is None:
         raise PaperSourceError("HTTP session not initialized")
 
-    merged_headers = {"User-Agent": _honest_user_agent()}
+    merged_headers = {"User-Agent": klea_user_agent(_UA_PREFIX)}
     if headers:
         merged_headers.update(headers)
 

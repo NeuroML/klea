@@ -16,7 +16,7 @@ import httpx
 from klea_utils.api.utils import _make_retryer_httpx
 from klea_utils.mcp.tool_impls.session import SessionLike
 from klea_utils.mcp.tool_impls.ssrf import check_ssrf
-from klea_utils.mcp.tool_impls.web_fetch import _honest_user_agent
+from klea_utils.mcp.tool_impls.web_fetch import honest_user_agent
 
 from .errors import RepositorySourceError
 
@@ -60,7 +60,7 @@ async def _get_json(
             logger.warning(f"SSRF guard blocked {url}: {ssrf_error}")
             raise RepositorySourceError(ssrf_error)
 
-    merged_headers = {"User-Agent": _honest_user_agent()}
+    merged_headers = {"User-Agent": honest_user_agent()}
     if headers:
         merged_headers.update(headers)
 

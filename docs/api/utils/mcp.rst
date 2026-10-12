@@ -106,6 +106,10 @@ their httpx session via the lifespan context.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.mcp.tool_impls.user_agent
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.mcp.tool_impls.web_fetch
    :members:
    :show-inheritance:
