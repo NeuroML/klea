@@ -191,6 +191,23 @@ async def test_planner_router_dispatches_by_step_kind():
 
 
 @pytest.mark.asyncio
+async def test_planner_router_no_plan_required_reaches_the_answer():
+    """A no_plan_required plan is a success routed to the answer node.
+
+    It must not fall through to the "in_progress with no runnable step" failure
+    (ADR-0035 update 2026-10-12).
+    """
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+    state.plan = PlanSchema(status="no_plan_required")
+    assert await agent._planner_router(state) == "plan_done"
+
+    failed = KleaAgentState()
+    failed.plan = PlanSchema(status="unplannable")
+    assert await agent._planner_router(failed) == "failure"
+
+
+@pytest.mark.asyncio
 async def test_evaluation_router_routes_on_plan_state():
     """The Evaluator leaves the plan in a routing state (ADR-0041)."""
     agent = KleaAgent(checkpoint="inmemory")

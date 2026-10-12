@@ -205,7 +205,9 @@ class KleaAgent(BaseLangGraph):
     async def _planner_router(self, state: KleaAgentState) -> str:
         """Route on the Planner's ``plan.status`` and the step kind (ADR-0035).
 
-        ``unplannable`` -> failure answer; ``in_review`` -> human review;
+        ``unplannable`` -> failure answer; ``no_plan_required`` -> answer
+        (success: no execution needed, the answer-composer writes the reply);
+        ``in_review`` -> human review;
         ``needs_input`` -> the HITL input node asks the blocked steps'
         questions (ADR-0046); ``completed`` (all steps already done) -> answer;
         otherwise
@@ -216,6 +218,8 @@ class KleaAgent(BaseLangGraph):
         status = state.plan.status
         if status == "unplannable":
             return "failure"
+        if status == "no_plan_required":
+            return "plan_done"
         if status == "in_review":
             return "review"
         if status == "needs_input":

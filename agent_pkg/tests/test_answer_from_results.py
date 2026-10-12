@@ -141,6 +141,12 @@ class TestAnswerFromResults(unittest.TestCase):
         state.plan = PlanSchema(status="unplannable")
         self.assertTrue(self._node()._is_failure(state))
 
+    def test_no_plan_required_plan_is_success(self):
+        """A no-work plan is a success (ADR-0035 update 2026-10-12)."""
+        state = KleaAgentState(query="compile the table")
+        state.plan = PlanSchema(status="no_plan_required")
+        self.assertFalse(self._node()._is_failure(state))
+
     def test_success_persists_deliverable_artefact(self):
         update = self._node()._update_state(
             AnswerSchema(answer="here you go"), self._state(), LLMNodeContext()

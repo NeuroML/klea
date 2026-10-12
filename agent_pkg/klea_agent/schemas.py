@@ -133,10 +133,15 @@ class PlannerPlanSchema(BaseModel):
     #: * ``needs_input`` -- cannot finalise a plan without a missing fact from
     #:   the user; the question is carried in the Planner's ``reason`` and may
     #:   be accompanied by a partial plan;
+    #: * ``no_plan_required`` -- no execution steps are needed: the goal is
+    #:   already satisfiable from the available information (for example the
+    #:   session ``artefacts``).  A success, distinct from ``unplannable`` (the
+    #:   goal cannot be met); the answer-composer writes the reply.  The Planner
+    #:   still sets the goal.
     #: * ``unplannable`` -- no workable plan with the available tools.
-    status: Literal["in_progress", "in_review", "needs_input", "unplannable"] = Field(
-        default="in_progress", validate_default=True
-    )
+    status: Literal[
+        "in_progress", "in_review", "needs_input", "no_plan_required", "unplannable"
+    ] = Field(default="in_progress", validate_default=True)
 
     def render(
         self, *, markdown: bool = False, current_numbers: set[int] | None = None
@@ -310,6 +315,7 @@ class PlanSchema(PlannerPlanSchema):
         "in_review",
         "in_progress",
         "needs_input",
+        "no_plan_required",
         "completed",
         "failed",
         "aborted",

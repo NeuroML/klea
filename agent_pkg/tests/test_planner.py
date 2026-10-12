@@ -83,6 +83,24 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan"].status, "unplannable")
         self.assertIn("failure_reason", update)
 
+    def test_no_plan_required_writes_goal_and_status(self):
+        """A no-work plan is a success: goal set, no failure_reason."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(
+                    goal="compile the table", success_criteria="table produced"
+                ),
+                plan=PlannerPlanSchema(status="no_plan_required"),
+                reason="all findings are already in the artefacts",
+            ),
+            KleaAgentState(query="compile the table"),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["plan"].status, "no_plan_required")
+        self.assertEqual(update["goal"].goal, "compile the table")
+        self.assertNotIn("failure_reason", update)
+        self.assertEqual(update["plan"].step_list, [])
+
     def test_model_plan_statuses_are_used_verbatim(self):
         """Design A: the Planner's per-step statuses are not mutated.
 
@@ -507,6 +525,31 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("unplannable", error)
+
+    def test_rejects_no_plan_required_with_steps(self):
+        output = PlannerOutput(
+            goal=GoalSchema(goal="g"),
+            plan=PlannerPlanSchema(
+                status="no_plan_required",
+                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+            ),
+        )
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("no_plan_required", error)
+
+    def test_rejects_no_plan_required_without_goal(self):
+        """A no-work plan must set the goal (the answer-composer needs it)."""
+        output = PlannerOutput(plan=PlannerPlanSchema(status="no_plan_required"))
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("no goal was set", error)
 
     def test_accepts_blocked_step_as_draft(self):
         """A blocked step is exempt from the executable-step tool check."""

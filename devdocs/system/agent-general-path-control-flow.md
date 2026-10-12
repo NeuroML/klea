@@ -32,6 +32,7 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   |-- chat --> AnswerUser -> END
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
+                 |-- status no_plan_required -> AnswerFromResults (success; no execution needed) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
                  |-- status in_review -----> AwaitHuman (review) --approve--> batch entry
                  |                                        '--revise----> Planner
@@ -104,13 +105,16 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 |--------|---------|------|
 | ``in_review`` | plan produced, awaiting human review | ``AwaitHuman`` (review) |
 | ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
+| ``no_plan_required`` | no execution needed; the goal is satisfiable from the available information (for example session ``artefacts``) | ``AnswerFromResults`` (success) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
 | ``in_progress`` | ready; execute the next batch (same-kind frontier prefix) by its ``kind`` | batch entry |
 
 ``Planner._update_state``: any step with ``needs_input`` questions forces
 ``needs_input`` (a draft; the status is derived from the steps); steps + review
--> ``in_review``; steps -> ``in_progress``; ``unplannable`` (or no steps) ->
-``unplannable``.  It never answers the user.  ``PlannerPlanSchema`` exposes only
+-> ``in_review``; steps -> ``in_progress``; ``no_plan_required`` is kept as a
+success (the goal is set, no steps run); ``unplannable`` (or any other status
+with no steps) -> ``unplannable``.  It never answers the user.
+``PlannerPlanSchema`` exposes only
 these editable statuses to the model; the state ``PlanSchema`` also carries the
 runtime ones
 (``not_started``/``completed``/``failed``/``aborted``/``user_cancelled``)
@@ -472,8 +476,9 @@ semantics are in ``devdocs/system/graph-resume.md``.
 
 ## Answer synthesis
 
-``AnswerFromResults`` runs once when the outcome is ``plan_done`` (success) or
-``abort``/``unplannable`` (failure).  (A ``needs_input`` plan never reaches it:
+``AnswerFromResults`` runs once when the plan is ``completed`` or
+``no_plan_required``
+(success) or ``abort``/``unplannable`` (failure).  (A ``needs_input`` plan never reaches it:
 it pauses at the HITL input node.)  On success it writes ``message_for_user``
 from the goal, the completed plan, the observations and the session artefacts
 (so the reply can draw on earlier tasks' deliverables), and persists the

@@ -223,6 +223,7 @@ class TestPlannerPlanSchema:
             "in_progress",
             "in_review",
             "needs_input",
+            "no_plan_required",
             "unplannable",
         }
 
@@ -240,6 +241,7 @@ class TestPlanSchemaRuntime:
             "in_review",
             "in_progress",
             "needs_input",
+            "no_plan_required",
             "completed",
             "failed",
             "aborted",

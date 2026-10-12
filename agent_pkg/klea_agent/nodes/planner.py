@@ -191,6 +191,16 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "status is 'unplannable' but steps were returned; "
                 "return no steps or set a runnable status"
             )
+        if plan.status == "no_plan_required" and plan.step_list:
+            errors.append(
+                "status is 'no_plan_required' but steps were returned; "
+                "return no steps or use a runnable status"
+            )
+        if plan.status == "no_plan_required" and not result.goal.goal.strip():
+            errors.append(
+                "status is 'no_plan_required' but no goal was set; set the goal "
+                "so the answer-composer can satisfy it"
+            )
         if len(plan.step_list) > self.max_plan_steps:
             errors.append(
                 f"plan has {len(plan.step_list)} steps; at most "
@@ -304,9 +314,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             return update
 
         # --- Unplannable: the Planner's explicit signal, or no steps at all
-        # (except ``needs_input``, which may carry a partial plan).
-        # 'unplannable' with steps is rejected in _validate_result; a
-        # non-unplannable status with no steps is a deterministic coercion.
+        # (except ``needs_input``/``no_plan_required``, which legitimately carry
+        # no runnable steps).  'unplannable' with steps is rejected in
+        # _validate_result; a non-unplannable status with no steps is a
+        # deterministic coercion.
         # Handled before the goal lock so a failed plan does not lock a goal.
         steps = result.plan.step_list
         if len(steps) > self.max_plan_steps:
@@ -334,7 +345,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             return update
 
         if result.plan.status == "unplannable" or (
-            not steps and result.plan.status != "needs_input"
+            not steps and result.plan.status not in ("needs_input", "no_plan_required")
         ):
             update["plan"] = PlanSchema(
                 status="unplannable",
@@ -391,12 +402,17 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             return update
 
         # The Planner decides whether the plan needs human review before it
-        # runs (``in_review``) or is ready (``in_progress``).  ``human_feedback``
-        # has been consumed by this LLM call and is cleared above.  The model's
-        # per-step statuses and ``depends_on`` are used unchanged (ADR-0041).
-        status: Literal["in_review", "in_progress"] = (
-            "in_review" if result.plan.status == "in_review" else "in_progress"
-        )
+        # runs (``in_review``), is ready (``in_progress``), or needs no
+        # execution at all (``no_plan_required`` -- the goal is satisfiable from
+        # the available information; the answer-composer writes the reply).
+        # ``human_feedback`` has been consumed by this LLM call and is cleared
+        # above.  The model's per-step statuses and ``depends_on`` are used
+        # unchanged (ADR-0041).
+        status: Literal["in_review", "in_progress", "no_plan_required"] = "in_progress"
+        if result.plan.status == "no_plan_required":
+            status = "no_plan_required"
+        elif result.plan.status == "in_review":
+            status = "in_review"
         plan = PlanSchema(
             step_list=steps,
             status=status,

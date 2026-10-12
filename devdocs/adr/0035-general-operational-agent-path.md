@@ -313,6 +313,7 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
   answers the user.  `plan.status` is the post-Planner routing source:
   `in_review` -> `AwaitHuman` (review), `needs_input` -> `AwaitHuman` (input),
+  `no_plan_required` -> answer (success; no execution needed),
   `unplannable` -> failure answer, `in_progress` -> step execution.  It
   produces a plan even for a single action.
 * Trivial chat stays the cheap floor: Guard + RouteDecision (2 calls).
@@ -546,4 +547,22 @@ silent.  The old behaviour of force-marking every pending step ``done`` on
 machine-checkable inconsistency: the Evaluator retries once with the reason
 exposed as ``validation_feedback`` and, if the model insists, fails closed
 (``plan_done`` + pending -> Planner; all resolved + no overall -> answer).  See
+``devdocs/system/agent-general-path-control-flow.md``.
+
+## Update (2026-10-12): `no_plan_required` (no-execution) plans
+
+A task may need no environment work at all -- every fact its goal needs is
+already available (for example in the session ``artefacts`` gathered by earlier
+tasks).  The Planner now signals this with a new ``no_plan_required`` status (no
+steps) instead of being forced into ``unplannable``.  Unlike ``unplannable``
+(the goal cannot be met), ``no_plan_required`` is a **success**: the Planner
+still sets the goal, the run routes to ``AnswerFromResults`` as success, and the
+answer-composer writes the reply from the available artefacts/observations.
+
+Mechanics: ``Planner._update_state`` excludes ``no_plan_required`` from the
+empty-plan coercion (which keeps failing any other no-step status closed as
+``unplannable``); ``_validate_result`` rejects ``no_plan_required`` with steps
+and requires a goal; ``_planner_router`` maps it to the answer edge.  The task
+type (report vs synthesis) is carried by the goal and its success criteria, not
+by the status -- so the answer-composer needs no separate synthesis mode.  See
 ``devdocs/system/agent-general-path-control-flow.md``.
