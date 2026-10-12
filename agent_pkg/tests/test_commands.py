@@ -15,7 +15,7 @@ import pytest
 from klea_agent.commands import build_agent_commands
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import KleaAgentState
-from klea_utils.commands.common import Command, CommandRegistry
+from klea_utils.commands.common import Command, CommandRegistry, Subcommand
 from klea_utils.commands.graph import GraphCommandResult, command_query_router
 from klea_utils.llm import LLMModel
 from klea_utils.nodes.command import CommandNode
@@ -196,6 +196,54 @@ class TestNodeBehaviour:
         assert updates["message_for_user"] == "kept"
         # A ``persists: message`` command does not strip the turn.
         assert "messages" not in updates
+
+    async def test_server_command_resolves_the_verb(self):
+        registry = CommandRegistry()
+        registry.register(
+            Command(
+                name="sess",
+                summary="sessions",
+                side="server",
+                subcommands=(
+                    Subcommand(name="switch", summary="switch", arg_hint="<n>"),
+                ),
+            )
+        )
+        seen: dict[str, Any] = {}
+
+        def handler(_state, parsed):
+            seen["verb"] = parsed.verb
+            seen["args"] = parsed.args
+            return GraphCommandResult(message="ok")
+
+        node = CommandNode(
+            logger, "Running command", registry=registry, handlers={"sess": handler}
+        )
+        cast(Any, node).write_custom_stream = lambda _event: None
+        updates = await node.execute(_state("/sess switch 2"))
+        assert updates["message_for_user"] == "ok"
+        assert seen["verb"] == "switch"
+        assert seen["args"] == ["2"]
+
+    async def test_server_command_unknown_verb_is_rejected(self):
+        registry = CommandRegistry()
+        registry.register(
+            Command(
+                name="sess",
+                summary="sessions",
+                side="server",
+                subcommands=(Subcommand(name="switch", summary="switch"),),
+            )
+        )
+        node = CommandNode(
+            logger,
+            "Running command",
+            registry=registry,
+            handlers={"sess": lambda _s, _p: GraphCommandResult(message="ok")},
+        )
+        cast(Any, node).write_custom_stream = lambda _event: None
+        updates = await node.execute(_state("/sess bogus"))
+        assert "Unknown subcommand" in updates["message_for_user"]
 
 
 class TestRouter:

@@ -15,8 +15,11 @@ from klea_utils.commands.common import (
     CommandContext,
     CommandRegistry,
     CommandResult,
+    ParsedCommand,
+    Subcommand,
     parse_command,
     render_help,
+    resolve_subcommand,
     unescape_command,
 )
 
@@ -240,6 +243,119 @@ class TestRenderHelp:
     def test_detail_unknown(self):
         result = render_help(_registry(), [], name="nope")
         assert "Unknown command" in result.error
+
+
+def _sessions_command() -> Command:
+    """A command with first-class verbs (for the subcommand tests)."""
+    return Command(
+        name="sessions",
+        summary="switch or manage sessions",
+        subcommands=(
+            Subcommand(name="list", summary="list the sessions"),
+            Subcommand(name="switch", summary="switch session", arg_hint="<n|id>"),
+            Subcommand(name="delete", summary="delete session", arg_hint="<n|id>"),
+        ),
+        handler=lambda ctx, parsed: CommandResult.ok(f"{parsed.verb}:{parsed.args}"),
+    )
+
+
+class TestSubcommands:
+    def test_plain_command_is_returned_unchanged(self):
+        parsed = _parse("/help")
+        assert resolve_subcommand(Command(name="help", summary="h"), parsed) is parsed
+
+    def test_bare_command_has_empty_verb(self):
+        resolved = resolve_subcommand(_sessions_command(), _parse("/sessions"))
+        assert isinstance(resolved, ParsedCommand)
+        assert resolved.verb == ""
+        assert resolved.args == []
+
+    def test_known_verb_is_resolved_and_args_stripped(self):
+        resolved = resolve_subcommand(_sessions_command(), _parse("/sessions switch 2"))
+        assert isinstance(resolved, ParsedCommand)
+        assert resolved.verb == "switch"
+        assert resolved.args == ["2"]
+        assert resolved.raw_args == "2"
+
+    def test_verb_with_no_args(self):
+        resolved = resolve_subcommand(_sessions_command(), _parse("/sessions list"))
+        assert isinstance(resolved, ParsedCommand)
+        assert resolved.verb == "list"
+        assert resolved.args == []
+
+    def test_unknown_verb_returns_an_error(self):
+        error = resolve_subcommand(_sessions_command(), _parse("/sessions bogus"))
+        assert isinstance(error, str)
+        assert "Unknown subcommand" in error
+        assert "switch" in error
+
+    def test_dispatch_routes_the_verb(self):
+        registry = CommandRegistry()
+        registry.register(_sessions_command())
+        result = registry.dispatch(_parse("/sessions switch 3"), CommandContext())
+        assert result.output == ["switch:['3']"]
+
+    def test_dispatch_rejects_an_unknown_verb(self):
+        registry = CommandRegistry()
+        registry.register(_sessions_command())
+        result = registry.dispatch(_parse("/sessions bogus"), CommandContext())
+        assert "Unknown subcommand" in result.error
+
+    def test_duplicate_subcommand_raises(self):
+        registry = CommandRegistry()
+        with pytest.raises(ValueError):
+            registry.register(
+                Command(
+                    name="x",
+                    summary="x",
+                    subcommands=(
+                        Subcommand(name="a", summary="a"),
+                        Subcommand(name="a", summary="again"),
+                    ),
+                )
+            )
+
+    def test_invalid_subcommand_name_raises(self):
+        registry = CommandRegistry()
+        with pytest.raises(ValueError):
+            registry.register(
+                Command(
+                    name="x",
+                    summary="x",
+                    subcommands=(Subcommand(name="bad name", summary="s"),),
+                )
+            )
+
+
+class TestRenderHelpSubcommands:
+    def test_detail_lists_subcommands(self):
+        registry = CommandRegistry()
+        registry.register(_sessions_command())
+        result = render_help(registry, [], name="sessions")
+        joined = "\n".join(result.output)
+        assert "Subcommands:" in joined
+        assert "/sessions switch <n|id>" in joined
+        assert "switch session" in joined
+
+
+class TestSubcommandMetadata:
+    def test_round_trips_subcommands(self):
+        restored = Command.from_metadata(_sessions_command().metadata())
+        assert [sub.name for sub in restored.subcommands] == [
+            "list",
+            "switch",
+            "delete",
+        ]
+        assert restored.subcommands[1].arg_hint == "<n|id>"
+        assert restored.subcommands[1].summary == "switch session"
+
+    def test_metadata_shape(self):
+        meta = _sessions_command().metadata()
+        assert meta["subcommands"] == [
+            {"name": "list", "summary": "list the sessions", "arg_hint": ""},
+            {"name": "switch", "summary": "switch session", "arg_hint": "<n|id>"},
+            {"name": "delete", "summary": "delete session", "arg_hint": "<n|id>"},
+        ]
 
 
 class TestCommandMetadata:

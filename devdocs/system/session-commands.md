@@ -31,6 +31,7 @@ Catalogue entry fields:
 
 ```
 name, aliases, summary, arg_hint,
+subcommands?: [{name, summary, arg_hint}],
 side: server | client,          # execution host, not "which frontend"
 klass: ui | session-state | workflow | prompt,
 while_streaming: block | allow,
@@ -41,6 +42,13 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
 * **side** = execution host: `server` (graph/tools backend) or `client`
   (the frontend process host).  A `server` command's effect follows the
   executing host; an external MCP server runs on its own host.
+* **subcommands** = first-class verbs (e.g. `/sessions switch`).  When present,
+  the first argument selects the verb (`resolve_subcommand`), the remaining
+  arguments are the verb's own, and the command's single handler branches on
+  `ParsedCommand.verb`.  A bare command (`verb == ""`) is the command's default
+  behaviour (e.g. a listing).  An unknown verb is rejected with a usage
+  message; verbs carry their own `arg_hint` and have no aliases.  The `/`-menu
+  autocompletes verbs (and verb names are transported in `GET /commands`).
 * **klass**: `ui` and client `session-state` run in the frontend;
   `server`/`workflow` run in the graph; `prompt` is a frontend-expanded
   template that becomes a normal query.

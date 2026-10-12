@@ -37,6 +37,21 @@ These run in the frontend.
    * - ``/help``
      - ``/help [command]``
      - List the available commands, or show one command's usage.
+   * - ``/new``
+     - ``/new``
+     - Start a new session.
+   * - ``/rename``
+     - ``/rename <name>``
+     - Rename the current session.
+   * - ``/model``
+     - ``/model``
+     - Open the model and API-key configuration.
+   * - ``/export``
+     - ``/export``
+     - Download the session transcript as Markdown.
+
+A command may define **subcommands** (verbs); ``/help <command>`` lists them,
+and the ``/`` menu autocompletes them.
 
 Graph commands (server)
 -----------------------

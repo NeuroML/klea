@@ -357,3 +357,21 @@ separate decision, deferred.
   workspace and the path gate (`mcp-permissions.md`, `system/file-tools.md`).
 * Delivery order and the concrete phases are tracked in `devdocs/backlog.md`
   (the open-work list), not here.
+
+## Update (2026-10-12): first-class subcommands (verbs)
+
+A command may now declare **subcommands** (verbs): a small, first-class verb
+tree.  The catalogue entry gains `subcommands: [{name, summary, arg_hint}]`
+(transportable via `GET /commands`), and `ParsedCommand` gains `verb`.  A shared
+`resolve_subcommand(command, parsed)` (used by both the client
+`CommandRegistry.dispatch` and the graph `CommandNode`) resolves the first
+argument to a verb, reduces `args`/`raw_args` to the verb's own arguments, and
+rejects an unknown verb with a usage message; a bare command resolves to
+`verb == ""` (the command's default, e.g. a listing).  There is one handler per
+command, branching on `parsed.verb`; `/help <command>` lists the verbs and the
+`/`-menu autocompletes them.  Verbs do not otherwise change dispatch, the
+client/server split, or the taxonomy above.
+
+Parsing stays hand-written (`shlex`-based); argparse is deliberately not used,
+since a command dispatcher returns structured results rather than exiting the
+process.

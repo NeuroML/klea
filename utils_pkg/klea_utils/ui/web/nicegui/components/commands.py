@@ -334,32 +334,63 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
     # Revisit only if the catalogue grows enough that typing the full command
     # becomes a chore.
 
-    def _matches(value: str) -> list[Command]:
+    #: A suggestion row: ``(insert_text, usage, summary)``.
+    def _command_rows(prefix: str) -> list[tuple[str, str, str]]:
+        registry: CommandRegistry | None = ctx.command_catalogue
+        rows: list[tuple[str, str, str]] = []
+        if registry is None:
+            return rows
+        for command in registry.available(WEB_CAPABILITIES):
+            if not command.name.startswith(prefix):
+                continue
+            usage = f"/{command.name}"
+            if command.arg_hint:
+                usage += f" {command.arg_hint}"
+            rows.append((f"/{command.name} ", usage, command.summary))
+        return rows
+
+    def _verb_rows(command: Command, prefix: str) -> list[tuple[str, str, str]]:
+        rows: list[tuple[str, str, str]] = []
+        for sub in command.subcommands:
+            if not sub.name.startswith(prefix):
+                continue
+            usage = f"/{command.name} {sub.name}"
+            if sub.arg_hint:
+                usage += f" {sub.arg_hint}"
+            rows.append((f"/{command.name} {sub.name} ", usage, sub.summary))
+        return rows
+
+    def _matches(value: str) -> list[tuple[str, str, str]]:
         registry: CommandRegistry | None = ctx.command_catalogue
         # ``lstrip`` (not ``strip``): the trailing space inserted after a
-        # chosen command is what ends the completion, so it must survive for
-        # the ``" " in value`` check below (``strip`` would remove it and the
-        # chosen command would keep matching).
+        # chosen item is what ends the completion, so it must survive (``strip``
+        # would remove it and the chosen item would keep matching).
         value = value.lstrip()
-        if registry is None or not value.startswith("/") or " " in value:
+        if registry is None or not value.startswith("/"):
             return []
-        prefix = value[1:].lower()
-        return [
-            command
-            for command in registry.available(WEB_CAPABILITIES)
-            if command.name.startswith(prefix)
-        ]
+        body = value[1:]
+        if " " not in body:
+            return _command_rows(body.lower())
+        # ``/command <verbprefix>``: suggest that command's verbs.
+        command_name, _, verb_prefix = body.partition(" ")
+        command = registry.get(command_name)
+        if command is None or not command.subcommands:
+            return []
+        return _verb_rows(command, verb_prefix.lower())
 
-    def _choose(command: Command) -> None:
+    def _choose(insert: str) -> None:
         # Setting the value fires ``on_value_change`` -> ``_refresh``, which
-        # hides the list (the trailing space makes it a non-command).
-        logger.debug(f"autocomplete: chose /{command.name}")
-        text.value = f"/{command.name} "
+        # hides the list (the trailing space ends the completion).
+        logger.debug(f"autocomplete: chose {insert!r}")
+        text.value = insert
 
     def _refresh(_event: Any = None) -> None:
         value = text.value or ""
         matches = _matches(value)
-        logger.debug(f"autocomplete refresh {value = } {[c.name for c in matches] = }")
+        logger.debug(
+            f"autocomplete refresh {value = } "
+            f"{[usage for _insert, usage, _summary in matches] = }"
+        )
         suggestions.clear()
         if not matches:
             suggestions.set_visibility(False)
@@ -371,12 +402,9 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
             .classes("w-full")
             .style("max-height: 40vh; overflow-y: auto;"),
         ):
-            for command in matches:
-                usage = f"/{command.name}"
-                if command.arg_hint:
-                    usage += f" {command.arg_hint}"
+            for insert, usage, summary in matches:
                 with (
-                    ui.item(on_click=lambda c=command: _choose(c))
+                    ui.item(on_click=lambda s=insert: _choose(s))
                     .props("clickable dense")
                     .classes("w-full cursor-pointer"),
                     # A single section keeps the summary next to the command
@@ -386,7 +414,7 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
                     ui.row().classes("w-full items-baseline gap-3"),
                 ):
                     ui.label(usage).classes("font-mono text-sm")
-                    ui.label(command.summary).classes("text-sm text-grey-6")
+                    ui.label(summary).classes("text-sm text-grey-6")
         suggestions.set_visibility(True)
 
     # ``on_value_change`` fires on the real client event and in the test

@@ -20,7 +20,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 import shlex
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
@@ -90,12 +90,16 @@ class ParsedCommand:
     :param args: Positional arguments (``shlex``-split, so quotes group).
     :param raw_args: The argument string exactly as typed.
     :param error: A parse error (missing name / malformed quoting), else ``""``.
+    :param verb: The resolved subcommand name (set by
+        :func:`resolve_subcommand`); ``""`` for the bare form or a command
+        without subcommands.
     """
 
     name: str
     args: list[str] = field(default_factory=list)
     raw_args: str = ""
     error: str = ""
+    verb: str = ""
 
 
 def parse_command(text: str) -> ParsedCommand | None:
@@ -153,6 +157,25 @@ CommandHandler = Callable[["CommandContext", ParsedCommand], CommandResult]
 
 
 @dataclass(frozen=True)
+class Subcommand:
+    """A first-class verb of a command (ADR-0047).
+
+    A command with ``subcommands`` is a small verb tree: the first argument
+    selects the verb (see :func:`resolve_subcommand`), and the remaining
+    arguments are the verb's own.  The command's single handler branches on
+    ``ParsedCommand.verb``.
+
+    :param name: Canonical verb name (lower-case, without the leading slash).
+    :param summary: One-line description (shown by ``/help``).
+    :param arg_hint: A short usage hint for the verb's arguments.
+    """
+
+    name: str
+    summary: str
+    arg_hint: str = ""
+
+
+@dataclass(frozen=True)
 class Command:
     """One entry in the command catalogue (ADR-0047).
 
@@ -162,6 +185,8 @@ class Command:
     :param klass: Handling class (``ui`` | ``session-state`` | ``workflow`` |
         ``prompt``).
     :param aliases: Alternative names.
+    :param subcommands: First-class verbs (see :class:`Subcommand`); empty for
+        a plain command.
     :param arg_hint: A short usage hint for the arguments (e.g. ``<path>``).
     :param while_streaming: ``block`` | ``allow`` while a run is active.
     :param persists: ``none`` | ``checkpoint`` | ``message``.
@@ -177,6 +202,7 @@ class Command:
     side: Side = "client"
     klass: Klass = "ui"
     aliases: tuple[str, ...] = ()
+    subcommands: tuple[Subcommand, ...] = ()
     arg_hint: str = ""
     while_streaming: WhileStreaming = "allow"
     persists: Persists = "none"
@@ -191,6 +217,14 @@ class Command:
             "aliases": list(self.aliases),
             "summary": self.summary,
             "arg_hint": self.arg_hint,
+            "subcommands": [
+                {
+                    "name": sub.name,
+                    "summary": sub.summary,
+                    "arg_hint": sub.arg_hint,
+                }
+                for sub in self.subcommands
+            ],
             "side": self.side,
             "klass": self.klass,
             "while_streaming": self.while_streaming,
@@ -215,12 +249,55 @@ class Command:
             side=data.get("side", "client"),
             klass=data.get("klass", "ui"),
             aliases=tuple(data.get("aliases", ())),
+            subcommands=tuple(
+                Subcommand(
+                    name=sub["name"],
+                    summary=sub.get("summary", ""),
+                    arg_hint=sub.get("arg_hint", ""),
+                )
+                for sub in data.get("subcommands", ())
+            ),
             arg_hint=data.get("arg_hint", ""),
             while_streaming=data.get("while_streaming", "allow"),
             persists=data.get("persists", "none"),
             capabilities=frozenset(data.get("capabilities", ())),
             implemented=data.get("implemented", True),
         )
+
+
+def resolve_subcommand(command: Command, parsed: ParsedCommand) -> ParsedCommand | str:
+    """Resolve a command's verb from *parsed*, or return an error message.
+
+    Commands without ``subcommands`` are returned unchanged.  For a command
+    with subcommands the first argument selects the verb:
+
+    * an empty argument list resolves to the bare form (``verb == ""``, the
+      command's default behaviour, e.g. a listing);
+    * a known verb name returns a copy with ``verb`` set and ``args``/``raw_args``
+      reduced to the verb's own arguments;
+    * an unknown verb yields an error string naming the valid verbs.
+
+    :param command: The resolved command.
+    :param parsed: The parsed input.
+    :returns: The updated :class:`ParsedCommand`, or an error string.
+    """
+    if not command.subcommands:
+        return parsed
+    if not parsed.args:
+        return replace(parsed, verb="", args=[], raw_args="")
+    verbs = {sub.name.lower(): sub.name for sub in command.subcommands}
+    verb = verbs.get(parsed.args[0].lower())
+    if verb is None:
+        names = ", ".join(sub.name for sub in command.subcommands)
+        return (
+            f"Unknown subcommand for /{command.name}: {parsed.args[0]!r}. "
+            f"Use one of: {names}."
+        )
+    # Split the raw argument string the same way ``parse_command`` separates
+    # the name from its arguments, so ``raw_args`` drops the verb token.
+    parts = parsed.raw_args.split(maxsplit=1)
+    remainder_raw = parts[1] if len(parts) > 1 else ""
+    return replace(parsed, verb=verb, args=parsed.args[1:], raw_args=remainder_raw)
 
 
 @dataclass
@@ -270,6 +347,14 @@ class CommandRegistry:
             key = alias.strip().lower()
             if not key or key in self._aliases or key in self._commands:
                 raise ValueError(f"Duplicate command alias: {alias}")
+        seen_verbs: set[str] = set()
+        for sub in command.subcommands:
+            key = sub.name.strip().lower()
+            if not key or "/" in key or any(ch.isspace() for ch in key):
+                raise ValueError(f"Invalid subcommand name: {sub.name!r}")
+            if key in seen_verbs:
+                raise ValueError(f"Duplicate subcommand: /{name} {key}")
+            seen_verbs.add(key)
         self._commands[name] = command
         for alias in command.aliases:
             self._aliases[alias.strip().lower()] = name
@@ -328,8 +413,14 @@ class CommandRegistry:
             return CommandResult.fail(
                 f"Command /{command.name} is not implemented yet."
             )
-        logger.debug(f"dispatching command /{command.name}")
-        result = command.handler(ctx, parsed)
+        resolved = resolve_subcommand(command, parsed)
+        if isinstance(resolved, str):
+            logger.debug(f"command /{command.name}: {resolved}")
+            return CommandResult.fail(resolved)
+        logger.debug(
+            f"dispatching command /{command.name} {resolved.verb = } {resolved.args = }"
+        )
+        result = command.handler(ctx, resolved)
         logger.debug(
             f"command /{command.name} result: {result.handled = } "
             f"{bool(result.error) = } {len(result.output) = }"
@@ -368,6 +459,13 @@ def render_help(
         if command.aliases:
             aliases = ", ".join(f"`/{alias}`" for alias in command.aliases)
             lines += ["", f"aliases: {aliases}"]
+        if command.subcommands:
+            lines += ["", "Subcommands:"]
+            for sub in command.subcommands:
+                sub_usage = f"/{command.name} {sub.name}"
+                if sub.arg_hint:
+                    sub_usage += f" {sub.arg_hint}"
+                lines.append(f"- `{sub_usage}` - {sub.summary}")
         return CommandResult(output=lines)
 
     lines = ["Available commands:", ""]

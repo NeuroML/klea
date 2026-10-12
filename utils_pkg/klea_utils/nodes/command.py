@@ -23,7 +23,12 @@ from typing import Any, override
 
 from pydantic import BaseModel
 
-from klea_utils.commands.common import Command, CommandRegistry, parse_command
+from klea_utils.commands.common import (
+    Command,
+    CommandRegistry,
+    parse_command,
+    resolve_subcommand,
+)
 from klea_utils.commands.graph import GraphCommandHandler
 from klea_utils.nodes.abstract import (
     AbstractLangGraphNode,
@@ -93,8 +98,14 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
             return self._reject(
                 state, query, f"Command /{command.name} is not implemented yet."
             )
-        self.logger.debug(f"running command /{command.name} args={parsed.args}")
-        result = handler(state, parsed)
+        resolved = resolve_subcommand(command, parsed)
+        if isinstance(resolved, str):
+            self.logger.debug(f"command /{command.name}: {resolved}")
+            return self._reject(state, query, resolved)
+        self.logger.debug(
+            f"running command /{command.name} {resolved.verb = } args={resolved.args}"
+        )
+        result = handler(state, resolved)
         self._emit_inspect(command, result.summary or result.message, result.details)
         updates: dict[str, Any] = dict(result.updates)
         updates["message_for_user"] = result.message
