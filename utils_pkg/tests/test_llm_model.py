@@ -548,3 +548,24 @@ class TestCatalogProviderEndpoint:
             ProviderEndpoint(api="https://openrouter.ai/api/v1", npm="@openrouter/x"),
         )
         assert c["base_url"] == "https://my.endpoint/v1"
+
+
+class TestDisableStreaming:
+    """Model streaming is disabled so streamed ``usage_metadata`` is not inflated."""
+
+    def test_disable_streaming_is_always_set(self):
+        # ``astream_events`` (the graph runner) forces chat models to stream;
+        # LangChain's chunk merge then sums ``usage_metadata`` across chunks for
+        # providers that report usage per chunk (VLLM, HuggingFace Inference
+        # Providers, ...), inflating the token counts (langchain#30429).
+        # Disabling streaming keeps usage accurate.
+        assert configurable(build())["disable_streaming"] is True
+
+    def test_disable_streaming_survives_provider_field_filtering(self):
+        # ``_build_invoke_config`` filters configurable keys to the provider's
+        # allowed fields; ``disable_streaming`` is a ``BaseChatModel`` field, so
+        # it is allowed for every provider and is not stripped.
+        from klea_utils.llm import get_provider_allowed_fields
+
+        for provider in ("huggingface", "openai", "anthropic"):
+            assert "disable_streaming" in get_provider_allowed_fields(provider)

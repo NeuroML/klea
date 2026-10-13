@@ -129,6 +129,14 @@ Emitted from the `messages` channel only for node labels in
 output nodes do not (their deltas are JSON fragments).  No web/TUI consumer
 today; it exists for a future live-typing UI.
 
+**Currently disabled.**  Klea sets `disable_streaming=True` on every model
+(`LLMModel.build_config`): the graph's `astream_events` forces chat models to
+stream, and LangChain's streamed `usage_metadata` merge then sums input/total
+tokens across chunks for providers that report usage per chunk (VLLM,
+HuggingFace Inference Providers, ...), inflating the reported token counts
+(langchain#30429).  No `token` events are emitted until the upstream bug is
+fixed; see the backlog.
+
 ## Known limitations
 
 * Node instances are singletons shared across concurrent runs.  Per-run

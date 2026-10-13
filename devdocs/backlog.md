@@ -322,6 +322,17 @@ Last updated: 2026-10-12.
 
 ## Streaming / tool UX
 
+- Token streaming is disabled pending an upstream fix (langchain#30429).  The
+  graph runs under `astream_events`, which forces chat models to stream;
+  LangChain's streamed `usage_metadata` merge (`add_ai_message_chunks`) then
+  sums input/total tokens across chunks for providers that report usage per
+  chunk (VLLM, HuggingFace Inference Providers, ...), inflating the token
+  counts massively (observed: an 8.9 B-token session total from a ~140k-token
+  prompt).  Klea sets `disable_streaming=True` on every model
+  (`LLMModel.build_config`) so usage stays accurate; `token` events are
+  therefore not emitted.  Re-enable streaming (and the `token` events) when the
+  upstream bug is fixed and a live-typing UI lands.
+
 - Durable / resumable SSE stream (architecture).  The graph run currently
   lives inside the HTTP `StreamingResponse` generator
   (`chat_core.stream_response`), so a genuine disconnect (network drop, server

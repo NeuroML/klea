@@ -1832,6 +1832,17 @@ class LLMModel(BaseModel):
             overrides, session_id=session_id, user_agent=self.user_agent
         )
 
+        # Disable model streaming.  ``astream_events`` (the graph runner)
+        # forces chat models to stream, and LangChain's streamed
+        # ``usage_metadata`` merge then sums input/total tokens across chunks
+        # for providers that report usage per chunk (VLLM, HuggingFace
+        # Inference Providers, ...), inflating them massively
+        # (https://github.com/langchain-ai/langchain/issues/30429).  Klea
+        # renders no token deltas today (see the backlog), so non-streaming is
+        # a safe, accurate default.  ``disable_streaming`` is a
+        # ``BaseChatModel`` field, so it survives provider field filtering.
+        overrides["disable_streaming"] = True
+
         # Wrap in the "configurable" key expected by _ConfigurableModel.
         return cast(RunnableConfig, {"configurable": overrides})
 
