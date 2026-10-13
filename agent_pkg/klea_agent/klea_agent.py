@@ -538,11 +538,18 @@ class KleaAgent(BaseLangGraph):
         general = getattr(getattr(self, "app_config", None), "general", None)
         commands_config = getattr(general, "commands", None)
         disabled_commands = list(getattr(commands_config, "disabled", []) or [])
+        # Conversation-memory tuning (ADR-0018); guarded like the reads above.
+        memory_config = getattr(general, "memory", None)
+        summarisation_threshold_chars = int(
+            getattr(memory_config, "summarisation_threshold_chars", 40_000)
+        )
+        num_history_chars = int(getattr(memory_config, "num_history_chars", 20_000))
         #: The app's command catalogue (ADR-0047); read by the ``GET /commands``
         #: endpoint via ``app.state.graph``.
         self.command_registry, self._command_handlers = build_agent_commands(
             source_available=source_available,
             disabled=disabled_commands,
+            memory=self.memory,
         )
         self._command_node = CommandNode(
             logger=self.logger,
@@ -706,13 +713,26 @@ class KleaAgent(BaseLangGraph):
                 logger=self.logger,
                 label="Summarizing history",
                 llm_models=self.llm_models,
-                summarisation_threshold_chars=10_000,
-                num_history_chars=10_000,
+                summarisation_threshold_chars=summarisation_threshold_chars,
+                num_history_chars=num_history_chars,
             )
             self.workflow.add_node(
                 self._summarise_history_node.label,
                 self._summarise_history_node.execute,
             )
+            # ``/compact`` handoff target: the same summariser forced past the
+            # threshold (``0``), with a chat confirmation the automatic node
+            # does not set.  Registered only when memory is on.
+            self._compact_node = SummariseMemoryNode(
+                logger=self.logger,
+                label="Compacting memory",
+                llm_models=self.llm_models,
+                summarisation_threshold_chars=0,
+                num_history_chars=num_history_chars,
+                announce="Compacted the conversation memory.",
+            )
+            self.workflow.add_node(self._compact_node.label, self._compact_node.execute)
+            self.workflow.add_edge(self._compact_node.label, END)
 
         self.workflow.add_edge(START, self._init_graph_state_node.label)
         # Session commands (ADR-0047): a known server-side ``/command`` runs in
@@ -729,11 +749,15 @@ class KleaAgent(BaseLangGraph):
         # A command may hand off to another node before the run ends: its
         # handler sets ``GraphCommandResult.route``, which the command node
         # writes to the transient ``command_route``; ``""`` is terminal (END).
+        # ``/compact`` hands off to the compaction node when memory is on.
         # See ``devdocs/system/graph-routing.md``.
+        command_routes: dict[Any, str] = {"": END}
+        if self.memory:
+            command_routes["compact"] = self._compact_node.label
         self.workflow.add_conditional_edges(
             self._command_node.label,
             command_route_router,
-            {"": END},
+            command_routes,
         )
         # ADR-0030: a mode that cannot run (e.g. Scientific without a curated
         # source) is informed, not silently downgraded; proceed otherwise.

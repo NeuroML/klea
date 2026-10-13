@@ -6,9 +6,10 @@ Builds the agent's **server-side** command catalogue (served to frontends via
 ``GET /commands``) and the graph handlers the command node dispatches to.
 Client-side commands (``/model``, ``/help``, ...) belong to the frontends, not
 here: the backend cannot know them without a circular dependency, so a
-client-side command reaching the graph is simply unknown.  ``/mode`` is the
-first implemented graph command; the rest are documented stubs that reply
-"not implemented yet" until each lands.  See
+client-side command reaching the graph is simply unknown.  ``/mode`` and
+``/access`` are implemented graph commands; ``/compact`` (memory-gated) hands
+off to the compaction node.  The rest are documented stubs that reply "not
+implemented yet" until each lands.  See
 ``devdocs/system/session-commands.md``.
 
 File: klea_agent/commands.py
@@ -50,6 +51,18 @@ _ACCESS_COMMAND = Command(
     persists="checkpoint",
     while_streaming="block",
     arg_hint="[read_only|full]",
+)
+
+#: ``/compact``: summarise the old conversation now.  Registered only when
+#: conversation memory is enabled (it hands off to the compaction node); the
+#: handoff keeps the command out of the LLM's message history (checkpoint).
+_COMPACT_COMMAND = Command(
+    name="compact",
+    summary="Summarise and shorten the conversation memory",
+    side="server",
+    klass="workflow",
+    persists="checkpoint",
+    while_streaming="block",
 )
 
 #: Server-side commands that are documented but not implemented yet.
@@ -94,15 +107,6 @@ _STUB_COMMANDS: tuple[Command, ...] = (
         persists="message",
         while_streaming="block",
         arg_hint="<command>",
-        implemented=False,
-    ),
-    Command(
-        name="compact",
-        summary="Summarise and shorten the conversation memory",
-        side="server",
-        klass="workflow",
-        persists="checkpoint",
-        while_streaming="block",
         implemented=False,
     ),
     Command(
@@ -196,8 +200,29 @@ def _handle_access(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResul
     )
 
 
+def _handle_compact(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
+    """Handle ``/compact``: summarise the old conversation now (ADR-0047).
+
+    Hands off to the app's compaction node via ``route="compact"``.  The
+    message is a neutral fallback: the compaction node overwrites it with a
+    confirmation only when it actually produces a summary, so a session with
+    nothing old to fold keeps the fallback.  The outcome is always reported in
+    the inspection pane by the node.
+
+    :param state: The graph state.
+    :param parsed: The parsed command.
+    :returns: The command result carrying the handoff route.
+    """
+    logger.debug("command /compact: handing off to the compaction node")
+    return GraphCommandResult(
+        message="Nothing to compact yet.",
+        summary="Compacting the conversation memory",
+        route="compact",
+    )
+
+
 def build_agent_commands(
-    *, source_available: bool, disabled: Iterable[str] = ()
+    *, source_available: bool, disabled: Iterable[str] = (), memory: bool = True
 ) -> tuple[CommandRegistry, dict[str, GraphCommandHandler]]:
     """Build the agent's server-side command registry and graph handlers.
 
@@ -205,12 +230,18 @@ def build_agent_commands(
         (Scientific mode precondition, ADR-0030).
     :param disabled: Command names the operator disabled (ADR-0047): a disabled
         command is not registered, so it is neither published nor runnable.
+    :param memory: Whether conversation memory is enabled.  ``/compact`` is
+        registered only when it is (its handoff target, the compaction node,
+        exists only then).
     :returns: ``(registry, handlers)`` -- the catalogue and the graph handler
         map the command node dispatches to.
     """
     disabled_names = {name.strip().lower() for name in disabled}
     registry = CommandRegistry()
-    for command in (_MODE_COMMAND, _ACCESS_COMMAND, *_STUB_COMMANDS):
+    commands = [_MODE_COMMAND, _ACCESS_COMMAND, *_STUB_COMMANDS]
+    if memory:
+        commands.append(_COMPACT_COMMAND)
+    for command in commands:
         if command.name in disabled_names:
             logger.info(f"session command /{command.name} disabled by config")
             continue
@@ -220,5 +251,7 @@ def build_agent_commands(
         handlers["mode"] = _handle_mode(source_available)
     if registry.get("access") is not None:
         handlers["access"] = _handle_access
+    if registry.get("compact") is not None:
+        handlers["compact"] = _handle_compact
     logger.debug(f"agent command catalogue: {len(registry.all())} command(s)")
     return registry, handlers

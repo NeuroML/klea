@@ -289,14 +289,20 @@ Last updated: 2026-10-12.
   the LangGraph checkpoint and clear the workspace (see Session deletion
   cleanup).
 
-- Remaining session commands (P4 of ADR-0047): `/compact`, `/init`.  `/compact`
-  uses the summarise node to shorten memory; `/init` writes project guidance
-  to `AGENTS.md`.  Client-only commands (`/new`, `/sessions`, `/rename`,
+- Remaining session commands (P4 of ADR-0047): `/init` (writes project
+  guidance to `AGENTS.md`).  `/compact` is implemented: it forces a
+  summarisation via the compaction node and reports the outcome in the
+  inspection pane.  Client-only commands (`/new`, `/sessions`, `/rename`,
   `/model`, `/export`) are small, frontend-owned wins.  Dropped
   as not applicable: `/plan` (Klea has no plan mode -- read-only is the access
   level, not a workflow), `/theme` (Klea offers only light/dark, toggled in
   the header; not worth a command), and `/commands` (redundant with bare
   `/help`, which already lists the merged catalogue).
+- User-configurable conversation-memory settings: the summarisation threshold
+  and recent verbatim window are now operator config (`general.memory` in the
+  agent config, ADR-0018).  A per-session/user command to tune them (and a
+  per-model default) is deferred -- it needs a durable setting plus the
+  prompt-assembly window kept aligned.
 
 - `/run` (P4 of ADR-0047): **deferred -- design under consideration.**  The
   command runs a shell command server-side as a user-invoked action (the

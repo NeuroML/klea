@@ -122,9 +122,13 @@ and the menu (`CommandRegistry.available`).
 |---|---|---|---|---|
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
+| `/compact` | workflow | checkpoint | block | summarise and shorten the conversation memory |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/compact`, `/init`.
+published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/init`.
+`/compact` is registered only when conversation memory is enabled (it hands
+off to the compaction node); it forces a summarisation past the automatic
+threshold and reports the outcome in the inspection pane.
 The attachment trio (`/file`, `/upload`, `/webfetch`) plus the session
 workspace is **deferred pending a use-case decision** -- see the backlog for
 the options (convert-to-workspace vs ingest-and-retrieve vs in-prompt).

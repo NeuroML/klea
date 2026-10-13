@@ -71,6 +71,21 @@ class TestCatalogue:
         registry, _ = build_agent_commands(source_available=False)
         assert registry.get("runlocal") is None
 
+    def test_compact_is_registered_when_memory_is_on(self):
+        registry, handlers = build_agent_commands(source_available=False, memory=True)
+        compact = registry.get("compact")
+        assert compact is not None
+        assert compact.side == "server"
+        assert compact.klass == "workflow"
+        assert compact.persists == "checkpoint"
+        assert compact.implemented is True
+        assert "compact" in handlers
+
+    def test_compact_is_not_registered_when_memory_is_off(self):
+        registry, handlers = build_agent_commands(source_available=False, memory=False)
+        assert registry.get("compact") is None
+        assert "compact" not in handlers
+
 
 class TestDisabledCommands:
     def test_disabled_command_is_not_registered(self):
@@ -312,6 +327,18 @@ class TestCommandRouteRouter:
         assert command_route_router(state) == "compact"
 
 
+class TestCompactCommand:
+    async def test_compact_hands_off_to_the_compaction_node(self):
+        # ``/compact`` is a handoff command: it routes to the compaction node
+        # and sets a neutral fallback message the node overwrites on success.
+        node = _agent_node([])
+        updates = await node.execute(_state("/compact"))
+        assert updates["command_route"] == "compact"
+        assert updates["message_for_user"] == "Nothing to compact yet."
+        # ``persists=checkpoint``: the command turn is dropped from history.
+        assert updates["messages"] == []
+
+
 class TestRouter:
     def test_command_query_routes_to_node(self):
         assert command_query_router(_state("/mode scientific")) == "command"
@@ -354,6 +381,9 @@ async def test_graph_wires_the_command_node(monkeypatch):
     edges = {(e.source, e.target) for e in graph.edges}
     assert ("Initializing", "Running command") in edges
     assert ("Running command", "__end__") in edges
+    # ``/compact``'s handoff target exists and is wired (memory is on).
+    assert "Compacting memory" in names
+    assert ("Running command", "Compacting memory") in edges
 
     assert await agent._command_router(_state("/mode scientific")) == "command"
     assert await agent._command_router(_state("plain query")) == "continue"
