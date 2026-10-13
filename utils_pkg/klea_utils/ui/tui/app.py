@@ -25,7 +25,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Iterable
 from datetime import datetime
-from typing import Any, ClassVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from textual import work
 from textual.app import App, ComposeResult
@@ -35,8 +35,12 @@ from textual.screen import Screen
 from textual.widgets import Input, Static
 from textual.worker import Worker
 
+from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
+
+if TYPE_CHECKING:
+    from klea_utils.ui.state import MessageData
 
 logger = logging.getLogger(__name__)
 
@@ -104,8 +108,7 @@ class KleaTuiScreen(Screen):
                 yield Static(
                     f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
                 )
-                with VerticalScroll(id="transcript"):
-                    yield Static("No messages yet.", id="transcript-empty")
+                yield Transcript(id="transcript")
                 yield TurnStatus(id="turn-status")
                 yield Input(
                     placeholder="Type a query and press Enter...", id="query-input"
@@ -137,21 +140,17 @@ class KleaTuiScreen(Screen):
         event.input.value = ""
         cast("KleaTuiApp", self.app).start_run(query)
 
-    async def append_message(self, role: str, text: str) -> None:
-        """Append one transcript line and scroll to the bottom.
+    @property
+    def transcript(self) -> Transcript:
+        """Return the transcript widget."""
+        return self.query_one("#transcript", Transcript)
 
-        Rendering is plain text for now; MIME-aware rendering lands in a
-        later step.  User lines are prefixed with ``"> "``.
+    async def append_message(self, message: MessageData) -> None:
+        """Append one MIME-aware message to the transcript.
 
-        :param role: ``"user"`` or ``"agent"``.
-        :param text: The message text to display.
+        :param message: A message dict (see ``state.MessageData``).
         """
-        for placeholder in self.query("#transcript-empty"):
-            placeholder.remove()
-        transcript = self.query_one("#transcript", VerticalScroll)
-        prefix = "> " if role == "user" else ""
-        await transcript.mount(Static(f"{prefix}{text}"))
-        transcript.scroll_end(animate=False)
+        await self.transcript.append(message)
 
     @property
     def turn_status(self) -> TurnStatus:
@@ -296,7 +295,7 @@ class KleaTuiApp(App[None]):
             chat["messages"].append(
                 {"text": query, "stamp": _stamp(), "role": "user", "header": ""}
             )
-            await screen.append_message("user", query)
+            await screen.append_message(chat["messages"][-1])
         chat["turn_status"] = {"kind": "progress", "heading": "Working..."}
         screen.show_progress("Working...")
 
@@ -320,10 +319,13 @@ class KleaTuiApp(App[None]):
                     chat["turn_status"] = {"kind": "progress", "heading": heading}
                     screen.show_progress(heading)
                     continue
+                before = len(chat["messages"])
                 action = apply_stream_event(chat, event)
+                # Render whatever the reducer appended (tool blocks and, on
+                # completion, the final message), MIME-aware.
+                for message in chat["messages"][before:]:
+                    await screen.append_message(message)
                 if action == "complete":
-                    message = chat["messages"][-1]
-                    await screen.append_message("agent", message.get("text", ""))
                     chat["turn_status"] = {"kind": "idle"}
                     screen.show_idle()
                     logger.debug("run complete: chat=%s", self.ctx.chat_id)
