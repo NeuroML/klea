@@ -20,6 +20,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -27,9 +28,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
 logger = logging.getLogger(__name__)
+
+#: Path-permission decision options, in ``RadioSet`` order.
+_PERMISSION_OPTIONS = ("once", "session", "deny")
 
 
 @dataclass(frozen=True)
@@ -150,6 +154,126 @@ class HitlModal(ModalScreen[HitlDecision]):
             self.dismiss(HitlDecision({"answers": answers}))
         elif button_id == "hitl-cancel":
             self.action_cancel()
+
+    def action_cancel(self) -> None:
+        """Dismiss as a cancel (Escape or the Cancel button)."""
+        self.dismiss(HitlDecision(None, cancel=True))
+
+
+def _permission_key(request: Mapping[str, Any]) -> str:
+    """Return the approval key for a path request (ADR-0007).
+
+    The resolved file for a ``sensitive`` request, the resolved directory for
+    an ``outside`` one.
+
+    :param request: A permission request dict.
+    :returns: The key the decision is recorded against.
+    """
+    if request.get("kind") == "sensitive":
+        return str(request.get("path", ""))
+    return str(request.get("directory", ""))
+
+
+class PermissionModal(ModalScreen[HitlDecision]):
+    """A modal collecting a once/session/deny decision per requested path.
+
+    Each request (a sensitive file or an outside-project directory, ADR-0007)
+    gets a :class:`~textual.widgets.RadioSet` defaulting to ``deny``; Submit
+    sends the per-key decisions, Cancel (or Escape) cancels the ask.
+    """
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    PermissionModal {
+        align: center middle;
+    }
+    #perm-dialog {
+        width: 80%;
+        height: auto;
+        max-height: 80%;
+        border: round $primary;
+        padding: 1 2;
+        background: $surface;
+    }
+    #perm-title {
+        text-style: bold;
+        height: 1;
+    }
+    """
+
+    def __init__(self, ask: dict[str, Any]) -> None:
+        """Build the modal for the permission interrupt *ask*.
+
+        :param ask: The interrupt ``data`` (``requests``, ``question``).
+        """
+        super().__init__()
+        self.ask = ask
+
+    def _requests(self) -> list[Mapping[str, Any]]:
+        """Return the ask's path requests (a fallback when the list is empty)."""
+        requests = self.ask.get("requests")
+        if not isinstance(requests, list) or not requests:
+            requests = [{"kind": "outside", "path": self.ask.get("question", "")}]
+        return [request for request in requests if isinstance(request, Mapping)]
+
+    @staticmethod
+    def _title(request: Mapping[str, Any]) -> str:
+        """Return the row title for a request."""
+        if request.get("kind") == "sensitive":
+            return f"Sensitive file: {request.get('path', '')}"
+        return f"Outside project: {request.get('directory', '')}"
+
+    @staticmethod
+    def _hint(request: Mapping[str, Any]) -> str:
+        """Return the row hint (tool / confidence) for a request."""
+        if request.get("kind") == "sensitive":
+            return "Commonly holds credentials."
+        return f"{request.get('tool', '')} ({request.get('confidence', '')})".strip()
+
+    def compose(self) -> ComposeResult:
+        """Compose one radio group per requested path, plus Submit / Cancel."""
+        with Vertical(id="perm-dialog"):
+            yield Static("Permission required", id="perm-title")
+            question = self.ask.get("question")
+            if question:
+                yield Static(str(question), id="perm-question")
+            for index, request in enumerate(self._requests()):
+                yield Static(self._title(request))
+                hint = self._hint(request)
+                if hint:
+                    yield Static(hint)
+                with RadioSet(id=f"perm-{index}"):
+                    yield RadioButton("Once", id=f"perm-{index}-once")
+                    yield RadioButton("Session", id=f"perm-{index}-session")
+                    yield RadioButton("Deny", id=f"perm-{index}-deny", value=True)
+            with Horizontal():
+                yield Button("Submit", id="perm-submit", variant="primary")
+                yield Button("Cancel", id="perm-cancel", variant="error")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Submit the decisions or cancel.
+
+        :param event: The ``Button.Pressed`` event.
+        """
+        if event.button.id == "perm-submit":
+            self._submit()
+        elif event.button.id == "perm-cancel":
+            self.action_cancel()
+
+    def _submit(self) -> None:
+        """Dismiss with one decision per requested path."""
+        decisions: list[dict[str, str]] = []
+        for index, request in enumerate(self._requests()):
+            radio_set = self.query_one(f"#perm-{index}", RadioSet)
+            pressed = radio_set.pressed_index
+            decision = (
+                _PERMISSION_OPTIONS[pressed]
+                if 0 <= pressed < len(_PERMISSION_OPTIONS)
+                else "deny"
+            )
+            decisions.append({"key": _permission_key(request), "decision": decision})
+        self.dismiss(HitlDecision({"decisions": decisions}))
 
     def action_cancel(self) -> None:
         """Dismiss as a cancel (Escape or the Cancel button)."""

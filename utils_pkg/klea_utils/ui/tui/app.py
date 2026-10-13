@@ -47,7 +47,11 @@ from klea_utils.ui.tui.components.commands import (
     build_catalogue,
     handle_command,
 )
-from klea_utils.ui.tui.components.hitl import HitlDecision, HitlModal
+from klea_utils.ui.tui.components.hitl import (
+    HitlDecision,
+    HitlModal,
+    PermissionModal,
+)
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
@@ -462,18 +466,15 @@ class KleaTuiApp(App[None]):
             await self._screen.toggle_view()
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
-        """Open the HITL answer modal for *ask* (review / input).
+        """Open the HITL modal for *ask* (review / input / permission).
 
         :param ask: The interrupt ``data``.
         """
-        kind = ask.get("kind", "input")
-        if kind == "permission":
-            # The permission modal lands in a later step; keep the ask until
-            # then.
-            logger.debug("permission ask deferred: chat=%s", self.ctx.chat_id)
-            return
         self._hitl_id = ask.get("interrupt_id")
-        self.push_screen(HitlModal(ask), callback=self._on_hitl_decision)
+        if ask.get("kind") == "permission":
+            self.push_screen(PermissionModal(ask), callback=self._on_hitl_decision)
+        else:
+            self.push_screen(HitlModal(ask), callback=self._on_hitl_decision)
 
     def _on_hitl_decision(self, decision: HitlDecision | None) -> None:
         """Continue the paused run with the modal's answer.

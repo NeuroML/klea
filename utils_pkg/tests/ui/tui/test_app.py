@@ -21,8 +21,8 @@ from typing import Any
 import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
-from klea_utils.ui.tui.components.hitl import HitlModal
-from textual.widgets import Button, Collapsible, Input, Static
+from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
+from textual.widgets import Button, Collapsible, Input, RadioButton, Static
 
 
 def _mode_metadata() -> dict:
@@ -152,6 +152,49 @@ async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
     assert fake_backend.calls[-1]["interrupt_id"] == "i1"
     texts = [message["text"] for message in _chat()["messages"]]
     assert any("Plan approved" in text for text in texts)
+
+
+async def test_permission_interrupt_modal(fake_backend, make_app):
+    """A permission ask opens the permission modal; Submit sends decisions."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "permission",
+                    "requests": [
+                        {
+                            "kind": "outside",
+                            "directory": "/tmp/x",
+                            "tool": "read_file",
+                            "confidence": "high",
+                        },
+                        {"kind": "sensitive", "path": "/home/u/.ssh/id_rsa"},
+                    ],
+                    "interrupt_id": "p1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, PermissionModal)
+        # The first request defaults to deny; allow it once instead.
+        app.screen.query_one("#perm-0-once", RadioButton).value = True
+        app.screen.query_one("#perm-submit", Button).press()
+        await _settle(pilot, app)
+
+    call = fake_backend.calls[-1]
+    assert call["interrupt_id"] == "p1"
+    assert call["interrupt_response"] == {
+        "decisions": [
+            {"key": "/tmp/x", "decision": "once"},
+            {"key": "/home/u/.ssh/id_rsa", "decision": "deny"},
+        ]
+    }
 
 
 async def test_toggle_inspector_view(fake_backend, make_app):
