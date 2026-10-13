@@ -579,18 +579,38 @@ class KleaTuiApp(App[None]):
         )
 
     def _on_session_choice(self, action: SessionAction | None) -> None:
-        """Switch to the chosen session.
+        """Handle the picker's choice (switch or rename).
 
         :param action: The picker's :class:`SessionAction`, or ``None``.
         """
-        if action is None or action.kind != "switch":
+        if action is None:
             return
-        self._switch_to_chat(action.chat_id)
+        if action.kind == "switch":
+            self._switch_to_chat(action.chat_id)
+        elif action.kind == "rename":
+            self._rename_chat(action.chat_id, action.title)
 
     @work
     async def _switch_to_chat(self, chat_id: str) -> None:
         """Load the chosen chat (reuses :meth:`load_chat`)."""
         await self.load_chat(chat_id)
+
+    @work
+    async def _rename_chat(self, chat_id: str, title: str) -> None:
+        """Rename a chat on the server, then refresh the picker.
+
+        :param chat_id: The chat to rename.
+        :param title: The new title.
+        """
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import rename_chat_on_server
+        from klea_utils.ui.state import ensure_chat
+
+        await rename_chat_on_server(
+            self.ctx.server_url, self.ctx.user_id, chat_id, title
+        )
+        ensure_chat(self.ctx.user_id, chat_id)["name"] = title
+        await self.action_open_sessions()
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
         """Open the HITL modal for *ask* (review / input / permission).

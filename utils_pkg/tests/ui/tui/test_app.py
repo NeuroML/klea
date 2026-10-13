@@ -22,7 +22,7 @@ import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
-from klea_utils.ui.tui.components.sessions import SessionPicker
+from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
 from textual.widgets import (
     Button,
     Collapsible,
@@ -305,6 +305,31 @@ async def test_session_picker_switches(fake_backend, make_app):
 
     assert app.ctx.chat_id == "c2"
     assert [m["text"] for m in chats[":c2"]["messages"]] == ["hi2"]
+
+
+async def test_session_picker_rename(fake_backend, make_app):
+    """Renaming from the picker calls the server and updates the local name."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        app.screen.query_one("#sessions-rename", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, SessionRename)
+        app.screen.query_one("#rename-input", Input).value = "Renamed B"
+        app.screen.query_one("#rename-save", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.renames == [{"chat_id": "c2", "title": "Renamed B"}]
+    assert chats[":c2"]["name"] == "Renamed B"
 
 
 async def test_open_sessions_blocked_while_streaming(

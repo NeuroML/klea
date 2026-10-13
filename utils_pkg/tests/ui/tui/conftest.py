@@ -47,6 +47,8 @@ class FakeBackend:
         self.chats: list[dict[str, Any]] = []
         #: ``GET /chat/{user_id}/{chat_id}/messages`` rows, keyed by chat id.
         self.messages: dict[str, list[dict[str, Any]]] = {}
+        #: Recorded ``rename_chat_on_server`` calls.
+        self.renames: list[dict[str, Any]] = []
 
     async def stream_events(
         self,
@@ -111,6 +113,15 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 
     monkeypatch.setattr(
         "klea_utils.ui.client.fetch_chat_messages", _fetch_chat_messages
+    )
+
+    async def _rename_chat_on_server(
+        server_url: str, user_id: str, chat_id: str, title: str
+    ) -> None:
+        backend.renames.append({"chat_id": chat_id, "title": title})
+
+    monkeypatch.setattr(
+        "klea_utils.ui.client.rename_chat_on_server", _rename_chat_on_server
     )
     return backend
 

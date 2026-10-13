@@ -24,7 +24,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Label, ListItem, ListView, Static
+from textual.widgets import Button, Input, Label, ListItem, ListView, Static
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +33,14 @@ logger = logging.getLogger(__name__)
 class SessionAction:
     """The picker's outcome.
 
-    :param kind: ``"switch"`` or ``"cancel"``.
-    :param chat_id: The chosen chat id (for ``"switch"``).
+    :param kind: ``"switch"``, ``"rename"`` or ``"cancel"``.
+    :param chat_id: The chosen chat id (for ``"switch"``/``"rename"``).
+    :param title: The new title (for ``"rename"``).
     """
 
     kind: str
     chat_id: str = ""
+    title: str = ""
 
 
 def _session_label(session: dict[str, Any], active: bool) -> Text:
@@ -112,6 +114,7 @@ class SessionPicker(ModalScreen[SessionAction]):
                     id="sessions-list",
                 )
             with Horizontal():
+                yield Button("Rename", id="sessions-rename")
                 yield Button("Cancel", id="sessions-cancel", variant="error")
 
     def on_mount(self) -> None:
@@ -129,13 +132,98 @@ class SessionPicker(ModalScreen[SessionAction]):
         self.dismiss(SessionAction("switch", chat_id=str(event.item.id)))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Cancel on the Cancel button.
+        """Rename the highlighted session, or cancel.
 
         :param event: The ``Button.Pressed`` event.
         """
-        if event.button.id == "sessions-cancel":
+        if event.button.id == "sessions-rename":
+            self._start_rename()
+        elif event.button.id == "sessions-cancel":
             self.action_cancel()
+
+    def _start_rename(self) -> None:
+        """Prompt for a new title for the highlighted session."""
+        item = self.query_one("#sessions-list", ListView).highlighted_child
+        if item is None:
+            return
+        chat_id = str(item.id)
+        title = next(
+            (
+                str(session.get("title", ""))
+                for session in self._sessions
+                if str(session.get("chat_id")) == chat_id
+            ),
+            "",
+        )
+        self.app.push_screen(
+            SessionRename(title),
+            callback=lambda new_title: self._finish_rename(chat_id, new_title),
+        )
+
+    def _finish_rename(self, chat_id: str, new_title: str | None) -> None:
+        """Dismiss with a rename action when a new title was entered."""
+        if new_title:
+            self.dismiss(SessionAction("rename", chat_id=chat_id, title=new_title))
 
     def action_cancel(self) -> None:
         """Dismiss without switching (Escape or Cancel)."""
         self.dismiss(SessionAction("cancel"))
+
+
+class SessionRename(ModalScreen[str | None]):
+    """A small modal collecting a new session title (``None`` on cancel)."""
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    SessionRename {
+        align: center middle;
+    }
+    #rename-dialog {
+        width: 60%;
+        height: auto;
+        border: round $primary;
+        padding: 1 2;
+        background: $surface;
+    }
+    #rename-title {
+        text-style: bold;
+        height: 1;
+    }
+    """
+
+    def __init__(self, title: str) -> None:
+        """Build the modal prefilled with *title*.
+
+        :param title: The session's current title.
+        """
+        super().__init__()
+        self._title = title
+
+    def compose(self) -> ComposeResult:
+        """Compose the title input and Save / Cancel."""
+        with Vertical(id="rename-dialog"):
+            yield Static("Rename session", id="rename-title")
+            yield Input(value=self._title, id="rename-input")
+            with Horizontal():
+                yield Button("Save", id="rename-save", variant="primary")
+                yield Button("Cancel", id="rename-cancel", variant="error")
+
+    def on_mount(self) -> None:
+        """Focus the input."""
+        self.query_one("#rename-input", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Save the new title, or cancel.
+
+        :param event: The ``Button.Pressed`` event.
+        """
+        if event.button.id == "rename-save":
+            new_title = self.query_one("#rename-input", Input).value.strip()
+            self.dismiss(new_title or None)
+        elif event.button.id == "rename-cancel":
+            self.action_cancel()
+
+    def action_cancel(self) -> None:
+        """Dismiss without renaming (Escape or Cancel)."""
+        self.dismiss(None)
