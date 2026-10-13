@@ -197,6 +197,26 @@ async def test_permission_interrupt_modal(fake_backend, make_app):
     }
 
 
+async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
+    """A pending interrupt is re-presented on load (hydrated context)."""
+    fake_backend.chat_context = {
+        "context": {"mode": "general"},
+        "pending_interrupt": {
+            "kind": "review",
+            "question": "Approve?",
+            "interrupt_id": "i9",
+        },
+    }
+    app = make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert isinstance(app.screen, HitlModal)
+        assert _chat()["turn_status"]["kind"] == "awaiting_input"
+        assert _chat()["context"]["mode"] == "general"
+
+
 async def test_toggle_inspector_view(fake_backend, make_app):
     """Ctrl+I toggles the chat panel to the inspector with query sections."""
     fake_backend.scripts = [

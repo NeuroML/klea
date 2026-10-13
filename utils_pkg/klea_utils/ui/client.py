@@ -41,6 +41,32 @@ async def fetch_commands(server_url: str) -> list[dict[str, Any]]:
     return []
 
 
+async def fetch_chat_context(
+    server_url: str, user_id: str, chat_id: str
+) -> dict[str, Any]:
+    """Fetch a chat's session context and pending interrupt (ADR-0032/0046).
+
+    Calls ``GET /chat/{user_id}/{chat_id}/context`` and returns the body
+    (``{"context": {...}, "pending_interrupt": {...}}``), so a frontend can
+    restore a chat's context and re-present a paused HITL ask on load/switch.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :param chat_id: Chat conversation identifier.
+    :returns: The context body, or ``{}`` on failure.
+    """
+    url = f"{server_url}/chat/{user_id}/{chat_id}/context"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("GET %s status=%d", url, resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch chat context: %s", e)
+    return {}
+
+
 async def hydrate_chats(server_url: str, user_id: str) -> None:
     """Fetch all chats and their messages from the server into the local state.
 

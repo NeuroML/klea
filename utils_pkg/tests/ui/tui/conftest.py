@@ -41,6 +41,8 @@ class FakeBackend:
         self.scripts: list[Script] = []
         self.commands: list[dict[str, Any]] = []
         self.calls: list[dict[str, Any]] = []
+        #: The active chat's ``GET /chat/.../context`` body (for hydration).
+        self.chat_context: dict[str, Any] = {}
 
     async def stream_events(
         self,
@@ -85,6 +87,13 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
         return backend.commands
 
     monkeypatch.setattr("klea_utils.ui.client.fetch_commands", _fetch_commands)
+
+    async def _fetch_chat_context(
+        server_url: str, user_id: str, chat_id: str
+    ) -> dict[str, Any]:
+        return backend.chat_context
+
+    monkeypatch.setattr("klea_utils.ui.client.fetch_chat_context", _fetch_chat_context)
     return backend
 
 

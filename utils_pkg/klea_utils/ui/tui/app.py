@@ -173,9 +173,10 @@ class KleaTuiScreen(Screen):
                 yield StatusPanel(id="status")
 
     async def on_mount(self) -> None:
-        """Focus the query input and show the transcript view."""
+        """Focus the query input, show the transcript, hydrate the chat."""
         self.query_one("#query-input", Input).focus()
         await self.show_view("transcript")
+        cast("KleaTuiApp", self.app).hydrate_active_chat()
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Hand the submitted input to the app (command or query).
@@ -356,6 +357,36 @@ class KleaTuiApp(App[None]):
         server_commands = await fetch_commands(self.ctx.server_url)
         self._catalogue = build_catalogue(server_commands)
         logger.debug("command catalogue loaded: %d", len(self._catalogue.all()))
+
+    @work
+    async def hydrate_active_chat(self) -> None:
+        """Restore the active chat's context and re-present a pending ask.
+
+        Fetches ``GET /chat/{user_id}/{chat_id}/context`` so a paused thread
+        (ADR-0046) shows its HITL ask on load/switch instead of a dead
+        awaiting-input status.
+        """
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import fetch_chat_context
+        from klea_utils.ui.state import ensure_chat
+
+        body = await fetch_chat_context(
+            self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
+        )
+        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        context = body.get("context")
+        if context:
+            chat.setdefault("context", {}).update(context)
+        pending = body.get("pending_interrupt")
+        if not pending:
+            return
+        logger.debug("re-presenting pending interrupt: chat=%s", self.ctx.chat_id)
+        chat["interrupt"] = pending
+        chat["turn_status"] = {"kind": "awaiting_input"}
+        if self._screen is not None:
+            self._screen.show_awaiting_input()
+            await self._screen.refresh_status(chat)
+        self._open_hitl(pending)
 
     async def submit(self, text: str) -> None:
         """Route submitted *text*: an escaped slash, a command, or a query.
