@@ -221,6 +221,19 @@ class KleaTuiScreen(Screen):
         """
         await self.transcript.append(message)
 
+    async def render_chat(self, chat: Mapping[str, Any]) -> None:
+        """Rebuild the transcript and panes from *chat* (on load/switch).
+
+        :param chat: The chat's data dict.
+        """
+        await self.transcript.set_messages(chat.get("messages", []))
+        entries = chat.get("inspector_entries", [])
+        self._inspector_entries = entries
+        await self.inspector.set_entries(entries)
+        self._inspector_dirty = False
+        await self.status_panel.set_state(chat)
+        await self.show_view("transcript")
+
     @property
     def turn_status(self) -> TurnStatus:
         """Return the turn-status widget."""
@@ -360,32 +373,82 @@ class KleaTuiApp(App[None]):
 
     @work
     async def hydrate_active_chat(self) -> None:
-        """Restore the active chat's context and re-present a pending ask.
+        """Resolve the initial active chat (resume/continue/mint) and load it."""
+        chat_id = await self._resolve_initial_chat()
+        await self.load_chat(chat_id)
 
-        Fetches ``GET /chat/{user_id}/{chat_id}/context`` so a paused thread
-        (ADR-0046) shows its HITL ask on load/switch instead of a dead
-        awaiting-input status.
+    async def _resolve_initial_chat(self) -> str:
+        """Return the chat to open on launch.
+
+        ``--resume <chat_id>`` wins; else ``--continue`` picks the most
+        recently updated chat; else the minted id is used.
         """
-        # Lazy: httpx and the server client are only needed for a live server.
-        from klea_utils.ui.client import fetch_chat_context
+        if self.ctx.resume_chat_id:
+            return self.ctx.resume_chat_id
+        if self.ctx.continue_session:
+            # Lazy: only needed for --continue.
+            from klea_utils.ui.client import fetch_chats
+
+            chats_list = await fetch_chats(self.ctx.server_url, self.ctx.user_id)
+            if chats_list:
+                return str(chats_list[0]["chat_id"])
+        return self.ctx.chat_id
+
+    async def load_chat(self, chat_id: str, *, hydrate: bool = True) -> None:
+        """Make *chat_id* the active session and render it.
+
+        Refused while a run is streaming (invariant I2).  Hydration restores
+        the chat's messages, session context and any pending HITL ask.
+
+        :param chat_id: The chat to activate.
+        :param hydrate: Whether to (re)fetch the chat from the server.
+        """
+        if self._streaming:
+            self.notify(
+                "Stop the current run before switching sessions.",
+                severity="warning",
+            )
+            return
+        self.ctx.chat_id = chat_id
+        # Lazy: the state store is only needed once a chat is loaded.
         from klea_utils.ui.state import ensure_chat
 
-        body = await fetch_chat_context(
-            self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
+        chat = ensure_chat(self.ctx.user_id, chat_id)
+        if hydrate:
+            await self._hydrate_chat(chat_id, chat)
+        if self._screen is not None:
+            await self._screen.render_chat(chat)
+        self._present_pending(chat)
+
+    async def _hydrate_chat(self, chat_id: str, chat: Any) -> None:
+        """Restore *chat*'s messages, context and pending ask from the server."""
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import (
+            fetch_chat_context,
+            fetch_chat_messages,
+            server_message_to_data,
         )
-        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+
+        messages = await fetch_chat_messages(
+            self.ctx.server_url, self.ctx.user_id, chat_id
+        )
+        if messages:
+            chat["messages"] = [server_message_to_data(msg) for msg in messages]
+        body = await fetch_chat_context(self.ctx.server_url, self.ctx.user_id, chat_id)
         context = body.get("context")
         if context:
             chat.setdefault("context", {}).update(context)
         pending = body.get("pending_interrupt")
+        if pending:
+            chat["interrupt"] = pending
+            chat["turn_status"] = {"kind": "awaiting_input"}
+
+    def _present_pending(self, chat: Any) -> None:
+        """Open the HITL modal when *chat* has a pending interrupt."""
+        pending = chat.get("interrupt")
         if not pending:
             return
         logger.debug("re-presenting pending interrupt: chat=%s", self.ctx.chat_id)
-        chat["interrupt"] = pending
-        chat["turn_status"] = {"kind": "awaiting_input"}
-        if self._screen is not None:
-            self._screen.show_awaiting_input()
-            await self._screen.refresh_status(chat)
         self._open_hitl(pending)
 
     async def submit(self, text: str) -> None:
@@ -699,6 +762,8 @@ def run_tui(
     app_prefix: str = "klea",
     app_name: str = "klea-tui",
     user_id: str = "",
+    resume: str = "",
+    continue_session: bool = False,
     status_extras: Iterable[Callable[[TuiContext], Any]] | None = None,
 ) -> None:
     """Launch the shared Klea Textual TUI.
@@ -713,6 +778,9 @@ def run_tui(
     :param app_name: Log identity for this frontend (e.g. ``"klea-rag-tui"``).
     :param user_id: The ``--user-id`` value; resolved through the ADR-0050
         seam (``--user-id`` > ``KLEA_USER_ID`` > a persisted local UUID).
+    :param resume: Chat id to resume on launch (``--resume``).
+    :param continue_session: Resume the most recently updated chat
+        (``--continue``).
     :param status_extras: App-defined status-panel renderers, in order.
     """
     # Lazy: coolname mints the interim chat id; identity resolves the user id.
@@ -730,6 +798,8 @@ def run_tui(
         app_name=app_name,
         user_id=resolved_user_id,
         chat_id=coolname.generate_slug(2),
+        resume_chat_id=resume,
+        continue_session=continue_session,
         status_extras=list(status_extras or []),
     )
     logger.info("Launching Klea TUI (app=%s, url=%s, title=%s)", app_name, url, title)

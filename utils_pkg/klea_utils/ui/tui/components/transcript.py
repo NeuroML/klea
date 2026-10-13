@@ -17,7 +17,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Group, RenderableType
@@ -106,6 +106,19 @@ class Transcript(VerticalScroll):
         for placeholder in self.query("#transcript-empty"):
             placeholder.remove()
         await self.mount(Static(render_message(message)))
+        self.scroll_end(animate=False)
+
+    async def set_messages(self, messages: Sequence[Mapping[str, Any]]) -> None:
+        """Rebuild the transcript from a chat's messages (on load/switch).
+
+        :param messages: The chat's ``messages`` list.
+        """
+        await self.remove_children()
+        if not messages:
+            await self.mount(Static("No messages yet.", id="transcript-empty"))
+            return
+        for message in messages:
+            await self.mount(Static(render_message(message)))
         self.scroll_end(animate=False)
 
 
