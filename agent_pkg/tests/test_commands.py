@@ -197,6 +197,30 @@ class TestNodeBehaviour:
         # A ``persists: message`` command does not strip the turn.
         assert "messages" not in updates
 
+    async def test_async_handler_is_awaited(self):
+        # A workflow command may await an LLM/tool call (e.g. ``/compact``).
+        registry = CommandRegistry()
+        registry.register(
+            Command(
+                name="compact", summary="compact", side="server", persists="checkpoint"
+            )
+        )
+
+        async def handler(_state, _parsed):
+            return GraphCommandResult(message="awaited")
+
+        node = CommandNode(
+            logger,
+            "Running command",
+            registry=registry,
+            handlers={"compact": handler},
+        )
+        cast(Any, node).write_custom_stream = lambda _event: None
+        updates = await node.execute(_state("/compact"))
+        assert updates["message_for_user"] == "awaited"
+        # Ephemeral: the command turn is dropped from the message history.
+        assert updates["messages"] == []
+
     async def test_server_command_resolves_the_verb(self):
         registry = CommandRegistry()
         registry.register(

@@ -17,6 +17,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import inspect
 import logging
 from collections.abc import Mapping
 from typing import Any, override
@@ -43,7 +44,9 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
 
     Constructed with the app's :class:`CommandRegistry` (metadata) and its
     graph handler map.  A command with no handler, or one marked
-    ``implemented=False``, replies that it is not implemented yet.
+    ``implemented=False``, replies that it is not implemented yet.  A handler
+    may be synchronous or ``async`` (the node awaits an awaitable result), so a
+    workflow command can await an LLM/tool call.
     """
 
     def __init__(
@@ -106,6 +109,10 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
             f"running command /{command.name} {resolved.verb = } args={resolved.args}"
         )
         result = handler(state, resolved)
+        if inspect.isawaitable(result):
+            # A workflow command (e.g. ``/compact``) may await an LLM/tool call.
+            self.logger.debug(f"awaiting async handler for /{command.name}")
+            result = await result
         self._emit_inspect(command, result.summary or result.message, result.details)
         updates: dict[str, Any] = dict(result.updates)
         updates["message_for_user"] = result.message

@@ -84,7 +84,9 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
 The command node is the user-facing counterpart of the tool picker/caller:
 an app-built `CommandRegistry` (handlers with access to that app's nodes and
 state), a validate/resolve/dispatch step, and `inspect` stream events.  No
-separate command log is kept.
+separate command log is kept.  A handler may be synchronous or `async` (the
+node awaits an awaitable result), so a workflow command can call a model or
+tool (e.g. `/compact`).
 
 ## Session workspace
 
@@ -137,7 +139,7 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/export` | ui | - | export the session transcript as Markdown |
 | `/sessions [list\|switch\|delete <n\|id>]` | ui | - | list, switch, or delete sessions |
 
-Planned client commands (not registered yet): `/commands`, `/upload`.
+Planned client commands (not registered yet): `/upload`.
 
 Notes:
 
@@ -174,6 +176,8 @@ are canonical (lower-case, without the leading slash).
 ## Pointers
 
 * Decision: `adr/0047-session-command-framework.md`.
+* Routing mechanism (why the handoff uses a conditional edge, not
+  LangGraph `Command(goto=...)`): `system/graph-routing.md`.
 * Tool picker/caller pattern: `klea_utils/nodes/tools_picker.py`,
   `klea_utils/nodes/tools_caller.py`; dynamic schema
   `klea_utils/mcp/call_schema.py`.

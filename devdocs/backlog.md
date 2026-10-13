@@ -292,10 +292,11 @@ Last updated: 2026-10-12.
 - Remaining session commands (P4 of ADR-0047): `/compact`, `/init`.  `/compact`
   uses the summarise node to shorten memory; `/init` writes project guidance
   to `AGENTS.md`.  Client-only commands (`/new`, `/sessions`, `/rename`,
-  `/model`, `/export`, `/commands`) are small, frontend-owned wins.  Dropped
+  `/model`, `/export`) are small, frontend-owned wins.  Dropped
   as not applicable: `/plan` (Klea has no plan mode -- read-only is the access
-  level, not a workflow) and `/theme` (Klea offers only light/dark, toggled in
-  the header; not worth a command).
+  level, not a workflow), `/theme` (Klea offers only light/dark, toggled in
+  the header; not worth a command), and `/commands` (redundant with bare
+  `/help`, which already lists the merged catalogue).
 
 - `/run` (P4 of ADR-0047): **deferred -- design under consideration.**  The
   command runs a shell command server-side as a user-invoked action (the

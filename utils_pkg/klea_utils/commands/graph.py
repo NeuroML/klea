@@ -15,7 +15,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -42,8 +42,13 @@ class GraphCommandResult:
     details: dict[str, Any] = field(default_factory=dict)
 
 
-#: A graph command handler: ``(state, parsed) -> GraphCommandResult``.
-GraphCommandHandler = Callable[[BaseModel, ParsedCommand], GraphCommandResult]
+#: A graph command handler: ``(state, parsed) -> GraphCommandResult``, or an
+#: awaitable of one.  A handler may be ``async`` when it awaits an LLM or tool
+#: call (e.g. ``/compact``); the command node awaits the result when needed.
+GraphCommandHandler = Callable[
+    [BaseModel, ParsedCommand],
+    GraphCommandResult | Awaitable[GraphCommandResult],
+]
 
 
 def command_query_router(state: BaseModel) -> str:
