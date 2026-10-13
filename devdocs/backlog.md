@@ -110,6 +110,17 @@ Last updated: 2026-10-12.
 
 ## Infrastructure / correctness
 
+- Checkpoint store growth: `checkpoints.db` grows with every super-step (each
+  checkpoint stores the full state, so a long agent session reached ~480 MB
+  for ~880 checkpoints).  Investigate compaction / retention: does LangGraph
+  offer a more efficient mechanism (e.g. `DeltaChannel` delta storage, a
+  per-thread checkpoint retention/pruning policy, or `checkpoint_during`),
+  and is the full per-super-step history needed for resume?  A pragmatic
+  fallback is a retention policy (keep the last N checkpoints per thread) plus
+  SQLite `VACUUM`; confirm it does not break resume (ADR-0043) or HITL
+  (`interrupt`/`Command(resume=...)`, ADR-0046).  Measure first (per-checkpoint
+  size, super-step count) before choosing.
+
 - Path-containment limits (`check_path_access`, mcp-permissions): containment
   is path-based and taken as a snapshot.  A hard link inside the root to an
   inode whose other names are outside it is allowed (undetectable path-wise);
