@@ -384,6 +384,8 @@ transient `command_route` state field.  The original wiring
 `add_edge(CommandNode, END)` becomes
 `add_conditional_edges(CommandNode, command_route_router, {"": END, ...})`, so a
 workflow command can run another node (e.g. `/compact` -> the summarise node)
-before the run ends; `""` remains terminal.  Routing stays a conditional edge
-(a static topology) rather than LangGraph's `Command(goto=...)`; the rationale
-is in `system/graph-routing.md`.
+before the run ends; `""` remains terminal.  The handoff may also rejoin the
+normal path with a synthesised query (e.g. `/init` -> `Determining mode`), so a
+workflow command can delegate to the planner/tools.  Routing stays a conditional
+edge (a static topology) rather than LangGraph's `Command(goto=...)`; the
+rationale is in `system/graph-routing.md`.

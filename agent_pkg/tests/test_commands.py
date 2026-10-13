@@ -12,7 +12,7 @@ import logging
 from typing import Any, cast
 
 import pytest
-from klea_agent.commands import build_agent_commands
+from klea_agent.commands import _INIT_PROMPT, build_agent_commands
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import KleaAgentState
 from klea_utils.commands.common import Command, CommandRegistry, Subcommand
@@ -85,6 +85,16 @@ class TestCatalogue:
         registry, handlers = build_agent_commands(source_available=False, memory=False)
         assert registry.get("compact") is None
         assert "compact" not in handlers
+
+    def test_init_is_implemented(self):
+        registry, handlers = build_agent_commands(source_available=False)
+        init = registry.get("init")
+        assert init is not None
+        assert init.side == "server"
+        assert init.klass == "workflow"
+        assert init.persists == "message"
+        assert init.implemented is True
+        assert "init" in handlers
 
 
 class TestDisabledCommands:
@@ -339,6 +349,17 @@ class TestCompactCommand:
         assert updates["messages"] == []
 
 
+class TestInitCommand:
+    async def test_init_hands_off_to_the_normal_path_with_the_prompt(self):
+        # ``/init`` rejoins the normal path with a synthesised query; the
+        # trailing ``/init`` turn is replaced by the prompt.
+        node = _agent_node([])
+        updates = await node.execute(_state("/init"))
+        assert updates["command_route"] == "init"
+        assert updates["query"] == _INIT_PROMPT
+        assert [m.content for m in updates["messages"]] == [_INIT_PROMPT]
+
+
 class TestRouter:
     def test_command_query_routes_to_node(self):
         assert command_query_router(_state("/mode scientific")) == "command"
@@ -384,6 +405,8 @@ async def test_graph_wires_the_command_node(monkeypatch):
     # ``/compact``'s handoff target exists and is wired (memory is on).
     assert "Compacting memory" in names
     assert ("Running command", "Compacting memory") in edges
+    # ``/init`` hands off back into the normal path.
+    assert ("Running command", "Determining mode") in edges
 
     assert await agent._command_router(_state("/mode scientific")) == "command"
     assert await agent._command_router(_state("plain query")) == "continue"

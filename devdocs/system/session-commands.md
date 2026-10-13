@@ -123,12 +123,17 @@ and the menu (`CommandRegistry.available`).
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 | `/compact` | workflow | checkpoint | block | summarise and shorten the conversation memory |
+| `/init` | workflow | message | block | generate project guidance (`AGENTS.md`) |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/cwd`, `/file`, `/webfetch`, `/run`, `/init`.
+published yet): `/cwd`, `/file`, `/webfetch`, `/run`.
 `/compact` is registered only when conversation memory is enabled (it hands
 off to the compaction node); it forces a summarisation past the automatic
-threshold and reports the outcome in the inspection pane.
+threshold and reports the outcome in the inspection pane.  `/init` is a
+workflow command that hands off *back into the normal path* with a
+synthesised query, so the ordinary planner/tool loop explores the project and
+writes `AGENTS.md` (a deliberately cheap first cut; see the backlog for a
+dedicated init node).
 The attachment trio (`/file`, `/upload`, `/webfetch`) plus the session
 workspace is **deferred pending a use-case decision** -- see the backlog for
 the options (convert-to-workspace vs ingest-and-retrieve vs in-prompt).

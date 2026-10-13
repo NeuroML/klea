@@ -749,9 +749,14 @@ class KleaAgent(BaseLangGraph):
         # A command may hand off to another node before the run ends: its
         # handler sets ``GraphCommandResult.route``, which the command node
         # writes to the transient ``command_route``; ``""`` is terminal (END).
-        # ``/compact`` hands off to the compaction node when memory is on.
+        # ``/compact`` hands off to the compaction node when memory is on;
+        # ``/init`` rejoins the normal path (mode/guard/route/planner) with a
+        # synthesised query so the agent loop writes ``AGENTS.md``.
         # See ``devdocs/system/graph-routing.md``.
-        command_routes: dict[Any, str] = {"": END}
+        command_routes: dict[Any, str] = {
+            "": END,
+            "init": self._mode_decision_node.label,
+        }
         if self.memory:
             command_routes["compact"] = self._compact_node.label
         self.workflow.add_conditional_edges(

@@ -8,7 +8,8 @@ Client-side commands (``/model``, ``/help``, ...) belong to the frontends, not
 here: the backend cannot know them without a circular dependency, so a
 client-side command reaching the graph is simply unknown.  ``/mode`` and
 ``/access`` are implemented graph commands; ``/compact`` (memory-gated) hands
-off to the compaction node.  The rest are documented stubs that reply "not
+off to the compaction node, and ``/init`` hands off back into the normal path
+with a synthesised query.  The rest are documented stubs that reply "not
 implemented yet" until each lands.  See
 ``devdocs/system/session-commands.md``.
 
@@ -24,6 +25,7 @@ from collections.abc import Iterable
 from klea_utils.commands.common import Command, CommandRegistry, ParsedCommand
 from klea_utils.commands.graph import GraphCommandHandler, GraphCommandResult
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
 from klea_agent.nodes.mode_router import decide_mode
@@ -63,6 +65,31 @@ _COMPACT_COMMAND = Command(
     klass="workflow",
     persists="checkpoint",
     while_streaming="block",
+)
+
+#: ``/init``: generate project guidance (``AGENTS.md``).  A workflow command
+#: that hands off *back into the normal path* with a synthesised query, so the
+#: ordinary agent loop explores the project and writes the file.  ``persists``
+#: is ``message`` so the (replaced) init turn stays in the model's history.
+_INIT_COMMAND = Command(
+    name="init",
+    summary="Generate project guidance (AGENTS.md)",
+    side="server",
+    klass="workflow",
+    persists="message",
+    while_streaming="block",
+)
+
+#: The synthesised query ``/init`` runs as a normal task.  Deliberately
+#: bounded and conservative so the agent does not invent commands.
+_INIT_PROMPT = (
+    "Generate project guidance for future coding agents: create or update an "
+    "AGENTS.md file at the project root. First explore the repository (the "
+    "README, the build/package configuration, the top-level source layout, "
+    "and any existing AGENTS.md or CLAUDE.md), then write a concise AGENTS.md "
+    "covering the project layout, the build/test/lint commands, the code "
+    "conventions, and important gotchas. Keep it short and accurate; do not "
+    "invent commands or conventions you have not verified."
 )
 
 #: Server-side commands that are documented but not implemented yet.
@@ -107,15 +134,6 @@ _STUB_COMMANDS: tuple[Command, ...] = (
         persists="message",
         while_streaming="block",
         arg_hint="<command>",
-        implemented=False,
-    ),
-    Command(
-        name="init",
-        summary="Write project guidance to AGENTS.md",
-        side="server",
-        klass="workflow",
-        persists="message",
-        while_streaming="block",
         implemented=False,
     ),
 )
@@ -221,6 +239,32 @@ def _handle_compact(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResu
     )
 
 
+def _handle_init(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
+    """Handle ``/init``: generate project guidance via the normal agent loop.
+
+    Rather than a dedicated node, this hands off *back into the normal path*
+    (``route="init"``) with the query replaced by :data:`_INIT_PROMPT`, so the
+    ordinary planner/tool loop explores the project and writes ``AGENTS.md``.
+    The trailing ``/init`` turn (appended by ``InitGraphState``) is replaced by
+    the prompt so the model's memory reads coherently; the normal path sets the
+    user-facing message.
+
+    :param state: The graph state.
+    :param parsed: The parsed command.
+    :returns: The command result carrying the handoff route and prompt query.
+    """
+    logger.debug("command /init: handing off to the normal path with the prompt")
+    messages = list(getattr(state, "messages", []) or [])
+    query = getattr(state, "query", "")
+    if messages and getattr(messages[-1], "content", None) == query:
+        messages = [*messages[:-1], HumanMessage(content=_INIT_PROMPT)]
+    return GraphCommandResult(
+        summary="Generating project guidance (AGENTS.md)",
+        updates={"query": _INIT_PROMPT, "messages": messages},
+        route="init",
+    )
+
+
 def build_agent_commands(
     *, source_available: bool, disabled: Iterable[str] = (), memory: bool = True
 ) -> tuple[CommandRegistry, dict[str, GraphCommandHandler]]:
@@ -238,7 +282,7 @@ def build_agent_commands(
     """
     disabled_names = {name.strip().lower() for name in disabled}
     registry = CommandRegistry()
-    commands = [_MODE_COMMAND, _ACCESS_COMMAND, *_STUB_COMMANDS]
+    commands = [_MODE_COMMAND, _ACCESS_COMMAND, _INIT_COMMAND, *_STUB_COMMANDS]
     if memory:
         commands.append(_COMPACT_COMMAND)
     for command in commands:
@@ -251,6 +295,8 @@ def build_agent_commands(
         handlers["mode"] = _handle_mode(source_available)
     if registry.get("access") is not None:
         handlers["access"] = _handle_access
+    if registry.get("init") is not None:
+        handlers["init"] = _handle_init
     if registry.get("compact") is not None:
         handlers["compact"] = _handle_compact
     logger.debug(f"agent command catalogue: {len(registry.all())} command(s)")

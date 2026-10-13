@@ -289,15 +289,21 @@ Last updated: 2026-10-12.
   the LangGraph checkpoint and clear the workspace (see Session deletion
   cleanup).
 
-- Remaining session commands (P4 of ADR-0047): `/init` (writes project
-  guidance to `AGENTS.md`).  `/compact` is implemented: it forces a
-  summarisation via the compaction node and reports the outcome in the
-  inspection pane.  Client-only commands (`/new`, `/sessions`, `/rename`,
-  `/model`, `/export`) are small, frontend-owned wins.  Dropped
-  as not applicable: `/plan` (Klea has no plan mode -- read-only is the access
-  level, not a workflow), `/theme` (Klea offers only light/dark, toggled in
-  the header; not worth a command), and `/commands` (redundant with bare
+- Session commands (P4 of ADR-0047): `/compact` and `/init` are implemented.
+  `/compact` forces a summarisation via the compaction node and reports the
+  outcome in the inspection pane; `/init` (a cheap first cut) hands off to the
+  normal agent loop with a canned prompt.  Client-only commands (`/new`,
+  `/sessions`, `/rename`, `/model`, `/export`) are small, frontend-owned wins.
+  Dropped as not applicable: `/plan` (Klea has no plan mode -- read-only is the
+  access level, not a workflow), `/theme` (Klea offers only light/dark, toggled
+  in the header; not worth a command), and `/commands` (redundant with bare
   `/help`, which already lists the merged catalogue).
+- Full-fledged `/init` (deferred).  The current `/init` hands off to the normal
+  agent loop with a canned prompt: non-deterministic, uses the full tool loop,
+  and needs full access to write.  A dedicated init node -- bounded exploration
+  (fixed reads + one chat call), a path-gated write, and refuse/merge on an
+  existing `AGENTS.md` -- can replace it later if the cheap version proves
+  insufficient.
 - User-configurable conversation-memory settings: the summarisation threshold
   and recent verbatim window are now operator config (`general.memory` in the
   agent config, ADR-0018).  A per-session/user command to tune them (and a
