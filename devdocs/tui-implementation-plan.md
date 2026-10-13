@@ -15,6 +15,12 @@ Work in small, atomic, review-gated steps.  After every step:
 3. Present `git diff --stat` then the full diff; STOP for review.
 4. Commit only on explicit approval (conventional message), then continue.
 
+Add or extend tests for the changed code in the same step, under
+`utils_pkg/tests/ui/tui/` (pure-helper tests in `test_components.py`, Textual
+`run_test()` pilot tests in `test_app.py`); run them with
+`cd utils_pkg && pytest tests/ui/tui -v`.  Phase 6.2 only *hardens* the suite
+and documents it, it does not write it from scratch.
+
 Keep devdocs in sync in the same step as the code they describe
 (code -> devdoc map in `AGENTS.md`).  ASCII-only text.  Do not touch
 unrelated files (ruff can fix pre-existing lint in other files: revert
@@ -52,7 +58,9 @@ Invariants I1-I8 are in ADR-0050 and restated in `system/tui.md`.
   - `ui/client.py` (moved from `web/nicegui/client.py`) - 99cbac4c.
   - Verified: `ruff` clean, `ty` 27 pre-existing (none new), utils_pkg and
     agent_pkg web tests green.
-* Phase 2+: see the checklist below.  Next step is **2.1**.
+* Phase 2+: see the checklist below.  Phases 2-4.1 are implemented and
+  verified with throwaway pilots; a committed test suite for them lives in
+  `utils_pkg/tests/ui/tui/` (added retroactively - see the checklist).
 
 ## Checklist
 
@@ -109,9 +117,10 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
 
 - [ ] 6.1 Finalize agent/rag TUI composition + slots; no app-specific code in
   `klea_utils/ui/tui`.
-- [ ] 6.2 Tests: shared state/reducer unit tests (post-extraction) + Textual
-  `run_test()` pilot suite with a fake backend; add
-  `system/tui-testing.md`.
+- [ ] 6.2 Harden the suite and document it: extend
+  `utils_pkg/tests/ui/tui/` (shared state/reducer unit tests) and add
+  `system/tui-testing.md` describing the fake-backend + `run_test()` pilot
+  harness.
 - [ ] 6.3 Public docs: `docs/components/tui.rst` + toctree + `CHANGELOG.md`;
   devdocs sync (`system/streams.md` TUI consumer, ADR-0013/0026 stale
   "Textual planned" wording).  Verify `make html` exit 0.

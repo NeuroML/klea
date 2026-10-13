@@ -17,7 +17,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Group, RenderableType
 from rich.markdown import Markdown
@@ -60,7 +61,7 @@ def _render_body(mime: str, data: str, text: str) -> RenderableType:
     return Markdown(data or text)
 
 
-def render_message(message: MessageData) -> RenderableType:
+def render_message(message: Mapping[str, Any]) -> RenderableType:
     """Build the Rich renderable for one transcript message.
 
     User lines render as a bold ``"> "`` prompt; agent and tool messages
