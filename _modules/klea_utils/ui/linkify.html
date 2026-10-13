@@ -305,7 +305,11 @@
           <h1>Source code for klea_utils.ui.linkify</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Bare-URL linkification for markdown text</span>
+<span class="sd">Bare-URL linkification for rendered text</span>
+
+<span class="sd">Two variants: :func:`linkify_md` wraps bare URLs as Markdown links for a</span>
+<span class="sd">Markdown renderer, and :func:`linkify_html` escapes the text and wraps bare</span>
+<span class="sd">URLs in safe anchors for plain (non-Markdown) rendering.</span>
 
 <span class="sd">File: klea_utils/ui/linkify.py</span>
 
@@ -313,6 +317,7 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">html</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 
@@ -403,6 +408,37 @@
         <span class="n">last</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">last_index</span>
     <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="n">last</span><span class="p">:])</span>
     <span class="k">return</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="linkify_html">
+<a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.linkify.linkify_html">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">linkify_html</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""HTML-escape *text* and wrap bare URLs in safe ``&lt;a&gt;`` anchors.</span>
+
+<span class="sd">    For plain-text (non-markdown) rendering, e.g. user input: the text is</span>
+<span class="sd">    escaped so it is shown verbatim (no Markdown decoration), while bare URLs</span>
+<span class="sd">    become clickable links.  The result is safe to pass to</span>
+<span class="sd">    ``ui.html(sanitize=True)``.</span>
+
+<span class="sd">    :param text: The literal text to render.</span>
+<span class="sd">    :returns: HTML with the text escaped and bare URLs wrapped in anchors.</span>
+<span class="sd">    """</span>
+    <span class="n">matches</span> <span class="o">=</span> <span class="n">_LINKIFY</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">matches</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">html</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">last</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">html</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="n">last</span> <span class="p">:</span> <span class="n">match</span><span class="o">.</span><span class="n">index</span><span class="p">]))</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">'&lt;a href="</span><span class="si">{</span><span class="n">html</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">url</span><span class="p">,</span><span class="w"> </span><span class="n">quote</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="si">}</span><span class="s1">" '</span>
+            <span class="sa">f</span><span class="s1">'target="_blank" rel="noopener noreferrer"&gt;'</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">html</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">text</span><span class="p">)</span><span class="si">}</span><span class="s2">&lt;/a&gt;"</span>
+        <span class="p">)</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">last_index</span>
+    <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">html</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">text</span><span class="p">[</span><span class="n">last</span><span class="p">:]))</span>
+    <span class="k">return</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span></div>
+
 </pre></div>
         </article>
       </div>

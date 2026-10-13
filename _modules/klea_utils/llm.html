@@ -2252,6 +2252,17 @@
             <span class="n">overrides</span><span class="p">,</span> <span class="n">session_id</span><span class="o">=</span><span class="n">session_id</span><span class="p">,</span> <span class="n">user_agent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">user_agent</span>
         <span class="p">)</span>
 
+        <span class="c1"># Disable model streaming.  ``astream_events`` (the graph runner)</span>
+        <span class="c1"># forces chat models to stream, and LangChain's streamed</span>
+        <span class="c1"># ``usage_metadata`` merge then sums input/total tokens across chunks</span>
+        <span class="c1"># for providers that report usage per chunk (VLLM, HuggingFace</span>
+        <span class="c1"># Inference Providers, ...), inflating them massively</span>
+        <span class="c1"># (https://github.com/langchain-ai/langchain/issues/30429).  Klea</span>
+        <span class="c1"># renders no token deltas today (see the backlog), so non-streaming is</span>
+        <span class="c1"># a safe, accurate default.  ``disable_streaming`` is a</span>
+        <span class="c1"># ``BaseChatModel`` field, so it survives provider field filtering.</span>
+        <span class="n">overrides</span><span class="p">[</span><span class="s2">"disable_streaming"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
         <span class="c1"># Wrap in the "configurable" key expected by _ConfigurableModel.</span>
         <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">RunnableConfig</span><span class="p">,</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">})</span></div>
 </div>

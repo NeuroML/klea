@@ -314,6 +314,8 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_html</span>
+
 <span class="c1">#: Recognised transcript roles; anything else falls back to ``agent``.</span>
 <span class="n">_ROLES</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"user"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">,</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"system"</span><span class="p">)</span>
 
@@ -328,14 +330,20 @@
     <span class="k">return</span> <span class="n">mime</span> <span class="ow">in</span> <span class="n">_DIFF_MIMES</span> <span class="ow">or</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/x-"</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_render_body</span><span class="p">(</span><span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Render a block body according to its MIME type.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_body</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a block body according to its role and MIME type.</span>
 
-<span class="sd">    Unknown/empty mime falls back to the preformatted ``text`` (markdown).</span>
-<span class="sd">    Diffs and code use NiceGUI's native ``ui.code`` (syntax highlighting and</span>
-<span class="sd">    a copy button); text uses ``ui.markdown``.</span>
+<span class="sd">    A **user** message is shown verbatim -- no Markdown decoration, so literal</span>
+<span class="sd">    underscores, ``#``, lists and newlines in the user's input (URLs, paths,</span>
+<span class="sd">    pasted code) are preserved; bare URLs stay clickable.  Other roles use the</span>
+<span class="sd">    MIME type: diffs and code use NiceGUI's native ``ui.code`` (syntax</span>
+<span class="sd">    highlighting and a copy button); text uses ``ui.markdown``.</span>
 <span class="sd">    """</span>
-    <span class="k">if</span> <span class="n">mime</span> <span class="ow">in</span> <span class="n">_DIFF_MIMES</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">:</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">html</span><span class="p">(</span><span class="n">linkify_html</span><span class="p">(</span><span class="n">text</span><span class="p">),</span> <span class="n">sanitize</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+            <span class="s2">"whitespace-pre-wrap break-words"</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mime</span> <span class="ow">in</span> <span class="n">_DIFF_MIMES</span><span class="p">:</span>
         <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="s2">"diff"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"tool-code"</span><span class="p">)</span>
     <span class="k">elif</span> <span class="n">mime</span> <span class="o">==</span> <span class="s2">"text/markdown"</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">mime</span><span class="p">:</span>
         <span class="n">ui</span><span class="o">.</span><span class="n">markdown</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="p">[</span><span class="s2">"fenced-code-blocks"</span><span class="p">,</span> <span class="s2">"tables"</span><span class="p">,</span> <span class="s2">"alerts"</span><span class="p">])</span>
@@ -438,12 +446,13 @@
                 <span class="n">text_cls</span> <span class="o">=</span> <span class="s2">"msg-collapsed"</span> <span class="k">if</span> <span class="n">collapsed</span> <span class="k">else</span> <span class="s2">"msg-expanded"</span>
             <span class="c1"># ``ui.markdown`` bodies get the chat markdown styling; ``ui.code``</span>
             <span class="c1"># bodies render their own box, so adding ``chat-markdown`` there</span>
-            <span class="c1"># would stack our ``pre``/``code`` rules on top of it.</span>
+            <span class="c1"># would stack our ``pre``/``code`` rules on top of it.  A user</span>
+            <span class="c1"># message is plain text (no markdown styling).</span>
             <span class="n">classes</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"text-left </span><span class="si">{</span><span class="n">text_cls</span><span class="si">}</span><span class="s2">"</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_code_mime</span><span class="p">(</span><span class="n">mime</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">role</span> <span class="o">!=</span> <span class="s2">"user"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_is_code_mime</span><span class="p">(</span><span class="n">mime</span><span class="p">):</span>
                 <span class="n">classes</span> <span class="o">+=</span> <span class="s2">" chat-markdown"</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">element</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="n">classes</span><span class="p">):</span>
-                <span class="n">_render_body</span><span class="p">(</span><span class="n">mime</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+                <span class="n">_render_body</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
 
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"flex flex-row justify-start items-center gap-1"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">stamp</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5"</span><span class="p">)</span>

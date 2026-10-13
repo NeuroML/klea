@@ -1827,10 +1827,31 @@ such as a Pydantic <code class="docutils literal notranslate"><span class="pre">
 </dl>
 </dd></dl>
 
-<p id="module-klea_utils.ui.linkify">Bare-URL linkification for markdown text</p>
+<p id="module-klea_utils.ui.linkify">Bare-URL linkification for rendered text</p>
+<p>Two variants: <a class="reference internal" href="#klea_utils.ui.linkify.linkify_md" title="klea_utils.ui.linkify.linkify_md"><code class="xref py py-func docutils literal notranslate"><span class="pre">linkify_md()</span></code></a> wraps bare URLs as Markdown links for a
+Markdown renderer, and <a class="reference internal" href="#klea_utils.ui.linkify.linkify_html" title="klea_utils.ui.linkify.linkify_html"><code class="xref py py-func docutils literal notranslate"><span class="pre">linkify_html()</span></code></a> escapes the text and wraps bare
+URLs in safe anchors for plain (non-Markdown) rendering.</p>
 <p>File: klea_utils/ui/linkify.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.linkify.linkify_html">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.linkify.</span></span><span class="sig-name descname"><span class="pre">linkify_html</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/linkify.html#linkify_html"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.linkify.linkify_html" title="Link to this definition">¶</a></dt>
+<dd><p>HTML-escape <em>text</em> and wrap bare URLs in safe <code class="docutils literal notranslate"><span class="pre">&lt;a&gt;</span></code> anchors.</p>
+<p>For plain-text (non-markdown) rendering, e.g. user input: the text is
+escaped so it is shown verbatim (no Markdown decoration), while bare URLs
+become clickable links.  The result is safe to pass to
+<code class="docutils literal notranslate"><span class="pre">ui.html(sanitize=True)</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>text</strong> – The literal text to render.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>HTML with the text escaped and bare URLs wrapped in anchors.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.ui.linkify.linkify_md">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.ui.linkify.</span></span><span class="sig-name descname"><span class="pre">linkify_md</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/linkify.html#linkify_md"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.linkify.linkify_md" title="Link to this definition">¶</a></dt>
@@ -2029,6 +2050,7 @@ which turns the wrapped URLs into clickable anchors.</p>
 </li>
 <li><a class="reference internal" href="#module-klea_utils.ui.inspect_format">Text helpers</a><ul>
 <li><a class="reference internal" href="#klea_utils.ui.inspect_format.format_details"><code class="docutils literal notranslate"><span class="pre">format_details()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.linkify.linkify_html"><code class="docutils literal notranslate"><span class="pre">linkify_html()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.linkify.linkify_md"><code class="docutils literal notranslate"><span class="pre">linkify_md()</span></code></a></li>
 </ul>
 </li>
