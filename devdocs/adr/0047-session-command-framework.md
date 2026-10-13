@@ -375,3 +375,15 @@ client/server split, or the taxonomy above.
 Parsing stays hand-written (`shlex`-based); argparse is deliberately not used,
 since a command dispatcher returns structured results rather than exiting the
 process.
+
+## Update (2026-10-13): a command may hand off to another node
+
+The command node is no longer always the final node: a handler may return
+`GraphCommandResult.route` (a logical route name), which the node writes to the
+transient `command_route` state field.  The original wiring
+`add_edge(CommandNode, END)` becomes
+`add_conditional_edges(CommandNode, command_route_router, {"": END, ...})`, so a
+workflow command can run another node (e.g. `/compact` -> the summarise node)
+before the run ends; `""` remains terminal.  Routing stays a conditional edge
+(a static topology) rather than LangGraph's `Command(goto=...)`; the rationale
+is in `system/graph-routing.md`.

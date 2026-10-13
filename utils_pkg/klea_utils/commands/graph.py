@@ -34,12 +34,17 @@ class GraphCommandResult:
     :param message: The user-facing reply (written to ``message_for_user``).
     :param summary: Inspect-event summary (defaults to :attr:`message`).
     :param details: Inspect-event details.
+    :param route: A logical route to hand off to after the command's state
+        updates (written to the transient ``command_route``); ``""`` (default)
+        ends the run.  The app maps the route name to a graph node via the
+        command node's conditional edge (see ``devdocs/system/graph-routing.md``).
     """
 
     updates: dict[str, Any] = field(default_factory=dict)
     message: str = ""
     summary: str = ""
     details: dict[str, Any] = field(default_factory=dict)
+    route: str = ""
 
 
 #: A graph command handler: ``(state, parsed) -> GraphCommandResult``, or an
@@ -68,3 +73,22 @@ def command_query_router(state: BaseModel) -> str:
         logger.debug(f"command query routed to the command node: /{parsed.name}")
         return "command"
     return "continue"
+
+
+def command_route_router(state: BaseModel) -> str:
+    """Return a command's handoff route, or ``""`` for a terminal command.
+
+    The command node writes the handler's ``GraphCommandResult.route`` to the
+    transient ``command_route`` state field; the app's conditional edge maps
+    this label to a graph node (``""`` -> ``END``).  Used as the path function
+    of ``add_conditional_edges`` immediately after the command node, so a
+    workflow command can hand off to another node (e.g. ``/compact`` -> the
+    summarise node) before the run ends.  See
+    ``devdocs/system/graph-routing.md``.
+
+    :param state: The graph state (its ``command_route`` is read).
+    :returns: The route label (``""`` when the command is terminal).
+    """
+    route = getattr(state, "command_route", "") or ""
+    logger.debug(f"command route: {route!r}")
+    return route

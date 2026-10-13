@@ -43,6 +43,12 @@ class BaseGraphSchema(BaseModel):
     context_summary: str = ""
     summarised_till: int = 0
     message_for_user: str = ""
+    #: Transient routing signal for a server-side command (ADR-0047): the
+    #: logical route a command handed off to (``""`` = terminal/``END``).
+    #: Written by the command node, read by ``command_route_router``, and reset
+    #: per turn by the app init node; consumed within the run, not durable
+    #: state.  See ``devdocs/system/graph-routing.md``.
+    command_route: str = ""
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
     usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(

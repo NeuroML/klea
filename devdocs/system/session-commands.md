@@ -74,10 +74,13 @@ capabilities?: {local_fs, local_shell, file_picker, ...}
   is sufficient, and an unconditional Vue key modifier would break Tab focus
   order out of the chat box.
 * Backend: `chat_core` recognises a known leading-`/` graph command; the
-  graph command node (conditional edge right after `Initializing`, then
-  `END`) resolves, dispatches to the app registry, mutates state, sets
-  `message_for_user`, and emits `inspect` events for provenance.  Commands
-  skip guard/mode/planner.
+  graph command node (a conditional edge right after `Initializing`) resolves,
+  dispatches to the app registry, mutates state, sets `message_for_user`, and
+  emits `inspect` events for provenance.  Commands skip guard/mode/planner.
+  A handler may set `GraphCommandResult.route` to **hand off** to another node
+  (written to the transient `command_route`; a conditional edge after the
+  command node maps the label, `""` -> `END`), so a workflow command can run
+  further nodes before the run ends.  See `system/graph-routing.md`.
 
 ## Command node
 
@@ -86,7 +89,8 @@ an app-built `CommandRegistry` (handlers with access to that app's nodes and
 state), a validate/resolve/dispatch step, and `inspect` stream events.  No
 separate command log is kept.  A handler may be synchronous or `async` (the
 node awaits an awaitable result), so a workflow command can call a model or
-tool (e.g. `/compact`).
+tool (e.g. `/compact`); it may also set a `route` to hand off to another node
+before the run ends.
 
 ## Session workspace
 

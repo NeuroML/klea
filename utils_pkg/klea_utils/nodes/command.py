@@ -6,7 +6,9 @@ Commands are user-invoked tool calls; this node is the user-facing
 counterpart of the tools picker/caller.  It parses a leading ``/`` command
 from ``state.query``, dispatches it to an app-provided graph handler, emits an
 ``inspect`` event for provenance, and ends the run with the handler's message.
-A command that is not ``persists: message`` is kept out of the LLM's message
+A handler may set a ``route`` to hand off to another node first (the app's
+conditional edge on ``command_route`` maps it; ``""`` ends the run).  A
+command that is not ``persists: message`` is kept out of the LLM's message
 history (the graph-state change still persists in the checkpoint).
 
 See ``devdocs/system/session-commands.md``; ADR-0047.
@@ -40,13 +42,14 @@ from klea_utils.nodes.context import NodeContext
 
 
 class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext]):
-    """Execute a graph (server-side) command and end the run.
+    """Execute a graph (server-side) command, optionally handing off, then end.
 
     Constructed with the app's :class:`CommandRegistry` (metadata) and its
     graph handler map.  A command with no handler, or one marked
     ``implemented=False``, replies that it is not implemented yet.  A handler
     may be synchronous or ``async`` (the node awaits an awaitable result), so a
-    workflow command can await an LLM/tool call.
+    workflow command can await an LLM/tool call, and may set a ``route`` to hand
+    off to another node before the run ends.
     """
 
     def __init__(
@@ -116,6 +119,9 @@ class CommandNode(AbstractLangGraphNode[BaseModel, dict[str, Any], NodeContext])
         self._emit_inspect(command, result.summary or result.message, result.details)
         updates: dict[str, Any] = dict(result.updates)
         updates["message_for_user"] = result.message
+        # Transient handoff signal: the conditional edge after this node maps it
+        # ("" = terminal).  See ``devdocs/system/graph-routing.md``.
+        updates["command_route"] = result.route
         if command.persists != "message":
             self._drop_command_message(state, query, updates)
         self.logger.debug(
