@@ -70,6 +70,7 @@ class InitGraphState(
         return {
             "guard_decision": "safe",
             "message_for_user": "",
+            "command_route": "",
             "plan": PlanSchema(),
             "goal": GoalSchema(),
             "route": RouteSchema(),

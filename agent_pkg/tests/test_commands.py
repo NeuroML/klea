@@ -16,7 +16,11 @@ from klea_agent.commands import build_agent_commands
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import KleaAgentState
 from klea_utils.commands.common import Command, CommandRegistry, Subcommand
-from klea_utils.commands.graph import GraphCommandResult, command_query_router
+from klea_utils.commands.graph import (
+    GraphCommandResult,
+    command_query_router,
+    command_route_router,
+)
 from klea_utils.llm import LLMModel
 from klea_utils.nodes.command import CommandNode
 from langchain_core.messages import HumanMessage
@@ -268,6 +272,44 @@ class TestNodeBehaviour:
         cast(Any, node).write_custom_stream = lambda _event: None
         updates = await node.execute(_state("/sess bogus"))
         assert "Unknown subcommand" in updates["message_for_user"]
+
+    async def test_terminal_command_writes_an_empty_route(self):
+        # A command with no handoff leaves ``command_route`` empty (-> END).
+        node = _agent_node([])
+        updates = await node.execute(_state("/mode general"))
+        assert updates["command_route"] == ""
+
+    async def test_handler_route_is_written_to_command_route(self):
+        # A workflow command hands off via ``GraphCommandResult.route``.
+        registry = CommandRegistry()
+        registry.register(
+            Command(
+                name="compact", summary="compact", side="server", persists="checkpoint"
+            )
+        )
+        node = CommandNode(
+            logger,
+            "Running command",
+            registry=registry,
+            handlers={
+                "compact": lambda _s, _p: GraphCommandResult(
+                    message="ok", route="compact"
+                )
+            },
+        )
+        cast(Any, node).write_custom_stream = lambda _event: None
+        updates = await node.execute(_state("/compact"))
+        assert updates["command_route"] == "compact"
+
+
+class TestCommandRouteRouter:
+    def test_terminal_route_is_empty(self):
+        assert command_route_router(_state("x")) == ""
+
+    def test_route_is_returned(self):
+        state = _state("x")
+        state.command_route = "compact"
+        assert command_route_router(state) == "compact"
 
 
 class TestRouter:

@@ -18,7 +18,7 @@ from typing import Any, final, override
 
 from fastmcp.client.client import CallToolResult
 from fastmcp.mcp_config import MCPConfig
-from klea_utils.commands.graph import command_query_router
+from klea_utils.commands.graph import command_query_router, command_route_router
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import create_configurable_model
@@ -716,7 +716,8 @@ class KleaAgent(BaseLangGraph):
 
         self.workflow.add_edge(START, self._init_graph_state_node.label)
         # Session commands (ADR-0047): a known server-side ``/command`` runs in
-        # the command node and ends; anything else continues to mode/guard/route.
+        # the command node (which may hand off to another node before ending);
+        # anything else continues to mode/guard/route.
         self.workflow.add_conditional_edges(
             self._init_graph_state_node.label,
             self._command_router,
@@ -725,7 +726,15 @@ class KleaAgent(BaseLangGraph):
                 "continue": self._mode_decision_node.label,
             },
         )
-        self.workflow.add_edge(self._command_node.label, END)
+        # A command may hand off to another node before the run ends: its
+        # handler sets ``GraphCommandResult.route``, which the command node
+        # writes to the transient ``command_route``; ``""`` is terminal (END).
+        # See ``devdocs/system/graph-routing.md``.
+        self.workflow.add_conditional_edges(
+            self._command_node.label,
+            command_route_router,
+            {"": END},
+        )
         # ADR-0030: a mode that cannot run (e.g. Scientific without a curated
         # source) is informed, not silently downgraded; proceed otherwise.
         self.workflow.add_conditional_edges(
