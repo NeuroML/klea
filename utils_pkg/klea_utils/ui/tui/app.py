@@ -47,6 +47,7 @@ from klea_utils.ui.tui.components.commands import (
     build_catalogue,
     handle_command,
 )
+from klea_utils.ui.tui.components.hitl import HitlDecision, HitlModal
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
@@ -326,6 +327,8 @@ class KleaTuiApp(App[None]):
         self._worker: Worker[None] | None = None
         self._last_query = ""
         self._retryable = False
+        #: The interrupt id the pending HITL modal is answering.
+        self._hitl_id: str | None = None
         #: Merged session-command catalogue (client + server); loaded on mount.
         self._catalogue: CommandRegistry | None = None
 
@@ -394,12 +397,24 @@ class KleaTuiApp(App[None]):
         if result.notice:
             self.notify(result.notice)
 
-    def start_run(self, query: str, *, resume: bool = False) -> None:
+    def start_run(
+        self,
+        query: str,
+        *,
+        resume: bool = False,
+        interrupt_response: dict[str, Any] | None = None,
+        interrupt_id: str | None = None,
+        interrupt_cancel: bool = False,
+    ) -> None:
         """Start the single run for *query*, refusing a concurrent submit.
 
-        :param query: The user's query text (unused on a resume).
+        :param query: The user's query text (unused on a resume or an answer).
         :param resume: Resume the chat's last failed run from its checkpoint
             instead of starting a new turn.
+        :param interrupt_response: Answer a pending HITL interrupt (ADR-0046).
+        :param interrupt_id: Id of the interrupt being answered.
+        :param interrupt_cancel: Cancel the pending interrupt instead of
+            answering.
         """
         if self._streaming:
             logger.debug("Refusing submit: a run is already streaming")
@@ -408,10 +423,17 @@ class KleaTuiApp(App[None]):
         # Reserve the slot synchronously so a rapid second submit is refused
         # before the worker task starts.
         self._streaming = True
-        if not resume:
+        is_query = not resume and interrupt_response is None and not interrupt_cancel
+        if is_query:
             self._last_query = query
         self._retryable = False
-        self._worker = self._run_query(query, resume)
+        self._worker = self._run_query(
+            query,
+            resume=resume,
+            interrupt_response=interrupt_response,
+            interrupt_id=interrupt_id,
+            interrupt_cancel=interrupt_cancel,
+        )
 
     async def action_stop(self) -> None:
         """Stop the active run: cancel locally and ask the server to cancel."""
@@ -439,18 +461,82 @@ class KleaTuiApp(App[None]):
         if self._screen is not None:
             await self._screen.toggle_view()
 
+    def _open_hitl(self, ask: dict[str, Any]) -> None:
+        """Open the HITL answer modal for *ask* (review / input).
+
+        :param ask: The interrupt ``data``.
+        """
+        kind = ask.get("kind", "input")
+        if kind == "permission":
+            # The permission modal lands in a later step; keep the ask until
+            # then.
+            logger.debug("permission ask deferred: chat=%s", self.ctx.chat_id)
+            return
+        self._hitl_id = ask.get("interrupt_id")
+        self.push_screen(HitlModal(ask), callback=self._on_hitl_decision)
+
+    def _on_hitl_decision(self, decision: HitlDecision | None) -> None:
+        """Continue the paused run with the modal's answer.
+
+        :param decision: The modal's :class:`HitlDecision`, or ``None``.
+        """
+        if decision is None:
+            return
+        self._resume_from_hitl(decision)
+
     @work
-    async def _run_query(self, query: str, resume: bool = False) -> None:
-        """Stream one query's events into the transcript and turn status.
+    async def _resume_from_hitl(self, decision: HitlDecision) -> None:
+        """Record the answer and continue the paused run (ADR-0046).
+
+        :param decision: The modal's :class:`HitlDecision`.
+        """
+        # Lazy: the state store is only needed when answering.
+        from klea_utils.ui.state import ensure_chat, interrupt_display
+
+        screen = self._screen
+        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        chat["messages"].append(
+            {
+                "text": interrupt_display(decision.response, cancel=decision.cancel),
+                "stamp": _stamp(),
+                "role": "user",
+                "header": "",
+            }
+        )
+        if screen is not None:
+            await screen.append_message(chat["messages"][-1])
+        chat.pop("interrupt", None)
+        self.start_run(
+            "",
+            interrupt_response=decision.response,
+            interrupt_id=self._hitl_id,
+            interrupt_cancel=decision.cancel,
+        )
+
+    @work
+    async def _run_query(
+        self,
+        query: str,
+        *,
+        resume: bool = False,
+        interrupt_response: dict[str, Any] | None = None,
+        interrupt_id: str | None = None,
+        interrupt_cancel: bool = False,
+    ) -> None:
+        """Stream one run's events into the transcript and turn status.
 
         Feeds every event through the shared reducer
         (:func:`klea_utils.ui.stream_events.apply_stream_event`), renders
         ``progress`` in the turn-status line and ``complete`` as the final
-        transcript message, and clears the run slot on every exit path.
+        transcript message, and clears the run slot on every exit path.  A run
+        may be a new query, a failure resume, or a HITL answer/cancel.
 
-        :param query: The user's query text (unused on a resume).
+        :param query: The user's query text (unused on a resume or an answer).
         :param resume: Resume the chat's last failed run instead of starting a
             new turn (the query is not resent).
+        :param interrupt_response: Answer a pending HITL interrupt (ADR-0046).
+        :param interrupt_id: Id of the interrupt being answered.
+        :param interrupt_cancel: Cancel the pending interrupt.
         """
         # Lazy: httpx and the LLM chain are only needed for a live run.
         import httpx
@@ -465,15 +551,16 @@ class KleaTuiApp(App[None]):
             return
 
         chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        is_query = not resume and interrupt_response is None and not interrupt_cancel
         logger.debug(
             "run start: user=%s chat=%s resume=%s",
             self.ctx.user_id,
             self.ctx.chat_id,
             resume,
         )
-        if not resume:
-            # A resume re-runs the failed turn; its user message is already
-            # recorded, so it is not appended again.
+        if is_query:
+            # A resume/answer continues an existing turn; its user message is
+            # already recorded, so it is not appended again.
             chat["messages"].append(
                 {"text": query, "stamp": _stamp(), "role": "user", "header": ""}
             )
@@ -497,6 +584,9 @@ class KleaTuiApp(App[None]):
                 self.ctx.server_url,
                 user_id=self.ctx.user_id,
                 resume=resume,
+                interrupt_response=interrupt_response,
+                interrupt_id=interrupt_id,
+                interrupt_cancel=interrupt_cancel,
             ):
                 etype = event.get("type")
                 if etype == "ping":
@@ -540,12 +630,12 @@ class KleaTuiApp(App[None]):
                     logger.debug("run error: chat=%s: %s", self.ctx.chat_id, message)
                     break
                 if action == "interrupt":
-                    # The run paused for HITL input (ADR-0046): stop streaming
-                    # and show the status; the modal/answer lands in a later
-                    # step.
+                    # The run paused for HITL input (ADR-0046): stop streaming,
+                    # show the status, and open the answer modal.
                     chat["turn_status"] = {"kind": "awaiting_input"}
                     screen.show_awaiting_input()
                     logger.debug("run paused for input: chat=%s", self.ctx.chat_id)
+                    self._open_hitl(chat.get("interrupt") or {})
                     break
         except asyncio.CancelledError:
             # The user pressed Stop: record the status and let the worker end
