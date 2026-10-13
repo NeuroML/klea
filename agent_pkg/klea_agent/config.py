@@ -32,6 +32,29 @@ class CommandsConfig(BaseModel):
     )
 
 
+class MemoryConfig(BaseModel):
+    """Conversation-memory settings (summarisation; ADR-0018).
+
+    Tune these to the model's context and the workload: a larger recent
+    window keeps more raw conversation in every memory-enabled prompt (better
+    continuity, higher per-call cost); a larger threshold summarises less
+    often.
+    """
+
+    #: Minimum characters of *old* conversation (before the recent verbatim
+    #: window) before summarising.  Larger = summarise less often.
+    summarisation_threshold_chars: int = Field(
+        default=40_000,
+        description="Min chars of old history before summarising",
+    )
+    #: Character budget for the recent verbatim window kept out of the summary
+    #: and injected into memory-enabled prompts.
+    num_history_chars: int = Field(
+        default=20_000,
+        description="Chars of recent history kept verbatim",
+    )
+
+
 class GeneralConfig(BaseModel):
     """General, domain-agnostic application settings (agent)."""
 
@@ -40,6 +63,8 @@ class GeneralConfig(BaseModel):
     bundled_tools: BundledToolsConfig = Field(default_factory=BundledToolsConfig)
     #: Session-command settings (ADR-0047).
     commands: CommandsConfig = Field(default_factory=CommandsConfig)
+    #: Conversation-memory settings (summarisation).
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     #: Tool invocation access level (ADR-0037).  ``read_only`` hides and
     #: rejects mutating tools; per-request payloads may override it.
     access_level: AccessLevel = Field(

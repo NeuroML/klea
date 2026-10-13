@@ -37,6 +37,18 @@ class TestWriteConfigTemplate:
         assert config.general.access_level == "full"
         assert config.general.tool_access == {}
 
+    def test_memory_defaults(self):
+        """Conversation-memory defaults are tuned for a coding agent."""
+        config = AppConfig()
+        assert config.general.memory.summarisation_threshold_chars == 40_000
+        assert config.general.memory.num_history_chars == 20_000
+
+    def test_template_includes_memory_settings(self, tmp_path):
+        target = write_config_template(tmp_path)
+        data = json.loads(target.read_text())
+        assert data["general"]["memory"]["summarisation_threshold_chars"] == 40_000
+        assert data["general"]["memory"]["num_history_chars"] == 20_000
+
     def test_template_includes_access_settings(self, tmp_path):
         target = write_config_template(tmp_path)
         data = json.loads(target.read_text())
