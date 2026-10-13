@@ -247,6 +247,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/mcp.html">MCP utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/models_catalog.html">Model catalog</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/commands.html">Commands</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-tui.html">UI - terminal REPL</a></li>
@@ -365,6 +366,11 @@ The RAG frontends do not expose any yet.</p>
 <td><p><code class="docutils literal notranslate"><span class="pre">/export</span></code></p></td>
 <td><p>Download the session transcript as Markdown.</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/sessions</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">[list]</span></code> / <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">switch</span> <span class="pre">&lt;n|id&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">delete</span> <span class="pre">&lt;n|id&gt;</span></code></p></td>
+<td><p>List the sessions (pinned first), switch the active session by number
+or id, or delete a session (with confirmation).</p></td>
+</tr>
 </tbody>
 </table>
 </div>
@@ -393,9 +399,23 @@ argument it reports the current mode.</p></td>
 <td><p>Show or set the tool access level; with no argument it reports the
 current level.</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/compact</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/compact</span></code></p></td>
+<td><p>Summarise and shorten the conversation memory now (Agent, when
+conversation memory is enabled).  The outcome is shown in the inspect
+pane.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/init</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/init</span></code></p></td>
+<td><p>Generate project guidance (<code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code>) for the current project so
+future sessions pick up its conventions (Agent, full access).</p></td>
+</tr>
 </tbody>
 </table>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">/init</span></code> writes <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> in the project directory, so it needs the
+<code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level; <code class="docutils literal notranslate"><span class="pre">/compact</span></code> is offered only when conversation
+memory is enabled (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>).</p>
 </section>
 <section id="disabling-commands">
 <h2>Disabling commands<a class="headerlink" href="#disabling-commands" title="Link to this heading">¶</a></h2>

@@ -247,6 +247,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/mcp.html">MCP utilities</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/models_catalog.html">Model catalog</a></li>
 <li class="toctree-l3"><a class="reference internal" href="../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../api/utils/commands.html">Commands</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../api/utils/ui-tui.html">UI - terminal REPL</a></li>
@@ -378,14 +379,25 @@ step results and delivered.</p></li>
 <section id="memory">
 <h2>Memory<a class="headerlink" href="#memory" title="Link to this heading">¶</a></h2>
 <p>Conversation history is summarised per session, so long-running chats stay
-within the model’s context window.</p>
+within the model’s context window: the most recent history is kept verbatim
+and older history is folded into a running summary that the node prompts
+reuse.  The <code class="docutils literal notranslate"><span class="pre">general.memory</span></code> config tunes this per deployment – the
+<code class="docutils literal notranslate"><span class="pre">summarisation_threshold_chars</span></code> (how much old history accumulates before
+summarising; default 40000) and <code class="docutils literal notranslate"><span class="pre">num_history_chars</span></code> (how much recent
+history stays verbatim; default 20000).</p>
+<p><code class="docutils literal notranslate"><span class="pre">/compact</span></code> triggers a summarisation on demand (for example to free context
+before a large task).  The outcome – how much was summarised, or that there
+was nothing to summarise – is shown in the inspect pane, not the chat, since
+the summary is internal memory rather than a reply.</p>
 </section>
 <section id="session-commands">
 <h2>Session commands<a class="headerlink" href="#session-commands" title="Link to this heading">¶</a></h2>
 <p>A run is steered with in-session <code class="docutils literal notranslate"><span class="pre">/commands</span></code>: type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for
-the menu.  <code class="docutils literal notranslate"><span class="pre">/mode</span></code> sets the operating mode, and <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the
-available commands.  Commands run without the model – a client command in
-the frontend, a graph command in the graph.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a>.</p>
+the menu.  <code class="docutils literal notranslate"><span class="pre">/mode</span></code> sets the operating mode, <code class="docutils literal notranslate"><span class="pre">/compact</span></code> summarises the
+memory, <code class="docutils literal notranslate"><span class="pre">/init</span></code> generates project guidance, and <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the
+available commands.  A client command runs in the frontend; a graph command
+runs in the graph and may itself use the model (for example <code class="docutils literal notranslate"><span class="pre">/init</span></code>).  See
+<a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a>.</p>
 </section>
 <section id="project-context">
 <h2>Project context<a class="headerlink" href="#project-context" title="Link to this heading">¶</a></h2>
@@ -399,7 +411,7 @@ so editing it updates the agent without restarting the server.</p>
 commands, code layout, house style) inform both how a task is planned and
 how the reply is written.  It is not injected into the per-round nodes,
 which see project specifics through the plan instead.  A project with no
-instruction file simply has no extra context.</p>
+instruction file simply has no extra context; run <code class="docutils literal notranslate"><span class="pre">/init</span></code> to generate one.</p>
 </section>
 <section id="tool-access">
 <h2>Tool access<a class="headerlink" href="#tool-access" title="Link to this heading">¶</a></h2>

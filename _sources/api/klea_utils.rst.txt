@@ -13,6 +13,7 @@ Shared utilities used by all Klea packages.
    utils/mcp
    utils/models_catalog
    utils/api
+   utils/commands
    utils/ui
    utils/nodes
    utils/imports

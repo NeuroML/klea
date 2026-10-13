@@ -69,15 +69,27 @@ Memory
 ------
 
 Conversation history is summarised per session, so long-running chats stay
-within the model's context window.
+within the model's context window: the most recent history is kept verbatim
+and older history is folded into a running summary that the node prompts
+reuse.  The ``general.memory`` config tunes this per deployment -- the
+``summarisation_threshold_chars`` (how much old history accumulates before
+summarising; default 40000) and ``num_history_chars`` (how much recent
+history stays verbatim; default 20000).
+
+``/compact`` triggers a summarisation on demand (for example to free context
+before a large task).  The outcome -- how much was summarised, or that there
+was nothing to summarise -- is shown in the inspect pane, not the chat, since
+the summary is internal memory rather than a reply.
 
 Session commands
 ----------------
 
 A run is steered with in-session ``/commands``: type ``/`` in the input for
-the menu.  ``/mode`` sets the operating mode, and ``/help`` lists the
-available commands.  Commands run without the model -- a client command in
-the frontend, a graph command in the graph.  See :doc:`commands`.
+the menu.  ``/mode`` sets the operating mode, ``/compact`` summarises the
+memory, ``/init`` generates project guidance, and ``/help`` lists the
+available commands.  A client command runs in the frontend; a graph command
+runs in the graph and may itself use the model (for example ``/init``).  See
+:doc:`commands`.
 
 Project context
 ---------------
@@ -93,7 +105,7 @@ The discovered text is rendered into the **Planner** and the final
 commands, code layout, house style) inform both how a task is planned and
 how the reply is written.  It is not injected into the per-round nodes,
 which see project specifics through the plan instead.  A project with no
-instruction file simply has no extra context.
+instruction file simply has no extra context; run ``/init`` to generate one.
 
 Tool access
 -----------
