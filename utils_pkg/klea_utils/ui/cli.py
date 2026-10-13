@@ -161,6 +161,7 @@ def _run_tui(
     tui_app_name: str,
     tui_prefix: str,
     app_module: str,
+    tui_entry: str,
     debug: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
@@ -170,7 +171,10 @@ def _run_tui(
     """Run the in-process Textual terminal client.
 
     Unlike the NiceGUI web client (a subprocess), the Textual app is a
-    library launched in this process (ADR-0050).
+    library launched in this process (ADR-0050).  *tui_entry* is the app's
+    entry as ``"module:function"`` (e.g.
+    ``"klea_agent.ui.tui.page:run_agent_tui"``), resolved at launch so the
+    CLI imports no app package and ``--help`` stays light.
     """
     # Guard: textual is an optional extra (utils_pkg/setup.cfg: [tui]).
     # Keep this at function entry so ``tui --help`` still works but ``tui``
@@ -196,10 +200,17 @@ def _run_tui(
         config_dir=config_dir,
         template_writer=template_writer,
     ):
-        # Lazy: the Textual app (and its heavy imports) is built on launch.
-        from klea_utils.ui.tui.app import run_tui
-
-        run_tui(
+        # Lazy: the app's Textual entry (and its heavy imports) is only needed
+        # on launch; resolve it from ``tui_entry`` so this module imports no
+        # app package.
+        module_path, _, attr = tui_entry.partition(":")
+        try:
+            module = importlib.import_module(module_path)
+            builder = getattr(module, attr or "run_tui")
+        except (ImportError, AttributeError) as exc:
+            typer.echo(f"Could not load TUI entry '{tui_entry}': {exc}", err=True)
+            raise typer.Exit(code=1) from None
+        builder(
             url=server_url,
             title=title,
             app_prefix=tui_prefix,
@@ -300,6 +311,7 @@ def make_client_app(
     app_module: str,
     tui_app_name: str,
     tui_prefix: str,
+    tui_entry: str,
     web_app_name: str,
     web_entry: str,
     config_env_var: str | None = None,
@@ -332,6 +344,9 @@ def make_client_app(
         ``"klea-rag-tui"``)
     :param tui_prefix: Prompt label prefix for the terminal client (e.g.
         ``"klea-rag"``)
+    :param tui_entry: Module:function of the app's TUI entry (the
+        ``run_*_tui`` launched in-process by the ``tui`` subcommand, e.g.
+        ``"klea_rag.ui.tui.page:run_rag_tui"``)
     :param web_app_name: Log identity for the web client (e.g.
         ``"klea-rag-web"``)
     :param web_entry: Module string of the app's NiceGUI entry point
@@ -422,6 +437,7 @@ def make_client_app(
             tui_app_name=tui_app_name,
             tui_prefix=tui_prefix,
             app_module=app_module,
+            tui_entry=tui_entry,
             debug=debug,
             profile=profile,
             config_env_var=config_env_var,

@@ -1,11 +1,13 @@
 # Terminal UI: architecture and component contract
 
-Status: planned (ADR-0050).  This note is the companion to ADR-0050 and
+Status: in progress (ADR-0050).  This note is the companion to ADR-0050 and
 governs the shared Textual client in `utils_pkg/klea_utils/ui/tui/` and the
 per-app entries.  The TUI is an SSE consumer of the same `/query/stream`
 endpoint the web client uses, so the event payloads are unchanged
 (`system/streams.md`); this note covers only how the terminal frontend is
-built and what it must preserve.  Nothing here is implemented yet.
+built and what it must preserve.  The shared `App`/`Screen` two-panel
+skeleton and the thin per-app entries have landed (Phase 2.2); streaming,
+rendering, HITL and session management are still to come.
 
 ## Overview
 

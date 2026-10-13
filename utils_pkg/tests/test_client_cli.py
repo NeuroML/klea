@@ -36,6 +36,7 @@ def _make_app(label="RAG", port=8005):
         app_module=f"klea_{label.lower()}.api.main:app",
         tui_app_name=f"klea-{label.lower()}-tui",
         tui_prefix=f"klea-{label.lower()}",
+        tui_entry=f"klea_{label.lower()}.ui.tui.page:run_{label.lower()}_tui",
         web_app_name=f"klea-{label.lower()}-web",
         web_entry=f"klea_{label.lower()}.ui.web.app",
     )
@@ -114,6 +115,7 @@ class TestMakeClientApp(unittest.TestCase):
                 tui_app_name="klea-rag-tui",
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
+                tui_entry="klea_rag.ui.tui.page:run_rag_tui",
                 debug=False,
                 profile=None,
                 config_env_var=None,
@@ -388,11 +390,14 @@ class TestRunTui(unittest.TestCase):
                 tui_app_name="klea-rag-tui",
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
+                tui_entry="klea_rag.ui.tui.page:run_rag_tui",
             )
         spawn.assert_not_called()
 
     def test_launches_stub_when_extra_present(self):
-        # textual present: the stub is launched against a (no-op) server.
+        # textual present: the resolved entry is launched against a (no-op)
+        # server.  Point tui_entry at the shared app so the test does not
+        # import an app package.
         with (
             mock.patch("klea_utils.imports.require_extra"),
             mock.patch(
@@ -407,6 +412,7 @@ class TestRunTui(unittest.TestCase):
                 tui_app_name="klea-rag-tui",
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
+                tui_entry="klea_utils.ui.tui.app:run_tui",
             )
         run_tui.assert_called_once_with(
             url="http://127.0.0.1:8005",
