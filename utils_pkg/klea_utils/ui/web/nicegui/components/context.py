@@ -172,6 +172,10 @@ class PageContext:
     #: Rename a chat session (``chat_id``, ``name``); registered by the
     #: chat-list component and used by the client ``/rename`` command (ADR-0047).
     rename_chat: Callable[[str, str], None] = field(default=_noop_args)
+    #: Request deletion of a chat session (``chat_id``): opens a confirmation
+    #: dialog, then deletes on confirm.  Registered by the chat-list component
+    #: and used by the client ``/sessions delete`` command (ADR-0047).
+    delete_chat: Callable[[str], None] = field(default=_noop_arg)
     #: Open the model/credential dialog from a synchronous caller; registered by
     #: the model-dialog component and used by the client ``/model`` command
     #: (ADR-0047).

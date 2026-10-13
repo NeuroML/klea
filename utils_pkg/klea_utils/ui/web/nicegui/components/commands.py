@@ -66,6 +66,10 @@ _SAVE_EXPORT_SERVICE = "save_export"
 #: (``/sessions switch``): ``(chat_id) -> None``.
 _SWITCH_CHAT_SERVICE = "switch_chat"
 
+#: ``CommandContext.services`` key for the "delete chat" hook
+#: (``/sessions delete``): ``(chat_id) -> None`` (opens a confirmation).
+_DELETE_CHAT_SERVICE = "delete_chat"
+
 
 def _save_export(filename: str, content: str) -> None:
     """Deliver an export to the user as a browser download (default hook)."""
@@ -140,6 +144,11 @@ def client_commands() -> CommandRegistry:
                 Subcommand(
                     name="switch",
                     summary="Switch to a session",
+                    arg_hint="<n|id>",
+                ),
+                Subcommand(
+                    name="delete",
+                    summary="Delete a session",
                     arg_hint="<n|id>",
                 ),
             ),
@@ -346,11 +355,38 @@ def _handle_sessions(context: CommandContext, parsed: ParsedCommand) -> CommandR
 
     A bare ``/sessions`` (and the explicit ``list`` verb) shows the same
     ordered list as the sidebar; ``switch <n|id>`` makes another session
-    active through the frontend's ``switch_chat`` hook.
+    active through the frontend's ``switch_chat`` hook; ``delete <n|id>``
+    asks the frontend to confirm, then delete.
     """
     if parsed.verb == "switch":
         return _switch_session(context, parsed)
+    if parsed.verb == "delete":
+        return _delete_session(context, parsed)
     return _list_sessions(context)
+
+
+def _delete_session(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Delete a session by number or id, after confirmation.
+
+    Resolves the target, then asks the frontend to open a confirmation dialog
+    via its ``delete_chat`` hook; the deletion runs only when the user
+    confirms (ADR-0047), so the command itself is silent.
+    """
+    target = parsed.args[0] if parsed.args else ""
+    if not target:
+        logger.warning("command /sessions delete: no target given")
+        return CommandResult.fail("Usage: /sessions delete <n|id>")
+    resolved = _resolve_session(context.user_id, target)
+    if isinstance(resolved, CommandResult):
+        logger.warning(f"command /sessions delete: {resolved.error}")
+        return resolved
+    delete = context.service(_DELETE_CHAT_SERVICE)
+    if delete is None:
+        logger.warning("command /sessions delete: delete_chat hook not registered")
+        return CommandResult.fail("Deleting sessions is not supported here.")
+    logger.debug(f"command /sessions delete: {target = } {resolved = }")
+    delete(resolved)
+    return CommandResult()
 
 
 def handle_command(ctx: PageContext, text: str) -> bool:
@@ -399,6 +435,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
             _MODEL_DIALOG_SERVICE: ctx.show_model_dialog,
             _SAVE_EXPORT_SERVICE: _save_export,
             _SWITCH_CHAT_SERVICE: ctx.switch_chat,
+            _DELETE_CHAT_SERVICE: ctx.delete_chat,
         },
     )
     result = registry.dispatch(parsed, context)

@@ -98,6 +98,38 @@ def attach_chat_list(ctx: PageContext) -> None:
         else:
             ctx.refresh_chat_list()
 
+    def _confirm_delete_chat(chat_id: str) -> None:
+        """Show a confirmation dialog before deleting a single chat.
+
+        Shared by the sidebar's per-chat delete and the client
+        ``/sessions delete`` command (ADR-0047), so both paths confirm.
+        """
+        chat = ensure_chat(ctx.user_id, chat_id)
+        name = chat["name"]
+        logger.debug(
+            "opening delete-chat dialog for chat_id=%s user_id=%s",
+            chat_id,
+            ctx.user_id,
+        )
+        dialog = ui.dialog()
+
+        def _do_delete() -> None:
+            _delete_chat(chat_id)
+            dialog.close()
+
+        with dialog, ui.card():
+            ui.label("Delete session?").classes("text-lg font-bold")
+            ui.label(
+                f"This will permanently delete the session {name!r} and its "
+                "messages. This cannot be undone."
+            ).classes("text-sm")
+            with ui.row().classes("w-full justify-end"):
+                ui.button("Cancel", on_click=dialog.close)
+                ui.button("Delete", on_click=_do_delete).props(
+                    "unelevated color=negative"
+                )
+        dialog.open()
+
     def _toggle_pin(chat_id: str) -> None:
         """Flip the pinned flag for a chat and refresh the list."""
         current_chat = ensure_chat(ctx.user_id, chat_id)
@@ -219,7 +251,9 @@ def attach_chat_list(ctx: PageContext) -> None:
                             ui.icon("push_pin")
                         with ui.item_section():
                             ui.label("Unpin" if sdata["pinned"] else "Pin")
-                    with ui.menu_item(on_click=lambda s=chat_id_: _delete_chat(s)):
+                    with ui.menu_item(
+                        on_click=lambda s=chat_id_: _confirm_delete_chat(s)
+                    ):
                         with ui.item_section().props("avatar"):
                             ui.icon("delete")
                         with ui.item_section():
@@ -333,6 +367,7 @@ def attach_chat_list(ctx: PageContext) -> None:
     ctx.switch_chat = _switch_chat
     ctx.new_chat = _new_chat
     ctx.rename_chat = _apply_rename
+    ctx.delete_chat = _confirm_delete_chat
     ctx.refresh_chat_list = _render_chat_list.refresh
 
     # ---- Left drawer (rail mode by default) ----

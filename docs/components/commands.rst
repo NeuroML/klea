@@ -50,9 +50,9 @@ These run in the frontend.
      - ``/export``
      - Download the session transcript as Markdown.
    * - ``/sessions``
-     - ``/sessions [list]`` / ``/sessions switch <n|id>``
-     - List the sessions (pinned first), or switch the active session by
-       number or id.
+     - ``/sessions [list]`` / ``/sessions switch <n|id>`` / ``/sessions delete <n|id>``
+     - List the sessions (pinned first), switch the active session by number
+       or id, or delete a session (with confirmation).
 
 A command may define **subcommands** (verbs); ``/help <command>`` lists them,
 and the ``/`` menu autocompletes them.

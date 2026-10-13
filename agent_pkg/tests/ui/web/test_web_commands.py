@@ -444,6 +444,56 @@ class TestSessionsSwitch:
         assert "not supported" in result.error
 
 
+class TestSessionsDelete:
+    def test_delete_without_a_target_is_a_usage_error(self):
+        result = client_commands().dispatch(
+            _parse("/sessions delete"), CommandContext(user_id="sd-usage")
+        )
+        assert "Usage: /sessions delete" in result.error
+
+    def test_delete_calls_the_hook_with_the_resolved_id(self):
+        _seed_sessions("sd-index", ("a", "Alpha", False), ("b", "Beta", True))
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="sd-index",
+            services={"delete_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        result = client_commands().dispatch(_parse("/sessions delete 2"), context)
+        # Pinned ``Beta`` is index 1, so index 2 is ``Alpha``.
+        assert calls == ["a"]
+        # The confirmation dialog is the feedback; the command is silent.
+        assert result.output == []
+        assert result.error == ""
+
+    def test_delete_by_exact_id_calls_the_hook(self):
+        _seed_sessions("sd-id", ("alpha", "Alpha", False))
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="sd-id",
+            services={"delete_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        client_commands().dispatch(_parse("/sessions delete alpha"), context)
+        assert calls == ["alpha"]
+
+    def test_delete_rejects_an_unknown_id(self):
+        _seed_sessions("sd-unknown", ("a", "Alpha", False))
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="sd-unknown",
+            services={"delete_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        result = client_commands().dispatch(_parse("/sessions delete nope"), context)
+        assert "No session with id" in result.error
+        assert calls == []
+
+    def test_delete_without_the_hook_fails_cleanly(self):
+        _seed_sessions("sd-nohook", ("a", "Alpha", False))
+        result = client_commands().dispatch(
+            _parse("/sessions delete a"), CommandContext(user_id="sd-nohook")
+        )
+        assert "not supported" in result.error
+
+
 async def test_sessions_command_lists_and_switches(fake_backend, agent_user):
     """``/sessions`` lists sessions; ``switch`` changes the active one."""
     fake_backend.stream_events = [{"type": "complete", "message_for_user": "hi"}]
@@ -462,3 +512,36 @@ async def test_sessions_command_lists_and_switches(fake_backend, agent_user):
     # The new session is the most recent, so the first chat is index 2.
     _send(agent_user, "/sessions switch 2")
     await agent_user.should_see("Switched to session", retries=50)
+
+
+def _delete_requests(backend) -> list:
+    """Recorded ``DELETE /chat/...`` requests."""
+    return [
+        request
+        for request in backend.requests
+        if request.method == "DELETE" and "/chat/" in request.url.path
+    ]
+
+
+async def test_sessions_delete_confirms_then_deletes(fake_backend, agent_user):
+    """``/sessions delete`` confirms before deleting the session."""
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "hi"}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("hi", retries=50)
+
+    _send(agent_user, "/sessions delete 1")
+    await agent_user.should_see("Delete session?", retries=50)
+    # Nothing is deleted until the confirmation is accepted.
+    assert _delete_requests(fake_backend) == []
+
+    delete_buttons = [
+        button
+        for button in agent_user.find(ui.button).elements
+        if getattr(button, "text", "") == "Delete"
+    ]
+    assert delete_buttons
+    UserInteraction(agent_user, {delete_buttons[0]}, None).click()
+
+    assert await _wait_for(lambda: bool(_delete_requests(fake_backend)))
