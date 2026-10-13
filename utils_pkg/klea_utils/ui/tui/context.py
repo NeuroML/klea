@@ -35,12 +35,18 @@ class TuiContext:
     :param title: Application title shown in the chat panel header.
     :param app_prefix: Prompt label prefix (e.g. ``"klea-rag"``).
     :param app_name: Log identity for this frontend (e.g. ``"klea-rag-tui"``).
+    :param user_id: Opaque persistent user identifier (interim: the
+        ``resolve_user_id()`` seam and the session picker land in Phase 5).
+    :param chat_id: Active chat conversation identifier (interim: minted at
+        launch; the keyed store + active pointer land in Phase 5).
     """
 
     server_url: str
     title: str = "Klea"
     app_prefix: str = "klea"
     app_name: str = "klea-tui"
+    user_id: str = ""
+    chat_id: str = ""
 
     #: App-defined status-panel renderers, called with this context in
     #: registration order (e.g. mode/access selectors).  Empty for RAG.

@@ -6,8 +6,10 @@ per-app entries.  The TUI is an SSE consumer of the same `/query/stream`
 endpoint the web client uses, so the event payloads are unchanged
 (`system/streams.md`); this note covers only how the terminal frontend is
 built and what it must preserve.  The shared `App`/`Screen` two-panel
-skeleton and the thin per-app entries have landed (Phase 2.2); streaming,
-rendering, HITL and session management are still to come.
+skeleton, the thin per-app entries and the single run worker (basic
+`progress`/`complete` streaming) have landed (Phase 2.2-2.3); richer
+rendering, turn-status states, HITL and session management are still to
+come.
 
 ## Overview
 
