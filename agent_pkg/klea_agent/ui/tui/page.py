@@ -26,6 +26,8 @@ def run_agent_tui(
     app_prefix: str = "klea-agent",
     app_name: str = "klea-agent-tui",
     user_id: str = "",
+    resume: str = "",
+    continue_session: bool = False,
 ) -> None:
     """Launch the agent Textual TUI.
 
@@ -34,6 +36,9 @@ def run_agent_tui(
     :param app_prefix: Prompt label prefix.
     :param app_name: Log identity for this frontend.
     :param user_id: The ``--user-id`` value (resolved by the shared entry).
+    :param resume: Chat id to resume on launch (``--resume``).
+    :param continue_session: Resume the most recently updated chat
+        (``--continue``).
     """
     # Lazy: Textual (the [tui] extra) and the shared TUI are only needed on
     # launch, so importing the CLI (e.g. for --help) stays light.
@@ -45,4 +50,6 @@ def run_agent_tui(
         app_prefix=app_prefix,
         app_name=app_name,
         user_id=user_id,
+        resume=resume,
+        continue_session=continue_session,
     )

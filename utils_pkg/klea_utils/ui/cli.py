@@ -163,6 +163,8 @@ def _run_tui(
     app_module: str,
     tui_entry: str,
     user_id: str = "",
+    resume: str = "",
+    continue_session: bool = False,
     debug: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
@@ -217,6 +219,8 @@ def _run_tui(
             app_prefix=tui_prefix,
             app_name=tui_app_name,
             user_id=user_id,
+            resume=resume,
+            continue_session=continue_session,
         )
 
 
@@ -436,6 +440,16 @@ def make_client_app(
             help="Opaque user id. Defaults to KLEA_USER_ID, else a persisted "
             "local UUID (sent only to a loopback server).",
         ),
+        resume: str = typer.Option(
+            "",
+            "--resume",
+            help="Resume a specific chat session by id.",
+        ),
+        continue_: bool = typer.Option(
+            False,
+            "--continue",
+            help="Resume the most recently updated chat session.",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -447,6 +461,8 @@ def make_client_app(
             app_module=app_module,
             tui_entry=tui_entry,
             user_id=user_id,
+            resume=resume,
+            continue_session=continue_,
             debug=debug,
             profile=profile,
             config_env_var=config_env_var,

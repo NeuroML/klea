@@ -227,6 +227,54 @@ async def test_active_chat_is_keyed_by_user(fake_backend, make_app):
     assert "u1:c1" in chats
 
 
+async def test_resume_specific_chat(fake_backend, make_app):
+    """--resume loads the given chat and renders its messages."""
+    fake_backend.messages["c9"] = [
+        {"role": "user", "content": "old q", "created_at": 0},
+        {"role": "assistant", "content": "old a", "created_at": 0},
+    ]
+    app = make_app(resume_chat_id="c9")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.ctx.chat_id == "c9"
+        chat = chats[":c9"]
+        assert [message["text"] for message in chat["messages"]] == ["old q", "old a"]
+        transcript = app.screen.query_one("#transcript")
+        assert len(list(transcript.children)) == 2
+
+
+async def test_continue_picks_most_recent(fake_backend, make_app):
+    """--continue activates the most recently updated chat."""
+    fake_backend.chats = [{"chat_id": "c2"}, {"chat_id": "c1"}]
+    app = make_app(continue_session=True)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.ctx.chat_id == "c2"
+
+
+async def test_switch_blocked_while_streaming(fake_backend, make_app, monkeypatch):
+    """load_chat is refused while a run is streaming (I2)."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await app.load_chat("c2")
+        assert app.ctx.chat_id == "c1"
+        assert app._worker is not None
+        app._worker.cancel()
+        await pilot.pause()
+
+
 async def test_toggle_inspector_view(fake_backend, make_app):
     """Ctrl+I toggles the chat panel to the inspector with query sections."""
     fake_backend.scripts = [

@@ -43,6 +43,10 @@ class FakeBackend:
         self.calls: list[dict[str, Any]] = []
         #: The active chat's ``GET /chat/.../context`` body (for hydration).
         self.chat_context: dict[str, Any] = {}
+        #: ``GET /chat/{user_id}`` rows, most recently updated first.
+        self.chats: list[dict[str, Any]] = []
+        #: ``GET /chat/{user_id}/{chat_id}/messages`` rows, keyed by chat id.
+        self.messages: dict[str, list[dict[str, Any]]] = {}
 
     async def stream_events(
         self,
@@ -94,6 +98,20 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
         return backend.chat_context
 
     monkeypatch.setattr("klea_utils.ui.client.fetch_chat_context", _fetch_chat_context)
+
+    async def _fetch_chats(server_url: str, user_id: str) -> list[dict[str, Any]]:
+        return backend.chats
+
+    monkeypatch.setattr("klea_utils.ui.client.fetch_chats", _fetch_chats)
+
+    async def _fetch_chat_messages(
+        server_url: str, user_id: str, chat_id: str
+    ) -> list[dict[str, Any]]:
+        return backend.messages.get(chat_id, [])
+
+    monkeypatch.setattr(
+        "klea_utils.ui.client.fetch_chat_messages", _fetch_chat_messages
+    )
     return backend
 
 
@@ -101,13 +119,20 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 def make_app():
     """Return a factory building a :class:`KleaTuiApp` for tests."""
 
-    def _make(chat_id: str = "test-chat", user_id: str = "") -> KleaTuiApp:
+    def _make(
+        chat_id: str = "test-chat",
+        user_id: str = "",
+        resume_chat_id: str = "",
+        continue_session: bool = False,
+    ) -> KleaTuiApp:
         return KleaTuiApp(
             TuiContext(
                 server_url="http://backend",
                 title="Klea Test",
                 chat_id=chat_id,
                 user_id=user_id,
+                resume_chat_id=resume_chat_id,
+                continue_session=continue_session,
             )
         )
 

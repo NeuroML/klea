@@ -39,6 +39,9 @@ class TuiContext:
         ``resolve_user_id()`` seam and the session picker land in Phase 5).
     :param chat_id: Active chat conversation identifier (interim: minted at
         launch; the keyed store + active pointer land in Phase 5).
+    :param resume_chat_id: Chat to resume on launch (``--resume <chat_id>``).
+    :param continue_session: Resume the most recently updated chat on launch
+        (``--continue``).
     """
 
     server_url: str
@@ -47,6 +50,8 @@ class TuiContext:
     app_name: str = "klea-tui"
     user_id: str = ""
     chat_id: str = ""
+    resume_chat_id: str = ""
+    continue_session: bool = False
 
     #: App-defined status-panel renderers, called with this context in
     #: registration order (e.g. mode/access selectors).  Empty for RAG.

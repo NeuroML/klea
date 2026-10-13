@@ -117,6 +117,8 @@ class TestMakeClientApp(unittest.TestCase):
                 app_module="klea_rag.api.main:app",
                 tui_entry="klea_rag.ui.tui.page:run_rag_tui",
                 user_id="",
+                resume="",
+                continue_session=False,
                 debug=False,
                 profile=None,
                 config_env_var=None,
@@ -421,6 +423,8 @@ class TestRunTui(unittest.TestCase):
             app_prefix="klea-rag",
             app_name="klea-rag-tui",
             user_id="",
+            resume="",
+            continue_session=False,
         )
 
 
