@@ -49,6 +49,7 @@ Structure:
 | `system/web-ui-testing.md` | Web (NiceGUI) UI testing: in-process user simulation, fake backend, per-package `tests/ui/web/` |
 | `system/file-tools.md` | File-tool contract and edge-case matrix: text/binary/encoding rules, `read_file` paging, known containment limits |
 | `system/graph-resume.md` | Confirmed LangGraph fault-tolerance/resume semantics: what a node error preserves, `None`-input resume, edge cases |
+| `system/graph-routing.md` | Graph routing: conditional-edge path functions vs LangGraph `Command(goto=...)`, and when `Command` is warranted |
 | `system/session-commands.md` | Session commands: catalogue, the client/server split, and the per-command contract (ADR-0047) |
 | `system/tui.md` | Terminal UI architecture and component contract: two-panel layout, one active session + picker, one-run model, invariants, web parity (ADR-0050) |
 | `adr/0001-chunk-workers.md` | ADR-0001: Subprocess chunk workers and DOI-cache batching for large-corpus ingestion |
