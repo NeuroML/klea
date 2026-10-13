@@ -36,6 +36,17 @@ from textual.screen import Screen
 from textual.widgets import Input, Static
 from textual.worker import Worker
 
+from klea_utils.commands.common import (
+    CommandRegistry,
+    CommandResult,
+    unescape_command,
+)
+from klea_utils.ui.tui.components.commands import (
+    TUI_CAPABILITIES,
+    CommandSuggestions,
+    build_catalogue,
+    handle_command,
+)
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
@@ -142,11 +153,14 @@ class KleaTuiScreen(Screen):
                 yield Transcript(id="transcript")
                 yield Inspector(id="inspector")
                 yield TurnStatus(id="turn-status")
+                yield CommandSuggestions(id="command-suggestions")
                 yield Input(
-                    placeholder="Type a query and press Enter...", id="query-input"
+                    placeholder="Type a query or /command, then Enter...",
+                    id="query-input",
                 )
                 yield Static(
-                    "Enter send | Ctrl+C stop | Ctrl+R retry | Ctrl+I view | Ctrl+Q quit",
+                    "Enter send | / commands | Ctrl+C stop | Ctrl+R retry "
+                    "| Ctrl+I view | Ctrl+Q quit",
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
@@ -159,7 +173,7 @@ class KleaTuiScreen(Screen):
         await self.show_view("transcript")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Hand the submitted query to the app's single run worker.
+        """Hand the submitted input to the app (command or query).
 
         :param event: The ``Input.Submitted`` event.
         """
@@ -167,7 +181,27 @@ class KleaTuiScreen(Screen):
         if not query:
             return
         event.input.value = ""
-        cast("KleaTuiApp", self.app).start_run(query)
+        await cast("KleaTuiApp", self.app).submit(query)
+
+    async def on_input_changed(self, event: Input.Changed) -> None:
+        """Refresh the command suggestions for the current input.
+
+        :param event: The ``Input.Changed`` event.
+        """
+        app = cast("KleaTuiApp", self.app)
+        suggestions = self.query_one("#command-suggestions", CommandSuggestions)
+        suggestions.update_for(event.value, app.catalogue, TUI_CAPABILITIES)
+
+    def on_option_list_option_selected(
+        self, event: CommandSuggestions.OptionSelected
+    ) -> None:
+        """Insert the chosen command into the input (autocomplete).
+
+        :param event: The ``OptionSelected`` event.
+        """
+        input_widget = self.query_one("#query-input", Input)
+        input_widget.value = f"/{event.option.id} "
+        input_widget.focus()
 
     @property
     def transcript(self) -> Transcript:
@@ -292,11 +326,73 @@ class KleaTuiApp(App[None]):
         self._worker: Worker[None] | None = None
         self._last_query = ""
         self._retryable = False
+        #: Merged session-command catalogue (client + server); loaded on mount.
+        self._catalogue: CommandRegistry | None = None
 
     def on_mount(self) -> None:
-        """Mount the two-panel screen."""
+        """Mount the two-panel screen and load the command catalogue."""
         self._screen = KleaTuiScreen(self.ctx)
         self.push_screen(self._screen)
+        self._load_catalogue()
+
+    @property
+    def catalogue(self) -> CommandRegistry | None:
+        """Return the merged command catalogue, or ``None`` if not loaded."""
+        return self._catalogue
+
+    @work
+    async def _load_catalogue(self) -> None:
+        """Fetch the server command catalogue and merge the client commands."""
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import fetch_commands
+
+        server_commands = await fetch_commands(self.ctx.server_url)
+        self._catalogue = build_catalogue(server_commands)
+        logger.debug("command catalogue loaded: %d", len(self._catalogue.all()))
+
+    async def submit(self, text: str) -> None:
+        """Route submitted *text*: an escaped slash, a command, or a query.
+
+        A ``//``-escaped input is sent as a literal ``/`` query.  A client
+        command runs locally and its output is rendered; a server command (or a
+        non-command) is forwarded as the query.
+
+        :param text: The raw input.
+        """
+        unescaped = unescape_command(text)
+        if unescaped is not None:
+            self.start_run(unescaped)
+            return
+        result = handle_command(text, self._catalogue, TUI_CAPABILITIES)
+        if result is None:
+            self.start_run(text)
+            return
+        await self._render_command_result(result)
+
+    async def _render_command_result(self, result: CommandResult) -> None:
+        """Render a client command's result as a ``system`` transcript message.
+
+        :param result: The command's :class:`CommandResult`.
+        """
+        lines = [*result.output]
+        if result.error:
+            lines.append(result.error)
+        if lines and self._screen is not None:
+            # Lazy: the state store is only needed when a command runs.
+            from klea_utils.ui.state import ensure_chat
+
+            chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+            chat["messages"].append(
+                {
+                    "text": "\n".join(lines),
+                    "stamp": _stamp(),
+                    "role": "system",
+                    "header": "",
+                }
+            )
+            await self._screen.append_message(chat["messages"][-1])
+        if result.notice:
+            self.notify(result.notice)
 
     def start_run(self, query: str, *, resume: bool = False) -> None:
         """Start the single run for *query*, refusing a concurrent submit.
