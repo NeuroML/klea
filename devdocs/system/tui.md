@@ -7,9 +7,9 @@ endpoint the web client uses, so the event payloads are unchanged
 (`system/streams.md`); this note covers only how the terminal frontend is
 built and what it must preserve.  The shared `App`/`Screen` two-panel
 skeleton, the thin per-app entries and the single run worker (basic
-`progress`/`complete` streaming) have landed (Phase 2.2-2.3); richer
-rendering, turn-status states, HITL and session management are still to
-come.
+`progress`/`complete` streaming, turn-status states, and Stop/Retry) have
+landed (Phase 2.2-2.4); richer rendering, HITL and session management are
+still to come.
 
 ## Overview
 

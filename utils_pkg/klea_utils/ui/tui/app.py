@@ -21,6 +21,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable, Iterable
 from datetime import datetime
@@ -32,7 +33,9 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Input, Static
+from textual.worker import Worker
 
+from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
 
 logger = logging.getLogger(__name__)
@@ -63,10 +66,6 @@ _CSS = """
 #transcript {
     height: 1fr;
     border: solid $panel;
-}
-#turn-status {
-    height: 1;
-    color: $text-muted;
 }
 #key-hints {
     height: 1;
@@ -107,11 +106,14 @@ class KleaTuiScreen(Screen):
                 )
                 with VerticalScroll(id="transcript"):
                     yield Static("No messages yet.", id="transcript-empty")
-                yield Static("idle", id="turn-status")
+                yield TurnStatus(id="turn-status")
                 yield Input(
                     placeholder="Type a query and press Enter...", id="query-input"
                 )
-                yield Static("Enter send | Ctrl+Q quit", id="key-hints")
+                yield Static(
+                    "Enter send | Ctrl+C stop | Ctrl+R retry | Ctrl+Q quit",
+                    id="key-hints",
+                )
             with Vertical(id="status-panel"):
                 yield Static("status", id="status-title")
                 with VerticalScroll(id="status-body"):
@@ -151,12 +153,37 @@ class KleaTuiScreen(Screen):
         await transcript.mount(Static(f"{prefix}{text}"))
         transcript.scroll_end(animate=False)
 
-    def set_turn_status(self, text: str) -> None:
-        """Update the turn-status line under the transcript.
+    @property
+    def turn_status(self) -> TurnStatus:
+        """Return the turn-status widget."""
+        return self.query_one("#turn-status", TurnStatus)
 
-        :param text: The status text (empty for idle).
+    def show_progress(self, heading: str) -> None:
+        """Show an in-flight run in the turn-status line.
+
+        :param heading: The live progress heading.
         """
-        self.query_one("#turn-status", Static).update(text)
+        self.turn_status.show_progress(heading)
+
+    def show_idle(self) -> None:
+        """Clear the turn-status line (turn finished)."""
+        self.turn_status.show_idle()
+
+    def show_error(self, message: str, resumable: bool) -> None:
+        """Show a failed run, with a Retry hint when resumable.
+
+        :param message: The error message.
+        :param resumable: Whether a Retry is available (``Ctrl+R``).
+        """
+        self.turn_status.show_error(message, resumable)
+
+    def show_stopped(self) -> None:
+        """Show that the user stopped the run."""
+        self.turn_status.show_stopped()
+
+    def show_awaiting_input(self) -> None:
+        """Show that the run paused for HITL input."""
+        self.turn_status.show_awaiting_input()
 
 
 class KleaTuiApp(App[None]):
@@ -167,7 +194,11 @@ class KleaTuiApp(App[None]):
     """
 
     CSS = _CSS
-    BINDINGS: ClassVar[list[Binding]] = [Binding("ctrl+q", "quit", "Quit")]
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("ctrl+c", "stop", "Stop"),
+        Binding("ctrl+r", "retry", "Retry"),
+        Binding("ctrl+q", "quit", "Quit"),
+    ]
 
     def __init__(self, ctx: TuiContext) -> None:
         """Build the app for *ctx*.
@@ -178,16 +209,21 @@ class KleaTuiApp(App[None]):
         self.ctx = ctx
         self._screen: KleaTuiScreen | None = None
         self._streaming = False
+        self._worker: Worker[None] | None = None
+        self._last_query = ""
+        self._retryable = False
 
     def on_mount(self) -> None:
         """Mount the two-panel screen."""
         self._screen = KleaTuiScreen(self.ctx)
         self.push_screen(self._screen)
 
-    def start_run(self, query: str) -> None:
+    def start_run(self, query: str, *, resume: bool = False) -> None:
         """Start the single run for *query*, refusing a concurrent submit.
 
-        :param query: The user's query text.
+        :param query: The user's query text (unused on a resume).
+        :param resume: Resume the chat's last failed run from its checkpoint
+            instead of starting a new turn.
         """
         if self._streaming:
             logger.debug("Refusing submit: a run is already streaming")
@@ -196,10 +232,34 @@ class KleaTuiApp(App[None]):
         # Reserve the slot synchronously so a rapid second submit is refused
         # before the worker task starts.
         self._streaming = True
-        self._run_query(query)
+        if not resume:
+            self._last_query = query
+        self._retryable = False
+        self._worker = self._run_query(query, resume)
+
+    async def action_stop(self) -> None:
+        """Stop the active run: cancel locally and ask the server to cancel."""
+        if not self._streaming:
+            return
+        logger.debug("stop requested: chat=%s", self.ctx.chat_id)
+        if self._worker is not None:
+            self._worker.cancel()
+        # Lazy: httpx is only needed to reach the server.
+        from klea_utils.api.sse import request_cancel
+
+        await request_cancel(
+            self.ctx.server_url, self.ctx.chat_id, user_id=self.ctx.user_id
+        )
+
+    def action_retry(self) -> None:
+        """Resume the chat's last failed run from its checkpoint (Retry)."""
+        if self._streaming or not self._retryable:
+            return
+        logger.debug("retry requested: chat=%s", self.ctx.chat_id)
+        self.start_run(self._last_query, resume=True)
 
     @work
-    async def _run_query(self, query: str) -> None:
+    async def _run_query(self, query: str, resume: bool = False) -> None:
         """Stream one query's events into the transcript and turn status.
 
         Feeds every event through the shared reducer
@@ -207,7 +267,9 @@ class KleaTuiApp(App[None]):
         ``progress`` in the turn-status line and ``complete`` as the final
         transcript message, and clears the run slot on every exit path.
 
-        :param query: The user's query text.
+        :param query: The user's query text (unused on a resume).
+        :param resume: Resume the chat's last failed run instead of starting a
+            new turn (the query is not resent).
         """
         # Lazy: httpx and the LLM chain are only needed for a live run.
         import httpx
@@ -222,13 +284,21 @@ class KleaTuiApp(App[None]):
             return
 
         chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
-        logger.debug("run start: user=%s chat=%s", self.ctx.user_id, self.ctx.chat_id)
-        chat["messages"].append(
-            {"text": query, "stamp": _stamp(), "role": "user", "header": ""}
+        logger.debug(
+            "run start: user=%s chat=%s resume=%s",
+            self.ctx.user_id,
+            self.ctx.chat_id,
+            resume,
         )
-        await screen.append_message("user", query)
+        if not resume:
+            # A resume re-runs the failed turn; its user message is already
+            # recorded, so it is not appended again.
+            chat["messages"].append(
+                {"text": query, "stamp": _stamp(), "role": "user", "header": ""}
+            )
+            await screen.append_message("user", query)
         chat["turn_status"] = {"kind": "progress", "heading": "Working..."}
-        screen.set_turn_status("Working...")
+        screen.show_progress("Working...")
 
         try:
             async for event in stream_events(
@@ -236,6 +306,7 @@ class KleaTuiApp(App[None]):
                 self.ctx.chat_id,
                 self.ctx.server_url,
                 user_id=self.ctx.user_id,
+                resume=resume,
             ):
                 etype = event.get("type")
                 if etype == "ping":
@@ -247,38 +318,57 @@ class KleaTuiApp(App[None]):
                         "node", ""
                     )
                     chat["turn_status"] = {"kind": "progress", "heading": heading}
-                    screen.set_turn_status(heading)
+                    screen.show_progress(heading)
                     continue
                 action = apply_stream_event(chat, event)
                 if action == "complete":
                     message = chat["messages"][-1]
                     await screen.append_message("agent", message.get("text", ""))
                     chat["turn_status"] = {"kind": "idle"}
-                    screen.set_turn_status("")
+                    screen.show_idle()
                     logger.debug("run complete: chat=%s", self.ctx.chat_id)
                     break
                 if action == "error":
                     message = event.get("message", "Unknown error")
+                    resumable = bool(event.get("resumable"))
+                    self._retryable = resumable
                     chat["turn_status"] = {
                         "kind": "error",
                         "message": message,
-                        "resumable": bool(event.get("resumable")),
+                        "resumable": resumable,
                     }
-                    screen.set_turn_status(f"error: {message}")
+                    screen.show_error(message, resumable)
                     logger.debug("run error: chat=%s: %s", self.ctx.chat_id, message)
                     break
+                if action == "interrupt":
+                    # The run paused for HITL input (ADR-0046): stop streaming
+                    # and show the status; the modal/answer lands in a later
+                    # step.
+                    chat["turn_status"] = {"kind": "awaiting_input"}
+                    screen.show_awaiting_input()
+                    logger.debug("run paused for input: chat=%s", self.ctx.chat_id)
+                    break
+        except asyncio.CancelledError:
+            # The user pressed Stop: record the status and let the worker end
+            # cancelled.
+            chat["turn_status"] = {"kind": "stopped"}
+            screen.show_stopped()
+            logger.debug("run stopped by user: chat=%s", self.ctx.chat_id)
+            raise
         except httpx.HTTPError as exc:
             # A dropped/timed-out stream or a rejected request (e.g. HTTP 409).
-            # Full error handling (Retry, Stop) lands in a later step.
+            # The run is checkpointed server-side, so Retry is offered.
             logger.warning("run transport error: chat=%s: %s", self.ctx.chat_id, exc)
+            self._retryable = True
             chat["turn_status"] = {
                 "kind": "error",
                 "message": f"Request failed: {exc}",
                 "resumable": True,
             }
-            screen.set_turn_status(f"error: {exc}")
+            screen.show_error(f"Request failed: {exc}", True)
         finally:
             self._streaming = False
+            self._worker = None
 
 
 def run_tui(
