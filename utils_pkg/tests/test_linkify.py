@@ -10,7 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
-from klea_utils.ui.linkify import linkify_md
+from klea_utils.ui.linkify import linkify_html, linkify_md
 
 logger = logging.getLogger(__name__)
 
@@ -110,3 +110,22 @@ def test_tilde_fence_and_unterminated():
     )
     # Unterminated fence: remainder is verbatim.
     assert linkify_md("```\nhttp://x.example.com") == "```\nhttp://x.example.com"
+
+
+class TestLinkifyHtml:
+    """``linkify_html`` escapes text and wraps bare URLs in safe anchors."""
+
+    def test_escapes_text_and_wraps_urls(self):
+        out = linkify_html("see http://example.com/a_b and <b> & c")
+        assert '<a href="http://example.com/a_b"' in out
+        assert 'rel="noopener noreferrer"' in out
+        assert "&lt;b&gt;" in out
+        assert "&amp;" in out
+        # The URL text keeps its underscore (it is not Markdown-emphasised).
+        assert ">http://example.com/a_b</a>" in out
+
+    def test_no_url_is_escaped_only(self):
+        assert linkify_html("a_b_c <x>") == "a_b_c &lt;x&gt;"
+
+    def test_empty(self):
+        assert linkify_html("") == ""

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Bare-URL linkification for markdown text
+Bare-URL linkification for rendered text
+
+Two variants: :func:`linkify_md` wraps bare URLs as Markdown links for a
+Markdown renderer, and :func:`linkify_html` escapes the text and wraps bare
+URLs in safe anchors for plain (non-Markdown) rendering.
 
 File: klea_utils/ui/linkify.py
 
@@ -8,6 +12,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import html
 import logging
 import re
 
@@ -95,3 +100,31 @@ def _linkify_plain(text: str) -> str:
         last = match.last_index
     result.append(text[last:])
     return "".join(result)
+
+
+def linkify_html(text: str) -> str:
+    """HTML-escape *text* and wrap bare URLs in safe ``<a>`` anchors.
+
+    For plain-text (non-markdown) rendering, e.g. user input: the text is
+    escaped so it is shown verbatim (no Markdown decoration), while bare URLs
+    become clickable links.  The result is safe to pass to
+    ``ui.html(sanitize=True)``.
+
+    :param text: The literal text to render.
+    :returns: HTML with the text escaped and bare URLs wrapped in anchors.
+    """
+    matches = _LINKIFY.match(text)
+    if not matches:
+        return html.escape(text)
+    parts: list[str] = []
+    last = 0
+    for match in matches:
+        parts.append(html.escape(text[last : match.index]))
+        parts.append(
+            f'<a href="{html.escape(match.url, quote=True)}" '
+            f'target="_blank" rel="noopener noreferrer">'
+            f"{html.escape(match.text)}</a>"
+        )
+        last = match.last_index
+    parts.append(html.escape(text[last:]))
+    return "".join(parts)

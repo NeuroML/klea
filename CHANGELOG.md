@@ -44,6 +44,7 @@
 
 ### Changed
 
+- Web UI: the user's own messages are rendered verbatim (no Markdown decoration), so literal underscores, `#`, lists, line breaks and pasted code are preserved; bare URLs stay clickable. Agent and system messages remain Markdown.
 - Entry routing: the `chat` route is now reserved for self-contained conversational/general-knowledge replies (including direct conversational edits such as shortening or rephrasing); a request that derives a result from earlier work or turns (summarise, compile, compare, synthesise) is routed to the `task` path so it is planned/checked and its deliverable persisted, instead of being answered inline by the router.
 - The agent client identities are now `klea-agent-tui` / `klea-agent-web` (previously `klea-tui` / `klea-web`), matching the `klea-{agent,rag}-{tui,web}` scheme the RAG clients already use; the log file and NiceGUI user-data directory names change accordingly, and existing agent web storage under `klea-web` is not migrated.
 - `read_file` returns one bounded page by default and enforces a server-side character budget; the `max_chars` parameter is no longer exposed to the model, so a large file is read by paging (via the result's `next_offset`/`next_char_offset`) instead of in a single call.
@@ -79,6 +80,8 @@
 
 ### Fixed
 
+- Token usage is reported accurately again: model streaming is disabled, because the graph's event stream forces chat models to stream and LangChain's streamed `usage_metadata` merge sums input/total tokens across chunks for providers that report usage per chunk (VLLM, HuggingFace Inference Providers, ...), inflating the counts massively (langchain#30429).
+- Path-permission confirmations render each decision on its own line, with the path in code formatting, instead of one `;`-joined line.
 - The answer-composer (`AnswerFromResults`) now receives the session artefacts, so a task whose reply builds on earlier tasks' deliverables (for example compiling results gathered in prior turns) can use them; previously only the Planner saw them.
 - Messages that contain `{...}` (for example a user query or an answer with JSON) no longer break a later run: dynamic text concatenated into a node's prompt template -- the conversation summary and configured domain text -- has its braces escaped, so it is not parsed as a template variable.
 - Web UI: the chat-list running indicator now stops spinning (or switches to the awaiting-input icon) as soon as a run finishes, pauses, or errors, instead of staying on the spinner until an unrelated refresh.

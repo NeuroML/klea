@@ -181,7 +181,10 @@ builder.
 
 * Markdown renders through Rich; diffs (`text/x-diff`, `text/x-patch`) and
   code (`text/x-<lang>`) render with syntax highlighting.  MIME selection
-  mirrors the web's `chat_bubble` rules.
+  mirrors the web's `chat_bubble` rules.  As in the web UI, a **user** message
+  is shown verbatim (no Markdown decoration) so literal underscores, `#`,
+  line breaks and pasted code are preserved; only agent/system messages render
+  as Markdown.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.

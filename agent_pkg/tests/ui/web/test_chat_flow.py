@@ -36,6 +36,17 @@ async def test_send_renders_the_answer(fake_backend, agent_user):
     await agent_user.should_see("Hi there", retries=50)
 
 
+async def test_user_message_is_rendered_verbatim(fake_backend, agent_user):
+    """User input is not Markdown-decorated (underscores, '#', newlines kept)."""
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "my_file_name.py\n# not a heading")
+    await agent_user.should_see("my_file_name.py")
+    await agent_user.should_see("# not a heading")
+    await agent_user.should_see("ok", retries=50)
+
+
 async def test_selected_mode_and_access_are_sent(fake_backend, agent_user):
     """The selected mode and access level ride on the next query."""
     fake_backend.stream_events = [{"type": "complete", "message_for_user": "first"}]

@@ -9,6 +9,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from nicegui import ui
 
+from klea_utils.ui.linkify import linkify_html
+
 #: Recognised transcript roles; anything else falls back to ``agent``.
 _ROLES = ("user", "agent", "tool", "system")
 
@@ -23,14 +25,20 @@ def _is_code_mime(mime: str) -> bool:
     return mime in _DIFF_MIMES or mime.startswith("text/x-")
 
 
-def _render_body(mime: str, data: str, text: str) -> None:
-    """Render a block body according to its MIME type.
+def _render_body(role: str, mime: str, data: str, text: str) -> None:
+    """Render a block body according to its role and MIME type.
 
-    Unknown/empty mime falls back to the preformatted ``text`` (markdown).
-    Diffs and code use NiceGUI's native ``ui.code`` (syntax highlighting and
-    a copy button); text uses ``ui.markdown``.
+    A **user** message is shown verbatim -- no Markdown decoration, so literal
+    underscores, ``#``, lists and newlines in the user's input (URLs, paths,
+    pasted code) are preserved; bare URLs stay clickable.  Other roles use the
+    MIME type: diffs and code use NiceGUI's native ``ui.code`` (syntax
+    highlighting and a copy button); text uses ``ui.markdown``.
     """
-    if mime in _DIFF_MIMES:
+    if role == "user":
+        ui.html(linkify_html(text), sanitize=True).classes(
+            "whitespace-pre-wrap break-words"
+        )
+    elif mime in _DIFF_MIMES:
         ui.code(data or text, language="diff").classes("tool-code")
     elif mime == "text/markdown" or not mime:
         ui.markdown(data or text, extras=["fenced-code-blocks", "tables", "alerts"])
@@ -131,12 +139,13 @@ class ChatBubble(ui.element):
                 text_cls = "msg-collapsed" if collapsed else "msg-expanded"
             # ``ui.markdown`` bodies get the chat markdown styling; ``ui.code``
             # bodies render their own box, so adding ``chat-markdown`` there
-            # would stack our ``pre``/``code`` rules on top of it.
+            # would stack our ``pre``/``code`` rules on top of it.  A user
+            # message is plain text (no markdown styling).
             classes = f"text-left {text_cls}"
-            if not _is_code_mime(mime):
+            if role != "user" and not _is_code_mime(mime):
                 classes += " chat-markdown"
             with ui.element("div").classes(classes):
-                _render_body(mime, data, text)
+                _render_body(role, mime, data, text)
 
             with ui.row().classes("flex flex-row justify-start items-center gap-1"):
                 ui.label(stamp).classes("text-xs text-grey-5")

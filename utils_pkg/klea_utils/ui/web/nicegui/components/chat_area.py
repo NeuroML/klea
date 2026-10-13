@@ -337,10 +337,13 @@ def _render_messages(ctx: PageContext) -> None:
             for idx, msg in enumerate(msgs):
                 collapsed = idx not in expanded
                 text = msg.get("text", "")
+                role = msg.get("role", "agent")
                 ChatBubble(
-                    text=linkify_md(text),
+                    # A user message is rendered verbatim (no markdown), so it
+                    # is not linkified into markdown links either.
+                    text=text if role == "user" else linkify_md(text),
                     stamp=msg.get("stamp", ""),
-                    role=msg.get("role", "agent"),
+                    role=role,
                     header=msg.get("header", ""),
                     mime=msg.get("mime", ""),
                     data=msg.get("data", ""),

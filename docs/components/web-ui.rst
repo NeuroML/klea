@@ -17,8 +17,11 @@ Chat
 The chat tab is where questions are asked.  Answers stream in as they are
 generated, and each answer is grounded in the retrieved sources rather
 than the model's memory alone.  Messages render as full-width blocks: the
-user's prompt is tinted, the agent's reply is plain text, and file changes
-the agent makes appear as their own diff blocks before the reply.  Tool
+user's prompt is tinted and shown **verbatim** (no Markdown decoration, so
+underscores, ``#`` and line breaks in URLs, paths or pasted code are
+preserved; bare URLs stay clickable), the agent's reply is rendered as
+Markdown (code blocks, lists, tables), and file changes the agent makes
+appear as their own diff blocks before the reply.  Tool
 results (file-edit diffs, command output) render as compact blocks
 collapsed to a one-line preview that expands on click; an errored tool
 block's title is shown in red.  Long lines wrap, and the input box sits at
