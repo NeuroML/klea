@@ -22,6 +22,7 @@ from ..llm import (
     get_recent_messages,
     split_output_by_section,
 )
+from .abstract import NodeStreamData, NodeStreamEvent
 from .base import BaseLLMNode
 from .context import NodeContext
 
@@ -61,6 +62,7 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         summarisation_threshold_chars: int = 10_000,
         num_history_chars: int = _DEFAULT_NUM_HISTORY_CHARS,
         memory: bool = False,
+        announce: str = "",
     ):
         """Initialise the summarisation node.
 
@@ -74,6 +76,11 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         :param num_history_chars: Character budget for the recent verbatim
             window kept out of the summary.
         :param memory: Whether to include conversation history in the prompt
+        :param announce: A chat message to set as ``message_for_user`` when the
+            node actually produces a summary (e.g. a manual ``/compact``
+            confirmation).  Empty by default, so the automatic node never
+            touches ``message_for_user`` (it runs after the answer and would
+            clobber it); the outcome is always reported via ``_get_inspect``.
         """
         super().__init__(
             logger=logger,
@@ -85,6 +92,7 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
         self.summarisation_threshold_chars = summarisation_threshold_chars
         self.num_history_chars = num_history_chars
+        self.announce = announce
 
     def _summarisation_window(self, state: BaseModel) -> tuple[str, int]:
         """Return ``(conversation, window_start)`` for this run.
@@ -107,11 +115,22 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
 
     @override
     def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
-        """Skip if not enough old conversation to summarise."""
+        """Skip if not enough old conversation to summarise.
+
+        A skip is reported to the inspection pane (so the user can see the node
+        ran and why nothing happened); the run continues to END either way.
+        """
         conversation, window_start = self._summarisation_window(state)
 
         if window_start <= state.summarised_till:  # type: ignore
             self.logger.debug("No new history to summarise yet")
+            self._emit_memory_inspect(
+                "Nothing new to summarise",
+                {
+                    "summarised_till": state.summarised_till,  # type: ignore
+                    "window_start": window_start,
+                },
+            )
             return False
 
         if len(conversation) < self.summarisation_threshold_chars:
@@ -119,8 +138,34 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
                 f"Not enough conversation to summarise yet: "
                 f"{len(conversation)}/{self.summarisation_threshold_chars} chars"
             )
+            self._emit_memory_inspect(
+                "Not enough old history to summarise yet",
+                {
+                    "conversation_chars": len(conversation),
+                    "threshold_chars": self.summarisation_threshold_chars,
+                    "summarised_till": state.summarised_till,  # type: ignore
+                    "window_start": window_start,
+                },
+            )
             return False
         return True
+
+    def _emit_memory_inspect(self, summary: str, details: dict[str, Any]) -> None:
+        """Emit an ``inspect`` entry describing a summarisation decision.
+
+        Used for the skip paths (``_get_inspect`` covers the run path).  Guarded
+        because ``_pre_exec`` is called directly by unit tests outside a graph
+        run, where no stream writer exists.
+        """
+        event = NodeStreamEvent(
+            type="inspect",
+            node=self.label,
+            data=NodeStreamData(heading="Memory", summary=summary, details=details),
+        )
+        try:
+            self.write_custom_stream(event.model_dump())
+        except RuntimeError:
+            pass
 
     @override
     def _get_prompt_variables(self, state: BaseModel, ctx: Any) -> dict:
@@ -159,10 +204,49 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
             )
             return {}
         _conversation, window_start = self._summarisation_window(state)
-        return {
+        updates: dict[str, Any] = {
             "context_summary": answer,
             "summarised_till": window_start,
         }
+        if self.announce:
+            # A manual compaction confirmation (the automatic node sets no
+            # ``announce``, so it never clobbers the run's answer).
+            updates["message_for_user"] = self.announce
+        return updates
+
+    @override
+    def _get_inspect(self, state: BaseModel, ctx: Any) -> NodeStreamData:
+        """Report the summarisation to the inspection pane.
+
+        The summary is internal memory metadata, not a chat turn, so it is
+        surfaced as an ``inspect`` entry rather than written to
+        ``message_for_user`` (which, as the last node, would clobber the run's
+        answer).  ``_pre_exec`` covers the skip paths; this covers a run that
+        produced a summary (or a blank one).
+        """
+        updates = getattr(ctx, "state_updates", None) or {}
+        summary = updates.get("context_summary", "")
+        if not summary:
+            return NodeStreamData(
+                heading="Memory",
+                summary="Summarisation produced no usable summary",
+                details={
+                    "summarised_till": state.summarised_till,  # type: ignore
+                    "note": "the model returned blank output; state preserved",
+                },
+            )
+        return NodeStreamData(
+            heading="Memory",
+            summary=(
+                f"Summarised the memory window up to index "
+                f"{updates.get('summarised_till')} ({len(summary)} chars)"
+            ),
+            details={
+                "summary": summary,
+                "summarised_till": updates.get("summarised_till"),
+                "summary_chars": len(summary),
+            },
+        )
 
     # TODO: may need updating
     @override

@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from typing import Any, cast
 
 import pytest
 from klea_utils.llm import get_recent_messages
@@ -86,6 +87,13 @@ def test_summarise_triggers_and_excludes_window():
     assert 0 < window_start < len(msgs)  # recent window excluded
 
 
+def test_summarise_forced_with_threshold_zero():
+    """A compaction node (threshold 0) runs as soon as there is old history."""
+    node = _make_summarise_node(summarisation_threshold_chars=0, num_history_chars=50)
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    assert node._pre_exec(state, NodeContext()) is True
+
+
 def test_summarise_update_state_uses_window_start():
     node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
     msgs = _conversation(5)
@@ -133,6 +141,75 @@ def test_summarise_skips_when_nothing_new_old():
     # Everything already summarised up to the current message count.
     state = MemoryState(messages=msgs, summarised_till=len(msgs))
     assert node._pre_exec(state, NodeContext()) is False
+
+
+def _inspect_events(node) -> list:
+    """Capture the node's ``inspect`` stream events."""
+    events: list = []
+    cast(Any, node).write_custom_stream = events.append
+    return events
+
+
+def test_summarise_skip_below_threshold_reports_inspect():
+    node = _make_summarise_node(
+        summarisation_threshold_chars=10_000, num_history_chars=50
+    )
+    events = _inspect_events(node)
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    assert node._pre_exec(state, NodeContext()) is False
+    inspect = next(e for e in events if e.get("type") == "inspect")
+    assert inspect["data"]["heading"] == "Memory"
+    assert "Not enough" in inspect["data"]["summary"]
+
+
+def test_summarise_skip_nothing_new_reports_inspect():
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    events = _inspect_events(node)
+    msgs = _conversation(2)
+    state = MemoryState(messages=msgs, summarised_till=len(msgs))
+    assert node._pre_exec(state, NodeContext()) is False
+    inspect = next(e for e in events if e.get("type") == "inspect")
+    assert "Nothing new" in inspect["data"]["summary"]
+
+
+def test_announce_sets_message_for_user_on_a_summary():
+    node = _make_summarise_node(
+        summarisation_threshold_chars=1, num_history_chars=50, announce="Compacted."
+    )
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    updates = node._update_state(
+        AIMessage(content="a summary"), state, LLMNodeContext()
+    )
+    assert updates["message_for_user"] == "Compacted."
+
+
+def test_no_announce_leaves_message_for_user_untouched():
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    updates = node._update_state(
+        AIMessage(content="a summary"), state, LLMNodeContext()
+    )
+    assert "message_for_user" not in updates
+
+
+def test_get_inspect_reports_the_summary():
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    ctx = LLMNodeContext()
+    ctx.state_updates = {"context_summary": "a summary", "summarised_till": 3}
+    data = node._get_inspect(state, ctx)
+    assert data.heading == "Memory"
+    assert "3" in data.summary
+    assert data.details["summary"] == "a summary"
+
+
+def test_get_inspect_reports_a_blank_summary():
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    state = MemoryState(messages=_conversation(5), summarised_till=0)
+    ctx = LLMNodeContext()
+    ctx.state_updates = {}
+    data = node._get_inspect(state, ctx)
+    assert "no usable summary" in data.summary
 
 
 def _prompt_dir(tmp_path):
