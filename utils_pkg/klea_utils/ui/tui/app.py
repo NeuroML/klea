@@ -698,6 +698,7 @@ def run_tui(
     title: str,
     app_prefix: str = "klea",
     app_name: str = "klea-tui",
+    user_id: str = "",
     status_extras: Iterable[Callable[[TuiContext], Any]] | None = None,
 ) -> None:
     """Launch the shared Klea Textual TUI.
@@ -710,17 +711,24 @@ def run_tui(
     :param title: Application title shown in the chat panel header.
     :param app_prefix: Prompt label prefix (e.g. ``"klea-rag"``).
     :param app_name: Log identity for this frontend (e.g. ``"klea-rag-tui"``).
+    :param user_id: The ``--user-id`` value; resolved through the ADR-0050
+        seam (``--user-id`` > ``KLEA_USER_ID`` > a persisted local UUID).
     :param status_extras: App-defined status-panel renderers, in order.
     """
-    # Lazy: only needed to mint the interim chat id until Phase 5 wires the
-    # session store / picker.
+    # Lazy: coolname mints the interim chat id; identity resolves the user id.
     import coolname
 
+    from klea_utils.ui.tui.identity import resolve_user_id
+
+    resolved_user_id = resolve_user_id(
+        explicit=user_id, server_url=url, app_name=app_name
+    )
     ctx = TuiContext(
         server_url=url,
         title=title,
         app_prefix=app_prefix,
         app_name=app_name,
+        user_id=resolved_user_id,
         chat_id=coolname.generate_slug(2),
         status_extras=list(status_extras or []),
     )

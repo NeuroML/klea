@@ -217,6 +217,16 @@ async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
         assert _chat()["context"]["mode"] == "general"
 
 
+async def test_active_chat_is_keyed_by_user(fake_backend, make_app):
+    """The keyed store entry is ``{user_id}:{chat_id}`` for the active chat."""
+    app = make_app(user_id="u1", chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert "u1:c1" in chats
+
+
 async def test_toggle_inspector_view(fake_backend, make_app):
     """Ctrl+I toggles the chat panel to the inspector with query sections."""
     fake_backend.scripts = [

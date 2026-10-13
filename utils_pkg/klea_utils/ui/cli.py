@@ -162,6 +162,7 @@ def _run_tui(
     tui_prefix: str,
     app_module: str,
     tui_entry: str,
+    user_id: str = "",
     debug: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
@@ -215,6 +216,7 @@ def _run_tui(
             title=title,
             app_prefix=tui_prefix,
             app_name=tui_app_name,
+            user_id=user_id,
         )
 
 
@@ -428,6 +430,12 @@ def make_client_app(
     def tui(
         server_url: str = server_option,
         title: str = title_option,
+        user_id: str = typer.Option(
+            "",
+            "--user-id",
+            help="Opaque user id. Defaults to KLEA_USER_ID, else a persisted "
+            "local UUID (sent only to a loopback server).",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -438,6 +446,7 @@ def make_client_app(
             tui_prefix=tui_prefix,
             app_module=app_module,
             tui_entry=tui_entry,
+            user_id=user_id,
             debug=debug,
             profile=profile,
             config_env_var=config_env_var,

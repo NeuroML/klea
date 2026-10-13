@@ -25,6 +25,7 @@ def run_agent_tui(
     title: str,
     app_prefix: str = "klea-agent",
     app_name: str = "klea-agent-tui",
+    user_id: str = "",
 ) -> None:
     """Launch the agent Textual TUI.
 
@@ -32,9 +33,16 @@ def run_agent_tui(
     :param title: Application title shown in the chat panel header.
     :param app_prefix: Prompt label prefix.
     :param app_name: Log identity for this frontend.
+    :param user_id: The ``--user-id`` value (resolved by the shared entry).
     """
     # Lazy: Textual (the [tui] extra) and the shared TUI are only needed on
     # launch, so importing the CLI (e.g. for --help) stays light.
     from klea_utils.ui.tui.app import run_tui
 
-    run_tui(url=url, title=title, app_prefix=app_prefix, app_name=app_name)
+    run_tui(
+        url=url,
+        title=title,
+        app_prefix=app_prefix,
+        app_name=app_name,
+        user_id=user_id,
+    )

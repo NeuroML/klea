@@ -9,9 +9,10 @@ built and what it must preserve.  The shared `App`/`Screen` two-panel
 skeleton, the thin per-app entries, the single run worker (basic
 `progress`/`complete` streaming, turn-status states, and Stop/Retry), the
 MIME-aware transcript, the inspector view, the status pane, session commands,
-the HITL review/input and permission modals, and pending-interrupt
-re-presentation have landed (Phase 2.2-4.3); session management is still to
-come.
+the HITL review/input and permission modals, pending-interrupt
+re-presentation and the `resolve_user_id` identity seam have landed
+(Phase 2.2-5.1); the session picker/resume and model/access selectors are
+still to come.
 
 ## Overview
 

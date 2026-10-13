@@ -101,12 +101,13 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 def make_app():
     """Return a factory building a :class:`KleaTuiApp` for tests."""
 
-    def _make(chat_id: str = "test-chat") -> KleaTuiApp:
+    def _make(chat_id: str = "test-chat", user_id: str = "") -> KleaTuiApp:
         return KleaTuiApp(
             TuiContext(
                 server_url="http://backend",
                 title="Klea Test",
                 chat_id=chat_id,
+                user_id=user_id,
             )
         )
 

@@ -116,6 +116,7 @@ class TestMakeClientApp(unittest.TestCase):
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
                 tui_entry="klea_rag.ui.tui.page:run_rag_tui",
+                user_id="",
                 debug=False,
                 profile=None,
                 config_env_var=None,
@@ -419,6 +420,7 @@ class TestRunTui(unittest.TestCase):
             title="T",
             app_prefix="klea-rag",
             app_name="klea-rag-tui",
+            user_id="",
         )
 
 
