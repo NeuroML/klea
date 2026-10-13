@@ -58,9 +58,11 @@ Invariants I1-I8 are in ADR-0050 and restated in `system/tui.md`.
   - `ui/client.py` (moved from `web/nicegui/client.py`) - 99cbac4c.
   - Verified: `ruff` clean, `ty` 27 pre-existing (none new), utils_pkg and
     agent_pkg web tests green.
-* Phase 2+: see the checklist below.  Phases 2-4.1 are implemented and
-  verified with throwaway pilots; a committed test suite for them lives in
-  `utils_pkg/tests/ui/tui/` (added retroactively - see the checklist).
+* Phase 2+: Phases 2-4 (skeleton, streaming, rendering, panes, commands,
+  HITL), the committed test suite (`utils_pkg/tests/ui/tui/`, added
+  retroactively), 5.1 (identity seam) and 5.2a (load/switch + `--continue` /
+  `--resume`) are done.  Next step is **5.2b** (session picker).  Each
+  checklist item below is one atomic commit.
 
 ## Checklist
 
@@ -68,63 +70,79 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
 
 ### Phase 2 - skeleton + streaming
 
-- [ ] 2.1 Add `[tui]` extra (`textual`) to `utils_pkg/setup.cfg` and include
+- [x] 2.1 Add `[tui]` extra (`textual`) to `utils_pkg/setup.cfg` and include
   it in `[full]`; add a `require_extra("tui", "textual")` guard and a `tui`
   subcommand in `make_client_app` launching a stub.  Verify `klea tui --help`
   and `klea-rag tui --help` exit 0.
-- [ ] 2.2 Shared Textual `App`/`Screen` skeleton in `klea_utils/ui/tui/`
+- [x] 2.2 Shared Textual `App`/`Screen` skeleton in `klea_utils/ui/tui/`
   (two-panel layout: full-height chat panel + full-height status panel) plus
   thin `klea_agent`/`klea_rag` TUI entry modules (`run_*_tui`).  Verify launch
   against a running server.
-- [ ] 2.3 Wire streaming: submit -> `@work` worker -> `stream_events` -> feed
+- [x] 2.3 Wire streaming: submit -> `@work` worker -> `stream_events` -> feed
   the shared reducer -> render `progress` + `complete`.
-- [ ] 2.4 Turn status (spinner / error+Retry / stopped / awaiting-input),
+- [x] 2.4 Turn status (spinner / error+Retry / stopped / awaiting-input),
   Stop (keybinding + `request_cancel`), httpx error handling.
 
 ### Phase 3 - rendering, panes, commands
 
-- [ ] 3.1 MIME-aware transcript rendering (Markdown via `rich.markdown`,
+- [x] 3.1 MIME-aware transcript rendering (Markdown via `rich.markdown`,
   diff/code via `rich.syntax.Syntax`, tool blocks, headers).
-- [ ] 3.2 Inspector view (inspect events, `format_details`, per-query
+- [x] 3.2 Inspector view (inspect events, `format_details`, per-query
   sections) as a chat-panel toggle.
-- [ ] 3.3 Status panel (full-height right): state sections (keyed), token
+- [x] 3.3 Status panel (full-height right): state sections (keyed), token
   usage, context events.
-- [ ] 3.4 Session commands: parse against the merged catalogue (client +
+- [x] 3.4 Session commands: parse against the merged catalogue (client +
   `GET /commands`), local dispatch + `/help`, server commands forwarded,
   `/` autocomplete.  Update `system/session-commands.md` if the contract
   changes.
 
 ### Phase 4 - HITL
 
-- [ ] 4.1 HITL review/input `ModalScreen`; transcript rows via
+- [x] 4.1 HITL review/input `ModalScreen`; transcript rows via
   `render_interrupt_response`; resume/cancel through the same run.
-- [ ] 4.2 Permission `ModalScreen` (per-path once/session/deny) + resume.
-- [ ] 4.3 Re-present a pending interrupt on load/switch (hydrate from
+- [x] 4.2 Permission `ModalScreen` (per-path once/session/deny) + resume.
+- [x] 4.3 Re-present a pending interrupt on load/switch (hydrate from
   `GET /chat/{user_id}/{chat_id}/context` `pending_interrupt`).
+
+### Phase 4b - committed test suite (added retroactively)
+
+- [x] 4b.1 `utils_pkg/tests/ui/tui/`: `conftest` (fake backend) +
+  `test_components` (pure helpers) + `test_app` (`run_test()` pilots) +
+  `test_identity`.
 
 ### Phase 5 - sessions + selectors
 
-- [ ] 5.1 `resolve_user_id()` seam (`--user-id` > `KLEA_USER_ID` > persisted
+- [x] 5.1 `resolve_user_id()` seam (`--user-id` > `KLEA_USER_ID` > persisted
   TUI-local UUID) + one-active-session state (keyed store + active pointer).
-- [ ] 5.2 `--continue` / `--resume <chat_id>` + summonable session picker
-  (`Ctrl+S` / `/sessions`) to switch/rename/delete; block switching while
-  streaming.
-- [ ] 5.3 Model/credential dialog (`fetch_catalogue_*`, set/clear overrides
-  and credentials, missing-credential gating).
-- [ ] 5.4 Agent mode/access selector slots in the status panel.
+- [x] 5.2a Chat load/switch plumbing + `--continue` / `--resume <chat_id>`
+  (`fetch_chats` / `fetch_chat_messages`, `load_chat`, `render_chat`).
+- [ ] 5.2b Session picker `ModalScreen` (`Ctrl+S`): list chats, switch
+  (calls `load_chat`); refuse while streaming.
+- [ ] 5.2c Rename a chat from the picker (`rename_chat_on_server` + refresh).
+- [ ] 5.2d Delete a chat from the picker (`delete_chat_on_server`; switch
+  away if it is the active chat).
+- [ ] 5.2e `/sessions` client command opens the picker (command service
+  hook).
+- [ ] 5.3a Model dialog: per-role models + set/clear a per-chat override
+  (`fetch_active_models` + catalogue + set/clear `_model_override`).
+- [ ] 5.3b Credential dialog: list + set/clear credentials
+  (`fetch_credentials` + set/clear `_credential`).
+- [ ] 5.3c Missing-model/credential gating (warn/block send).
+- [ ] 5.4a `StatusPanel` renders the `TuiContext.status_extras` app slots.
+- [ ] 5.4b Agent operating-mode selector slot (dispatch `/mode`).
+- [ ] 5.4c Agent tool-access selector slot (dispatch `/access`).
 
 ### Phase 6 - composition, tests, docs
 
 - [ ] 6.1 Finalize agent/rag TUI composition + slots; no app-specific code in
   `klea_utils/ui/tui`.
-- [ ] 6.2 Harden the suite and document it: extend
-  `utils_pkg/tests/ui/tui/` (shared state/reducer unit tests) and add
-  `system/tui-testing.md` describing the fake-backend + `run_test()` pilot
-  harness.
-- [ ] 6.3 Public docs: `docs/components/tui.rst` + toctree + `CHANGELOG.md`;
-  devdocs sync (`system/streams.md` TUI consumer, ADR-0013/0026 stale
+- [ ] 6.2 Add `system/tui-testing.md` (fake-backend + `run_test()` harness).
+- [ ] 6.3 Public docs: `docs/components/tui.rst` + toctree.  Verify
+  `make html` exit 0.
+- [ ] 6.4 `CHANGELOG.md` entry for the TUI.
+- [ ] 6.5 devdocs sync (`system/streams.md` TUI consumer, ADR-0013/0026 stale
   "Textual planned" wording).  Verify `make html` exit 0.
-- [ ] 6.4 Deprecate/drop the terminal REPL `cli` once parity is confirmed;
+- [ ] 6.6 Deprecate/drop the terminal REPL `cli` once parity is confirmed;
   update backlog + docs.
 
 ## Pointers
