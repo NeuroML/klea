@@ -435,10 +435,11 @@ def render_help(
     """Render ``/help`` output for a frontend with *capabilities*.
 
     With *name*, show that command's detail; otherwise list the available
-    commands (filtered by capability).  The output is Markdown - a bulleted
-    list with each usage in inline code - so a chat frontend renders one
-    command per line with a monospaced usage (plain newlines would collapse
-    into a single paragraph).
+    commands (filtered by capability).  The output is Markdown: the command
+    usages in inline code and, for a command detail, bold ``Aliases`` /
+    ``Subcommands`` labels.  A chat frontend then renders one command per line
+    with a monospaced usage (plain newlines would collapse into a single
+    paragraph).
 
     :param registry: The command registry.
     :param capabilities: The frontend's capabilities.
@@ -457,9 +458,9 @@ def render_help(
         lines = [f"`{usage}`", "", command.summary]
         if command.aliases:
             aliases = ", ".join(f"`/{alias}`" for alias in command.aliases)
-            lines += ["", f"aliases: {aliases}"]
+            lines += ["", f"**Aliases:** {aliases}"]
         if command.subcommands:
-            lines += ["", "Subcommands:"]
+            lines += ["", "**Subcommands:**", ""]
             for sub in command.subcommands:
                 sub_usage = f"/{command.name} {sub.name}"
                 if sub.arg_hint:
@@ -467,7 +468,7 @@ def render_help(
                 lines.append(f"- `{sub_usage}` - {sub.summary}")
         return CommandResult(output=lines)
 
-    lines = ["Available commands:", ""]
+    lines = ["**Available commands:**", ""]
     for command in registry.available(capabilities):
         usage = f"/{command.name}"
         if command.arg_hint:

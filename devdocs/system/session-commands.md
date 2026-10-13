@@ -135,9 +135,9 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/rename <name>` | ui | - | rename the current session |
 | `/model` | ui | - | open the model and API-key configuration |
 | `/export` | ui | - | export the session transcript as Markdown |
+| `/sessions [list\|switch <n\|id>]` | ui | - | list sessions, or switch to one |
 
-Planned client commands (not registered yet): `/commands`,
-`/sessions`, `/upload`.
+Planned client commands (not registered yet): `/commands`, `/upload`.
 
 Notes:
 

@@ -49,6 +49,10 @@ These run in the frontend.
    * - ``/export``
      - ``/export``
      - Download the session transcript as Markdown.
+   * - ``/sessions``
+     - ``/sessions [list]`` / ``/sessions switch <n|id>``
+     - List the sessions (pinned first), or switch the active session by
+       number or id.
 
 A command may define **subcommands** (verbs); ``/help <command>`` lists them,
 and the ``/`` menu autocompletes them.

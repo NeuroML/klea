@@ -28,6 +28,7 @@ from klea_utils.commands.common import (
     CommandRegistry,
     CommandResult,
     ParsedCommand,
+    Subcommand,
     parse_command,
     render_help,
 )
@@ -36,7 +37,7 @@ from klea_utils.ui.export import (
     export_timestamp,
     transcript_markdown,
 )
-from klea_utils.ui.state import ensure_chat
+from klea_utils.ui.state import ensure_chat, get_chats_sorted
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,10 @@ _MODEL_DIALOG_SERVICE = "show_model_dialog"
 #: ``CommandContext.services`` key for the "save an export" hook (``/export``):
 #: ``(filename, content) -> None``.
 _SAVE_EXPORT_SERVICE = "save_export"
+
+#: ``CommandContext.services`` key for the "switch chat" hook
+#: (``/sessions switch``): ``(chat_id) -> None``.
+_SWITCH_CHAT_SERVICE = "switch_chat"
 
 
 def _save_export(filename: str, content: str) -> None:
@@ -122,6 +127,24 @@ def client_commands() -> CommandRegistry:
             klass="ui",
             while_streaming="allow",
             handler=_handle_export,
+        )
+    )
+    registry.register(
+        Command(
+            name="sessions",
+            summary="List sessions, or switch to another",
+            side="client",
+            klass="ui",
+            subcommands=(
+                Subcommand(name="list", summary="List the sessions"),
+                Subcommand(
+                    name="switch",
+                    summary="Switch to a session",
+                    arg_hint="<n|id>",
+                ),
+            ),
+            while_streaming="allow",
+            handler=_handle_sessions,
         )
     )
     return registry
@@ -236,6 +259,100 @@ def _handle_export(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     return CommandResult.ok(f"Exported the session transcript to {filename}.")
 
 
+def _session_rows(
+    user_id: str, active_chat_id: str
+) -> list[tuple[str, str, list[str]]]:
+    """Return ``(chat_id, name, markers)`` rows for *user_id*.
+
+    The order matches the sidebar (:func:`get_chats_sorted`): pinned chats
+    first, then most recently created.  *markers* names the row's state for
+    display (``active`` / ``pinned``).
+    """
+    rows: list[tuple[str, str, list[str]]] = []
+    for chat_id, data in get_chats_sorted(user_id):
+        markers: list[str] = []
+        if chat_id == active_chat_id:
+            markers.append("active")
+        if data["pinned"]:
+            markers.append("pinned")
+        rows.append((chat_id, data["name"], markers))
+    return rows
+
+
+def _resolve_session(user_id: str, target: str) -> str | CommandResult:
+    """Resolve a ``/sessions switch`` target to a chat id, or an error result.
+
+    *target* is a 1-based index into the sorted session list, an exact chat
+    id, or an unambiguous id prefix.
+    """
+    ids = [chat_id for chat_id, _data in get_chats_sorted(user_id)]
+    if target.isdigit():
+        index = int(target)
+        if 1 <= index <= len(ids):
+            return ids[index - 1]
+        return CommandResult.fail(
+            f"No session number {index}; there are {len(ids)} sessions."
+        )
+    if target in ids:
+        return target
+    matches = [chat_id for chat_id in ids if chat_id.startswith(target)]
+    if len(matches) == 1:
+        return matches[0]
+    if len(matches) > 1:
+        return CommandResult.fail(
+            f"Ambiguous session id {target!r}: matches {len(matches)} sessions."
+        )
+    return CommandResult.fail(f"No session with id {target!r}.")
+
+
+def _list_sessions(context: CommandContext) -> CommandResult:
+    """Render the ordered session list (1-based index, name, state, id)."""
+    rows = _session_rows(context.user_id, context.chat_id)
+    if not rows:
+        logger.debug(f"command /sessions: no sessions {context.user_id = }")
+        return CommandResult.ok("No sessions yet.")
+    lines = ["Sessions:", ""]
+    for index, (chat_id, name, markers) in enumerate(rows, start=1):
+        suffix = f" ({', '.join(markers)})" if markers else ""
+        lines.append(f"- `{index}` - {name}{suffix} - `{chat_id}`")
+    logger.debug(
+        f"command /sessions: listed {len(rows)} session(s) {context.chat_id = }"
+    )
+    return CommandResult(output=lines)
+
+
+def _switch_session(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Switch the active session by number or id via the ``switch_chat`` hook."""
+    target = parsed.args[0] if parsed.args else ""
+    if not target:
+        logger.warning("command /sessions switch: no target given")
+        return CommandResult.fail("Usage: /sessions switch <n|id>")
+    resolved = _resolve_session(context.user_id, target)
+    if isinstance(resolved, CommandResult):
+        logger.warning(f"command /sessions switch: {resolved.error}")
+        return resolved
+    switch = context.service(_SWITCH_CHAT_SERVICE)
+    if switch is None:
+        logger.warning("command /sessions switch: switch_chat hook not registered")
+        return CommandResult.fail("Switching sessions is not supported here.")
+    logger.debug(f"command /sessions switch: {target = } {resolved = }")
+    switch(resolved)
+    name = ensure_chat(context.user_id, resolved)["name"]
+    return CommandResult.ok(f"Switched to session {name!r}.")
+
+
+def _handle_sessions(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """List the user's sessions, or switch to one (ADR-0047).
+
+    A bare ``/sessions`` (and the explicit ``list`` verb) shows the same
+    ordered list as the sidebar; ``switch <n|id>`` makes another session
+    active through the frontend's ``switch_chat`` hook.
+    """
+    if parsed.verb == "switch":
+        return _switch_session(context, parsed)
+    return _list_sessions(context)
+
+
 def handle_command(ctx: PageContext, text: str) -> bool:
     """Handle *text* as a command if it is one; return ``True`` when consumed.
 
@@ -281,6 +398,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
             _RENAME_CHAT_SERVICE: ctx.rename_chat,
             _MODEL_DIALOG_SERVICE: ctx.show_model_dialog,
             _SAVE_EXPORT_SERVICE: _save_export,
+            _SWITCH_CHAT_SERVICE: ctx.switch_chat,
         },
     )
     result = registry.dispatch(parsed, context)

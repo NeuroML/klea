@@ -8,7 +8,11 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.commands.common import CommandContext, ParsedCommand
+from klea_utils.commands.common import (
+    CommandContext,
+    ParsedCommand,
+    parse_command,
+)
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.web.nicegui.components.commands import client_commands
 from nicegui import ui
@@ -317,3 +321,144 @@ async def test_export_command_downloads_the_transcript(fake_backend, agent_user)
 
     _send(agent_user, "/export")
     await agent_user.should_see("Exported the session transcript", retries=50)
+
+
+def _parse(text: str) -> ParsedCommand:
+    """Parse *text*, asserting it is a command (for the type checker)."""
+    parsed = parse_command(text)
+    assert parsed is not None
+    return parsed
+
+
+def _seed_sessions(user_id: str, *specs: tuple[str, str, bool]) -> None:
+    """Create chats for *user_id* as ``(chat_id, name, pinned)``.
+
+    Creation timestamps are set in list order so the sorted session list is
+    deterministic (later entries are newer).
+    """
+    for offset, (chat_id, name, pinned) in enumerate(specs):
+        chat = ensure_chat(user_id, chat_id)
+        chat["name"] = name
+        chat["pinned"] = pinned
+        chat["created"] = 1000.0 + offset
+
+
+class TestSessionsList:
+    def test_orders_pinned_first_with_index_and_active_marker(self):
+        _seed_sessions("su-list", ("a", "Alpha", False), ("b", "Beta", True))
+        result = client_commands().dispatch(
+            _parse("/sessions"), CommandContext(user_id="su-list", chat_id="a")
+        )
+        joined = "\n".join(result.output)
+        assert "Sessions:" in joined
+        assert "Beta" in joined and "Alpha" in joined
+        # Pinned ``Beta`` sorts first even though ``Alpha`` is the active one.
+        assert joined.index("Beta") < joined.index("Alpha")
+        assert "- `1` - Beta (pinned) - `b`" in joined
+        assert "- `2` - Alpha (active) - `a`" in joined
+
+    def test_list_verb_matches_the_bare_form(self):
+        _seed_sessions("su-listverb", ("a", "Alpha", False))
+        result = client_commands().dispatch(
+            _parse("/sessions list"), CommandContext(user_id="su-listverb", chat_id="a")
+        )
+        assert "Alpha" in "\n".join(result.output)
+
+    def test_no_sessions_reports_empty(self):
+        result = client_commands().dispatch(
+            _parse("/sessions"), CommandContext(user_id="su-none")
+        )
+        assert result.output == ["No sessions yet."]
+
+
+class TestSessionsSwitch:
+    def test_switch_by_index_calls_the_hook(self):
+        _seed_sessions("ss-index", ("a", "Alpha", False), ("b", "Beta", True))
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="ss-index",
+            chat_id="a",
+            services={"switch_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        result = client_commands().dispatch(_parse("/sessions switch 1"), context)
+        # Pinned ``Beta`` is index 1.
+        assert calls == ["b"]
+        assert "Switched to session" in "\n".join(result.output)
+
+    def test_switch_by_exact_id_calls_the_hook(self):
+        _seed_sessions("ss-id", ("alpha", "Alpha", False))
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="ss-id",
+            services={"switch_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        client_commands().dispatch(_parse("/sessions switch alpha"), context)
+        assert calls == ["alpha"]
+
+    def test_switch_by_unique_prefix_calls_the_hook(self):
+        _seed_sessions(
+            "ss-prefix", ("witty-eagle", "WE", False), ("calm-otter", "CO", False)
+        )
+        calls: list[str] = []
+        context = CommandContext(
+            user_id="ss-prefix",
+            services={"switch_chat": lambda chat_id: calls.append(chat_id)},
+        )
+        client_commands().dispatch(_parse("/sessions switch witty"), context)
+        assert calls == ["witty-eagle"]
+
+    def test_switch_rejects_an_out_of_range_index(self):
+        _seed_sessions("ss-range", ("a", "Alpha", False))
+        result = client_commands().dispatch(
+            _parse("/sessions switch 9"), CommandContext(user_id="ss-range")
+        )
+        assert "No session number 9" in result.error
+
+    def test_switch_rejects_an_unknown_id(self):
+        _seed_sessions("ss-unknown", ("a", "Alpha", False))
+        result = client_commands().dispatch(
+            _parse("/sessions switch nope"), CommandContext(user_id="ss-unknown")
+        )
+        assert "No session with id" in result.error
+
+    def test_switch_rejects_an_ambiguous_prefix(self):
+        _seed_sessions(
+            "ss-amb", ("witty-eagle", "WE", False), ("witty-otter", "WO", False)
+        )
+        result = client_commands().dispatch(
+            _parse("/sessions switch witty"), CommandContext(user_id="ss-amb")
+        )
+        assert "Ambiguous" in result.error
+
+    def test_switch_without_a_target_is_a_usage_error(self):
+        result = client_commands().dispatch(
+            _parse("/sessions switch"), CommandContext(user_id="ss-usage")
+        )
+        assert "Usage: /sessions switch" in result.error
+
+    def test_switch_without_the_hook_fails_cleanly(self):
+        _seed_sessions("ss-nohook", ("a", "Alpha", False))
+        result = client_commands().dispatch(
+            _parse("/sessions switch a"), CommandContext(user_id="ss-nohook")
+        )
+        assert "not supported" in result.error
+
+
+async def test_sessions_command_lists_and_switches(fake_backend, agent_user):
+    """``/sessions`` lists sessions; ``switch`` changes the active one."""
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "hi"}]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("hi", retries=50)
+
+    before = set(chats)
+    _send(agent_user, "/new")
+    assert await _wait_for(lambda: len(set(chats) - before) == 1)
+
+    _send(agent_user, "/sessions")
+    await agent_user.should_see("Sessions:", retries=50)
+
+    # The new session is the most recent, so the first chat is index 2.
+    _send(agent_user, "/sessions switch 2")
+    await agent_user.should_see("Switched to session", retries=50)
