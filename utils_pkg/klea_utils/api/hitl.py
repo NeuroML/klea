@@ -119,7 +119,12 @@ def _render_answers(value: Mapping[str, Any]) -> str | None:
 
 
 def _render_decisions(value: Mapping[str, Any]) -> str | None:
-    """Render path-permission ``decisions``, or ``None`` when not applicable."""
+    """Render path-permission ``decisions``, or ``None`` when not applicable.
+
+    Each decision is on its own line (readability when several paths were
+    approved/denied in one ask); the path is in backticks so the frontends
+    (which render the user turn as Markdown) show it as code.
+    """
     decisions = value.get("decisions")
     if not isinstance(decisions, list):
         return None
@@ -131,8 +136,8 @@ def _render_decisions(value: Mapping[str, Any]) -> str | None:
             str(entry.get("decision", "")), "Denied"
         )
         key = str(entry.get("key", ""))
-        parts.append(f"{label}: {key}" if key else label)
-    return "; ".join(parts)
+        parts.append(f"- {label}: `{key}`" if key else label)
+    return "\n".join(parts)
 
 
 def _render_review_decision(value: Mapping[str, Any]) -> str | None:
