@@ -308,7 +308,8 @@ Last updated: 2026-10-12.
   and recent verbatim window are now operator config (`general.memory` in the
   agent config, ADR-0018).  A per-session/user command to tune them (and a
   per-model default) is deferred -- it needs a durable setting plus the
-  prompt-assembly window kept aligned.
+  prompt-assembly window kept aligned.  The RAG's summarise node still
+  hardcodes the window; expose the same config for `klea_rag` when needed.
 
 - `/run` (P4 of ADR-0047): **deferred -- design under consideration.**  The
   command runs a shell command server-side as a user-invoked action (the
