@@ -61,3 +61,10 @@ Memory
 .. automodule:: klea_utils.nodes.summarise_memory
    :members:
    :show-inheritance:
+
+Command
+-------
+
+.. automodule:: klea_utils.nodes.command
+   :members:
+   :show-inheritance:

@@ -76,6 +76,19 @@ These are sent to the graph and run there.
      - ``/access [read_only|full]``
      - Show or set the tool access level; with no argument it reports the
        current level.
+   * - ``/compact``
+     - ``/compact``
+     - Summarise and shorten the conversation memory now (Agent, when
+       conversation memory is enabled).  The outcome is shown in the inspect
+       pane.
+   * - ``/init``
+     - ``/init``
+     - Generate project guidance (``AGENTS.md``) for the current project so
+       future sessions pick up its conventions (Agent, full access).
+
+``/init`` writes ``AGENTS.md`` in the project directory, so it needs the
+``full`` tool access level; ``/compact`` is offered only when conversation
+memory is enabled (see :doc:`agent`).
 
 Disabling commands
 ------------------

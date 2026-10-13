@@ -8,6 +8,7 @@ graph TD;
 	Initializing(Initializing)
 	Determining\20mode(Determining mode)
 	Informing\20about\20mode(Informing about mode)
+	Running\20command(Running command)
 	Checking\20safety(Checking safety)
 	Declining\20query(Declining query)
 	Deciding\20route(Deciding route)
@@ -22,6 +23,7 @@ graph TD;
 	Awaiting\20input(Awaiting input)
 	Cancelled(Cancelled)
 	Summarizing\20history(Summarizing history)
+	Compacting\20memory(Compacting memory)
 	__end__([<p>__end__</p>]):::last
 	Awaiting\20input -. &nbsp;cancelled&nbsp; .-> Cancelled;
 	Awaiting\20input -. &nbsp;planner&nbsp; .-> Planning;
@@ -41,7 +43,8 @@ graph TD;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Evaluating -. &nbsp;tool&nbsp; .-> Selecting\20tools;
-	Initializing --> Determining\20mode;
+	Initializing -. &nbsp;continue&nbsp; .-> Determining\20mode;
+	Initializing -. &nbsp;command&nbsp; .-> Running\20command;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
 	Planning -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
@@ -49,6 +52,9 @@ graph TD;
 	Planning -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Preparing\20response --> Summarizing\20history;
 	Reasoning --> Evaluating;
+	Running\20command -. &nbsp;compact&nbsp; .-> Compacting\20memory;
+	Running\20command -. &nbsp;init&nbsp; .-> Determining\20mode;
+	Running\20command -. &nbsp;&nbsp; .-> __end__;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
 	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
 	Running\20tools -. &nbsp;retry&nbsp; .-> Selecting\20tools;
@@ -56,6 +62,7 @@ graph TD;
 	Selecting\20tools -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
 	Cancelled --> __end__;
+	Compacting\20memory --> __end__;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;

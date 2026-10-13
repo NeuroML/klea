@@ -38,6 +38,9 @@
 - Web UI: several chats in one page can now run at once. Each chat has its own run state (send / Stop / Retry apply per chat), the chat list shows a running / awaiting-input indicator, and deleting a chat cancels its run; a background chat's stream no longer blocks the input or repaints the active chat.
 - Interactive path approval: before a tool call touches a path outside the project directory, or a sensitive file (env files, private keys, cloud config) inside it, the agent pauses and asks the user, per path, to allow once, allow for the session, or deny. A denied path returns a non-halting error and the run continues; session approvals are remembered for the chat. The ask is shown in the web UI and TUI, recorded in the inspect pane, and the sensitive-file set is extendable via `KLEA_SENSITIVE_PATTERNS` (ADR-0007).
 - Session commands (ADR-0047): an in-session `/`-command surface shared by the web frontend and the graph. The backend publishes its server-side catalogue at `GET /commands` and the graph runs a command node; the web UI merges that catalogue with its own client commands, offers a `/`-autocomplete menu, and renders command output as a system block in the active chat (creating one if the command is the session's first input). `/help` (client) lists the catalogue, `/new` (client) starts a new session, `/rename` (client) renames the current session, `/model` (client) opens the model and API-key configuration, `/export` (client) downloads the session transcript as Markdown, `/mode` (server) shows or sets the operating mode, and `/access` (server) shows or sets the tool access level. Graph commands are ephemeral (their state change is checkpointed, no chat rows); a deployment can disable commands via `general.commands.disabled`.
+- Session commands (continued): `/sessions` (client) lists the sessions (pinned first), switches the active one, and deletes one after confirmation; `/compact` (server) summarises the conversation memory on demand; `/init` (server) generates project guidance (`AGENTS.md`) for the current project.
+- A graph command handler may be `async` and may hand off to another graph node (via `GraphCommandResult.route` and the transient `command_route` state field), so a command can run further nodes before the run ends (for example `/compact` -> the compaction node; `/init` -> the normal planner/tool path).
+- The summarise-memory node reports its outcome to the inspect pane (summarised / nothing new / no usable summary) instead of writing the chat, and can optionally set a chat confirmation for a manual compaction.
 
 ### Changed
 
@@ -127,6 +130,7 @@
 - The agent loads the project instruction file (`AGENTS.md`, falling back to `CLAUDE.md`) into session-scoped discovery (re-read only when it changes) and renders it into the Planner and final-answer prompts, so project conventions inform both planning and the reply.
 - Unified replan reason: automated replans (tool failure or `need_replan`) carry a concrete reason back to the Planner.
 - Agent chat payload accepts `resume` to resume a failed run from its checkpoint on `/query` or `/query/stream` (no query sent); a resume request carrying a query is rejected.
+- Conversation-memory tuning via `general.memory` (`summarisation_threshold_chars`, default 40000; `num_history_chars`, default 20000), so the agent keeps more conversation verbatim and summarises less often.
 
 ### Changed
 

@@ -85,6 +85,8 @@ flowchart TD
         compose["Composing answer<br/>AnswerFromResults (chat)<br/>message_for_user + deliverable to artefacts"]
         prepare["Preparing response<br/>AnswerUser (non-LLM)<br/>final user-facing message"]
         summarise["Summarizing history<br/>SummariseMemoryNode (chat, shared)<br/>context_summary + recent window; ADR-0018"]
+        command["Running command<br/>CommandNode (non-LLM)<br/>dispatches a /command, may hand off; ADR-0047"]
+        compact["Compacting memory<br/>SummariseMemoryNode (chat, shared)<br/>forced compaction for /compact"]
     end
 
     subgraph SUPPORT ["Supporting components (not graph nodes)"]
@@ -97,7 +99,8 @@ flowchart TD
     end
 
     %% Graph edges (from auto-generated .mmd, same labels as code)
-    init --> modeDec
+    init -. continue .-> modeDec
+    init -. command .-> command
     modeDec -. proceed .-> guard
     modeDec -. inform .-> modeInf
     guard --> guardR
@@ -136,6 +139,10 @@ flowchart TD
     summarise --> ENDC
     decline --> ENDC
     modeInf --> ENDC
+    command -. compact .-> compact
+    command -. init .-> modeDec
+    command -. terminal .-> ENDC
+    compact --> ENDC
 
     STARTN([__start__]) --> init
     ENDC([__end__])
@@ -156,6 +163,7 @@ flowchart TD
     evaluator -. "LLM" .-> llm
     compose -. "LLM" .-> llm
     summarise -. "LLM" .-> llm
+    compact -. "LLM" .-> llm
 
     caller -. "MCP" .-> mcpExt
     caller -. "MCP" .-> bundled
@@ -172,12 +180,16 @@ flowchart TD
     review -- "inspection" --> inspection
     awaitInput -- "inspection" --> inspection
     summarise -- "inspection" --> inspection
+    command -- "inspection" --> inspection
+    compact -- "inspection" --> inspection
 
     init -- "session" --> sqlite
     review -- "session" --> sqlite
     awaitInput -- "session" --> sqlite
     prepare -- "session" --> sqlite
     summarise -- "session" --> sqlite
+    command -- "session" --> sqlite
+    compact -- "session" --> sqlite
     decline -- "session" --> sqlite
     modeInf -- "session" --> sqlite
 
@@ -188,8 +200,10 @@ flowchart TD
 *Notes:* Solid `-->` = normal graph edge (from ``klea_agent.py:_create_graph``).
 Dotted `-. label .->` = conditional ``add_conditional_edges``
 (``GuardRouter``, ``RouteDecision``, ``Planner``, the review/input await
-routers, the picker router, the ``TriageRouter``, the evaluator router).
-Double-dash `inspection` / `session` / `MCP` / `LLM` edges are
+routers, the picker router, the ``TriageRouter``, the evaluator router, and
+the command router/handoff: ``Initializing`` -> ``Running command`` ->
+``Compacting memory`` (``/compact``), ``Determining mode`` (``/init``), or
+``__end__``).  Double-dash `inspection` / `session` / `MCP` / `LLM` edges are
 component-to-container/external interactions that ``draw_mermaid`` omits;
 they are what make this a C4 Level 3 rather than a bare node graph.  The
 deterministic routers (``Routing safety``, ``Triaging``) are augmentations:
@@ -286,7 +300,7 @@ graph TD;
 | Component | File | Role | Key contracts |
 |-----------|------|------|---------------|
 | KleaAgent orchestrator | ``klea_agent/klea_agent.py`` | ``BaseLangGraph`` subclass: ``_create_graph``, the conditional-edge routers, the tool-round/picker callbacks, ``context_snapshot`` | ``env_prefix``/config discovery (ADR-0015); graph exported as ``klea-agent-lang-graph.{png,mmd}`` (ADR-0016/0032/0035) |
-| AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``mcp_servers``, ``providers`` (ADR-0015/0037) |
+| AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``general.commands``, ``general.memory``, ``mcp_servers``, ``providers`` (ADR-0015/0037/0047) |
 | KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``step_outputs``, ``artefacts``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
 | Agent API | ``klea_agent/api/{main,chat,server}.py`` | FastAPI app via ``make_app`` + the agent ``ChatPayload`` chat router | ``POST /query``, ``/query/stream``; ``mode``/``access_level`` in the payload; generic routers from ``klea_utils.api`` (ADR-0031) |
 | Client UI / CLI | ``klea_agent/ui/cli.py`` + ``ui/web/*`` | Typer CLI (``klea``, ``klea-serve``) and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037) |
@@ -305,7 +319,9 @@ graph TD;
 | Evaluating | ``klea_agent/nodes/operational_evaluator.py`` | ``OperationalEvaluator`` (``chat``): judges the current step | ``EvaluationSchema`` verdict ``step_incomplete``/``step_done``/``plan_done``/``need_replan``/``abort`` (ADR-0035) |
 | Composing answer | ``klea_agent/nodes/answer_from_results.py`` | ``AnswerFromResults`` (``chat``): synthesises the reply | ``message_for_user``; success persists the deliverable to ``artefacts``; never judges (ADR-0035) |
 | Preparing response | ``klea_agent/nodes/answer_user.py`` | ``AnswerUser``: delivers the final user-facing message | Non-LLM |
-| Summarizing history | ``klea_utils/nodes/summarise_memory.py`` | ``SummariseMemoryNode`` (``chat``, shared) | ``context_summary`` + recent window; preserves state on a blank summary (ADR-0018) |
+| Summarizing history | ``klea_utils/nodes/summarise_memory.py`` | ``SummariseMemoryNode`` (``chat``, shared) | ``context_summary`` + recent window; preserves state on a blank summary; reports the outcome via ``inspect`` (ADR-0018) |
+| Running command | ``klea_utils/nodes/command.py`` | ``CommandNode`` (shared): dispatches a server-side ``/command`` | parses/resolves/dispatches; emits ``inspect``; may hand off via ``GraphCommandResult.route`` (ADR-0047) |
+| Compacting memory | ``klea_utils/nodes/summarise_memory.py`` | ``SummariseMemoryNode`` instance (``chat``, shared): forced compaction for ``/compact`` | threshold ``0``; optional chat confirmation; reports via ``inspect`` (ADR-0018/0047) |
 | LLM Providers | external | chat, plan and guard inference | provider/model resolution via ``klea_utils.llm`` including catalog ``provider:<model>``; per-request model switching (ADR-0014) |
 | MCP servers (``nml-mcp`` + configured) | ``mcp_pkg`` + operator config | domain tools over streamable-http/stdio | ``MCPConfig`` + tag filtering; reached only by ``Running tools`` |
 | bundled ``klea-mcp`` | ``klea_utils.mcp.server.bundled`` | shared file/web tools, stdio subprocess per app | ``BaseLangGraph._bundled_server_config()`` (ADR-0004) |
@@ -319,7 +335,7 @@ graph TD;
   `agent-general-path-control-flow.md` and its topology decision in
   ADR-0035 (which supersedes the ADR-0025 proposal).
 * Every agent component that needs an LLM (guard, route, plan, picker,
-  reasoning, evaluate, compose, summarise) is a ``BaseLLMNode``
+  reasoning, evaluate, compose, summarise, compact) is a ``BaseLLMNode``
   (``klea_utils/nodes/base.py``, ADR-0019) and goes through the shared
   retryer + token-window ladder (ADR-0017), the structured-output
   fallback (``devdocs/system/structured-output-fallback.md``), and the
