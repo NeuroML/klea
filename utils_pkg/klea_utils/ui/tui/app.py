@@ -31,12 +31,13 @@ from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Input, Static
 from textual.worker import Worker
 
 from klea_utils.ui.tui.components.inspector import Inspector
+from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
@@ -88,7 +89,7 @@ _CSS = """
     height: 1;
     text-style: bold;
 }
-#status-body {
+#status {
     height: 1fr;
 }
 """
@@ -150,11 +151,7 @@ class KleaTuiScreen(Screen):
                 )
             with Vertical(id="status-panel"):
                 yield Static("status", id="status-title")
-                with VerticalScroll(id="status-body"):
-                    yield Static("mode / access", id="status-mode")
-                    yield Static("models", id="status-models")
-                    yield Static("state", id="status-state")
-                    yield Static("usage", id="status-usage")
+                yield StatusPanel(id="status")
 
     async def on_mount(self) -> None:
         """Focus the query input and show the transcript view."""
@@ -254,6 +251,18 @@ class KleaTuiScreen(Screen):
         if view == "inspector" and self._inspector_dirty:
             await self.inspector.set_entries(self._inspector_entries)
             self._inspector_dirty = False
+
+    @property
+    def status_panel(self) -> StatusPanel:
+        """Return the status-panel widget."""
+        return self.query_one("#status", StatusPanel)
+
+    async def refresh_status(self, chat: Mapping[str, Any] | None) -> None:
+        """Rebuild the status panel from the active chat's state.
+
+        :param chat: The chat's data dict, or ``None`` when there is none.
+        """
+        await self.status_panel.set_state(chat)
 
 
 class KleaTuiApp(App[None]):
@@ -379,6 +388,9 @@ class KleaTuiApp(App[None]):
                 {"type": "query", "text": query, "stamp": _stamp()}
             )
             await screen.refresh_inspector(chat["inspector_entries"])
+        # Each turn starts with a clean status pane (mirrors the web).
+        chat["state_sections"] = {}
+        await screen.refresh_status(chat)
         chat["turn_status"] = {"kind": "progress", "heading": "Working..."}
         screen.show_progress("Working...")
 
@@ -410,6 +422,9 @@ class KleaTuiApp(App[None]):
                     await screen.append_message(message)
                 if action == "inspect":
                     await screen.refresh_inspector(chat["inspector_entries"])
+                    continue
+                if action in ("state", "usage", "context"):
+                    await screen.refresh_status(chat)
                     continue
                 if action == "complete":
                     chat["turn_status"] = {"kind": "idle"}

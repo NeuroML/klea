@@ -8,8 +8,8 @@ endpoint the web client uses, so the event payloads are unchanged
 built and what it must preserve.  The shared `App`/`Screen` two-panel
 skeleton, the thin per-app entries, the single run worker (basic
 `progress`/`complete` streaming, turn-status states, and Stop/Retry), the
-MIME-aware transcript and the inspector view have landed (Phase 2.2-3.2);
-the status pane, session commands, HITL and session management are still to
+MIME-aware transcript, the inspector view and the status pane have landed
+(Phase 2.2-3.3); session commands, HITL and session management are still to
 come.
 
 ## Overview
