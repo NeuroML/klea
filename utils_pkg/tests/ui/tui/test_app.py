@@ -22,7 +22,15 @@ import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
-from textual.widgets import Button, Collapsible, Input, RadioButton, Static
+from klea_utils.ui.tui.components.sessions import SessionPicker
+from textual.widgets import (
+    Button,
+    Collapsible,
+    Input,
+    ListView,
+    RadioButton,
+    Static,
+)
 
 
 def _mode_metadata() -> dict:
@@ -270,6 +278,52 @@ async def test_switch_blocked_while_streaming(fake_backend, make_app, monkeypatc
         await pilot.pause()
         await app.load_chat("c2")
         assert app.ctx.chat_id == "c1"
+        assert app._worker is not None
+        app._worker.cancel()
+        await pilot.pause()
+
+
+async def test_session_picker_switches(fake_backend, make_app):
+    """Ctrl+S opens the picker; choosing a chat switches to it."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    fake_backend.messages["c2"] = [{"role": "user", "content": "hi2", "created_at": 0}]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        list_view = app.screen.query_one("#sessions-list", ListView)
+        list_view.index = 0
+        list_view.action_select_cursor()
+        await _settle(pilot, app)
+
+    assert app.ctx.chat_id == "c2"
+    assert [m["text"] for m in chats[":c2"]["messages"]] == ["hi2"]
+
+
+async def test_open_sessions_blocked_while_streaming(
+    fake_backend, make_app, monkeypatch
+):
+    """Ctrl+S is refused while a run is streaming (I2)."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert not isinstance(app.screen, SessionPicker)
         assert app._worker is not None
         app._worker.cancel()
         await pilot.pause()

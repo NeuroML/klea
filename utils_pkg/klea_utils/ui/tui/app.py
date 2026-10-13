@@ -53,6 +53,7 @@ from klea_utils.ui.tui.components.hitl import (
     PermissionModal,
 )
 from klea_utils.ui.tui.components.inspector import Inspector
+from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
@@ -330,6 +331,7 @@ class KleaTuiApp(App[None]):
         Binding("ctrl+c", "stop", "Stop"),
         Binding("ctrl+r", "retry", "Retry"),
         Binding("ctrl+i", "toggle_view", "Transcript/Inspector"),
+        Binding("ctrl+s", "open_sessions", "Sessions"),
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
@@ -558,6 +560,37 @@ class KleaTuiApp(App[None]):
         """Switch the chat panel between the transcript and inspector views."""
         if self._screen is not None:
             await self._screen.toggle_view()
+
+    async def action_open_sessions(self) -> None:
+        """Open the session picker (Ctrl+S); refused while streaming (I2)."""
+        if self._streaming:
+            self.notify(
+                "Stop the current run before switching sessions.",
+                severity="warning",
+            )
+            return
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import fetch_chats
+
+        sessions = await fetch_chats(self.ctx.server_url, self.ctx.user_id)
+        self.push_screen(
+            SessionPicker(sessions, self.ctx.chat_id),
+            callback=self._on_session_choice,
+        )
+
+    def _on_session_choice(self, action: SessionAction | None) -> None:
+        """Switch to the chosen session.
+
+        :param action: The picker's :class:`SessionAction`, or ``None``.
+        """
+        if action is None or action.kind != "switch":
+            return
+        self._switch_to_chat(action.chat_id)
+
+    @work
+    async def _switch_to_chat(self, chat_id: str) -> None:
+        """Load the chosen chat (reuses :meth:`load_chat`)."""
+        await self.load_chat(chat_id)
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
         """Open the HITL modal for *ask* (review / input / permission).
