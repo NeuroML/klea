@@ -23,10 +23,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -35,6 +36,7 @@ from textual.screen import Screen
 from textual.widgets import Input, Static
 from textual.worker import Worker
 
+from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
@@ -71,6 +73,13 @@ _CSS = """
     height: 1fr;
     border: solid $panel;
 }
+#view-toggle {
+    height: 1;
+}
+#inspector {
+    height: 1fr;
+    border: solid $panel;
+}
 #key-hints {
     height: 1;
     color: $text-muted;
@@ -90,6 +99,20 @@ def _stamp() -> str:
     return datetime.now().astimezone().strftime("%X")
 
 
+def _view_toggle_text(view: str) -> Text:
+    """Build the chat-panel view toggle line, bolding the active view.
+
+    :param view: ``"transcript"`` or ``"inspector"``.
+    :returns: A Rich ``Text`` renderable for the toggle.
+    """
+    text = Text()
+    for index, name in enumerate(("transcript", "inspector")):
+        if index:
+            text.append("  |  ")
+        text.append(name, style="bold" if view == name else "dim")
+    return text
+
+
 class KleaTuiScreen(Screen):
     """The single screen: a chat panel and a status panel side by side."""
 
@@ -100,6 +123,12 @@ class KleaTuiScreen(Screen):
         """
         super().__init__()
         self.ctx = ctx
+        #: Active chat-panel view: ``"transcript"`` or ``"inspector"``.
+        self._view = "transcript"
+        #: The active chat's ``inspector_entries`` (shared reference).
+        self._inspector_entries: Sequence[Mapping[str, Any]] = []
+        #: Whether the inspector needs a rebuild when next shown.
+        self._inspector_dirty = False
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout."""
@@ -108,13 +137,15 @@ class KleaTuiScreen(Screen):
                 yield Static(
                     f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
                 )
+                yield Static(_view_toggle_text("transcript"), id="view-toggle")
                 yield Transcript(id="transcript")
+                yield Inspector(id="inspector")
                 yield TurnStatus(id="turn-status")
                 yield Input(
                     placeholder="Type a query and press Enter...", id="query-input"
                 )
                 yield Static(
-                    "Enter send | Ctrl+C stop | Ctrl+R retry | Ctrl+Q quit",
+                    "Enter send | Ctrl+C stop | Ctrl+R retry | Ctrl+I view | Ctrl+Q quit",
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
@@ -125,9 +156,10 @@ class KleaTuiScreen(Screen):
                     yield Static("state", id="status-state")
                     yield Static("usage", id="status-usage")
 
-    def on_mount(self) -> None:
-        """Focus the query input when the screen appears."""
+    async def on_mount(self) -> None:
+        """Focus the query input and show the transcript view."""
         self.query_one("#query-input", Input).focus()
+        await self.show_view("transcript")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Hand the submitted query to the app's single run worker.
@@ -184,6 +216,45 @@ class KleaTuiScreen(Screen):
         """Show that the run paused for HITL input."""
         self.turn_status.show_awaiting_input()
 
+    @property
+    def inspector(self) -> Inspector:
+        """Return the inspector widget."""
+        return self.query_one("#inspector", Inspector)
+
+    async def refresh_inspector(self, entries: Sequence[Mapping[str, Any]]) -> None:
+        """Refresh the inspector from the chat's ``inspector_entries``.
+
+        Rebuilds immediately when the inspector is the active view; otherwise
+        the entries are kept and the view is marked dirty for the next switch.
+
+        :param entries: The chat's ``inspector_entries`` (shared reference).
+        """
+        self._inspector_entries = entries
+        if self._view == "inspector":
+            await self.inspector.set_entries(entries)
+            self._inspector_dirty = False
+        else:
+            self._inspector_dirty = True
+
+    async def toggle_view(self) -> None:
+        """Switch the chat panel between the transcript and inspector views."""
+        await self.show_view(
+            "inspector" if self._view == "transcript" else "transcript"
+        )
+
+    async def show_view(self, view: str) -> None:
+        """Show *view* in the chat panel, hiding the other.
+
+        :param view: ``"transcript"`` or ``"inspector"``.
+        """
+        self._view = view
+        self.transcript.display = view == "transcript"
+        self.inspector.display = view == "inspector"
+        self.query_one("#view-toggle", Static).update(_view_toggle_text(view))
+        if view == "inspector" and self._inspector_dirty:
+            await self.inspector.set_entries(self._inspector_entries)
+            self._inspector_dirty = False
+
 
 class KleaTuiApp(App[None]):
     """The shared Klea Textual application.
@@ -196,6 +267,7 @@ class KleaTuiApp(App[None]):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "stop", "Stop"),
         Binding("ctrl+r", "retry", "Retry"),
+        Binding("ctrl+i", "toggle_view", "Transcript/Inspector"),
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
@@ -257,6 +329,11 @@ class KleaTuiApp(App[None]):
         logger.debug("retry requested: chat=%s", self.ctx.chat_id)
         self.start_run(self._last_query, resume=True)
 
+    async def action_toggle_view(self) -> None:
+        """Switch the chat panel between the transcript and inspector views."""
+        if self._screen is not None:
+            await self._screen.toggle_view()
+
     @work
     async def _run_query(self, query: str, resume: bool = False) -> None:
         """Stream one query's events into the transcript and turn status.
@@ -296,6 +373,12 @@ class KleaTuiApp(App[None]):
                 {"text": query, "stamp": _stamp(), "role": "user", "header": ""}
             )
             await screen.append_message(chat["messages"][-1])
+            # Start a new inspector section for this query; the reducer appends
+            # its entries after this marker.
+            chat.setdefault("inspector_entries", []).append(
+                {"type": "query", "text": query, "stamp": _stamp()}
+            )
+            await screen.refresh_inspector(chat["inspector_entries"])
         chat["turn_status"] = {"kind": "progress", "heading": "Working..."}
         screen.show_progress("Working...")
 
@@ -325,6 +408,9 @@ class KleaTuiApp(App[None]):
                 # completion, the final message), MIME-aware.
                 for message in chat["messages"][before:]:
                     await screen.append_message(message)
+                if action == "inspect":
+                    await screen.refresh_inspector(chat["inspector_entries"])
+                    continue
                 if action == "complete":
                     chat["turn_status"] = {"kind": "idle"}
                     screen.show_idle()
