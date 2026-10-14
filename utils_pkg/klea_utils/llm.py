@@ -1837,11 +1837,25 @@ class LLMModel(BaseModel):
         # ``usage_metadata`` merge then sums input/total tokens across chunks
         # for providers that report usage per chunk (VLLM, HuggingFace
         # Inference Providers, ...), inflating them massively
-        # (https://github.com/langchain-ai/langchain/issues/30429).  Klea
-        # renders no token deltas today (see the backlog), so non-streaming is
-        # a safe, accurate default.  ``disable_streaming`` is a
-        # ``BaseChatModel`` field, so it survives provider field filtering.
-        overrides["disable_streaming"] = True
+        # (https://github.com/langchain-ai/langchain/issues/30429).  This must
+        # be an *instance field*, not a per-call ``stream=False`` kwarg:
+        # ``with_structured_output`` wraps the model in a ``RunnableMap`` that
+        # does not forward call kwargs, so a call-level flag is dropped on the
+        # structured-output path every planning/evaluation node uses.  The
+        # gate is ``BaseChatModel._streaming_disabled``, which reads the fields.
+        #
+        # ``disable_streaming`` is a ``BaseChatModel`` field and works for
+        # every provider except HuggingFace: its ``from_model_id`` reroutes
+        # unknown constructor kwargs into ``model_kwargs`` (sent as inference
+        # params), so passing ``disable_streaming`` reaches
+        # ``chat_completion`` and breaks the call.  HuggingFace instead uses its
+        # ``streaming`` field (also honoured by ``_streaming_disabled`` and not
+        # leaked); it must be set explicitly, since the default ``False`` is not
+        # recorded in ``model_fields_set``.
+        if overrides.get("model_provider") == "huggingface":
+            overrides["streaming"] = False
+        else:
+            overrides["disable_streaming"] = True
 
         # Wrap in the "configurable" key expected by _ConfigurableModel.
         return cast(RunnableConfig, {"configurable": overrides})

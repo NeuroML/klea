@@ -340,9 +340,12 @@ Last updated: 2026-10-12.
   sums input/total tokens across chunks for providers that report usage per
   chunk (VLLM, HuggingFace Inference Providers, ...), inflating the token
   counts massively (observed: an 8.9 B-token session total from a ~140k-token
-  prompt).  Klea sets `disable_streaming=True` on every model
-  (`LLMModel.build_config`) so usage stays accurate; `token` events are
-  therefore not emitted.  Re-enable streaming (and the `token` events) when the
+  prompt).  Klea disables streaming on the model instance in
+  `LLMModel.build_config` (`disable_streaming=True`; HuggingFace uses its
+  `streaming=False` field, which does not leak into the inference params) so
+  usage stays accurate; `token` events are therefore not emitted.  A per-call
+  `stream=False` kwarg does not work: the `with_structured_output` `RunnableMap`
+  drops call kwargs.  Re-enable streaming (and the `token` events) when the
   upstream bug is fixed and a live-typing UI lands.
 
 - Durable / resumable SSE stream (architecture).  The graph run currently

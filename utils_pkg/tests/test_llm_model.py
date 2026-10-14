@@ -551,21 +551,43 @@ class TestCatalogProviderEndpoint:
 
 
 class TestDisableStreaming:
-    """Model streaming is disabled so streamed ``usage_metadata`` is not inflated."""
+    """Streaming is disabled on the model instance so usage is not inflated.
 
-    def test_disable_streaming_is_always_set(self):
-        # ``astream_events`` (the graph runner) forces chat models to stream;
-        # LangChain's chunk merge then sums ``usage_metadata`` across chunks for
-        # providers that report usage per chunk (VLLM, HuggingFace Inference
-        # Providers, ...), inflating the token counts (langchain#30429).
-        # Disabling streaming keeps usage accurate.
+    ``astream_events`` (the graph runner) forces chat models to stream and
+    LangChain's chunk merge then sums ``usage_metadata`` (langchain#30429).
+    The flag must be an *instance field* (``_streaming_disabled``), not a
+    per-call ``stream=False`` kwarg: ``with_structured_output`` wraps the model
+    in a ``RunnableMap`` that drops call kwargs.
+    """
+
+    def test_non_huggingface_sets_disable_streaming(self):
         assert configurable(build())["disable_streaming"] is True
 
-    def test_disable_streaming_survives_provider_field_filtering(self):
-        # ``_build_invoke_config`` filters configurable keys to the provider's
-        # allowed fields; ``disable_streaming`` is a ``BaseChatModel`` field, so
-        # it is allowed for every provider and is not stripped.
+    def test_huggingface_sets_streaming_false(self):
+        cfg = configurable(build(model_name="huggingface:org/model"))
+        assert cfg["streaming"] is False
+        # ``disable_streaming`` would be rerouted into ``model_kwargs`` by
+        # ``from_model_id`` and sent as an inference param.
+        assert "disable_streaming" not in cfg
+
+    def test_flags_survive_provider_field_filtering(self):
         from klea_utils.llm import get_provider_allowed_fields
 
-        for provider in ("huggingface", "openai", "anthropic"):
-            assert "disable_streaming" in get_provider_allowed_fields(provider)
+        assert "disable_streaming" in get_provider_allowed_fields("openai")
+        assert "disable_streaming" in get_provider_allowed_fields("anthropic")
+        assert "streaming" in get_provider_allowed_fields("huggingface")
+
+    def test_huggingface_model_disables_streaming_on_the_instance(self):
+        """The flags reach the built model and are honoured by the gate."""
+        from langchain.chat_models.base import _init_chat_model_helper
+
+        cfg = dict(configurable(build(model_name="huggingface:org/model")))
+        cfg["huggingfacehub_api_token"] = "dummy"
+        model: Any = _init_chat_model_helper(**cfg)
+
+        assert model.streaming is False
+        assert "streaming" in model.model_fields_set
+        assert model._streaming_disabled() is True
+        # ``disable_streaming`` must not leak into inference params.
+        assert "disable_streaming" not in model.model_kwargs
+        assert "disable_streaming" not in model.llm.model_kwargs
