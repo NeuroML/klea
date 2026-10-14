@@ -19,6 +19,7 @@ import typer
 from klea_utils.ui.cli import (
     _maybe_spawn_server,
     _resolve_favicon,
+    _run_tui,
     _run_web,
     make_client_app,
 )
@@ -35,6 +36,7 @@ def _make_app(label="RAG", port=8005):
         app_module=f"klea_{label.lower()}.api.main:app",
         tui_app_name=f"klea-{label.lower()}-tui",
         tui_prefix=f"klea-{label.lower()}",
+        tui_entry=f"klea_{label.lower()}.ui.tui.page:run_{label.lower()}_tui",
         web_app_name=f"klea-{label.lower()}-web",
         web_entry=f"klea_{label.lower()}.ui.web.app",
     )
@@ -55,7 +57,7 @@ class TestMakeClientApp(unittest.TestCase):
         # No subcommand: a hint plus the group help, and a clean exit.
         result = self.runner.invoke(self.app, [])
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("Please specify a subcommand (cli | web).", result.output)
+        self.assertIn("Please specify a subcommand (cli | tui | web).", result.output)
         self.assertIn("Usage:", result.output)
 
     def test_cli_routing(self):
@@ -102,6 +104,27 @@ class TestMakeClientApp(unittest.TestCase):
             result = self.runner.invoke(self.app, ["cli", "--debug", "-q", "hi"])
             self.assertEqual(result.exit_code, 0)
             self.assertTrue(run_cli.call_args.kwargs["debug"])
+
+    def test_tui_routing(self):
+        with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
+            result = self.runner.invoke(self.app, ["tui"])
+            self.assertEqual(result.exit_code, 0)
+            run_tui.assert_called_once_with(
+                server_url="http://127.0.0.1:8005",
+                title="KLEA RAG",
+                tui_app_name="klea-rag-tui",
+                tui_prefix="klea-rag",
+                app_module="klea_rag.api.main:app",
+                tui_entry="klea_rag.ui.tui.page:run_rag_tui",
+                user_id="",
+                resume="",
+                continue_session=False,
+                debug=False,
+                profile=None,
+                config_env_var=None,
+                config_dir=None,
+                template_writer=None,
+            )
 
     def test_web_routing(self):
         with mock.patch("klea_utils.ui.cli._run_web") as run_web:
@@ -349,6 +372,60 @@ class TestRunWeb(unittest.TestCase):
             )
         spawn.assert_not_called()
         subprocess_run.assert_not_called()
+
+
+class TestRunTui(unittest.TestCase):
+    """The tui entry point: [tui] extra guard and stub dispatch."""
+
+    def test_missing_extra_errors_before_spawn(self):
+        # textual absent: the guard fails fast, before any server spawn.
+        with (
+            mock.patch(
+                "klea_utils.imports.require_extra",
+                side_effect=ImportError("textual is required"),
+            ),
+            mock.patch("klea_utils.ui.cli._maybe_spawn_server") as spawn,
+            self.assertRaises(typer.Exit),
+        ):
+            _run_tui(
+                server_url="http://127.0.0.1:8005",
+                title="T",
+                tui_app_name="klea-rag-tui",
+                tui_prefix="klea-rag",
+                app_module="klea_rag.api.main:app",
+                tui_entry="klea_rag.ui.tui.page:run_rag_tui",
+            )
+        spawn.assert_not_called()
+
+    def test_launches_stub_when_extra_present(self):
+        # textual present: the resolved entry is launched against a (no-op)
+        # server.  Point tui_entry at the shared app so the test does not
+        # import an app package.
+        with (
+            mock.patch("klea_utils.imports.require_extra"),
+            mock.patch(
+                "klea_utils.ui.cli._maybe_spawn_server",
+                return_value=contextlib.nullcontext(),
+            ),
+            mock.patch("klea_utils.ui.tui.app.run_tui") as run_tui,
+        ):
+            _run_tui(
+                server_url="http://127.0.0.1:8005",
+                title="T",
+                tui_app_name="klea-rag-tui",
+                tui_prefix="klea-rag",
+                app_module="klea_rag.api.main:app",
+                tui_entry="klea_utils.ui.tui.app:run_tui",
+            )
+        run_tui.assert_called_once_with(
+            url="http://127.0.0.1:8005",
+            title="T",
+            app_prefix="klea-rag",
+            app_name="klea-rag-tui",
+            user_id="",
+            resume="",
+            continue_session=False,
+        )
 
 
 if __name__ == "__main__":

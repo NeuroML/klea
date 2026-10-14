@@ -155,6 +155,75 @@ def _run_cli(
             print("\nInterrupted. Exiting.")
 
 
+def _run_tui(
+    server_url: str,
+    title: str,
+    tui_app_name: str,
+    tui_prefix: str,
+    app_module: str,
+    tui_entry: str,
+    user_id: str = "",
+    resume: str = "",
+    continue_session: bool = False,
+    debug: bool = False,
+    profile: str | None = None,
+    config_env_var: str | None = None,
+    config_dir: str | Path | None = None,
+    template_writer: Callable[[Path], Path] | None = None,
+) -> None:
+    """Run the in-process Textual terminal client.
+
+    Unlike the NiceGUI web client (a subprocess), the Textual app is a
+    library launched in this process (ADR-0050).  *tui_entry* is the app's
+    entry as ``"module:function"`` (e.g.
+    ``"klea_agent.ui.tui.page:run_agent_tui"``), resolved at launch so the
+    CLI imports no app package and ``--help`` stays light.
+    """
+    # Guard: textual is an optional extra (utils_pkg/setup.cfg: [tui]).
+    # Keep this at function entry so ``tui --help`` still works but ``tui``
+    # without the extra fails fast with an actionable hint.
+    try:
+        # Lazy: require_extra uses only find_spec (stdlib).
+        from klea_utils.imports import require_extra
+
+        require_extra("textual", "tui")
+    except ImportError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from None
+    if debug:
+        # Make debug visible to the spawned server subprocess.
+        from klea_utils.plogging import enable_debug_logging
+
+        enable_debug_logging()
+    with _maybe_spawn_server(
+        server_url,
+        app_module,
+        profile=profile,
+        config_env_var=config_env_var,
+        config_dir=config_dir,
+        template_writer=template_writer,
+    ):
+        # Lazy: the app's Textual entry (and its heavy imports) is only needed
+        # on launch; resolve it from ``tui_entry`` so this module imports no
+        # app package.
+        module_path, _, attr = tui_entry.partition(":")
+        try:
+            module = importlib.import_module(module_path)
+            builder = getattr(module, attr or "run_tui")
+        except (ImportError, AttributeError) as exc:
+            typer.echo(f"Could not load TUI entry '{tui_entry}': {exc}", err=True)
+            raise typer.Exit(code=1) from None
+        builder(
+            url=server_url,
+            title=title,
+            app_prefix=tui_prefix,
+            app_name=tui_app_name,
+            user_id=user_id,
+            resume=resume,
+            continue_session=continue_session,
+        )
+
+
 def _run_web(
     server_url: str,
     title: str,
@@ -248,16 +317,17 @@ def make_client_app(
     app_module: str,
     tui_app_name: str,
     tui_prefix: str,
+    tui_entry: str,
     web_app_name: str,
     web_entry: str,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
 ) -> typer.Typer:
-    """Create a Typer app for a Klea user client (cli + web).
+    """Create a Typer app for a Klea user client (cli + tui + web).
 
-    The app exposes ``cli`` / ``web`` subcommands for the terminal and
-    NiceGUI clients respectively, each carrying its own options so
+    The app exposes ``cli`` / ``tui`` / ``web`` subcommands for the REPL,
+    Textual and NiceGUI clients respectively, each carrying its own options so
     ``--help`` on a subcommand lists everything it accepts.  Invoked with
     no subcommand the app prints its usage help.  All package-specific
     values are passed as parameters, so the rag and code entry points
@@ -280,6 +350,9 @@ def make_client_app(
         ``"klea-rag-tui"``)
     :param tui_prefix: Prompt label prefix for the terminal client (e.g.
         ``"klea-rag"``)
+    :param tui_entry: Module:function of the app's TUI entry (the
+        ``run_*_tui`` launched in-process by the ``tui`` subcommand, e.g.
+        ``"klea_rag.ui.tui.page:run_rag_tui"``)
     :param web_app_name: Log identity for the web client (e.g.
         ``"klea-rag-web"``)
     :param web_entry: Module string of the app's NiceGUI entry point
@@ -296,9 +369,10 @@ def make_client_app(
     app = typer.Typer(help=f"Simple KLEA {label} user client")
 
     cli_help = f"Klea {label} cli client"
+    tui_help = f"Klea {label} tui client (Textual)"
     web_help = f"Klea {label} web client (NiceGUI)"
 
-    # Shared options are defined once and attached to both subcommands so
+    # Shared options are defined once and attached to every subcommand so
     # each command's --help lists everything it accepts.
     server_option = typer.Option(
         server_url_default,
@@ -323,7 +397,7 @@ def make_client_app(
     def main(ctx: typer.Context):
         """Print usage help when no subcommand is given."""
         if ctx.invoked_subcommand is None:
-            print("Please specify a subcommand (cli | web).")
+            print("Please specify a subcommand (cli | tui | web).")
             print(ctx.get_help())
             ctx.exit()
 
@@ -355,6 +429,48 @@ def make_client_app(
         )
 
     cli.__doc__ = cli_help
+
+    @app.command()
+    def tui(
+        server_url: str = server_option,
+        title: str = title_option,
+        user_id: str = typer.Option(
+            "",
+            "--user-id",
+            help="Opaque user id. Defaults to KLEA_USER_ID, else a persisted "
+            "local UUID (sent only to a loopback server).",
+        ),
+        resume: str = typer.Option(
+            "",
+            "--resume",
+            help="Resume a specific chat session by id.",
+        ),
+        continue_: bool = typer.Option(
+            False,
+            "--continue",
+            help="Resume the most recently updated chat session.",
+        ),
+        debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
+        profile: str = profile_option,
+    ):
+        _run_tui(
+            server_url=server_url,
+            title=title,
+            tui_app_name=tui_app_name,
+            tui_prefix=tui_prefix,
+            app_module=app_module,
+            tui_entry=tui_entry,
+            user_id=user_id,
+            resume=resume,
+            continue_session=continue_,
+            debug=debug,
+            profile=profile,
+            config_env_var=config_env_var,
+            config_dir=config_dir,
+            template_writer=template_writer,
+        )
+
+    tui.__doc__ = tui_help
 
     @app.command()
     def web(

@@ -14,12 +14,13 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
 import httpx
 
-from klea_utils.ui.state import chats, ensure_chat
+from klea_utils.ui.state import MessageData, chats, ensure_chat
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,95 @@ async def fetch_commands(server_url: str) -> list[dict[str, Any]]:
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to fetch commands: %s", e)
     return []
+
+
+async def fetch_chat_context(
+    server_url: str, user_id: str, chat_id: str
+) -> dict[str, Any]:
+    """Fetch a chat's session context and pending interrupt (ADR-0032/0046).
+
+    Calls ``GET /chat/{user_id}/{chat_id}/context`` and returns the body
+    (``{"context": {...}, "pending_interrupt": {...}}``), so a frontend can
+    restore a chat's context and re-present a paused HITL ask on load/switch.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :param chat_id: Chat conversation identifier.
+    :returns: The context body, or ``{}`` on failure.
+    """
+    url = f"{server_url}/chat/{user_id}/{chat_id}/context"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("GET %s status=%d", url, resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch chat context: %s", e)
+    return {}
+
+
+async def fetch_chats(server_url: str, user_id: str) -> list[dict[str, Any]]:
+    """Fetch the user's chats, most recently updated first.
+
+    Calls ``GET /chat/{user_id}`` (the server orders by ``updated_at``
+    descending), so the first entry is the "continue" target.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :returns: The chat metadata dicts, or ``[]`` on failure.
+    """
+    url = f"{server_url}/chat/{user_id}"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("GET %s status=%d", url, resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch chats: %s", e)
+    return []
+
+
+async def fetch_chat_messages(
+    server_url: str, user_id: str, chat_id: str
+) -> list[dict[str, Any]]:
+    """Fetch a chat's persisted messages.
+
+    Calls ``GET /chat/{user_id}/{chat_id}/messages``.
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :param chat_id: Chat conversation identifier.
+    :returns: The message dicts, or ``[]`` on failure.
+    """
+    url = f"{server_url}/chat/{user_id}/{chat_id}/messages"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("GET %s status=%d", url, resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch chat messages: %s", e)
+    return []
+
+
+def server_message_to_data(message: Mapping[str, Any]) -> MessageData:
+    """Convert a server message row to the frontend ``MessageData`` shape.
+
+    :param message: A ``GET .../messages`` row (``role``, ``content``,
+        ``created_at``).
+    :returns: A message dict for ``ChatData["messages"]``.
+    """
+    return {
+        "text": message["content"],
+        "stamp": datetime.fromtimestamp(message["created_at"])
+        .astimezone()
+        .strftime("%X"),
+        "role": "user" if message.get("role") == "user" else "agent",
+        "header": "",
+    }
 
 
 async def hydrate_chats(server_url: str, user_id: str) -> None:
@@ -82,17 +172,7 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                         current_chat = chats.get(key)
                         if current_chat:
                             current_chat["messages"] = [
-                                {
-                                    "text": msg["content"],
-                                    "stamp": datetime.fromtimestamp(msg["created_at"])
-                                    .astimezone()
-                                    .strftime("%X"),
-                                    "role": "user"
-                                    if msg["role"] == "user"
-                                    else "agent",
-                                    "header": "",
-                                }
-                                for msg in msg_resp.json()
+                                server_message_to_data(msg) for msg in msg_resp.json()
                             ]
                     # Session context (the agent's operating mode etc.,
                     # ADR-0032) is a projection of checkpointed graph state.

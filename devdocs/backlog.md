@@ -363,7 +363,13 @@ Last updated: 2026-10-12.
   logic in both frontends).  Buffer/pub-sub backend options: in-process
   (single-worker only; cf. the multi-worker item above), Valkey (the
   open-source Redis fork -- not Redis itself), or a log/broker such as Kafka
-  or RabbitMQ.  The heartbeat landed as the interim mitigation.
+  or RabbitMQ.  The heartbeat landed as the interim mitigation.  Other
+  terminal agents also decouple the run from the connection and stream events
+  over a shared feed (e.g. opencode v2: one global encoded feed with
+  per-connection bounded queues); this is context only, not a design to
+  adopt.  Klea's buffer/replay contract should be designed independently --
+  in particular a global feed does not fit its multi-tenant, unauthenticated
+  `user_id` model.
 - Exact live per-tool status (to think about - UX, optional).  A coarse
   `running` status is now emitted at the round start and replaced by
   `ok`/`error` at the end (status pane), so a same-resource call that is

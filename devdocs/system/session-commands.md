@@ -2,9 +2,9 @@
 
 Status: implemented (framework).  The framework is decided in ADR-0047
 (`adr/0047-session-command-framework.md`); this note holds the command
-catalogue and the per-command contract.  The framework, the web routing /
-autocomplete, and the first commands (`/help`, `/mode`, `/access`) are
-implemented;
+catalogue and the per-command contract.  The framework, the web and TUI
+routing / autocomplete, and the first commands (`/help`, `/mode`, `/access`)
+are implemented;
 further commands are added as they land, and a command whose decision is hard
 to reverse may graduate to its own ADR.
 

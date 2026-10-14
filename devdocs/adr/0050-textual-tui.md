@@ -254,3 +254,26 @@ per-chat runs with a run registry.
   "most recently used" identity would leak across users on a shared
   deployment; the intended direction is a single host-local identity file
   with a localhost-only guard and first-run adoption.
+
+## Addendum (2026-10-13): multi-session tabs re-examined
+
+Revisited after other terminal agents shipped multi-session tabs.  The
+decision stands: the Klea TUI keeps one active session plus the summonable
+picker, not a tab strip.  The reason is structural, not stylistic.
+
+In those tools a session run executes server-side and is observed over a
+single global event stream, so a tab holds no run connection and background
+sessions are cheap.  In Klea the run *is* its SSE response: `chat_core`'s
+`stream_response` drives the graph inside the HTTP task and a client
+disconnect cancels the run.  Background sessions would therefore require the
+frontend to hold one stream per running session - a per-chat run registry,
+the machinery this ADR rejected (I1/I2) - or the deferred decoupled-run /
+event-buffer work (`devdocs/backlog.md`, "Durable / resumable SSE stream").
+Without one of those, a tab that is not active cannot stay live or answer
+HITL, so tabs would be a degraded experience rather than a feature.
+
+The need tabs would serve is already covered: the picker switches within one
+process, the web client is natively multi-session, and multiple terminal
+instances (under a multiplexer) give parallel sessions.  The keyed store with
+a single active pointer keeps the multi-session upgrade additive if it is
+ever wanted.
