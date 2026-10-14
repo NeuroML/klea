@@ -63,11 +63,14 @@ klea_agent/
 ├── schemas.py       # Pydantic schemas (incl. Mode: requested / resolved / note)
 └── ui/
     ├── cli.py       # Typer CLI entry point (klea, klea-serve)
-    └── web/         # NiceGUI page composition over klea_utils components (ADR-0031)
-        ├── access_ui.py  # tool-access selector (status-pane slot; ADR-0037)
-        ├── app.py    # process entry point
-        ├── mode_ui.py    # operating-mode selector (status-pane slot; ADR-0030)
-        └── page.py   # setup_layout -- composes the shared components
+    ├── web/         # NiceGUI page composition over klea_utils components (ADR-0031)
+    │   ├── access_ui.py  # tool-access selector (status-pane slot; ADR-0037)
+    │   ├── app.py    # process entry point
+    │   ├── mode_ui.py    # operating-mode selector (status-pane slot; ADR-0030)
+    │   └── page.py   # setup_layout -- composes the shared components
+    └── tui/         # Textual TUI composition over klea_utils components (ADR-0050)
+        ├── mode_ui.py    # operating-mode selector (status-panel slot; ADR-0030)
+        └── page.py   # run_agent_tui -- composes the shared screen
 ```
 
 The bundled tools server is shared: it lives in `klea_utils.mcp.server`

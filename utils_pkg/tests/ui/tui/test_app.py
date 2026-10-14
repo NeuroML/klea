@@ -484,6 +484,33 @@ async def test_status_extras_survive_state_update(fake_backend, make_app):
         assert "Access: read_only" in texts
 
 
+async def test_status_extras_refresh_on_context(fake_backend, make_app):
+    """A context event rebuilds the app slots (so a selector can update)."""
+
+    def _render(ctx):
+        chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}", {})
+        mode = (chat.get("context") or {}).get("requested", "none")
+        return Static(f"Mode: {mode}")
+
+    fake_backend.scripts = [
+        [
+            {"type": "context", "data": {"requested": "scientific"}},
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app(status_extras=[_render])
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        assert "Mode: none" in [str(static.render()) for static in extras.query(Static)]
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        assert "Mode: scientific" in [
+            str(static.render()) for static in extras.query(Static)
+        ]
+
+
 async def test_client_help_command_renders_locally(fake_backend, make_app):
     """A client ``/help`` renders the catalogue and starts no run."""
     fake_backend.commands = [_mode_metadata()]

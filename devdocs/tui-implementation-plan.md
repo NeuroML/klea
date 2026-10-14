@@ -63,8 +63,8 @@ Invariants I1-I8 are in ADR-0050 and restated in `system/tui.md`.
   retroactively), 5.1 (identity seam), 5.2a-e (load/switch, `--continue` /
   `--resume`, the session picker + rename/delete, `/sessions`) and 5.3a-c (the
   model dialog, credentials dialog, and send gating, with the shared
-  `ui/model_config.py` core) are done.  Next step is **5.4b** (agent
-  operating-mode selector slot).  Each checklist item below is one atomic
+  `ui/model_config.py` core) are done.  Next step is **5.4c** (agent
+  tool-access selector slot).  Each checklist item below is one atomic
   commit.
 
 ## Checklist
@@ -132,7 +132,7 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
   (`fetch_credentials` + set/clear `_credential`).
 - [x] 5.3c Missing-model/credential gating (warn/block send).
 - [x] 5.4a `StatusPanel` renders the `TuiContext.status_extras` app slots.
-- [ ] 5.4b Agent operating-mode selector slot (dispatch `/mode`).
+- [x] 5.4b Agent operating-mode selector slot (dispatch `/mode`).
 - [ ] 5.4c Agent tool-access selector slot (dispatch `/access`).
 
 ### Phase 6 - composition, tests, docs

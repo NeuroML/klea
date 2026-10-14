@@ -61,6 +61,7 @@ from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
+from klea_utils.ui.tui.events import SubmitQuery
 
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData
@@ -235,7 +236,7 @@ class KleaTuiScreen(Screen):
         self._inspector_entries = entries
         await self.inspector.set_entries(entries)
         self._inspector_dirty = False
-        await self.status_panel.set_state(chat)
+        await self.status_panel.set_state(chat, refresh_extras=True)
         await self.show_view("transcript")
 
     @property
@@ -314,12 +315,16 @@ class KleaTuiScreen(Screen):
         """Return the status-panel widget."""
         return self.query_one("#status", StatusPanel)
 
-    async def refresh_status(self, chat: Mapping[str, Any] | None) -> None:
+    async def refresh_status(
+        self, chat: Mapping[str, Any] | None, *, refresh_extras: bool = False
+    ) -> None:
         """Rebuild the status panel from the active chat's state.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
+        :param refresh_extras: Also rebuild the app slots (a ``context``
+            change can alter what a selector should show).
         """
-        await self.status_panel.set_state(chat)
+        await self.status_panel.set_state(chat, refresh_extras=refresh_extras)
 
 
 class KleaTuiApp(App[None]):
@@ -511,6 +516,13 @@ class KleaTuiApp(App[None]):
 
         info = ensure_chat(self.ctx.user_id, self.ctx.chat_id).get("model_info") or {}
         return bool(missing_required_roles(info) or missing_credentials(info))
+
+    def on_submit_query(self, event: SubmitQuery) -> None:
+        """Submit a query posted by an app-defined widget (e.g. a selector).
+
+        :param event: The :class:`SubmitQuery` message.
+        """
+        self.run_worker(self.submit(event.text))
 
     def _open_sessions_hook(self) -> None:
         """Command-service hook for ``/sessions`` (schedules the picker)."""
@@ -890,7 +902,9 @@ class KleaTuiApp(App[None]):
                     await screen.refresh_inspector(chat["inspector_entries"])
                     continue
                 if action in ("state", "usage", "context"):
-                    await screen.refresh_status(chat)
+                    await screen.refresh_status(
+                        chat, refresh_extras=(action == "context")
+                    )
                     continue
                 if action == "complete":
                     chat["turn_status"] = {"kind": "idle"}

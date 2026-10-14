@@ -13,9 +13,9 @@ the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
-credentials dialog, the missing-model/API-key send gating, and the app-slot
-status extras have landed (Phase 2.2-5.4a); the mode/access selectors are still
-to come.
+credentials dialog, the missing-model/API-key send gating, the app-slot status
+extras, and the agent operating-mode selector have landed (Phase 2.2-5.4b);
+the tool-access selector is still to come.
 
 ## Overview
 
@@ -196,7 +196,12 @@ registers none.  Both entries are thin (`run_agent_tui` / `run_rag_tui`,
 mirroring `run_agent_web`) and pass only the title/prefix/app-name and page
 builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
 renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
-streamed state, so a state refresh never disturbs them.
+streamed state, so a state refresh never disturbs them, and rebuilds them on a
+`context` change (so a selector follows the checkpointed mode).  A control that
+must run a query posts a shared `SubmitQuery` message
+(`ui/tui/events.py`), which the app routes through `submit` (commands and the
+setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
+`/mode <value>` this way.
 
 ## Rendering and non-goals
 

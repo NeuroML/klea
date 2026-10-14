@@ -106,23 +106,40 @@ class StatusPanel(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Compose the app slots and the (initially empty) state body."""
-        if self._ctx is not None and self._ctx.status_extras:
-            with Vertical(id="status-extras"):
-                for render in self._ctx.status_extras:
-                    widget = render(self._ctx)
-                    if widget is None:
-                        continue
-                    if isinstance(widget, (list, tuple)):
-                        yield from widget
-                    else:
-                        yield widget
+        with Vertical(id="status-extras"):
+            yield from self._extra_widgets()
         yield Vertical(id="status-body")
 
-    async def set_state(self, chat: Mapping[str, Any] | None) -> None:
+    def _extra_widgets(self) -> list[Any]:
+        """Build the app-slot widgets from the context's renderers."""
+        if self._ctx is None:
+            return []
+        widgets: list[Any] = []
+        for render in self._ctx.status_extras:
+            widget = render(self._ctx)
+            if widget is None:
+                continue
+            if isinstance(widget, (list, tuple)):
+                widgets.extend(widget)
+            else:
+                widgets.append(widget)
+        return widgets
+
+    async def set_state(
+        self, chat: Mapping[str, Any] | None, *, refresh_extras: bool = False
+    ) -> None:
         """Rebuild the streamed state below the app slots.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
+        :param refresh_extras: Also rebuild the app slots (a ``context``
+            change can alter what a selector should show).
         """
+        if refresh_extras:
+            extras = self.query_one("#status-extras", Vertical)
+            await extras.remove_children()
+            widgets = self._extra_widgets()
+            if widgets:
+                await extras.mount_all(widgets)
         body = self.query_one("#status-body", Vertical)
         await body.remove_children()
         widgets: list[Any] = []
