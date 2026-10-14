@@ -12,9 +12,9 @@ MIME-aware transcript, the inspector view, the status pane, session commands,
 the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
-`/sessions`), the per-role model dialog (`Ctrl+M` / `/model`) and its provider
-credentials dialog have landed (Phase 2.2-5.3b); the mode/access selectors are
-still to come.
+`/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
+credentials dialog, and the missing-model/API-key send gating have landed
+(Phase 2.2-5.3c); the mode/access selectors are still to come.
 
 ## Overview
 
@@ -133,6 +133,11 @@ widgets refresh on the app loop.  Stop cancels the worker and best-effort
 `POST /query/cancel`.  A failure `resume` re-runs with `resume=True`; a HITL
 answer/cancel re-runs with `interrupt_response` / `interrupt_cancel` (I6).
 Switching sessions is refused while a run is streaming.
+
+A query is also blocked (with a warning pointing at `Ctrl+M`) while a
+**required** model or provider API key is unresolved
+(`missing_required_roles` / `missing_credentials`); client commands still run,
+so `/help` and the dialogs work before setup is complete.
 
 The ADR-0050 invariants are the fitness function; this note adds the concrete
 enforcement point for each:

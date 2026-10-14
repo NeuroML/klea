@@ -72,9 +72,12 @@ class ModelResult:
 
     :param saved: The ``(role, model)`` pairs persisted before the dialog
         closed.
+    :param changed: Whether anything changed (a saved model or a credential),
+        so the app re-fetches the active models and re-evaluates gating.
     """
 
     saved: list[tuple[str, str]] = field(default_factory=list)
+    changed: bool = False
 
 
 class _CatalogueSuggester(Suggester):
@@ -160,6 +163,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         self._catalogue = CatalogueCache(server_url, user_id)
         self._providers: list[str] = []
         self._stored_by_scope: dict[tuple[str, str], dict[str, Any]] = {}
+        self._credentials_changed = False
         self._origins: dict[str, ModelOrigin] = {
             role: parse_model_origin(self._model_of(role)) for role in self._roles
         }
@@ -403,8 +407,8 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             self._use_for_all(role)
 
     def action_cancel(self) -> None:
-        """Dismiss without saving."""
-        self.dismiss(None)
+        """Dismiss without saving models (credentials may have changed)."""
+        self.dismiss(ModelResult(changed=self._credentials_changed))
 
     @work
     async def _save(self) -> None:
@@ -429,7 +433,12 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             )
             return
         logger.debug(f"model dialog: saved {outcome.saved = }")
-        self.dismiss(ModelResult(saved=outcome.saved))
+        self.dismiss(
+            ModelResult(
+                saved=outcome.saved,
+                changed=bool(outcome.saved) or self._credentials_changed,
+            )
+        )
 
     @work
     async def _reset(self, role: str) -> None:
@@ -476,14 +485,20 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         :param result: The credentials dialog's result, or ``None``.
         """
         if result and result.changed:
+            self._credentials_changed = True
             self._reload_credentials()
 
     @work
     async def _reload_credentials(self) -> None:
-        """Re-fetch the stored credentials and refresh the status labels."""
+        """Re-fetch the stored credentials and the active models."""
         stored = await fetch_credentials(self._server_url, self._user_id)
         self._stored_by_scope = {
             (str(c.get("provider", "")), str(c.get("endpoint", "") or "")): c
             for c in stored
         }
+        # Re-fetch the active models too: a stored key changes the resolved
+        # credential ``source`` per role (used by the send gating).
+        info = await fetch_active_models(self._server_url, self._user_id, self._chat_id)
+        if info:
+            self._info = info
         self._refresh_credentials()

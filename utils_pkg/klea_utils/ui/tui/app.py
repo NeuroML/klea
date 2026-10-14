@@ -470,27 +470,47 @@ class KleaTuiApp(App[None]):
 
         A ``//``-escaped input is sent as a literal ``/`` query.  A client
         command runs locally and its output is rendered; a server command (or a
-        non-command) is forwarded as the query.
+        non-command) is forwarded as the query, unless a required model or API
+        key is missing (then the send is blocked with a warning).
 
         :param text: The raw input.
         """
         unescaped = unescape_command(text)
-        if unescaped is not None:
-            self.start_run(unescaped)
+        if unescaped is None:
+            result = handle_command(
+                text,
+                self._catalogue,
+                TUI_CAPABILITIES,
+                services={
+                    OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
+                    OPEN_MODELS_SERVICE: self._open_models_hook,
+                },
+            )
+            if result is not None:
+                await self._render_command_result(result)
+                return
+            query = text
+        else:
+            query = unescaped
+        # Client commands run before this guard (so /help works while setup is
+        # incomplete); a real query is blocked until the models/keys are set.
+        if self._setup_incomplete():
+            logger.warning("send blocked: required models or API keys not configured")
+            self.notify(
+                "Select the required models and API keys before sending (Ctrl+M).",
+                severity="warning",
+            )
             return
-        result = handle_command(
-            text,
-            self._catalogue,
-            TUI_CAPABILITIES,
-            services={
-                OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
-                OPEN_MODELS_SERVICE: self._open_models_hook,
-            },
-        )
-        if result is None:
-            self.start_run(text)
-            return
-        await self._render_command_result(result)
+        self.start_run(query)
+
+    def _setup_incomplete(self) -> bool:
+        """Whether the active chat still needs required models or API keys."""
+        # Lazy: the state store and llm helpers are only needed to send.
+        from klea_utils.llm import missing_required_roles
+        from klea_utils.ui.state import ensure_chat, missing_credentials
+
+        info = ensure_chat(self.ctx.user_id, self.ctx.chat_id).get("model_info") or {}
+        return bool(missing_required_roles(info) or missing_credentials(info))
 
     def _open_sessions_hook(self) -> None:
         """Command-service hook for ``/sessions`` (schedules the picker)."""
@@ -639,11 +659,11 @@ class KleaTuiApp(App[None]):
         )
 
     def _on_models_closed(self, result: ModelResult | None) -> None:
-        """Refresh the chat after the model dialog closes with saves.
+        """Refresh the chat after the model dialog closes with changes.
 
         :param result: The dialog's :class:`ModelResult`, or ``None``.
         """
-        if result and result.saved:
+        if result and result.changed:
             self._refresh_models()
 
     @work

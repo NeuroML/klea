@@ -664,6 +664,92 @@ async def test_model_dialog_credentials_clear(fake_backend, make_app):
     assert fake_backend.credentials_cleared == [{"provider": "openai", "endpoint": ""}]
 
 
+def _model_info_incomplete() -> dict:
+    """A required chat role with no model configured."""
+    return {"chat": {"model": "", "required": True, "credential": {}}}
+
+
+def _model_info_missing_key() -> dict:
+    """A required chat role whose provider has no stored credential."""
+    return {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "required": True,
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "none",
+            },
+        }
+    }
+
+
+def _model_info_ready() -> dict:
+    """A required chat role with a model and a resolved credential."""
+    return {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "required": True,
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "env",
+            },
+        }
+    }
+
+
+async def test_send_blocked_when_model_missing(fake_backend, make_app):
+    """A send is blocked while a required model is unset."""
+    fake_backend.model_info = _model_info_incomplete()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await pilot.pause()
+
+    assert fake_backend.calls == []
+
+
+async def test_send_blocked_when_credential_missing(fake_backend, make_app):
+    """A send is blocked while a required API key is unset."""
+    fake_backend.model_info = _model_info_missing_key()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await pilot.pause()
+
+    assert fake_backend.calls == []
+
+
+async def test_send_allowed_when_configured(fake_backend, make_app):
+    """A send proceeds once the required model and key are resolved."""
+    fake_backend.model_info = _model_info_ready()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert [call["query"] for call in fake_backend.calls] == ["hi"]
+
+
+async def test_client_command_allowed_when_setup_incomplete(fake_backend, make_app):
+    """A client command still runs while required models are missing."""
+    fake_backend.model_info = _model_info_incomplete()
+    fake_backend.commands = [_mode_metadata()]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "/help")
+        await pilot.pause()
+
+    texts = [message["text"] for message in _chat()["messages"]]
+    assert any("Available commands" in text for text in texts)
+    assert fake_backend.calls == []
+
+
 async def test_unknown_command_is_rejected_locally(fake_backend, make_app):
     """An unknown command renders an error and is never forwarded."""
     app = make_app()
