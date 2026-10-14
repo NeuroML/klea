@@ -79,4 +79,20 @@ def make_parser(
         default="klea-agent-web",
         help="Log identity for this frontend process (used for the log file name)",
     )
+    parser.add_argument(
+        "--user-id",
+        default="",
+        help=(
+            "Explicit user id override. Defaults to KLEA_USER_ID, else a "
+            "shared host-local identity file for a loopback server."
+        ),
+    )
+    parser.add_argument(
+        "--identity-app-name",
+        default="",
+        help=(
+            "Canonical identity key shared by the TUI and web frontends (the "
+            "server app, e.g. 'klea-agent')."
+        ),
+    )
     return parser

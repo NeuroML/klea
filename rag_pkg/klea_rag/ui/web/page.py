@@ -156,6 +156,8 @@ def run_rag_web(
     storage_secret: str = "klea-nicegui-secret-change-me",
     app_name: str = "klea-rag-web",
     favicon: str | None = None,
+    user_id: str = "",
+    identity_app_name: str = "klea-rag",
 ) -> None:
     """Start the RAG NiceGUI web server with :func:`setup_layout`.
 
@@ -174,6 +176,8 @@ def run_rag_web(
         persistence.
     :param app_name: Log identity for this frontend process.
     :param favicon: Browser-tab favicon (defaults to the bundled Klea icon).
+    :param user_id: Explicit ``--user-id`` override for the page identity.
+    :param identity_app_name: Canonical identity key shared with the TUI.
     """
     bootstrap.run_nicegui_server(
         title,
@@ -187,4 +191,6 @@ def run_rag_web(
         storage_secret=storage_secret,
         app_name=app_name,
         favicon=favicon,
+        user_id=user_id,
+        identity_app_name=identity_app_name,
     )

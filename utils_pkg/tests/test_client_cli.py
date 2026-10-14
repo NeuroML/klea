@@ -142,6 +142,15 @@ class TestMakeClientApp(unittest.TestCase):
             self.assertEqual(kwargs["reload"], False)
             self.assertEqual(kwargs["debug"], False)
             self.assertEqual(kwargs["favicon"], "")
+            self.assertEqual(kwargs["user_id"], "")
+            self.assertEqual(kwargs["identity_app_name"], "klea-rag")
+
+    def test_web_user_id_routing(self):
+        with mock.patch("klea_utils.ui.cli._run_web") as run_web:
+            result = self.runner.invoke(self.app, ["web", "--user-id", "abc"])
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(run_web.call_args.kwargs["user_id"], "abc")
+            self.assertEqual(run_web.call_args.kwargs["identity_app_name"], "klea-rag")
 
     def test_web_favicon_routing(self):
         with mock.patch("klea_utils.ui.cli._run_web") as run_web:
@@ -265,6 +274,8 @@ class TestRunWeb(unittest.TestCase):
                 web_app_name="klea-rag-web",
                 app_module="klea_rag.api.main:app",
                 web_entry="klea_rag.ui.web.app",
+                user_id="u1",
+                identity_app_name="klea-rag",
             )
 
         # The command is already shlex-split, so quotes are gone.
@@ -272,6 +283,8 @@ class TestRunWeb(unittest.TestCase):
         command = " ".join(subprocess_run.call_args.args[0])
         self.assertIn("app.py", command)
         self.assertIn("--app-name klea-rag-web", command)
+        self.assertIn("--user-id u1", command)
+        self.assertIn("--identity-app-name klea-rag", command)
         self.assertIn("http://127.0.0.1:8005", command)
         self.assertNotIn("--reload", command)
         logger.debug("web client launched with command: %s", command)
