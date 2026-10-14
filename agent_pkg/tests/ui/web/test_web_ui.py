@@ -50,6 +50,34 @@ async def test_mode_and_access_selectors_render(agent_user):
     await agent_user.should_see("Read-only")
 
 
+async def test_project_root_row_renders(agent_user):
+    """The status pane shows a project-root row (server cwd before a chat)."""
+    await agent_user.open("/")
+    await agent_user.should_see("Project root:")
+    await agent_user.should_see("(server working directory)")
+
+
+async def test_project_root_updates_from_context(fake_backend, agent_user):
+    """A ``context`` event's ``project_root`` is shown in the status pane."""
+    fake_backend.stream_events = [
+        {
+            "type": "context",
+            "data": {
+                "requested": "general",
+                "mode": "general",
+                "access_level": "full",
+                "project_root": "/work/proj",
+            },
+        },
+        {"type": "complete", "message_for_user": "done"},
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "hello")
+    await agent_user.should_see("done", retries=50)
+    await agent_user.should_see("/work/proj", retries=50)
+
+
 def _mode_command_metadata() -> dict:
     """Server-side ``/mode`` catalogue entry so the input is forwarded."""
     return {

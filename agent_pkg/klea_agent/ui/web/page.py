@@ -37,7 +37,7 @@ from klea_utils.ui.web.nicegui.components import (
 from klea_utils.ui.web.nicegui.components.context import DEFAULT_FOOTER, PageContext
 from nicegui import ui
 
-from klea_agent.ui.web import access_ui, mode_ui
+from klea_agent.ui.web import access_ui, mode_ui, project_root_ui
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +92,7 @@ def setup_layout(
     model_dialog.attach_model_info(ctx)
     mode_ui.attach_mode_ui(ctx)  # status-pane slot: mode selector
     access_ui.attach_access_ui(ctx)  # status-pane slot: access selector
+    project_root_ui.attach_project_root_ui(ctx)  # status-pane slot: project root
     status_pane.attach_status_pane(ctx)  # right drawer (state); needs model dialog
 
     # ---- Center: chat messages + input (pinned to bottom) ----
