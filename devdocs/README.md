@@ -34,7 +34,6 @@ Structure:
 | File | Topic |
 |------|-------|
 | `backlog.md` | Consolidated open-work backlog (HITL, agent path, tools, scientific mode, infra, UX, testing) |
-| `tui-implementation-plan.md` | Working checklist for the Textual TUI build: phased steps with status (ADR-0050) |
 | `system/c4-system-context.md` | C4 model Level 1: system context diagram (whole Klea product as the system in scope) |
 | `system/c4-container.md` | C4 model Level 2: container diagram (Klea packages/services, datastores, shared lib, and their interactions + external systems) |
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
@@ -48,6 +47,7 @@ Structure:
 | `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |
 | `system/api-sse-sequence.md` | API/SSE interaction sequences (C4 dynamic): bootstrap, `POST /query/stream`, and the RAG vs agent lifecycles with HITL/resume/cancel |
 | `system/web-ui-testing.md` | Web (NiceGUI) UI testing: in-process user simulation, fake backend, per-package `tests/ui/web/` |
+| `system/tui-testing.md` | TUI (Textual) testing: in-process `run_test()` pilot, fake backend, fixtures, gotchas |
 | `system/file-tools.md` | File-tool contract and edge-case matrix: text/binary/encoding rules, `read_file` paging, known containment limits |
 | `system/graph-resume.md` | Confirmed LangGraph fault-tolerance/resume semantics: what a node error preserves, `None`-input resume, edge cases |
 | `system/graph-routing.md` | Graph routing: conditional-edge path functions vs LangGraph `Command(goto=...)`, and when `Command` is warranted |

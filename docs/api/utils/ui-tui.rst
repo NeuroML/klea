@@ -1,8 +1,9 @@
-UI - terminal REPL
-==================
+UI - terminal client
+====================
 
 The ``cli`` subcommand's terminal client is a lightweight REPL for quick
-testing, not the TUI; a full Textual TUI is planned.
+testing.  The full Textual terminal TUI is the ``tui`` subcommand (see
+:doc:`../../components/tui`); both share the ``klea_utils.ui`` helpers.
 
 .. automodule:: klea_utils.ui.tui.repl
    :members:

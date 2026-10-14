@@ -20,8 +20,8 @@ menu); more are planned in both groups.
 
 .. note::
 
-   Session commands are available in the agent (``klea web`` / ``klea cli``).
-   The RAG frontends do not expose any yet.
+   Session commands are available in the agent (``klea web`` / ``klea tui``
+   / ``klea cli``).  The RAG frontends do not expose any yet.
 
 UI commands (client)
 --------------------
@@ -100,5 +100,6 @@ nor runnable.
 .. seealso::
 
    * :doc:`web-ui` -- the web interface, including the command menu
+   * :doc:`tui` -- the terminal interface, including the command menu
    * :doc:`agent` -- the agent and its operating modes
    * :doc:`../install` -- configuration

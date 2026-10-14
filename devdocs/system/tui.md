@@ -14,9 +14,9 @@ re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
 credentials dialog, the missing-model/API-key send gating, the app-slot status
-extras, and the agent operating-mode and tool-access selectors have landed
-(Phase 2.2-5.4c); the composition/slots are finalized with an I8 guard test
-(Phase 6.1), leaving the Phase 6 docs.
+extras, and the agent operating-mode and tool-access selectors have landed;
+the composition/slots are finalized with an I8 guard test, and the public
+`docs/components/tui.rst` and `system/tui-testing.md` document the frontend.
 
 ## Overview
 
@@ -235,7 +235,8 @@ shared state and reducer have framework-agnostic unit tests.  The harness
 * Related: ADR-0026 (client-server), ADR-0031 (apps own UI composition),
   ADR-0043 (single active run per thread), ADR-0007 (path permissions),
   ADR-0030/0037 (mode / access).
-* Code (planned): `utils_pkg/klea_utils/ui/{state,stream_events,client}.py`,
+* Code: `utils_pkg/klea_utils/ui/{state,stream_events,client}.py`,
   `utils_pkg/klea_utils/ui/tui/`, `agent_pkg/klea_agent/ui/tui/`,
   `rag_pkg/klea_rag/ui/tui/`.
+* Public docs: `docs/components/tui.rst`; tests: `system/tui-testing.md`.
 * Web counterparts: `ui/web/nicegui/{state.py,client.py,components/*}`.
