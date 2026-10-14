@@ -25,7 +25,7 @@ from typing import Any
 
 from nicegui import app, ui
 
-from klea_utils.ui.web.nicegui.components.storage import resolve_user_id
+from klea_utils.ui.web.nicegui.components.storage import resolve_page_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +113,8 @@ def run_nicegui_server(
     storage_secret: str = "klea-nicegui-secret-change-me",
     app_name: str = "klea-agent-web",
     favicon: str | Path | None = None,
+    user_id: str = "",
+    identity_app_name: str = "klea-agent",
 ) -> None:
     """Start the NiceGUI web server with a Klea page.
 
@@ -143,6 +145,9 @@ def run_nicegui_server(
         log file name so each app keeps its own logs.
     :param favicon: Browser-tab favicon (a file path, URL, raw SVG or a
         single character).  Defaults to the bundled Klea icon.
+    :param user_id: Explicit ``--user-id`` override for the page identity.
+    :param identity_app_name: Canonical identity key (the server app, e.g.
+        ``"klea-agent"``) for the shared host-local identity file.
     """
     _configure_logging(app_name)
     _configure_storage(app_name)
@@ -160,16 +165,20 @@ def run_nicegui_server(
         User identity is resolved before any ``await`` so
         ``app.storage.user`` is still in the request context.
         """
-        user_id = await resolve_user_id()
+        resolved_user_id = await resolve_page_user_id(
+            explicit=user_id,
+            server_url=server_url,
+            identity_app_name=identity_app_name,
+        )
         await ui.context.client.connected()
 
         chat_id = ""
 
-        logger.debug("user_id=%s chat_id=%s", user_id, chat_id)
+        logger.debug("user_id=%s chat_id=%s", resolved_user_id, chat_id)
 
         page_builder(
             chat_id=chat_id,
-            user_id=user_id,
+            user_id=resolved_user_id,
             server_url=server_url,
             title=title,
             subtitle=subtitle,

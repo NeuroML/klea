@@ -240,6 +240,8 @@ def _run_web(
     app_module: str,
     web_entry: str,
     favicon: str | None = None,
+    user_id: str = "",
+    identity_app_name: str = "",
     profile: str | None = None,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
@@ -304,6 +306,8 @@ def _run_web(
                     + f" --nicegui-url '{nicegui_url}'"
                     + f" --storage-secret '{storage_secret}'"
                     + f" --app-name '{web_app_name}'"
+                    + f" --user-id {shlex.quote(user_id)}"
+                    + f" --identity-app-name {shlex.quote(identity_app_name)}"
                     + (f" --favicon '{favicon}'" if favicon else "")
                     + (" --reload" if reload else "")
                 ),
@@ -522,6 +526,12 @@ def make_client_app(
         reload: bool = typer.Option(
             False, "--reload", "-r", help="Enable auto-reload on file changes"
         ),
+        user_id: str = typer.Option(
+            "",
+            "--user-id",
+            help="Opaque user id. Defaults to KLEA_USER_ID, else a shared "
+            "host-local identity file (loopback only).",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -539,6 +549,8 @@ def make_client_app(
             app_module=app_module,
             web_entry=web_entry,
             favicon=favicon,
+            user_id=user_id,
+            identity_app_name=identity_app_name,
             profile=profile,
             config_env_var=config_env_var,
             config_dir=config_dir,
