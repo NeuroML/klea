@@ -460,6 +460,77 @@
             <span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Interrupted. Exiting."</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_run_tui</span><span class="p">(</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">resume</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">continue_session</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">template_writer</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Path</span><span class="p">],</span> <span class="n">Path</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Run the in-process Textual terminal client.</span>
+
+<span class="sd">    Unlike the NiceGUI web client (a subprocess), the Textual app is a</span>
+<span class="sd">    library launched in this process (ADR-0050).  *tui_entry* is the app's</span>
+<span class="sd">    entry as ``"module:function"`` (e.g.</span>
+<span class="sd">    ``"klea_agent.ui.tui.page:run_agent_tui"``), resolved at launch so the</span>
+<span class="sd">    CLI imports no app package and ``--help`` stays light.</span>
+<span class="sd">    """</span>
+    <span class="c1"># Guard: textual is an optional extra (utils_pkg/setup.cfg: [tui]).</span>
+    <span class="c1"># Keep this at function entry so ``tui --help`` still works but ``tui``</span>
+    <span class="c1"># without the extra fails fast with an actionable hint.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Lazy: require_extra uses only find_spec (stdlib).</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.imports</span><span class="w"> </span><span class="kn">import</span> <span class="n">require_extra</span>
+
+        <span class="n">require_extra</span><span class="p">(</span><span class="s2">"textual"</span><span class="p">,</span> <span class="s2">"tui"</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">typer</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">),</span> <span class="n">err</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">if</span> <span class="n">debug</span><span class="p">:</span>
+        <span class="c1"># Make debug visible to the spawned server subprocess.</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_debug_logging</span>
+
+        <span class="n">enable_debug_logging</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">_maybe_spawn_server</span><span class="p">(</span>
+        <span class="n">server_url</span><span class="p">,</span>
+        <span class="n">app_module</span><span class="p">,</span>
+        <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+        <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
+        <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>
+        <span class="n">template_writer</span><span class="o">=</span><span class="n">template_writer</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="c1"># Lazy: the app's Textual entry (and its heavy imports) is only needed</span>
+        <span class="c1"># on launch; resolve it from ``tui_entry`` so this module imports no</span>
+        <span class="c1"># app package.</span>
+        <span class="n">module_path</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">attr</span> <span class="o">=</span> <span class="n">tui_entry</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="n">importlib</span><span class="o">.</span><span class="n">import_module</span><span class="p">(</span><span class="n">module_path</span><span class="p">)</span>
+            <span class="n">builder</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">attr</span> <span class="ow">or</span> <span class="s2">"run_tui"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">AttributeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">typer</span><span class="o">.</span><span class="n">echo</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not load TUI entry '</span><span class="si">{</span><span class="n">tui_entry</span><span class="si">}</span><span class="s2">': </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">err</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">typer</span><span class="o">.</span><span class="n">Exit</span><span class="p">(</span><span class="n">code</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="n">builder</span><span class="p">(</span>
+            <span class="n">url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
+            <span class="n">app_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
+            <span class="n">app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
+            <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+            <span class="n">continue_session</span><span class="o">=</span><span class="n">continue_session</span><span class="p">,</span>
+            <span class="n">identity_app_name</span><span class="o">=</span><span class="n">identity_app_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_run_web</span><span class="p">(</span>
     <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
@@ -474,6 +545,8 @@
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -538,6 +611,8 @@
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --nicegui-url '</span><span class="si">{</span><span class="n">nicegui_url</span><span class="si">}</span><span class="s2">'"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --storage-secret '</span><span class="si">{</span><span class="n">storage_secret</span><span class="si">}</span><span class="s2">'"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --app-name '</span><span class="si">{</span><span class="n">web_app_name</span><span class="si">}</span><span class="s2">'"</span>
+                    <span class="o">+</span> <span class="sa">f</span><span class="s2">" --user-id </span><span class="si">{</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="o">+</span> <span class="sa">f</span><span class="s2">" --identity-app-name </span><span class="si">{</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">identity_app_name</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
                     <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" --favicon '</span><span class="si">{</span><span class="n">favicon</span><span class="si">}</span><span class="s2">'"</span> <span class="k">if</span> <span class="n">favicon</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="o">+</span> <span class="p">(</span><span class="s2">" --reload"</span> <span class="k">if</span> <span class="n">reload</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                 <span class="p">),</span>
@@ -555,16 +630,18 @@
     <span class="n">app_module</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">tui_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">tui_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">web_entry</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">template_writer</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Path</span><span class="p">],</span> <span class="n">Path</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">typer</span><span class="o">.</span><span class="n">Typer</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Create a Typer app for a Klea user client (cli + web).</span>
+<span class="w">    </span><span class="sd">"""Create a Typer app for a Klea user client (cli + tui + web).</span>
 
-<span class="sd">    The app exposes ``cli`` / ``web`` subcommands for the terminal and</span>
-<span class="sd">    NiceGUI clients respectively, each carrying its own options so</span>
+<span class="sd">    The app exposes ``cli`` / ``tui`` / ``web`` subcommands for the REPL,</span>
+<span class="sd">    Textual and NiceGUI clients respectively, each carrying its own options so</span>
 <span class="sd">    ``--help`` on a subcommand lists everything it accepts.  Invoked with</span>
 <span class="sd">    no subcommand the app prints its usage help.  All package-specific</span>
 <span class="sd">    values are passed as parameters, so the rag and code entry points</span>
@@ -587,11 +664,18 @@
 <span class="sd">        ``"klea-rag-tui"``)</span>
 <span class="sd">    :param tui_prefix: Prompt label prefix for the terminal client (e.g.</span>
 <span class="sd">        ``"klea-rag"``)</span>
+<span class="sd">    :param tui_entry: Module:function of the app's TUI entry (the</span>
+<span class="sd">        ``run_*_tui`` launched in-process by the ``tui`` subcommand, e.g.</span>
+<span class="sd">        ``"klea_rag.ui.tui.page:run_rag_tui"``)</span>
 <span class="sd">    :param web_app_name: Log identity for the web client (e.g.</span>
 <span class="sd">        ``"klea-rag-web"``)</span>
 <span class="sd">    :param web_entry: Module string of the app's NiceGUI entry point</span>
 <span class="sd">        (the ``app.py`` launched by the ``web`` subcommand, e.g.</span>
 <span class="sd">        ``"klea_rag.ui.web.app"``)</span>
+<span class="sd">    :param identity_app_name: Canonical identity key for the persisted</span>
+<span class="sd">        ``user_id`` file, shared by the TUI and web frontends of one app so a</span>
+<span class="sd">        session can be opened in either (e.g. ``"klea-agent"``).  Falls back to</span>
+<span class="sd">        the frontend's own ``app_name`` when empty.</span>
 <span class="sd">    :param config_env_var: Environment variable that carries the config</span>
 <span class="sd">        file name into the spawned server (e.g. ``"KLEA_RAG_APP_CONFIG_FILE"``)</span>
 <span class="sd">    :param config_dir: Config directory searched after the working</span>
@@ -603,9 +687,10 @@
     <span class="n">app</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Typer</span><span class="p">(</span><span class="n">help</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Simple KLEA </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> user client"</span><span class="p">)</span>
 
     <span class="n">cli_help</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Klea </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> cli client"</span>
+    <span class="n">tui_help</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Klea </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> tui client (Textual)"</span>
     <span class="n">web_help</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Klea </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> web client (NiceGUI)"</span>
 
-    <span class="c1"># Shared options are defined once and attached to both subcommands so</span>
+    <span class="c1"># Shared options are defined once and attached to every subcommand so</span>
     <span class="c1"># each command's --help lists everything it accepts.</span>
     <span class="n">server_option</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
         <span class="n">server_url_default</span><span class="p">,</span>
@@ -630,7 +715,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">typer</span><span class="o">.</span><span class="n">Context</span><span class="p">):</span>
 <span class="w">        </span><span class="sd">"""Print usage help when no subcommand is given."""</span>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">invoked_subcommand</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s2">"Please specify a subcommand (cli | web)."</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">"Please specify a subcommand (cli | tui | web)."</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">get_help</span><span class="p">())</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">exit</span><span class="p">()</span>
 
@@ -662,6 +747,49 @@
         <span class="p">)</span>
 
     <span class="n">cli</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">cli_help</span>
+
+    <span class="nd">@app</span><span class="o">.</span><span class="n">command</span><span class="p">()</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">tui</span><span class="p">(</span>
+        <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">server_option</span><span class="p">,</span>
+        <span class="n">title</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">title_option</span><span class="p">,</span>
+        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"--user-id"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Opaque user id. Defaults to KLEA_USER_ID, else a persisted "</span>
+            <span class="s2">"local UUID (sent only to a loopback server)."</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">resume</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"--resume"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Resume a specific chat session by id."</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">continue_</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"--continue"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Resume the most recently updated chat session."</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="s2">"--debug"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Enable debug logging"</span><span class="p">),</span>
+        <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">profile_option</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="n">_run_tui</span><span class="p">(</span>
+            <span class="n">server_url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
+            <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
+            <span class="n">tui_app_name</span><span class="o">=</span><span class="n">tui_app_name</span><span class="p">,</span>
+            <span class="n">tui_prefix</span><span class="o">=</span><span class="n">tui_prefix</span><span class="p">,</span>
+            <span class="n">app_module</span><span class="o">=</span><span class="n">app_module</span><span class="p">,</span>
+            <span class="n">tui_entry</span><span class="o">=</span><span class="n">tui_entry</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
+            <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+            <span class="n">continue_session</span><span class="o">=</span><span class="n">continue_</span><span class="p">,</span>
+            <span class="n">identity_app_name</span><span class="o">=</span><span class="n">identity_app_name</span><span class="p">,</span>
+            <span class="n">debug</span><span class="o">=</span><span class="n">debug</span><span class="p">,</span>
+            <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
+            <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
+            <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>
+            <span class="n">template_writer</span><span class="o">=</span><span class="n">template_writer</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">tui</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">tui_help</span>
 
     <span class="nd">@app</span><span class="o">.</span><span class="n">command</span><span class="p">()</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">web</span><span class="p">(</span>
@@ -705,6 +833,12 @@
         <span class="n">reload</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
             <span class="kc">False</span><span class="p">,</span> <span class="s2">"--reload"</span><span class="p">,</span> <span class="s2">"-r"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Enable auto-reload on file changes"</span>
         <span class="p">),</span>
+        <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"--user-id"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Opaque user id. Defaults to KLEA_USER_ID, else a shared "</span>
+            <span class="s2">"host-local identity file (loopback only)."</span><span class="p">,</span>
+        <span class="p">),</span>
         <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="s2">"--debug"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Enable debug logging"</span><span class="p">),</span>
         <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">profile_option</span><span class="p">,</span>
     <span class="p">):</span>
@@ -722,6 +856,8 @@
             <span class="n">app_module</span><span class="o">=</span><span class="n">app_module</span><span class="p">,</span>
             <span class="n">web_entry</span><span class="o">=</span><span class="n">web_entry</span><span class="p">,</span>
             <span class="n">favicon</span><span class="o">=</span><span class="n">favicon</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
+            <span class="n">identity_app_name</span><span class="o">=</span><span class="n">identity_app_name</span><span class="p">,</span>
             <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
             <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
             <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>

@@ -319,6 +319,7 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span><span class="p">,</span> <span class="n">core</span>
@@ -378,13 +379,15 @@
 
 
 
-<div class="viewcode-block" id="resolve_user_id">
-<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.storage.resolve_user_id">[docs]</a>
-<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_user_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<div class="viewcode-block" id="browser_user_id">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.storage.browser_user_id">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">browser_user_id</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the persistent per-browser ``user_id``, creating it if missing.</span>
 
-<span class="sd">    Must be called at the top of the page builder before any ``await``</span>
-<span class="sd">    so ``app.storage.user`` is still in the request context.</span>
+<span class="sd">    The multi-user fallback: identity comes from the browser's signed session</span>
+<span class="sd">    cookie (``app.storage.user``), so each browser/profile is a distinct user.</span>
+<span class="sd">    Must be called before any ``await`` so ``app.storage.user`` is still in the</span>
+<span class="sd">    request context.</span>
 
 <span class="sd">    :returns: The stored (or freshly generated) ``user_id`` string.</span>
 <span class="sd">    """</span>
@@ -397,6 +400,67 @@
     <span class="k">else</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"EXISTING user_id=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">store</span><span class="p">[</span><span class="s2">"user_id"</span><span class="p">])</span>
     <span class="k">return</span> <span class="n">store</span><span class="p">[</span><span class="s2">"user_id"</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="client_is_loopback">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.storage.client_is_loopback">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">client_is_loopback</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether the current request's client is on a loopback host.</span>
+
+<span class="sd">    Guards the shared local identity file: a remote browser must never be</span>
+<span class="sd">    handed the machine-local ``user_id`` (it would expose the local user's</span>
+<span class="sd">    chats).  A ``None`` client (no request context) is treated as not loopback.</span>
+
+<span class="sd">    :returns: True when the request client host is loopback.</span>
+<span class="sd">    """</span>
+    <span class="c1"># Lazy: the URL helpers pull in the api.server module.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.server</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_loopback_host</span>
+
+    <span class="n">request</span> <span class="o">=</span> <span class="n">request_contextvar</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">request</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">client</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">is_loopback_host</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">host</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="resolve_page_user_id">
+<a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.storage.resolve_page_user_id">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">resolve_page_user_id</span><span class="p">(</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">explicit</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-agent"</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve the page's ``user_id`` through the shared identity seam.</span>
+
+<span class="sd">    Order: an explicit ``--user-id`` / ``KLEA_USER_ID`` &gt; the canonical</span>
+<span class="sd">    host-local identity file (only when both the backend URL and the requesting</span>
+<span class="sd">    browser are loopback, so the TUI and web share one identity for a local</span>
+<span class="sd">    single-user setup) &gt; the per-browser cookie (remote / multi-user).</span>
+
+<span class="sd">    :param explicit: The ``--user-id`` value, or ``""``.</span>
+<span class="sd">    :param server_url: Base URL of the backend API server.</span>
+<span class="sd">    :param identity_app_name: Canonical identity key (the server app, e.g.</span>
+<span class="sd">        ``"klea-agent"``).</span>
+<span class="sd">    :returns: The resolved user id.</span>
+<span class="sd">    """</span>
+    <span class="c1"># Lazy: identity pulls in platformdirs/api.server only when needed.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.identity</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">USER_ID_ENV_VAR</span><span class="p">,</span>
+        <span class="n">is_loopback_url</span><span class="p">,</span>
+        <span class="n">persisted_user_id</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">explicit</span> <span class="o">=</span> <span class="p">(</span><span class="n">explicit</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">USER_ID_ENV_VAR</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">explicit</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"explicit user_id=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">explicit</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">explicit</span>
+    <span class="k">if</span> <span class="n">is_loopback_url</span><span class="p">(</span><span class="n">server_url</span><span class="p">)</span> <span class="ow">and</span> <span class="n">client_is_loopback</span><span class="p">():</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">persisted_user_id</span><span class="p">(</span><span class="n">identity_app_name</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"canonical local user_id=</span><span class="si">%s</span><span class="s2"> (app=</span><span class="si">%s</span><span class="s2">)"</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">identity_app_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">return</span> <span class="k">await</span> <span class="n">browser_user_id</span><span class="p">()</span></div>
 
 </pre></div>
         </article>

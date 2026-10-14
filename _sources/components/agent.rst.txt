@@ -47,9 +47,11 @@ state machine.  In outline:
    answers the user directly.
 3. **Review and clarification** -- the run can pause for human input and
    resume the same run with its state intact (LangGraph interrupt/resume).
-   A plan can be presented for an explicit approve/revision decision (a
-   revision returns the feedback to the Planner), and a plan that needs a
-   missing fact asks the questions its blocked step carries.
+   A plan can carry a review step for an explicit approve/revision decision,
+   either before any work runs or at a checkpoint after an earlier step (for
+   example "review after step 3"); a revision returns the feedback to the
+   Planner.  A plan that needs a missing fact asks the questions its blocked
+   step carries.
 4. **Work loop** -- the plan is a dependency graph: independent steps run
    together in a batch, while a step that needs an earlier step's result waits
    for it.  The tools picker binds the arguments for the batch, the tool caller

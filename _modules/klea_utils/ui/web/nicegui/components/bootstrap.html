@@ -330,7 +330,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span><span class="p">,</span> <span class="n">ui</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_user_id</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">resolve_page_user_id</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -423,6 +423,8 @@
     <span class="n">storage_secret</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-nicegui-secret-change-me"</span><span class="p">,</span>
     <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-agent-web"</span><span class="p">,</span>
     <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"klea-agent"</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Start the NiceGUI web server with a Klea page.</span>
 
@@ -453,6 +455,9 @@
 <span class="sd">        log file name so each app keeps its own logs.</span>
 <span class="sd">    :param favicon: Browser-tab favicon (a file path, URL, raw SVG or a</span>
 <span class="sd">        single character).  Defaults to the bundled Klea icon.</span>
+<span class="sd">    :param user_id: Explicit ``--user-id`` override for the page identity.</span>
+<span class="sd">    :param identity_app_name: Canonical identity key (the server app, e.g.</span>
+<span class="sd">        ``"klea-agent"``) for the shared host-local identity file.</span>
 <span class="sd">    """</span>
     <span class="n">_configure_logging</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
     <span class="n">_configure_storage</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
@@ -470,16 +475,20 @@
 <span class="sd">        User identity is resolved before any ``await`` so</span>
 <span class="sd">        ``app.storage.user`` is still in the request context.</span>
 <span class="sd">        """</span>
-        <span class="n">user_id</span> <span class="o">=</span> <span class="k">await</span> <span class="n">resolve_user_id</span><span class="p">()</span>
+        <span class="n">resolved_user_id</span> <span class="o">=</span> <span class="k">await</span> <span class="n">resolve_page_user_id</span><span class="p">(</span>
+            <span class="n">explicit</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
+            <span class="n">server_url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
+            <span class="n">identity_app_name</span><span class="o">=</span><span class="n">identity_app_name</span><span class="p">,</span>
+        <span class="p">)</span>
         <span class="k">await</span> <span class="n">ui</span><span class="o">.</span><span class="n">context</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">connected</span><span class="p">()</span>
 
         <span class="n">chat_id</span> <span class="o">=</span> <span class="s2">""</span>
 
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"user_id=</span><span class="si">%s</span><span class="s2"> chat_id=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">resolved_user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
 
         <span class="n">page_builder</span><span class="p">(</span>
             <span class="n">chat_id</span><span class="o">=</span><span class="n">chat_id</span><span class="p">,</span>
-            <span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
+            <span class="n">user_id</span><span class="o">=</span><span class="n">resolved_user_id</span><span class="p">,</span>
             <span class="n">server_url</span><span class="o">=</span><span class="n">server_url</span><span class="p">,</span>
             <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
             <span class="n">subtitle</span><span class="o">=</span><span class="n">subtitle</span><span class="p">,</span>

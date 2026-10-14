@@ -332,6 +332,7 @@
 ╰────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────╮
 │ cli  Klea RAG cli client                                           │
+│ tui  Klea RAG tui client (Textual)                                 │
 │ web  Klea RAG web client (NiceGUI)                                 │
 ╰────────────────────────────────────────────────────────────────────╯
 </pre></div>
@@ -356,6 +357,33 @@
 │                               'template' to scaffold a new config  │
 │                               and exit.                            │
 │ --help                        Show this message and exit.          │
+╰────────────────────────────────────────────────────────────────────╯
+</pre></div>
+</div>
+</div>
+<div class="docutils container" id="klea-rag-tui">
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>                                                                      
+ Usage: klea-rag tui [OPTIONS]                                        
+                                                                      
+ Klea RAG tui client (Textual)                                        
+                                                                      
+╭─ Options ──────────────────────────────────────────────────────────╮
+│ --server    -s      TEXT  KLEA RAG server (URL:port)               │
+│                           [default: http://127.0.0.1:8005]         │
+│ --title     -t      TEXT  Title for application                    │
+│                           [default: KLEA RAG]                      │
+│ --user-id           TEXT  Opaque user id. Defaults to              │
+│                           KLEA_USER_ID, else a persisted local     │
+│                           UUID (sent only to a loopback server).   │
+│ --resume            TEXT  Resume a specific chat session by id.    │
+│ --continue                Resume the most recently updated chat    │
+│                           session.                                 │
+│ --debug                   Enable debug logging                     │
+│ --profile   -p      TEXT  Config profile name: loads &lt;name&gt;.json   │
+│                           from the current directory or the config │
+│                           dir. Use 'template' to scaffold a new    │
+│                           config and exit.                         │
+│ --help                    Show this message and exit.              │
 ╰────────────────────────────────────────────────────────────────────╯
 </pre></div>
 </div>
@@ -393,6 +421,10 @@
 │                                 single character. Defaults to the  │
 │                                 bundled Klea icon.                 │
 │ --reload          -r            Enable auto-reload on file changes │
+│ --user-id                 TEXT  Opaque user id. Defaults to        │
+│                                 KLEA_USER_ID, else a shared        │
+│                                 host-local identity file (loopback │
+│                                 only).                             │
 │ --debug                         Enable debug logging               │
 │ --profile         -p      TEXT  Config profile name: loads         │
 │                                 &lt;name&gt;.json from the current       │

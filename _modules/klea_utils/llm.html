@@ -2257,11 +2257,25 @@
         <span class="c1"># ``usage_metadata`` merge then sums input/total tokens across chunks</span>
         <span class="c1"># for providers that report usage per chunk (VLLM, HuggingFace</span>
         <span class="c1"># Inference Providers, ...), inflating them massively</span>
-        <span class="c1"># (https://github.com/langchain-ai/langchain/issues/30429).  Klea</span>
-        <span class="c1"># renders no token deltas today (see the backlog), so non-streaming is</span>
-        <span class="c1"># a safe, accurate default.  ``disable_streaming`` is a</span>
-        <span class="c1"># ``BaseChatModel`` field, so it survives provider field filtering.</span>
-        <span class="n">overrides</span><span class="p">[</span><span class="s2">"disable_streaming"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="c1"># (https://github.com/langchain-ai/langchain/issues/30429).  This must</span>
+        <span class="c1"># be an *instance field*, not a per-call ``stream=False`` kwarg:</span>
+        <span class="c1"># ``with_structured_output`` wraps the model in a ``RunnableMap`` that</span>
+        <span class="c1"># does not forward call kwargs, so a call-level flag is dropped on the</span>
+        <span class="c1"># structured-output path every planning/evaluation node uses.  The</span>
+        <span class="c1"># gate is ``BaseChatModel._streaming_disabled``, which reads the fields.</span>
+        <span class="c1">#</span>
+        <span class="c1"># ``disable_streaming`` is a ``BaseChatModel`` field and works for</span>
+        <span class="c1"># every provider except HuggingFace: its ``from_model_id`` reroutes</span>
+        <span class="c1"># unknown constructor kwargs into ``model_kwargs`` (sent as inference</span>
+        <span class="c1"># params), so passing ``disable_streaming`` reaches</span>
+        <span class="c1"># ``chat_completion`` and breaks the call.  HuggingFace instead uses its</span>
+        <span class="c1"># ``streaming`` field (also honoured by ``_streaming_disabled`` and not</span>
+        <span class="c1"># leaked); it must be set explicitly, since the default ``False`` is not</span>
+        <span class="c1"># recorded in ``model_fields_set``.</span>
+        <span class="k">if</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model_provider"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">"streaming"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">overrides</span><span class="p">[</span><span class="s2">"disable_streaming"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
 
         <span class="c1"># Wrap in the "configurable" key expected by _ConfigurableModel.</span>
         <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="n">RunnableConfig</span><span class="p">,</span> <span class="p">{</span><span class="s2">"configurable"</span><span class="p">:</span> <span class="n">overrides</span><span class="p">})</span></div>

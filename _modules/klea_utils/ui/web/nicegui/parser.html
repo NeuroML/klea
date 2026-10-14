@@ -386,6 +386,22 @@
         <span class="n">default</span><span class="o">=</span><span class="s2">"klea-agent-web"</span><span class="p">,</span>
         <span class="n">help</span><span class="o">=</span><span class="s2">"Log identity for this frontend process (used for the log file name)"</span><span class="p">,</span>
     <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--user-id"</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Explicit user id override. Defaults to KLEA_USER_ID, else a "</span>
+            <span class="s2">"shared host-local identity file for a loopback server."</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
+        <span class="s2">"--identity-app-name"</span><span class="p">,</span>
+        <span class="n">default</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span>
+        <span class="n">help</span><span class="o">=</span><span class="p">(</span>
+            <span class="s2">"Canonical identity key shared by the TUI and web frontends (the "</span>
+            <span class="s2">"server app, e.g. 'klea-agent')."</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
     <span class="k">return</span> <span class="n">parser</span></div>
 
 </pre></div>
