@@ -26,6 +26,7 @@ def run_rag_tui(
     user_id: str = "",
     resume: str = "",
     continue_session: bool = False,
+    identity_app_name: str = "",
 ) -> None:
     """Launch the RAG Textual TUI.
 
@@ -37,6 +38,8 @@ def run_rag_tui(
     :param resume: Chat id to resume on launch (``--resume``).
     :param continue_session: Resume the most recently updated chat
         (``--continue``).
+    :param identity_app_name: Canonical identity key shared with the web
+        frontend (``"klea-rag"``).
     """
     # Lazy: Textual (the [tui] extra) and the shared TUI are only needed on
     # launch, so importing the CLI (e.g. for --help) stays light.
@@ -50,4 +53,5 @@ def run_rag_tui(
         user_id=user_id,
         resume=resume,
         continue_session=continue_session,
+        identity_app_name=identity_app_name,
     )

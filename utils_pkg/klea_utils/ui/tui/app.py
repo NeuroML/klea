@@ -859,6 +859,7 @@ def run_tui(
     user_id: str = "",
     resume: str = "",
     continue_session: bool = False,
+    identity_app_name: str = "",
     status_extras: Iterable[Callable[[TuiContext], Any]] | None = None,
 ) -> None:
     """Launch the shared Klea Textual TUI.
@@ -876,6 +877,9 @@ def run_tui(
     :param resume: Chat id to resume on launch (``--resume``).
     :param continue_session: Resume the most recently updated chat
         (``--continue``).
+    :param identity_app_name: Canonical identity key for the persisted
+        ``user_id`` file, shared with the web frontend of the same app (e.g.
+        ``"klea-agent"``); falls back to *app_name* when empty.
     :param status_extras: App-defined status-panel renderers, in order.
     """
     # Lazy: coolname mints the interim chat id; identity resolves the user id.
@@ -884,7 +888,9 @@ def run_tui(
     from klea_utils.ui.identity import resolve_user_id
 
     resolved_user_id = resolve_user_id(
-        explicit=user_id, server_url=url, app_name=app_name
+        explicit=user_id,
+        server_url=url,
+        app_name=identity_app_name or app_name,
     )
     ctx = TuiContext(
         server_url=url,

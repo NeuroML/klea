@@ -39,6 +39,7 @@ def _make_app(label="RAG", port=8005):
         tui_entry=f"klea_{label.lower()}.ui.tui.page:run_{label.lower()}_tui",
         web_app_name=f"klea-{label.lower()}-web",
         web_entry=f"klea_{label.lower()}.ui.web.app",
+        identity_app_name=f"klea-{label.lower()}",
     )
 
 
@@ -119,6 +120,7 @@ class TestMakeClientApp(unittest.TestCase):
                 user_id="",
                 resume="",
                 continue_session=False,
+                identity_app_name="klea-rag",
                 debug=False,
                 profile=None,
                 config_env_var=None,
@@ -416,6 +418,7 @@ class TestRunTui(unittest.TestCase):
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
                 tui_entry="klea_utils.ui.tui.app:run_tui",
+                identity_app_name="klea-rag",
             )
         run_tui.assert_called_once_with(
             url="http://127.0.0.1:8005",
@@ -425,6 +428,7 @@ class TestRunTui(unittest.TestCase):
             user_id="",
             resume="",
             continue_session=False,
+            identity_app_name="klea-rag",
         )
 
 

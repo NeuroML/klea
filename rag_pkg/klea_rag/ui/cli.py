@@ -23,6 +23,7 @@ rag_app = make_client_app(
     tui_entry="klea_rag.ui.tui.page:run_rag_tui",
     web_app_name="klea-rag-web",
     web_entry="klea_rag.ui.web.app",
+    identity_app_name="klea-rag",
     config_env_var="KLEA_RAG_APP_CONFIG_FILE",
     config_dir=get_config_dir(PlatformDirs("klea-rag")),
     template_writer=write_config_template,

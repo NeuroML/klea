@@ -165,6 +165,7 @@ def _run_tui(
     user_id: str = "",
     resume: str = "",
     continue_session: bool = False,
+    identity_app_name: str = "",
     debug: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
@@ -221,6 +222,7 @@ def _run_tui(
             user_id=user_id,
             resume=resume,
             continue_session=continue_session,
+            identity_app_name=identity_app_name,
         )
 
 
@@ -320,6 +322,7 @@ def make_client_app(
     tui_entry: str,
     web_app_name: str,
     web_entry: str,
+    identity_app_name: str = "",
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
@@ -358,6 +361,10 @@ def make_client_app(
     :param web_entry: Module string of the app's NiceGUI entry point
         (the ``app.py`` launched by the ``web`` subcommand, e.g.
         ``"klea_rag.ui.web.app"``)
+    :param identity_app_name: Canonical identity key for the persisted
+        ``user_id`` file, shared by the TUI and web frontends of one app so a
+        session can be opened in either (e.g. ``"klea-agent"``).  Falls back to
+        the frontend's own ``app_name`` when empty.
     :param config_env_var: Environment variable that carries the config
         file name into the spawned server (e.g. ``"KLEA_RAG_APP_CONFIG_FILE"``)
     :param config_dir: Config directory searched after the working
@@ -463,6 +470,7 @@ def make_client_app(
             user_id=user_id,
             resume=resume,
             continue_session=continue_,
+            identity_app_name=identity_app_name,
             debug=debug,
             profile=profile,
             config_env_var=config_env_var,
