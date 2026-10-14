@@ -15,7 +15,8 @@ re-presentation, the `resolve_user_id` identity seam,
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
 credentials dialog, the missing-model/API-key send gating, the app-slot status
 extras, and the agent operating-mode and tool-access selectors have landed
-(Phase 2.2-5.4c); Phase 6 (composition, docs) remains.
+(Phase 2.2-5.4c); the composition/slots are finalized with an I8 guard test
+(Phase 6.1), leaving the Phase 6 docs.
 
 ## Overview
 

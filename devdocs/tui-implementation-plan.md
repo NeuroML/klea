@@ -63,9 +63,9 @@ Invariants I1-I8 are in ADR-0050 and restated in `system/tui.md`.
   retroactively), 5.1 (identity seam), 5.2a-e (load/switch, `--continue` /
   `--resume`, the session picker + rename/delete, `/sessions`) and 5.3a-c (the
   model dialog, credentials dialog, and send gating, with the shared
-  `ui/model_config.py` core) are done.  Next step is **6.1** (finalize the
-  agent/rag TUI composition + slots).  Each checklist item below is one
-  atomic commit.
+  `ui/model_config.py` core) are done, and Phase 6.1 (composition + the I8
+  guard test) is done.  Next step is **6.2** (`system/tui-testing.md`).  Each
+  checklist item below is one atomic commit.
 
 ## Checklist
 
@@ -137,7 +137,7 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
 
 ### Phase 6 - composition, tests, docs
 
-- [ ] 6.1 Finalize agent/rag TUI composition + slots; no app-specific code in
+- [x] 6.1 Finalize agent/rag TUI composition + slots; no app-specific code in
   `klea_utils/ui/tui`.
 - [ ] 6.2 Add `system/tui-testing.md` (fake-backend + `run_test()` harness).
 - [ ] 6.3 Public docs: `docs/components/tui.rst` + toctree.  Verify
