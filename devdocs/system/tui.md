@@ -221,8 +221,8 @@ setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
 
 Textual's in-process `run_test()` pilot drives the real app against a canned
 fake backend, mirroring the web UI tests (`system/web-ui-testing.md`); the
-shared state and reducer have framework-agnostic unit tests.  The harness is
-described in `system/tui-testing.md` when it lands.
+shared state and reducer have framework-agnostic unit tests.  The harness
+(fake backend, fixtures, gotchas) is described in `system/tui-testing.md`.
 
 ## Pointers
 
