@@ -115,6 +115,7 @@ class SessionPicker(ModalScreen[SessionAction]):
                 )
             with Horizontal():
                 yield Button("Rename", id="sessions-rename")
+                yield Button("Delete", id="sessions-delete")
                 yield Button("Cancel", id="sessions-cancel", variant="error")
 
     def on_mount(self) -> None:
@@ -132,21 +133,27 @@ class SessionPicker(ModalScreen[SessionAction]):
         self.dismiss(SessionAction("switch", chat_id=str(event.item.id)))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Rename the highlighted session, or cancel.
+        """Rename/delete the highlighted session, or cancel.
 
         :param event: The ``Button.Pressed`` event.
         """
         if event.button.id == "sessions-rename":
             self._start_rename()
+        elif event.button.id == "sessions-delete":
+            self._delete_highlighted()
         elif event.button.id == "sessions-cancel":
             self.action_cancel()
 
+    def _highlighted_id(self) -> str | None:
+        """Return the highlighted session's chat id, or ``None``."""
+        item = self.query_one("#sessions-list", ListView).highlighted_child
+        return str(item.id) if item is not None else None
+
     def _start_rename(self) -> None:
         """Prompt for a new title for the highlighted session."""
-        item = self.query_one("#sessions-list", ListView).highlighted_child
-        if item is None:
+        chat_id = self._highlighted_id()
+        if chat_id is None:
             return
-        chat_id = str(item.id)
         title = next(
             (
                 str(session.get("title", ""))
@@ -164,6 +171,12 @@ class SessionPicker(ModalScreen[SessionAction]):
         """Dismiss with a rename action when a new title was entered."""
         if new_title:
             self.dismiss(SessionAction("rename", chat_id=chat_id, title=new_title))
+
+    def _delete_highlighted(self) -> None:
+        """Dismiss with a delete action for the highlighted session."""
+        chat_id = self._highlighted_id()
+        if chat_id is not None:
+            self.dismiss(SessionAction("delete", chat_id=chat_id))
 
     def action_cancel(self) -> None:
         """Dismiss without switching (Escape or Cancel)."""

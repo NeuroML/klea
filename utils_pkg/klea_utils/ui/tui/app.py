@@ -579,7 +579,7 @@ class KleaTuiApp(App[None]):
         )
 
     def _on_session_choice(self, action: SessionAction | None) -> None:
-        """Handle the picker's choice (switch or rename).
+        """Handle the picker's choice (switch, rename or delete).
 
         :param action: The picker's :class:`SessionAction`, or ``None``.
         """
@@ -589,6 +589,8 @@ class KleaTuiApp(App[None]):
             self._switch_to_chat(action.chat_id)
         elif action.kind == "rename":
             self._rename_chat(action.chat_id, action.title)
+        elif action.kind == "delete":
+            self._delete_chat(action.chat_id)
 
     @work
     async def _switch_to_chat(self, chat_id: str) -> None:
@@ -611,6 +613,36 @@ class KleaTuiApp(App[None]):
         )
         ensure_chat(self.ctx.user_id, chat_id)["name"] = title
         await self.action_open_sessions()
+
+    @work
+    async def _delete_chat(self, chat_id: str) -> None:
+        """Delete a chat on the server and locally, then refresh the picker.
+
+        If the deleted chat was active, the most recently updated remaining
+        chat becomes active (or a fresh one is minted when none remain).
+
+        :param chat_id: The chat to delete.
+        """
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.ui.client import delete_chat_on_server, fetch_chats
+        from klea_utils.ui.state import chats
+
+        await delete_chat_on_server(self.ctx.server_url, self.ctx.user_id, chat_id)
+        chats.pop(f"{self.ctx.user_id}:{chat_id}", None)
+        if self.ctx.chat_id == chat_id:
+            remaining = await fetch_chats(self.ctx.server_url, self.ctx.user_id)
+            if remaining:
+                await self.load_chat(str(remaining[0]["chat_id"]))
+            else:
+                await self._new_chat()
+        await self.action_open_sessions()
+
+    async def _new_chat(self) -> None:
+        """Activate a fresh, empty chat."""
+        # Lazy: coolname only mints the id.
+        import coolname
+
+        await self.load_chat(coolname.generate_slug(2), hydrate=False)
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
         """Open the HITL modal for *ask* (review / input / permission).

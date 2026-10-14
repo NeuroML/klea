@@ -332,6 +332,51 @@ async def test_session_picker_rename(fake_backend, make_app):
     assert chats[":c2"]["name"] == "Renamed B"
 
 
+async def test_session_picker_delete_inactive(fake_backend, make_app):
+    """Deleting a non-active chat removes it without switching."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        app.screen.query_one("#sessions-delete", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.deletes == ["c2"]
+    assert ":c2" not in chats
+    assert app.ctx.chat_id == "c1"
+
+
+async def test_session_delete_active_switches(fake_backend, make_app):
+    """Deleting the active chat switches to the most recent remaining chat."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    fake_backend.messages["c1"] = [{"role": "user", "content": "hi1", "created_at": 0}]
+    app = make_app(chat_id="c2")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        app.screen.query_one("#sessions-delete", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.deletes == ["c2"]
+    assert app.ctx.chat_id == "c1"
+    assert [m["text"] for m in chats[":c1"]["messages"]] == ["hi1"]
+
+
 async def test_open_sessions_blocked_while_streaming(
     fake_backend, make_app, monkeypatch
 ):
