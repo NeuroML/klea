@@ -14,10 +14,11 @@ import pytest
 from klea_agent.ui.tui import page
 from klea_agent.ui.tui.access_ui import access_status_extra
 from klea_agent.ui.tui.mode_ui import mode_status_extra
+from klea_agent.ui.tui.project_root_ui import project_root_status_extra
 
 
 def test_run_agent_tui_registers_selectors(monkeypatch):
-    """The agent entry passes its mode + access selectors as status slots."""
+    """The agent entry passes its mode + access + project-root status slots."""
     captured: dict = {}
 
     def _fake_run_tui(**kwargs) -> None:
@@ -26,7 +27,11 @@ def test_run_agent_tui_registers_selectors(monkeypatch):
     monkeypatch.setattr("klea_utils.ui.tui.app.run_tui", _fake_run_tui)
     page.run_agent_tui(url="http://x", title="Klea")
 
-    assert captured["status_extras"] == [mode_status_extra, access_status_extra]
+    assert captured["status_extras"] == [
+        mode_status_extra,
+        access_status_extra,
+        project_root_status_extra,
+    ]
     assert captured["url"] == "http://x"
     assert captured["title"] == "Klea"
 
