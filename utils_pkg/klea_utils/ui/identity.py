@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-TUI identity resolution (ADR-0050, invariant I5).
+Frontend identity resolution (ADR-0050 invariant I5).
 
-The TUI resolves its ``user_id`` through one seam: an explicit ``--user-id``,
-then the ``KLEA_USER_ID`` env var, then a persisted TUI-local UUID.  The
-persisted (machine-local) UUID is only sent to a loopback server, so it is
-never leaked to a remote deployment; a remote server without an explicit
-identity gets an empty ``user_id`` (the server treats ``user_id`` as an
-opaque token).
+Frontends (the Textual TUI and the NiceGUI web UI) resolve their ``user_id``
+through one seam: an explicit ``--user-id`` / ``KLEA_USER_ID``, then a
+persisted (machine-local) UUID.  The persisted UUID is only sent to a loopback
+server, so it is never leaked to a remote deployment; a remote server without
+an explicit identity gets an empty ``user_id`` (the server treats ``user_id``
+as an opaque token).
 
-File: klea_utils/ui/tui/identity.py
+File: klea_utils/ui/identity.py
 
 Copyright 2026 Ankur Sinha
-Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
+Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 from __future__ import annotations
@@ -45,12 +45,13 @@ def is_loopback_url(server_url: str) -> bool:
 
 
 def persisted_user_id(app_name: str) -> str:
-    """Return the persisted TUI-local UUID for *app_name*, creating it once.
+    """Return the persisted frontend-local UUID for *app_name*, creating it once.
 
     Stored as plain text under the app's platformdirs user data dir, so the
-    same machine keeps one identity across TUI restarts.
+    same machine keeps one identity across restarts.
 
-    :param app_name: Log identity for this frontend (e.g. ``"klea-rag-tui"``).
+    :param app_name: Identity key used to locate the persisted UUID (the
+        server app, e.g. ``"klea-agent"``).
     :returns: The persisted UUID.
     """
     # Lazy: platformdirs is only needed when an identity must be persisted.
@@ -67,9 +68,9 @@ def persisted_user_id(app_name: str) -> str:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(value, encoding="utf-8")
-        logger.debug("persisted TUI user id to %s", path)
+        logger.debug("persisted user id to %s", path)
     except OSError as e:
-        logger.warning("Could not persist TUI user id: %s", e)
+        logger.warning("Could not persist user id: %s", e)
     return value
 
 
@@ -78,9 +79,9 @@ def resolve_user_id(
     explicit: str = "",
     env: str | None = None,
     server_url: str = "",
-    app_name: str = "klea-tui",
+    app_name: str = "klea",
 ) -> str:
-    """Resolve the TUI's ``user_id`` through the ADR-0050 seam.
+    """Resolve a frontend's ``user_id`` through the ADR-0050 seam.
 
     Order: *explicit* (``--user-id``) > *env* (``KLEA_USER_ID``) > the
     persisted local UUID, the last only when *server_url* is loopback (I5).
@@ -88,7 +89,8 @@ def resolve_user_id(
     :param explicit: The ``--user-id`` value, or ``""``.
     :param env: The env-var value; ``None`` reads ``KLEA_USER_ID``.
     :param server_url: Base URL of the backend API server.
-    :param app_name: Log identity used to locate the persisted UUID.
+    :param app_name: Identity key used to locate the persisted UUID (the
+        server app, e.g. ``"klea-agent"``).
     :returns: The resolved user id (``""`` when none applies).
     """
     explicit = (explicit or "").strip()

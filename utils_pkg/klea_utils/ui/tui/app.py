@@ -881,7 +881,7 @@ def run_tui(
     # Lazy: coolname mints the interim chat id; identity resolves the user id.
     import coolname
 
-    from klea_utils.ui.tui.identity import resolve_user_id
+    from klea_utils.ui.identity import resolve_user_id
 
     resolved_user_id = resolve_user_id(
         explicit=user_id, server_url=url, app_name=app_name

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Tests for the TUI identity seam (ADR-0050, invariant I5).
+Tests for the frontend identity seam (ADR-0050, invariant I5).
 
 ``resolve_user_id`` is pure: explicit ``--user-id`` > ``KLEA_USER_ID`` > a
 persisted local UUID, the last only for a loopback server.
 
-File: tests/ui/tui/test_identity.py
+File: tests/ui/test_identity.py
 
 Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import uuid
 
-from klea_utils.ui.tui import identity
+from klea_utils.ui import identity
 
 
 def test_explicit_wins():
