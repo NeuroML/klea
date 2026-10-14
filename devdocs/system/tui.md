@@ -12,9 +12,11 @@ MIME-aware transcript, the inspector view, the status pane, session commands,
 the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
-`/sessions`), and the per-role model dialog (`Ctrl+M` / `/model`) have landed
-(Phase 2.2-5.3a); the credentials dialog and the mode/access selectors are
-still to come.
+`/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
+credentials dialog, the missing-model/API-key send gating, the app-slot status
+extras, and the agent operating-mode and tool-access selectors have landed;
+the composition/slots are finalized with an I8 guard test, and the public
+`docs/components/tui.rst` and `system/tui-testing.md` document the frontend.
 
 ## Overview
 
@@ -94,6 +96,7 @@ I8); each app composes its own screen from them, mirroring the NiceGUI
 | Inspector view | `ui/tui/components/inspector.py` | Inspect entries; a toggle view inside the chat panel | `inspector.py` |
 | Session picker | `ui/tui/components/sessions.py` | `ModalScreen` list / switch / rename / delete | `chat_list.py` |
 | Model dialog | `ui/tui/components/model_dialog.py` | `ModalScreen` per-role model editor (shared core in `ui/model_config.py`) | `model_dialog.py` |
+| Credentials dialog | `ui/tui/components/credentials_dialog.py` | `ModalScreen` masked provider API-key editor (shared scopes) | `model_dialog.py` (credentials) |
 | HITL | `ui/tui/components/hitl.py` | Review / input / permission modals | `choice.py` + status-region form |
 | Commands | `ui/tui/components/commands.py` | Merged catalogue, dispatch, `/` autocomplete | `components/commands.py` |
 | Shared state | `ui/state.py` | `ChatData` store + helpers | `web/nicegui/state.py` (moved) |
@@ -132,6 +135,11 @@ widgets refresh on the app loop.  Stop cancels the worker and best-effort
 `POST /query/cancel`.  A failure `resume` re-runs with `resume=True`; a HITL
 answer/cancel re-runs with `interrupt_response` / `interrupt_cancel` (I6).
 Switching sessions is refused while a run is streaming.
+
+A query is also blocked (with a warning pointing at `Ctrl+M`) while a
+**required** model or provider API key is unresolved
+(`missing_required_roles` / `missing_credentials`); client commands still run,
+so `/help` and the dialogs work before setup is complete.
 
 The ADR-0050 invariants are the fitness function; this note adds the concrete
 enforcement point for each:
@@ -187,7 +195,15 @@ text cannot drift.  A pending interrupt is re-presented on load/switch from
 mode and tool-access selector slots (ADR-0030/0037); `klea_rag/ui/tui/`
 registers none.  Both entries are thin (`run_agent_tui` / `run_rag_tui`,
 mirroring `run_agent_web`) and pass only the title/prefix/app-name and page
-builder.
+builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
+renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
+streamed state, so a state refresh never disturbs them, and rebuilds them on a
+`context` change (so a selector follows the checkpointed mode).  A control that
+must run a query posts a shared `SubmitQuery` message
+(`ui/tui/events.py`), which the app routes through `submit` (commands and the
+setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
+`/mode <value>` and its `access_ui.AccessSelector` dispatches `/access
+<value>` this way.
 
 ## Rendering and non-goals
 
@@ -205,8 +221,8 @@ builder.
 
 Textual's in-process `run_test()` pilot drives the real app against a canned
 fake backend, mirroring the web UI tests (`system/web-ui-testing.md`); the
-shared state and reducer have framework-agnostic unit tests.  The harness is
-described in `system/tui-testing.md` when it lands.
+shared state and reducer have framework-agnostic unit tests.  The harness
+(fake backend, fixtures, gotchas) is described in `system/tui-testing.md`.
 
 ## Pointers
 
@@ -219,7 +235,8 @@ described in `system/tui-testing.md` when it lands.
 * Related: ADR-0026 (client-server), ADR-0031 (apps own UI composition),
   ADR-0043 (single active run per thread), ADR-0007 (path permissions),
   ADR-0030/0037 (mode / access).
-* Code (planned): `utils_pkg/klea_utils/ui/{state,stream_events,client}.py`,
+* Code: `utils_pkg/klea_utils/ui/{state,stream_events,client}.py`,
   `utils_pkg/klea_utils/ui/tui/`, `agent_pkg/klea_agent/ui/tui/`,
   `rag_pkg/klea_rag/ui/tui/`.
+* Public docs: `docs/components/tui.rst`; tests: `system/tui-testing.md`.
 * Web counterparts: `ui/web/nicegui/{state.py,client.py,components/*}`.

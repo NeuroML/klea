@@ -61,6 +61,7 @@ from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
+from klea_utils.ui.tui.events import SubmitQuery
 
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData
@@ -174,7 +175,7 @@ class KleaTuiScreen(Screen):
                 )
             with Vertical(id="status-panel"):
                 yield Static("status", id="status-title")
-                yield StatusPanel(id="status")
+                yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
         """Focus the query input, show the transcript, hydrate the chat."""
@@ -235,7 +236,7 @@ class KleaTuiScreen(Screen):
         self._inspector_entries = entries
         await self.inspector.set_entries(entries)
         self._inspector_dirty = False
-        await self.status_panel.set_state(chat)
+        await self.status_panel.set_state(chat, refresh_extras=True)
         await self.show_view("transcript")
 
     @property
@@ -314,12 +315,16 @@ class KleaTuiScreen(Screen):
         """Return the status-panel widget."""
         return self.query_one("#status", StatusPanel)
 
-    async def refresh_status(self, chat: Mapping[str, Any] | None) -> None:
+    async def refresh_status(
+        self, chat: Mapping[str, Any] | None, *, refresh_extras: bool = False
+    ) -> None:
         """Rebuild the status panel from the active chat's state.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
+        :param refresh_extras: Also rebuild the app slots (a ``context``
+            change can alter what a selector should show).
         """
-        await self.status_panel.set_state(chat)
+        await self.status_panel.set_state(chat, refresh_extras=refresh_extras)
 
 
 class KleaTuiApp(App[None]):
@@ -470,27 +475,54 @@ class KleaTuiApp(App[None]):
 
         A ``//``-escaped input is sent as a literal ``/`` query.  A client
         command runs locally and its output is rendered; a server command (or a
-        non-command) is forwarded as the query.
+        non-command) is forwarded as the query, unless a required model or API
+        key is missing (then the send is blocked with a warning).
 
         :param text: The raw input.
         """
         unescaped = unescape_command(text)
-        if unescaped is not None:
-            self.start_run(unescaped)
+        if unescaped is None:
+            result = handle_command(
+                text,
+                self._catalogue,
+                TUI_CAPABILITIES,
+                services={
+                    OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
+                    OPEN_MODELS_SERVICE: self._open_models_hook,
+                },
+            )
+            if result is not None:
+                await self._render_command_result(result)
+                return
+            query = text
+        else:
+            query = unescaped
+        # Client commands run before this guard (so /help works while setup is
+        # incomplete); a real query is blocked until the models/keys are set.
+        if self._setup_incomplete():
+            logger.warning("send blocked: required models or API keys not configured")
+            self.notify(
+                "Select the required models and API keys before sending (Ctrl+M).",
+                severity="warning",
+            )
             return
-        result = handle_command(
-            text,
-            self._catalogue,
-            TUI_CAPABILITIES,
-            services={
-                OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
-                OPEN_MODELS_SERVICE: self._open_models_hook,
-            },
-        )
-        if result is None:
-            self.start_run(text)
-            return
-        await self._render_command_result(result)
+        self.start_run(query)
+
+    def _setup_incomplete(self) -> bool:
+        """Whether the active chat still needs required models or API keys."""
+        # Lazy: the state store and llm helpers are only needed to send.
+        from klea_utils.llm import missing_required_roles
+        from klea_utils.ui.state import ensure_chat, missing_credentials
+
+        info = ensure_chat(self.ctx.user_id, self.ctx.chat_id).get("model_info") or {}
+        return bool(missing_required_roles(info) or missing_credentials(info))
+
+    def on_submit_query(self, event: SubmitQuery) -> None:
+        """Submit a query posted by an app-defined widget (e.g. a selector).
+
+        :param event: The :class:`SubmitQuery` message.
+        """
+        self.run_worker(self.submit(event.text))
 
     def _open_sessions_hook(self) -> None:
         """Command-service hook for ``/sessions`` (schedules the picker)."""
@@ -639,11 +671,11 @@ class KleaTuiApp(App[None]):
         )
 
     def _on_models_closed(self, result: ModelResult | None) -> None:
-        """Refresh the chat after the model dialog closes with saves.
+        """Refresh the chat after the model dialog closes with changes.
 
         :param result: The dialog's :class:`ModelResult`, or ``None``.
         """
-        if result and result.saved:
+        if result and result.changed:
             self._refresh_models()
 
     @work
@@ -870,7 +902,9 @@ class KleaTuiApp(App[None]):
                     await screen.refresh_inspector(chat["inspector_entries"])
                     continue
                 if action in ("state", "usage", "context"):
-                    await screen.refresh_status(chat)
+                    await screen.refresh_status(
+                        chat, refresh_extras=(action == "context")
+                    )
                     continue
                 if action == "complete":
                     chat["turn_status"] = {"kind": "idle"}

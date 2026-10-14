@@ -229,22 +229,22 @@ Last updated: 2026-10-12.
   transcript (and inspection entries) from the LangGraph checkpoint/replay
   instead of, or in addition to, the messages table.  Needs a design; overlaps
   the full-session-export research above.
-- Terminal client status: the `cli` subcommand runs a lightweight
+- Terminal client status: the `cli` subcommand still runs a lightweight
   `input()`-based REPL (`klea_utils/ui/tui/repl.py`), a temporary tool for
-  quick testing with simple queries.  It is **not** the TUI -- the historical
-  "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale
-  -- and it will be dropped once the TUI lands.
-- Full Textual TUI: **design settled** (ADR-0050; architecture note
-  `system/tui.md`).  Build the real TUI as a shared module in
-  `klea_utils/ui/tui` with per-app composition (`klea_agent`, `klea_rag`),
-  mirroring the web-UI component split.  Session model: one active session in
-  the main loop plus a summonable picker (switch/resume/rename/delete;
-  switching blocked while streaming), one in-flight run always attached to the
-  active session, and a keyed store with a single active pointer.  Surface:
-  streaming transcript, a full-height right status panel (mode/access/model,
-  state sections, token usage) and a chat-panel inspector view, tool results,
-  `/`-commands, and permission + HITL forms.  Replaces the REPL (dropped once
-  parity lands).
+  quick testing with simple queries.  It is **not** the TUI; the historical
+  "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale.
+  Drop the REPL (and retire its `-tui` identity) once TUI parity is confirmed.
+- Textual TUI: **landed** (ADR-0050; architecture `system/tui.md`, tests
+  `system/tui-testing.md`, public `docs/components/tui.rst`).  Shared
+  `klea_utils/ui/tui` with per-app composition (`klea_agent` mode/access
+  slots, `klea_rag` none), mirroring the web component split: one active
+  session + summonable picker (switch/rename/delete), one in-flight run
+  attached to the session, streaming transcript + inspector, a full-height
+  status panel, per-role model + credentials dialogs, HITL/permission modals,
+  `/`-commands, and missing-model/API-key send gating.  Remaining: drop the
+  temporary `cli` REPL above (and retire its `-tui` identity) once parity is
+  confirmed by an end-to-end pass; the stale ADR/`system/streams.md` wording
+  and the `CHANGELOG.md` entry are done.
 - Cross-frontend sessions / shared identity (**partly done**, ADR-0052): the
   TUI and web UI now share a host-local identity file
   (`PlatformDirs(<server-app>)/user_id`) via `klea_utils/ui/identity.py`,

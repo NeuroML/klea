@@ -9,7 +9,7 @@ components, never a full page.
 Shared frontend helpers
 -----------------------
 
-These are framework-agnostic: the NiceGUI web frontend and the (planned) TUI
+These are framework-agnostic: the NiceGUI web frontend and the TUI
 share one source of truth for chat/session state, the API client, the
 stream-event reducer, and transcript export.
 

@@ -46,10 +46,15 @@ from klea_utils.ui.model_config import (
     build_model_string,
     clear_role,
     credential_display,
+    live_info,
     parse_model_origin,
     role_label,
     save_roles,
     use_for_all_targets,
+)
+from klea_utils.ui.tui.components.credentials_dialog import (
+    CredentialsDialog,
+    CredentialsResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,9 +72,12 @@ class ModelResult:
 
     :param saved: The ``(role, model)`` pairs persisted before the dialog
         closed.
+    :param changed: Whether anything changed (a saved model or a credential),
+        so the app re-fetches the active models and re-evaluates gating.
     """
 
     saved: list[tuple[str, str]] = field(default_factory=list)
+    changed: bool = False
 
 
 class _CatalogueSuggester(Suggester):
@@ -155,6 +163,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         self._catalogue = CatalogueCache(server_url, user_id)
         self._providers: list[str] = []
         self._stored_by_scope: dict[tuple[str, str], dict[str, Any]] = {}
+        self._credentials_changed = False
         self._origins: dict[str, ModelOrigin] = {
             role: parse_model_origin(self._model_of(role)) for role in self._roles
         }
@@ -166,6 +175,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             for role in self._roles:
                 yield self._role_collapsible(role)
             with Horizontal(id="model-actions"):
+                yield Button("Manage API keys", id="model-keys")
                 yield Button("Close", id="model-close", variant="error")
                 yield Button("Save", id="model-save", variant="primary")
 
@@ -384,6 +394,9 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         if button_id == "model-save":
             self._save()
             return
+        if button_id == "model-keys":
+            self._open_credentials()
+            return
         parsed = self._parse_id(button_id)
         if parsed is None:
             return
@@ -394,8 +407,8 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             self._use_for_all(role)
 
     def action_cancel(self) -> None:
-        """Dismiss without saving."""
-        self.dismiss(None)
+        """Dismiss without saving models (credentials may have changed)."""
+        self.dismiss(ModelResult(changed=self._credentials_changed))
 
     @work
     async def _save(self) -> None:
@@ -420,7 +433,12 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             )
             return
         logger.debug(f"model dialog: saved {outcome.saved = }")
-        self.dismiss(ModelResult(saved=outcome.saved))
+        self.dismiss(
+            ModelResult(
+                saved=outcome.saved,
+                changed=bool(outcome.saved) or self._credentials_changed,
+            )
+        )
 
     @work
     async def _reset(self, role: str) -> None:
@@ -447,4 +465,40 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             self._origins[target] = origin
             self._set_fields(target, origin)
         logger.debug(f"model dialog: use for all {role = }\n{list(applied) = }")
+        self._refresh_credentials()
+
+    def _open_credentials(self) -> None:
+        """Open the credentials dialog for the (live) required scopes."""
+        role_values = {role: self._current_model(role) for role in self._roles}
+        self.app.push_screen(
+            CredentialsDialog(
+                server_url=self._server_url,
+                user_id=self._user_id,
+                info=live_info(self._info, role_values, self._stored_by_scope),
+            ),
+            callback=self._after_credentials,
+        )
+
+    def _after_credentials(self, result: CredentialsResult | None) -> None:
+        """Refresh the credential statuses when keys changed.
+
+        :param result: The credentials dialog's result, or ``None``.
+        """
+        if result and result.changed:
+            self._credentials_changed = True
+            self._reload_credentials()
+
+    @work
+    async def _reload_credentials(self) -> None:
+        """Re-fetch the stored credentials and the active models."""
+        stored = await fetch_credentials(self._server_url, self._user_id)
+        self._stored_by_scope = {
+            (str(c.get("provider", "")), str(c.get("endpoint", "") or "")): c
+            for c in stored
+        }
+        # Re-fetch the active models too: a stored key changes the resolved
+        # credential ``source`` per role (used by the send gating).
+        info = await fetch_active_models(self._server_url, self._user_id, self._chat_id)
+        if info:
+            self._info = info
         self._refresh_credentials()

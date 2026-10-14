@@ -38,5 +38,6 @@ works and how they fit together; for the general ideas behind them, see
    tools
    commands
    web-ui
+   tui
    agent
    utils

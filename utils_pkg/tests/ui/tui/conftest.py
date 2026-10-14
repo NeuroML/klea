@@ -62,6 +62,10 @@ class FakeBackend:
         self.catalogue_models: dict[str, list[str]] = {}
         #: Stored credentials (``GET /credentials``).
         self.credentials: list[dict[str, Any]] = []
+        #: Recorded ``set_credential`` calls.
+        self.credentials_set: list[dict[str, Any]] = []
+        #: Recorded ``clear_credential`` calls.
+        self.credentials_cleared: list[dict[str, Any]] = []
 
     async def stream_events(
         self,
@@ -158,6 +162,20 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
         return backend.credentials
 
     monkeypatch.setattr("klea_utils.api.sse.fetch_credentials", _fetch_credentials)
+    # The dialogs bind the fetchers at import time, so patch their module
+    # attributes too (patching ``api.sse`` alone would not rebind them).
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.components.model_dialog.fetch_active_models",
+        _fetch_active_models,
+    )
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.components.model_dialog.fetch_credentials",
+        _fetch_credentials,
+    )
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.components.credentials_dialog.fetch_credentials",
+        _fetch_credentials,
+    )
 
     async def _fetch_catalogue_providers(server_url: str, user_id: str) -> list[str]:
         return backend.catalogue_providers
@@ -197,6 +215,36 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
     monkeypatch.setattr(
         "klea_utils.ui.model_config.clear_model_override", _clear_model_override
     )
+
+    async def _set_credential(
+        server_url: str,
+        user_id: str,
+        provider: str,
+        secret: str,
+        endpoint: str = "",
+    ) -> bool:
+        backend.credentials_set.append(
+            {"provider": provider, "secret": secret, "endpoint": endpoint}
+        )
+        return True
+
+    monkeypatch.setattr("klea_utils.ui.client.set_credential", _set_credential)
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.components.credentials_dialog.set_credential",
+        _set_credential,
+    )
+
+    async def _clear_credential(
+        server_url: str, user_id: str, provider: str, endpoint: str = ""
+    ) -> bool:
+        backend.credentials_cleared.append({"provider": provider, "endpoint": endpoint})
+        return True
+
+    monkeypatch.setattr("klea_utils.ui.client.clear_credential", _clear_credential)
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.components.credentials_dialog.clear_credential",
+        _clear_credential,
+    )
     return backend
 
 
@@ -209,6 +257,7 @@ def make_app():
         user_id: str = "",
         resume_chat_id: str = "",
         continue_session: bool = False,
+        status_extras: list[Any] | None = None,
     ) -> KleaTuiApp:
         return KleaTuiApp(
             TuiContext(
@@ -218,6 +267,7 @@ def make_app():
                 user_id=user_id,
                 resume_chat_id=resume_chat_id,
                 continue_session=continue_session,
+                status_extras=list(status_extras or []),
             )
         )
 

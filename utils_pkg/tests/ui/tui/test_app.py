@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
+from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
@@ -452,6 +453,64 @@ async def test_status_panel_shows_context_state_and_usage(fake_backend, make_app
         assert any("3 in / 1 out" in text for text in statics)
 
 
+async def test_status_extras_render_in_panel(fake_backend, make_app):
+    """App-registered status extras render at the top of the panel."""
+    app = make_app(status_extras=[lambda ctx: Static(f"Mode: {ctx.title}")])
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        texts = [str(static.render()) for static in extras.query(Static)]
+        assert "Mode: Klea Test" in texts
+
+
+async def test_status_extras_survive_state_update(fake_backend, make_app):
+    """Extras persist while the streamed state body is rebuilt."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "state",
+                "node": "Planner",
+                "data": {"heading": "Plan", "display": "step 1"},
+            },
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app(status_extras=[lambda ctx: Static("Access: read_only")])
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        texts = [str(static.render()) for static in extras.query(Static)]
+        assert "Access: read_only" in texts
+
+
+async def test_status_extras_refresh_on_context(fake_backend, make_app):
+    """A context event rebuilds the app slots (so a selector can update)."""
+
+    def _render(ctx):
+        chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}", {})
+        mode = (chat.get("context") or {}).get("requested", "none")
+        return Static(f"Mode: {mode}")
+
+    fake_backend.scripts = [
+        [
+            {"type": "context", "data": {"requested": "scientific"}},
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app(status_extras=[_render])
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        assert "Mode: none" in [str(static.render()) for static in extras.query(Static)]
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        assert "Mode: scientific" in [
+            str(static.render()) for static in extras.query(Static)
+        ]
+
+
 async def test_client_help_command_renders_locally(fake_backend, make_app):
     """A client ``/help`` renders the catalogue and starts no run."""
     fake_backend.commands = [_mode_metadata()]
@@ -621,6 +680,132 @@ async def test_model_dialog_blocked_while_streaming(
         assert app._worker is not None
         app._worker.cancel()
         await pilot.pause()
+
+
+async def test_model_dialog_credentials_save(fake_backend, make_app):
+    """Saving a key from the credentials dialog posts it to the server."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-keys", Button).press()
+        await _settle(pilot, app)
+        assert isinstance(app.screen, CredentialsDialog)
+        app.screen.query_one("#cred-key-0", Input).value = "sk-test"
+        app.screen.query_one("#cred-save-0", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.credentials_set == [
+        {"provider": "openai", "secret": "sk-test", "endpoint": ""}
+    ]
+
+
+async def test_model_dialog_credentials_clear(fake_backend, make_app):
+    """A stored key can be cleared from the credentials dialog."""
+    fake_backend.model_info = _model_info()
+    fake_backend.credentials = [
+        {"provider": "openai", "endpoint": "", "masked": "sk-***"}
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-keys", Button).press()
+        await _settle(pilot, app)
+        assert isinstance(app.screen, CredentialsDialog)
+        app.screen.query_one("#cred-clear-0", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.credentials_cleared == [{"provider": "openai", "endpoint": ""}]
+
+
+def _model_info_incomplete() -> dict:
+    """A required chat role with no model configured."""
+    return {"chat": {"model": "", "required": True, "credential": {}}}
+
+
+def _model_info_missing_key() -> dict:
+    """A required chat role whose provider has no stored credential."""
+    return {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "required": True,
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "none",
+            },
+        }
+    }
+
+
+def _model_info_ready() -> dict:
+    """A required chat role with a model and a resolved credential."""
+    return {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "required": True,
+            "credential": {
+                "provider": "openai",
+                "requires_key": True,
+                "source": "env",
+            },
+        }
+    }
+
+
+async def test_send_blocked_when_model_missing(fake_backend, make_app):
+    """A send is blocked while a required model is unset."""
+    fake_backend.model_info = _model_info_incomplete()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await pilot.pause()
+
+    assert fake_backend.calls == []
+
+
+async def test_send_blocked_when_credential_missing(fake_backend, make_app):
+    """A send is blocked while a required API key is unset."""
+    fake_backend.model_info = _model_info_missing_key()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await pilot.pause()
+
+    assert fake_backend.calls == []
+
+
+async def test_send_allowed_when_configured(fake_backend, make_app):
+    """A send proceeds once the required model and key are resolved."""
+    fake_backend.model_info = _model_info_ready()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert [call["query"] for call in fake_backend.calls] == ["hi"]
+
+
+async def test_client_command_allowed_when_setup_incomplete(fake_backend, make_app):
+    """A client command still runs while required models are missing."""
+    fake_backend.model_info = _model_info_incomplete()
+    fake_backend.commands = [_mode_metadata()]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "/help")
+        await pilot.pause()
+
+    texts = [message["text"] for message in _chat()["messages"]]
+    assert any("Available commands" in text for text in texts)
+    assert fake_backend.calls == []
 
 
 async def test_unknown_command_is_rejected_locally(fake_backend, make_app):
