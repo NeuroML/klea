@@ -257,6 +257,7 @@ def make_app():
         user_id: str = "",
         resume_chat_id: str = "",
         continue_session: bool = False,
+        status_extras: list[Any] | None = None,
     ) -> KleaTuiApp:
         return KleaTuiApp(
             TuiContext(
@@ -266,6 +267,7 @@ def make_app():
                 user_id=user_id,
                 resume_chat_id=resume_chat_id,
                 continue_session=continue_session,
+                status_extras=list(status_extras or []),
             )
         )
 

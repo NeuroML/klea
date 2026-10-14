@@ -13,8 +13,9 @@ the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
-credentials dialog, and the missing-model/API-key send gating have landed
-(Phase 2.2-5.3c); the mode/access selectors are still to come.
+credentials dialog, the missing-model/API-key send gating, and the app-slot
+status extras have landed (Phase 2.2-5.4a); the mode/access selectors are still
+to come.
 
 ## Overview
 
@@ -193,7 +194,9 @@ text cannot drift.  A pending interrupt is re-presented on load/switch from
 mode and tool-access selector slots (ADR-0030/0037); `klea_rag/ui/tui/`
 registers none.  Both entries are thin (`run_agent_tui` / `run_rag_tui`,
 mirroring `run_agent_web`) and pass only the title/prefix/app-name and page
-builder.
+builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
+renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
+streamed state, so a state refresh never disturbs them.
 
 ## Rendering and non-goals
 

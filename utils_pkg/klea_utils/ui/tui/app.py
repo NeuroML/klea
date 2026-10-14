@@ -174,7 +174,7 @@ class KleaTuiScreen(Screen):
                 )
             with Vertical(id="status-panel"):
                 yield Static("status", id="status-title")
-                yield StatusPanel(id="status")
+                yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
         """Focus the query input, show the transcript, hydrate the chat."""

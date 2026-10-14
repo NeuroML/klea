@@ -20,14 +20,17 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.markdown import Markdown
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Collapsible, Static
 
 from klea_utils.ui.inspect_format import format_details
+
+if TYPE_CHECKING:
+    from klea_utils.ui.tui.context import TuiContext
 
 logger = logging.getLogger(__name__)
 
@@ -83,25 +86,45 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
 
 
 class StatusPanel(VerticalScroll):
-    """The right panel: session context, state sections and token usage."""
+    """The right panel: app slots, session context, state sections, usage.
 
-    def __init__(self, *, id: str | None = None) -> None:
-        """Build an empty status panel.
+    The top holds the app-defined controls registered on
+    :attr:`TuiContext.status_extras` (e.g. the agent's operating-mode and
+    tool-access selectors); below them sits the chat's streamed state, rebuilt
+    on every :meth:`set_state`.
+    """
 
+    def __init__(self, *, ctx: TuiContext | None = None, id: str | None = None) -> None:
+        """Build the panel for *ctx*.
+
+        :param ctx: The shared TUI context (its ``status_extras`` are rendered
+            at the top); ``None`` renders no extras.
         :param id: Optional DOM id for the widget.
         """
         super().__init__(id=id)
+        self._ctx = ctx
 
     def compose(self) -> ComposeResult:
-        """Compose the empty placeholder (replaced on the first refresh)."""
-        yield Static("State updates will appear here.", id="status-empty")
+        """Compose the app slots and the (initially empty) state body."""
+        if self._ctx is not None and self._ctx.status_extras:
+            with Vertical(id="status-extras"):
+                for render in self._ctx.status_extras:
+                    widget = render(self._ctx)
+                    if widget is None:
+                        continue
+                    if isinstance(widget, (list, tuple)):
+                        yield from widget
+                    else:
+                        yield widget
+        yield Vertical(id="status-body")
 
     async def set_state(self, chat: Mapping[str, Any] | None) -> None:
-        """Rebuild the panel from the active chat's state.
+        """Rebuild the streamed state below the app slots.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
         """
-        await self.remove_children()
+        body = self.query_one("#status-body", Vertical)
+        await body.remove_children()
         widgets: list[Any] = []
         if chat:
             usage = chat.get("token_usage") or {}
@@ -114,5 +137,5 @@ class StatusPanel(VerticalScroll):
                 widgets.append(_section_widget(key, section))
         if not widgets:
             widgets.append(Static("State updates will appear here."))
-        await self.mount_all(widgets)
+        await body.mount_all(widgets)
         self.scroll_end(animate=False)

@@ -453,6 +453,37 @@ async def test_status_panel_shows_context_state_and_usage(fake_backend, make_app
         assert any("3 in / 1 out" in text for text in statics)
 
 
+async def test_status_extras_render_in_panel(fake_backend, make_app):
+    """App-registered status extras render at the top of the panel."""
+    app = make_app(status_extras=[lambda ctx: Static(f"Mode: {ctx.title}")])
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        texts = [str(static.render()) for static in extras.query(Static)]
+        assert "Mode: Klea Test" in texts
+
+
+async def test_status_extras_survive_state_update(fake_backend, make_app):
+    """Extras persist while the streamed state body is rebuilt."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "state",
+                "node": "Planner",
+                "data": {"heading": "Plan", "display": "step 1"},
+            },
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app(status_extras=[lambda ctx: Static("Access: read_only")])
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        extras = app.screen.query_one("#status-extras")
+        texts = [str(static.render()) for static in extras.query(Static)]
+        assert "Access: read_only" in texts
+
+
 async def test_client_help_command_renders_locally(fake_backend, make_app):
     """A client ``/help`` renders the catalogue and starts no run."""
     fake_backend.commands = [_mode_metadata()]
