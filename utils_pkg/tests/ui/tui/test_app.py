@@ -22,6 +22,7 @@ import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
+from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
 from textual.widgets import (
     Button,
@@ -502,6 +503,126 @@ async def test_sessions_command_blocked_while_streaming(
         await pilot.pause()
 
 
+def _model_info() -> dict:
+    """A two-role model config (chat + plan, both modifiable)."""
+    return {
+        "chat": {
+            "model": "openai:gpt-4o",
+            "modifiable": True,
+            "model_type": "text_generation",
+            "credential": {"provider": "openai", "requires_key": True},
+        },
+        "plan": {
+            "model": "openai:gpt-4o",
+            "modifiable": True,
+            "model_type": "text_generation",
+            "credential": {"provider": "openai", "requires_key": True},
+        },
+    }
+
+
+async def test_model_command_opens_dialog(fake_backend, make_app):
+    """A client ``/model`` opens the model dialog and forwards nothing."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await _submit(pilot, app, "/model")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, ModelDialog)
+
+    assert fake_backend.calls == []
+
+
+async def test_ctrl_m_opens_dialog(fake_backend, make_app):
+    """Ctrl+M opens the model dialog."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, ModelDialog)
+
+
+async def test_model_dialog_save_promotes(fake_backend, make_app):
+    """Saving a changed role posts a promoting per-chat override."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, ModelDialog)
+        app.screen.query_one("#model-provider-chat", Input).value = "anthropic"
+        app.screen.query_one("#model-model-chat", Input).value = "claude"
+        await pilot.pause()
+        app.screen.query_one("#model-save", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.model_overrides == [
+        {
+            "chat_id": "c1",
+            "role": "chat",
+            "payload": {"model": "anthropic:claude", "promote_default": True},
+        }
+    ]
+
+
+async def test_model_dialog_reset(fake_backend, make_app):
+    """Reset clears the role's per-chat override."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-reset-chat", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.model_clears == ["chat"]
+
+
+async def test_model_dialog_use_for_all(fake_backend, make_app):
+    """Use-for-all copies the model onto the other same-kind role."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-provider-chat", Input).value = "anthropic"
+        app.screen.query_one("#model-model-chat", Input).value = "claude"
+        await pilot.pause()
+        app.screen.query_one("#model-useall-chat", Button).press()
+        await pilot.pause()
+        assert app.screen.query_one("#model-model-plan", Input).value == "claude"
+        assert app.screen.query_one("#model-provider-plan", Input).value == "anthropic"
+
+
+async def test_model_dialog_blocked_while_streaming(
+    fake_backend, make_app, monkeypatch
+):
+    """``/model`` is refused while a run is streaming (I2)."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await _submit(pilot, app, "/model")
+        await pilot.pause()
+        assert not isinstance(app.screen, ModelDialog)
+        assert app._worker is not None
+        app._worker.cancel()
+        await pilot.pause()
+
+
 async def test_unknown_command_is_rejected_locally(fake_backend, make_app):
     """An unknown command renders an error and is never forwarded."""
     app = make_app()
@@ -540,7 +661,7 @@ async def test_autocomplete_lists_and_hides(fake_backend, make_app):
         await pilot.pause()
         suggestions = app.screen.query_one("#command-suggestions", CommandSuggestions)
         assert suggestions.display is True
-        assert [option.id for option in suggestions.options] == ["mode"]
+        assert [option.id for option in suggestions.options] == ["mode", "model"]
 
         field.value = "hi"
         await pilot.pause()

@@ -51,6 +51,17 @@ class FakeBackend:
         self.renames: list[dict[str, Any]] = []
         #: Recorded ``delete_chat_on_server`` chat ids.
         self.deletes: list[str] = []
+        #: Active model config per role (``GET .../models/active``).
+        self.model_info: dict[str, dict[str, Any]] = {}
+        #: Recorded ``set_model_override`` calls (chat scope).
+        self.model_overrides: list[dict[str, Any]] = []
+        #: Recorded ``clear_model_override`` role ids (chat scope).
+        self.model_clears: list[str] = []
+        #: Catalogue providers and per-provider models.
+        self.catalogue_providers: list[str] = []
+        self.catalogue_models: dict[str, list[str]] = {}
+        #: Stored credentials (``GET /credentials``).
+        self.credentials: list[dict[str, Any]] = []
 
     async def stream_events(
         self,
@@ -134,6 +145,57 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 
     monkeypatch.setattr(
         "klea_utils.ui.client.delete_chat_on_server", _delete_chat_on_server
+    )
+
+    async def _fetch_active_models(
+        server_url: str, user_id: str, chat_id: str
+    ) -> dict[str, dict[str, Any]]:
+        return backend.model_info
+
+    monkeypatch.setattr("klea_utils.api.sse.fetch_active_models", _fetch_active_models)
+
+    async def _fetch_credentials(server_url: str, user_id: str) -> list[dict[str, Any]]:
+        return backend.credentials
+
+    monkeypatch.setattr("klea_utils.api.sse.fetch_credentials", _fetch_credentials)
+
+    async def _fetch_catalogue_providers(server_url: str, user_id: str) -> list[str]:
+        return backend.catalogue_providers
+
+    monkeypatch.setattr(
+        "klea_utils.ui.model_config.fetch_catalogue_providers",
+        _fetch_catalogue_providers,
+    )
+
+    async def _fetch_catalogue_models(
+        server_url: str, user_id: str, provider: str
+    ) -> list[str]:
+        return backend.catalogue_models.get(provider, [])
+
+    monkeypatch.setattr(
+        "klea_utils.ui.model_config.fetch_catalogue_models", _fetch_catalogue_models
+    )
+
+    async def _set_model_override(
+        server_url: str, user_id: str, chat_id: str, role: str, payload: dict
+    ) -> bool:
+        backend.model_overrides.append(
+            {"chat_id": chat_id, "role": role, "payload": payload}
+        )
+        return True
+
+    monkeypatch.setattr(
+        "klea_utils.ui.model_config.set_model_override", _set_model_override
+    )
+
+    async def _clear_model_override(
+        server_url: str, user_id: str, chat_id: str, role: str
+    ) -> bool:
+        backend.model_clears.append(role)
+        return True
+
+    monkeypatch.setattr(
+        "klea_utils.ui.model_config.clear_model_override", _clear_model_override
     )
     return backend
 

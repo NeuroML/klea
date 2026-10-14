@@ -52,6 +52,10 @@ _REGISTRY_SERVICE = "registry"
 #: picker (used by ``/sessions``).  The app registers a no-argument callable.
 OPEN_SESSIONS_SERVICE = "open_sessions"
 
+#: ``CommandContext.services`` key for the app hook that opens the model
+#: dialog (used by ``/model``).  The app registers a no-argument callable.
+OPEN_MODELS_SERVICE = "open_models"
+
 
 def client_commands() -> CommandRegistry:
     """Return the TUI's own client-side commands (ADR-0047).
@@ -75,6 +79,15 @@ def client_commands() -> CommandRegistry:
             side="client",
             while_streaming="block",
             handler=_handle_sessions,
+        )
+    )
+    registry.register(
+        Command(
+            name="model",
+            summary="Show or set the models for this chat",
+            side="client",
+            while_streaming="block",
+            handler=_handle_models,
         )
     )
     return registry
@@ -113,6 +126,19 @@ def _handle_sessions(context: CommandContext, parsed: ParsedCommand) -> CommandR
     if open_sessions is None:
         return CommandResult.fail("The session picker is not available.")
     open_sessions()
+    return CommandResult.ok()
+
+
+def _handle_models(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Open the model dialog via the app-provided hook.
+
+    Like ``/sessions``, the handler renders nothing: opening the modal is the
+    effect.  The hook is registered under :data:`OPEN_MODELS_SERVICE`.
+    """
+    open_models = context.service(OPEN_MODELS_SERVICE)
+    if open_models is None:
+        return CommandResult.fail("The model dialog is not available.")
+    open_models()
     return CommandResult.ok()
 
 
