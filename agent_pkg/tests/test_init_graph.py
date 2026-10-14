@@ -82,3 +82,28 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert len(update["messages"]) == 1
     assert isinstance(update["messages"][-1], HumanMessage)
     assert update["messages"][-1].content == "q"
+
+
+@pytest.mark.asyncio
+async def test_init_reads_discovery_from_project_root(monkeypatch, tmp_path):
+    """The instruction file is read from ``state.project_root`` when set.
+
+    ``InitGraphState`` must not reset ``project_root`` (session-scoped).
+    """
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "AGENTS.md").write_text("root rules")
+    # cwd has no instruction file, so only the session root can supply it.
+    monkeypatch.chdir(cwd)
+
+    node = InitGraphState(logging.getLogger("test"), "Initializing")
+    monkeypatch.setattr(node, "write_custom_stream", lambda ev: None)
+
+    update = await node.execute(KleaAgentState(query="q", project_root=str(root)))
+
+    assert update["discovery_persistent"].items[0].source == "AGENTS.md"
+    assert update["discovery_persistent"].items[0].content == "root rules"
+    # project_root is session-scoped: never reset per turn.
+    assert "project_root" not in update

@@ -64,7 +64,8 @@ class InitGraphState(
         ``discovery_persistent`` is refreshed in place: the project instruction
         file (``AGENTS.md``/``CLAUDE.md``) is upserted, re-read only when it
         changes, so the Planner and answer-composer see current project
-        conventions.
+        conventions.  The file is read from the session ``project_root`` when
+        one is set (the ``/cwd`` command), else the process working directory.
         """
         self._emit_progress()
         return {
@@ -86,7 +87,10 @@ class InitGraphState(
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},
-            "discovery_persistent": refresh_project_files(state.discovery_persistent),
+            "discovery_persistent": refresh_project_files(
+                state.discovery_persistent,
+                project_root=state.project_root or None,
+            ),
             "discovery_per_step": Discovery(),
             "code": CodeSchema(),
             "messages": [*state.messages, HumanMessage(content=state.query)],
