@@ -20,6 +20,7 @@ from klea_utils.ui.tui.components.commands import (
     build_catalogue,
     handle_command,
 )
+from klea_utils.ui.tui.components.hitl import PermissionModal
 from klea_utils.ui.tui.components.inspector import (
     _entry_widget,
     _section_title,
@@ -191,3 +192,36 @@ class TestCommandSuggestions:
 
     def test_no_catalogue_has_no_matches(self):
         assert CommandSuggestions.matches("/", None) == []
+
+
+class TestPermissionModalHelpers:
+    """The permission modal's per-request options and context hint."""
+
+    def test_guess_options_include_not_a_path(self):
+        assert PermissionModal._options({"confidence": "guess"}) == (
+            "once",
+            "session",
+            "not_a_path",
+            "deny",
+        )
+
+    def test_non_guess_options_exclude_not_a_path(self):
+        assert PermissionModal._options({"confidence": "declared"}) == (
+            "once",
+            "session",
+            "deny",
+        )
+
+    def test_hint_shows_tool_argument_and_value(self):
+        hint = PermissionModal._hint(
+            {
+                "kind": "outside",
+                "tool": "read_file",
+                "argument": "path",
+                "raw": "/etc/hosts",
+                "confidence": "guess",
+            }
+        )
+        assert "read_file" in hint
+        assert "path" in hint
+        assert "/etc/hosts" in hint

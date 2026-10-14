@@ -88,6 +88,29 @@ def test_permission_outside_once(monkeypatch):
     assert cancel is False
 
 
+def test_permission_guess_offers_not_a_path(monkeypatch):
+    """A guessed value lets the user dismiss it as "not a path"."""
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: "n")
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "permission",
+            "requests": [
+                {
+                    "kind": "outside",
+                    "directory": "/",
+                    "tool": "run_command",
+                    "argument": "command",
+                    "raw": "/x/",
+                    "confidence": "guess",
+                }
+            ],
+        },
+        "klea",
+    )
+    assert response == {"decisions": [{"key": "/", "decision": "not_a_path"}]}
+    assert cancel is False
+
+
 def test_permission_sensitive_session_uses_file_key(monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda *a, **k: "s")
     response, cancel = repl._prompt_interrupt(

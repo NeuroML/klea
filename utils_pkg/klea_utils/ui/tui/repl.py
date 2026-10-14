@@ -28,9 +28,10 @@ def _permission_target(request: dict) -> str:
 def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
     """Prompt for a path-permission ask, one decision per request.
 
-    Each request is shown as an outside-project directory or a sensitive file;
-    the user chooses once / session / deny, or cancels the whole ask.
-    ``(None, True)`` means cancel.
+    Each request is shown as an outside-project directory or a sensitive file
+    with the tool call behind it; the user chooses once / session / deny, or
+    cancels the whole ask.  A guessed (heuristic) value also offers
+    ``not a path`` to dismiss it.  ``(None, True)`` means cancel.
 
     :param ask: The permission interrupt ``data`` (``requests``).
     :param app_prefix: Prefix for the input prompts.
@@ -50,12 +51,20 @@ def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
             if request.get("kind") == "sensitive"
             else f"outside project {target}"
         )
+        tool = request.get("tool", "")
+        argument = request.get("argument", "")
+        raw = request.get("raw", "")
+        if tool or argument:
+            label = f"{label} [{tool}: {argument}={raw}]"
+        # "Not a path" is offered only for a guessed (heuristic) value.
+        guess = request.get("confidence") == "guess"
+        options = "[o]nce / [s]ession / "
+        if guess:
+            options += "[n]ot a path / "
+        options += "[d]eny / [c]ancel"
         while True:
             choice = (
-                input(
-                    f"{app_prefix} (PERMISSION) {label}: "
-                    "[o]nce / [s]ession / [d]eny / [c]ancel >>> "
-                )
+                input(f"{app_prefix} (PERMISSION) {label}: {options} >>> ")
                 .strip()
                 .lower()
             )
@@ -63,12 +72,15 @@ def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
                 decision = "once"
             elif choice in ("s", "session"):
                 decision = "session"
+            elif guess and choice in ("n", "not a path"):
+                decision = "not_a_path"
             elif choice in ("d", "deny"):
                 decision = "deny"
             elif choice in ("c", "cancel"):
                 return None, True
             else:
-                print("Please choose o, s, d, or c.")
+                extra = "n, " if guess else ""
+                print(f"Please choose o, s, {extra}d, or c.")
                 continue
             decisions.append({"key": target, "decision": decision})
             break

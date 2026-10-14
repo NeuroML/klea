@@ -190,6 +190,38 @@ def _permission_key(request: dict[str, Any]) -> str:
     return str(request.get("directory", ""))
 
 
+def _permission_hint(request: dict[str, Any]) -> str:
+    """Return the tool-call context for a request (tool, argument, value).
+
+    Gives the user the tool call behind the ask so they can judge it.  Includes
+    the confidence tier: a ``guess`` is a heuristic path-like value (e.g. a
+    regex fragment), which is also the only tier offered the "Not a path"
+    choice.
+    """
+    tool = str(request.get("tool", ""))
+    argument = str(request.get("argument", ""))
+    confidence = str(request.get("confidence", ""))
+    raw = str(request.get("raw", ""))
+    detail = f"{tool}: {argument} = {raw} ({confidence})" if tool or argument else ""
+    if request.get("kind") == "sensitive":
+        note = "Commonly holds credentials."
+        return f"{detail} - {note}" if detail else note
+    return detail
+
+
+def _permission_options(request: dict[str, Any]) -> dict[str, str]:
+    """Return the per-request decision options.
+
+    The "Not a path" dismissal is offered only for a ``guess``-tier request,
+    where the gate may have mistaken a non-path value for a path.
+    """
+    options = {"once": "Once", "session": "Session"}
+    if request.get("confidence") == "guess":
+        options["not_a_path"] = "Not a path"
+    options["deny"] = "Deny"
+    return options
+
+
 def _render_permission_form(
     ctx: PageContext, ask: dict[str, Any], interrupt_id: Any
 ) -> None:
@@ -226,12 +258,9 @@ def _render_permission_form(
                     continue
                 if request.get("kind") == "sensitive":
                     title = f"Sensitive file: {request.get('path', '')}"
-                    hint = "Commonly holds credentials."
                 else:
                     title = f"Outside project: {request.get('directory', '')}"
-                    hint = (
-                        f"{request.get('tool', '')} ({request.get('confidence', '')})"
-                    ).strip()
+                hint = _permission_hint(request)
                 key = _permission_key(request)
 
                 def _set(value: str, k: str = key) -> None:
@@ -240,12 +269,12 @@ def _render_permission_form(
 
                 choice_buttons(
                     title,
-                    {"once": "Once", "session": "Session", "deny": "Deny"},
+                    _permission_options(request),
                     decisions.get(key, "deny"),
                     _set,
-                    colors={"deny": "red-5"},
+                    colors={"deny": "red-5", "not_a_path": "grey-7"},
                     label_width="20ch",
-                    group_width="12rem",
+                    group_width="16rem",
                 )
                 if hint:
                     ui.label(hint).classes("text-xs text-grey-6")

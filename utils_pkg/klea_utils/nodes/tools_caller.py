@@ -243,6 +243,7 @@ class ToolsCallerNode(
                     "source": request.source,
                     "tool": request.tool,
                     "argument": request.argument,
+                    "raw": request.raw,
                 }
                 for request in requests
             ],

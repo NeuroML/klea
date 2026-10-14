@@ -32,8 +32,15 @@ from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
 logger = logging.getLogger(__name__)
 
-#: Path-permission decision options, in ``RadioSet`` order.
-_PERMISSION_OPTIONS = ("once", "session", "deny")
+#: Path-permission decision options and their labels.  "Not a path" is offered
+#: only for a ``guess``-tier request (see
+#: :meth:`PermissionModal._options`).
+_PERMISSION_OPTION_LABELS = {
+    "once": "Once",
+    "session": "Session",
+    "not_a_path": "Not a path",
+    "deny": "Deny",
+}
 
 
 @dataclass(frozen=True)
@@ -226,10 +233,31 @@ class PermissionModal(ModalScreen[HitlDecision]):
 
     @staticmethod
     def _hint(request: Mapping[str, Any]) -> str:
-        """Return the row hint (tool / confidence) for a request."""
+        """Return the tool-call context (tool, argument, value, confidence)."""
+        tool = str(request.get("tool", ""))
+        argument = str(request.get("argument", ""))
+        confidence = str(request.get("confidence", ""))
+        raw = str(request.get("raw", ""))
+        detail = (
+            f"{tool}: {argument} = {raw} ({confidence})" if tool or argument else ""
+        )
         if request.get("kind") == "sensitive":
-            return "Commonly holds credentials."
-        return f"{request.get('tool', '')} ({request.get('confidence', '')})".strip()
+            note = "Commonly holds credentials."
+            return f"{detail} - {note}" if detail else note
+        return detail
+
+    @staticmethod
+    def _options(request: Mapping[str, Any]) -> tuple[str, ...]:
+        """Return the decision options for a request (``RadioSet`` order).
+
+        "Not a path" is offered only for a ``guess``-tier request, where the
+        gate may have mistaken a non-path value for a path.
+        """
+        options = ["once", "session"]
+        if request.get("confidence") == "guess":
+            options.append("not_a_path")
+        options.append("deny")
+        return tuple(options)
 
     def compose(self) -> ComposeResult:
         """Compose one radio group per requested path, plus Submit / Cancel."""
@@ -244,9 +272,12 @@ class PermissionModal(ModalScreen[HitlDecision]):
                 if hint:
                     yield Static(hint)
                 with RadioSet(id=f"perm-{index}"):
-                    yield RadioButton("Once", id=f"perm-{index}-once")
-                    yield RadioButton("Session", id=f"perm-{index}-session")
-                    yield RadioButton("Deny", id=f"perm-{index}-deny", value=True)
+                    for option in self._options(request):
+                        yield RadioButton(
+                            _PERMISSION_OPTION_LABELS[option],
+                            id=f"perm-{index}-{option}",
+                            value=option == "deny",
+                        )
             with Horizontal():
                 yield Button("Submit", id="perm-submit", variant="primary")
                 yield Button("Cancel", id="perm-cancel", variant="error")
@@ -266,12 +297,9 @@ class PermissionModal(ModalScreen[HitlDecision]):
         decisions: list[dict[str, str]] = []
         for index, request in enumerate(self._requests()):
             radio_set = self.query_one(f"#perm-{index}", RadioSet)
+            options = self._options(request)
             pressed = radio_set.pressed_index
-            decision = (
-                _PERMISSION_OPTIONS[pressed]
-                if 0 <= pressed < len(_PERMISSION_OPTIONS)
-                else "deny"
-            )
+            decision = options[pressed] if 0 <= pressed < len(options) else "deny"
             decisions.append({"key": _permission_key(request), "decision": decision})
         self.dismiss(HitlDecision({"decisions": decisions}))
 

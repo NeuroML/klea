@@ -184,6 +184,45 @@ async def test_permission_interrupt_outside_renders_and_submits(
     ]
 
 
+async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
+    """A guessed path value offers a "Not a path" dismissal that submits."""
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "outside",
+                "tool": "run_command",
+                "argument": "command",
+                "raw": "/tmp/",
+                "path": "/tmp",
+                "directory": "/tmp",
+                "confidence": "guess",
+                "source": "value:command",
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    # The tool call is shown for context, and the guess offers "Not a path".
+    await agent_user.should_see("run_command")
+    await agent_user.should_see("Not a path")
+
+    agent_user.find("Not a path").click()
+    await asyncio.sleep(0.1)
+
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    agent_user.find("Submit").click()
+    await agent_user.should_see("ok", retries=50)
+
+    body = next(
+        body for body in fake_backend.stream_bodies() if "interrupt_response" in body
+    )
+    assert body["interrupt_response"]["decisions"] == [
+        {"key": "/tmp", "decision": "not_a_path"}
+    ]
+
+
 async def test_permission_interrupt_sensitive_renders_file(fake_backend, agent_user):
     """A sensitive-file ask names the file; the default decision is deny."""
     fake_backend.stream_events = [
