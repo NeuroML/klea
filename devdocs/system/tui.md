@@ -11,8 +11,9 @@ skeleton, the thin per-app entries, the single run worker (basic
 MIME-aware transcript, the inspector view, the status pane, session commands,
 the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
-`--continue`/`--resume`, and the session picker (rename/delete, via `Ctrl+S`
-and `/sessions`) have landed (Phase 2.2-5.2e); the model/access selectors are
+`--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
+`/sessions`), and the per-role model dialog (`Ctrl+M` / `/model`) have landed
+(Phase 2.2-5.3a); the credentials dialog and the mode/access selectors are
 still to come.
 
 ## Overview
@@ -92,6 +93,7 @@ I8); each app composes its own screen from them, mirroring the NiceGUI
 | Status panel | `ui/tui/components/status_panel.py` | Full-height right panel: mode/access, models, state sections, token usage | `status_pane.py` |
 | Inspector view | `ui/tui/components/inspector.py` | Inspect entries; a toggle view inside the chat panel | `inspector.py` |
 | Session picker | `ui/tui/components/sessions.py` | `ModalScreen` list / switch / rename / delete | `chat_list.py` |
+| Model dialog | `ui/tui/components/model_dialog.py` | `ModalScreen` per-role model editor (shared core in `ui/model_config.py`) | `model_dialog.py` |
 | HITL | `ui/tui/components/hitl.py` | Review / input / permission modals | `choice.py` + status-region form |
 | Commands | `ui/tui/components/commands.py` | Merged catalogue, dispatch, `/` autocomplete | `components/commands.py` |
 | Shared state | `ui/state.py` | `ChatData` store + helpers | `web/nicegui/state.py` (moved) |
@@ -162,7 +164,7 @@ enforcement point for each:
 
 The TUI reuses `klea_utils/commands/common.py`: it validates `/`-input against
 the merge of its client commands and the server catalogue (`GET /commands`),
-runs client commands locally (`/help`, and later `/new`, `/sessions`,
+runs client commands locally (`/help`, `/sessions`, `/model`; later `/new`,
 `/rename`, `/export`), and forwards server commands (`/mode`, `/access`) as
 the query.  The `/`-autocomplete is a Textual completion/suggestion list over
 the merged catalogue.  TUI capabilities start empty (no browser file picker);

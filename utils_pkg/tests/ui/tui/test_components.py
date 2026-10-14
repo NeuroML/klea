@@ -176,7 +176,10 @@ class TestCommandSuggestions:
 
     def test_prefix_matches_available_commands(self):
         catalogue = build_catalogue([_mode_metadata()])
-        assert [c.name for c in CommandSuggestions.matches("/m", catalogue)] == ["mode"]
+        assert [c.name for c in CommandSuggestions.matches("/m", catalogue)] == [
+            "mode",
+            "model",
+        ]
 
     def test_space_ends_completion(self):
         catalogue = build_catalogue([_mode_metadata()])

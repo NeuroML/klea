@@ -42,6 +42,7 @@ from klea_utils.commands.common import (
     unescape_command,
 )
 from klea_utils.ui.tui.components.commands import (
+    OPEN_MODELS_SERVICE,
     OPEN_SESSIONS_SERVICE,
     TUI_CAPABILITIES,
     CommandSuggestions,
@@ -54,6 +55,7 @@ from klea_utils.ui.tui.components.hitl import (
     PermissionModal,
 )
 from klea_utils.ui.tui.components.inspector import Inspector
+from klea_utils.ui.tui.components.model_dialog import ModelDialog, ModelResult
 from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
@@ -333,6 +335,7 @@ class KleaTuiApp(App[None]):
         Binding("ctrl+r", "retry", "Retry"),
         Binding("ctrl+i", "toggle_view", "Transcript/Inspector"),
         Binding("ctrl+s", "open_sessions", "Sessions"),
+        Binding("ctrl+m", "open_models", "Models"),
         Binding("ctrl+q", "quit", "Quit"),
     ]
 
@@ -437,6 +440,14 @@ class KleaTuiApp(App[None]):
         )
         if messages:
             chat["messages"] = [server_message_to_data(msg) for msg in messages]
+        # Lazy: httpx and the SSE client are only needed for a live server.
+        from klea_utils.api.sse import fetch_active_models
+
+        model_info = await fetch_active_models(
+            self.ctx.server_url, self.ctx.user_id, chat_id
+        )
+        if model_info:
+            chat["model_info"] = model_info
         body = await fetch_chat_context(self.ctx.server_url, self.ctx.user_id, chat_id)
         context = body.get("context")
         if context:
@@ -471,7 +482,10 @@ class KleaTuiApp(App[None]):
             text,
             self._catalogue,
             TUI_CAPABILITIES,
-            services={OPEN_SESSIONS_SERVICE: self._open_sessions_hook},
+            services={
+                OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
+                OPEN_MODELS_SERVICE: self._open_models_hook,
+            },
         )
         if result is None:
             self.start_run(text)
@@ -481,6 +495,10 @@ class KleaTuiApp(App[None]):
     def _open_sessions_hook(self) -> None:
         """Command-service hook for ``/sessions`` (schedules the picker)."""
         self.run_worker(self.action_open_sessions())
+
+    def _open_models_hook(self) -> None:
+        """Command-service hook for ``/model`` (schedules the dialog)."""
+        self.run_worker(self.action_open_models())
 
     async def _render_command_result(self, result: CommandResult) -> None:
         """Render a client command's result as a ``system`` transcript message.
@@ -587,6 +605,58 @@ class KleaTuiApp(App[None]):
             SessionPicker(sessions, self.ctx.chat_id),
             callback=self._on_session_choice,
         )
+
+    async def action_open_models(self) -> None:
+        """Open the model dialog (Ctrl+M); refused while streaming (I2)."""
+        if self._streaming:
+            self.notify(
+                "Stop the current run before changing models.",
+                severity="warning",
+            )
+            return
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.api.sse import fetch_active_models
+        from klea_utils.ui.state import ensure_chat
+
+        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        info = chat.get("model_info") or {}
+        if not info:
+            info = await fetch_active_models(
+                self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
+            )
+            chat["model_info"] = info
+        if not info:
+            self.notify("No model roles available to configure.", severity="warning")
+            return
+        self.push_screen(
+            ModelDialog(
+                server_url=self.ctx.server_url,
+                user_id=self.ctx.user_id,
+                chat_id=self.ctx.chat_id,
+                info=info,
+            ),
+            callback=self._on_models_closed,
+        )
+
+    def _on_models_closed(self, result: ModelResult | None) -> None:
+        """Refresh the chat after the model dialog closes with saves.
+
+        :param result: The dialog's :class:`ModelResult`, or ``None``.
+        """
+        if result and result.saved:
+            self._refresh_models()
+
+    @work
+    async def _refresh_models(self) -> None:
+        """Re-fetch the active models for the current chat."""
+        # Lazy: httpx and the server client are only needed for a live server.
+        from klea_utils.api.sse import fetch_active_models
+        from klea_utils.ui.state import ensure_chat
+
+        info = await fetch_active_models(
+            self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
+        )
+        ensure_chat(self.ctx.user_id, self.ctx.chat_id)["model_info"] = info
 
     def _on_session_choice(self, action: SessionAction | None) -> None:
         """Handle the picker's choice (switch, rename or delete).
