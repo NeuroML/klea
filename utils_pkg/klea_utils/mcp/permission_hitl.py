@@ -34,8 +34,10 @@ DEFAULT_QUESTION = (
 )
 
 #: A per-path decision: allow for this dispatch only, allow for the session
-#: (persisted in ``allowed_dirs``), or deny.
-Decision = Literal["once", "session", "deny"]
+#: (persisted in ``allowed_dirs``), deny, or dismiss the request as "not a
+#: path" (a heuristic false positive; the call proceeds for this dispatch and
+#: nothing is remembered).
+Decision = Literal["once", "session", "deny", "not_a_path"]
 
 
 class PathDecision(BaseModel):
@@ -44,7 +46,8 @@ class PathDecision(BaseModel):
     ``key`` matches a request's :attr:`~klea_utils.mcp.path_detect.PathRequest.approval_key`
     (the directory for an ``outside`` request, the file for a ``sensitive``
     one); ``decision`` is ``once`` (this dispatch), ``session`` (also
-    persisted for the thread), or ``deny``.
+    persisted for the thread), ``deny``, or ``not_a_path`` (dismiss a guessed
+    false positive for this dispatch; the call proceeds).
     """
 
     key: str
@@ -69,12 +72,16 @@ class PermissionResolution(BaseModel):
     Fields hold approval keys (a directory for an ``outside`` request, a file
     for a ``sensitive`` one).  :attr:`allowed_now` is allowed for this
     dispatch only; :attr:`allowed_session` is also persisted for the thread;
-    :attr:`denied` is refused (the gate turns each into a non-halting denial).
+    :attr:`denied` is refused (the gate turns each into a non-halting denial);
+    :attr:`not_a_path` is dismissed for **this dispatch only** -- the request
+    was a heuristic false positive (the user is not approving it), so the call
+    proceeds without gating it, and no memory is kept.
     """
 
     allowed_now: list[str] = Field(default_factory=list)
     allowed_session: list[str] = Field(default_factory=list)
     denied: list[str] = Field(default_factory=list)
+    not_a_path: list[str] = Field(default_factory=list)
 
     def effective_keys(self) -> list[str]:
         """Return the approval keys allowed for the current dispatch."""
@@ -152,6 +159,8 @@ def resolve_decisions(
             resolution.allowed_session.append(key)
         elif decision == "once":
             resolution.allowed_now.append(key)
+        elif decision == "not_a_path":
+            resolution.not_a_path.append(key)
         else:
             resolution.denied.append(key)
     logger.debug(f"Resolved permission ask\n{resolution = }")

@@ -81,6 +81,30 @@ async def test_dispatch_denies_outside_project_without_calling(tmp_path):
     assert client.calls == []
 
 
+async def test_dispatch_not_a_path_proceeds(tmp_path):
+    """A "not a path" decision lets the call proceed (not a denial)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(meta={"checkpaths": ["path"]})}
+
+    def resolver(requests):
+        return PermissionResolution(not_a_path=[r.approval_key for r in requests])
+
+    results = await dispatch_tool_calls(
+        client,
+        [("list_files", {"path": str(outside)})],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert client.calls == [("list_files", {"path": str(outside)})]
+
+
 async def test_dispatch_resolves_relative_path_to_absolute(tmp_path):
     root = tmp_path / "root"
     root.mkdir()

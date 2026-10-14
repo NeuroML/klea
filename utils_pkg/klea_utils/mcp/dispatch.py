@@ -364,6 +364,7 @@ async def dispatch_tool_calls(
     approved_dirs = set(base_allowed)
     approved_files = set(base_allowed_files)
     denied: set[str] = set()
+    dismissed: set[str] = set()
     if resolution is not None:
         kind_by_key = {request.approval_key: request.kind for request in all_requests}
         for key in resolution.effective_keys():
@@ -372,10 +373,14 @@ async def dispatch_tool_calls(
             else:
                 approved_dirs.add(key)
         denied = set(resolution.denied)
+        # A "not a path" decision dismisses the request for this dispatch: the
+        # call proceeds (the request was a heuristic false positive; no memory
+        # is kept, so a genuine path is never silently ungated).
+        dismissed = set(resolution.not_a_path)
 
     logger.debug(
         f"Permission gate\n{len(all_requests) = }\n{resolution = }\n"
-        f"{approved_dirs = }\n{approved_files = }\n{denied = }"
+        f"{approved_dirs = }\n{approved_files = }\n{denied = }\n{dismissed = }"
     )
 
     pending: list[tuple[int, ToolCallSchema]] = []
@@ -384,6 +389,7 @@ async def dispatch_tool_calls(
             request
             for request in call_requests.get(i, [])
             if not _request_allowed(request, approved_dirs, approved_files)
+            and request.approval_key not in dismissed
         ]
         if leftover:
             results[i] = _permission_denied_result(calls[i].tool, leftover, denied)

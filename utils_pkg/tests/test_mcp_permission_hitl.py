@@ -93,3 +93,15 @@ def test_resolve_invalid_response_denies():
     ).denied == ["/etc"]
     assert resolve_decisions([_request("/etc")], None).denied == ["/etc"]
     assert resolve_decisions([_request("/etc")], "garbage").denied == ["/etc"]
+
+
+def test_resolve_not_a_path_holds_key():
+    """A "not a path" decision is dismissed for this dispatch, not denied."""
+    resolution = resolve_decisions(
+        [_request("/etc")],
+        PermissionResponse(decisions=[PathDecision(key="/etc", decision="not_a_path")]),
+    )
+    assert resolution.not_a_path == ["/etc"]
+    assert resolution.allowed_now == []
+    assert resolution.allowed_session == []
+    assert resolution.denied == []
