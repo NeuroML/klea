@@ -360,7 +360,7 @@ class KleaAgent(BaseLangGraph):
 
         :param state: The per-superstep state snapshot (a dict).
         :returns: ``{"mode", "requested", "assurance", "note",
-            "access_level"}`` for the frontend.
+            "access_level", "project_root"}`` for the frontend.
         """
         mode_data = state.get("mode", {})
         if not isinstance(mode_data, dict):
@@ -371,6 +371,7 @@ class KleaAgent(BaseLangGraph):
             "assurance": mode_data.get("assurance", "unverified"),
             "note": mode_data.get("note", ""),
             "access_level": state.get("access_level", "full"),
+            "project_root": state.get("project_root", ""),
         }
 
     def _record_tool_round(

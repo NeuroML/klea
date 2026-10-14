@@ -96,6 +96,15 @@ class TestCatalogue:
         assert init.implemented is True
         assert "init" in handlers
 
+    def test_cwd_is_implemented_and_server_side(self):
+        registry, handlers = build_agent_commands(source_available=False)
+        cwd = registry.get("cwd")
+        assert cwd is not None
+        assert cwd.side == "server"
+        assert cwd.klass == "session-state"
+        assert cwd.implemented is True
+        assert "cwd" in handlers
+
 
 class TestDisabledCommands:
     def test_disabled_command_is_not_registered(self):
@@ -171,10 +180,47 @@ class TestAccessHandler:
         assert "access_level" not in updates
 
 
+class TestCwdHandler:
+    async def test_report_default(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/cwd"))
+        assert updates["message_for_user"].startswith("Project root:")
+
+    async def test_set_directory(self, tmp_path):
+        target = tmp_path / "proj"
+        target.mkdir()
+        node = _agent_node([])
+        updates = await node.execute(_state(f"/cwd {target}"))
+        assert updates["project_root"] == str(target)
+        assert "Project root set to" in updates["message_for_user"]
+
+    async def test_not_a_directory(self, tmp_path):
+        file = tmp_path / "f.txt"
+        file.write_text("x")
+        node = _agent_node([])
+        updates = await node.execute(_state(f"/cwd {file}"))
+        assert "Not a directory" in updates["message_for_user"]
+        assert "project_root" not in updates
+
+    async def test_relative_resolves_against_current_root(self, tmp_path):
+        base = tmp_path / "base"
+        base.mkdir()
+        sub = base / "sub"
+        sub.mkdir()
+        state = KleaAgentState(
+            query="/cwd sub",
+            messages=[HumanMessage(content="/cwd sub")],
+            project_root=str(base),
+        )
+        node = _agent_node([])
+        updates = await node.execute(state)
+        assert updates["project_root"] == str(sub)
+
+
 class TestNodeBehaviour:
     async def test_stub_replies_not_implemented(self):
         node = _agent_node([])
-        updates = await node.execute(_state("/cwd /tmp"))
+        updates = await node.execute(_state("/file /tmp/x"))
         assert "not implemented" in updates["message_for_user"]
 
     async def test_unknown_command_rejected(self):

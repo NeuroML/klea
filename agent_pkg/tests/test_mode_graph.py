@@ -98,6 +98,7 @@ def test_context_snapshot_projects_requested():
         "assurance": "unverified",
         "note": "no source",
         "access_level": "full",
+        "project_root": "",
     }
     # A pydantic ``Mode`` instance in the state snapshot is handled too
     # (the checkpoint may render nested models as-is or as dicts).
@@ -108,6 +109,7 @@ def test_context_snapshot_projects_requested():
         "assurance": "unverified",
         "note": "",
         "access_level": "full",
+        "project_root": "",
     }
 
 
@@ -123,3 +125,16 @@ def test_context_snapshot_projects_access_level():
     snapshot = agent.context_snapshot({})
     assert snapshot is not None
     assert snapshot["access_level"] == "full"
+
+
+def test_context_snapshot_projects_project_root():
+    """The session project root is projected for the frontend (status pane)."""
+    from klea_agent.klea_agent import KleaAgent
+
+    agent = KleaAgent(checkpoint="inmemory")
+    snapshot = agent.context_snapshot({"project_root": "/work/proj"})
+    assert snapshot is not None
+    assert snapshot["project_root"] == "/work/proj"
+    snapshot = agent.context_snapshot({})
+    assert snapshot is not None
+    assert snapshot["project_root"] == ""

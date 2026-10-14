@@ -21,6 +21,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 from collections.abc import Iterable
+from pathlib import Path
 
 from klea_utils.commands.common import Command, CommandRegistry, ParsedCommand
 from klea_utils.commands.graph import GraphCommandHandler, GraphCommandResult
@@ -53,6 +54,18 @@ _ACCESS_COMMAND = Command(
     persists="checkpoint",
     while_streaming="block",
     arg_hint="[read_only|full]",
+)
+
+#: ``/cwd``: show or set the session project root (the file tools' boundary
+#: and default directory).  A session-state command like ``/mode``/``/access``.
+_CWD_COMMAND = Command(
+    name="cwd",
+    summary="Show or set the session project root",
+    side="server",
+    klass="session-state",
+    persists="checkpoint",
+    while_streaming="block",
+    arg_hint="[path]",
 )
 
 #: ``/compact``: summarise the old conversation now.  Registered only when
@@ -96,16 +109,6 @@ _INIT_PROMPT = (
 #: Registered so the command node can reply "not implemented yet" to a direct
 #: client; the public catalogue filters them out (``CommandRegistry.available``).
 _STUB_COMMANDS: tuple[Command, ...] = (
-    Command(
-        name="cwd",
-        summary="Show or set the session project root",
-        side="server",
-        klass="session-state",
-        persists="checkpoint",
-        while_streaming="block",
-        arg_hint="[path]",
-        implemented=False,
-    ),
     Command(
         name="file",
         summary="Add a backend file to the session context",
@@ -218,6 +221,46 @@ def _handle_access(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResul
     )
 
 
+def _handle_cwd(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
+    """Handle ``/cwd``: show or set the session project root.
+
+    With no argument, reports the effective root (the checkpointed
+    ``project_root``, or the process working directory when unset).  With a
+    path, resolves it (relative to the current root), requires an existing
+    directory, and writes it to ``state.project_root``.  The root is the file
+    tools' boundary and default directory.
+
+    :param state: The graph state.
+    :param parsed: The parsed command.
+    :returns: The command result.
+    """
+    arg = " ".join(parsed.args).strip()
+    current = getattr(state, "project_root", "") or str(Path.cwd())
+    logger.debug(f"command /cwd: {arg = } {current = }")
+    if not arg:
+        return GraphCommandResult(message=f"Project root: {current}.")
+    base = Path(getattr(state, "project_root", "") or Path.cwd())
+    candidate = Path(arg).expanduser()
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    try:
+        resolved = candidate.resolve()
+    except (OSError, RuntimeError) as exc:
+        logger.warning(f"command /cwd: cannot resolve {arg!r}: {exc}")
+        return GraphCommandResult(message=f"Cannot resolve {arg!r}: {exc}")
+    if not resolved.is_dir():
+        logger.warning(f"command /cwd: not a directory {resolved}")
+        return GraphCommandResult(message=f"Not a directory: {resolved}.")
+    message = f"Project root set to {resolved}."
+    logger.debug(f"command /cwd: set project_root={resolved}")
+    return GraphCommandResult(
+        updates={"project_root": str(resolved)},
+        message=message,
+        summary=message,
+        details={"project_root": str(resolved)},
+    )
+
+
 def _handle_compact(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     """Handle ``/compact``: summarise the old conversation now (ADR-0047).
 
@@ -282,7 +325,13 @@ def build_agent_commands(
     """
     disabled_names = {name.strip().lower() for name in disabled}
     registry = CommandRegistry()
-    commands = [_MODE_COMMAND, _ACCESS_COMMAND, _INIT_COMMAND, *_STUB_COMMANDS]
+    commands = [
+        _MODE_COMMAND,
+        _ACCESS_COMMAND,
+        _CWD_COMMAND,
+        _INIT_COMMAND,
+        *_STUB_COMMANDS,
+    ]
     if memory:
         commands.append(_COMPACT_COMMAND)
     for command in commands:
@@ -295,6 +344,8 @@ def build_agent_commands(
         handlers["mode"] = _handle_mode(source_available)
     if registry.get("access") is not None:
         handlers["access"] = _handle_access
+    if registry.get("cwd") is not None:
+        handlers["cwd"] = _handle_cwd
     if registry.get("init") is not None:
         handlers["init"] = _handle_init
     if registry.get("compact") is not None:
