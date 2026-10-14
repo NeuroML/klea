@@ -208,6 +208,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
 </ul>
@@ -249,7 +250,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -324,7 +325,11 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextContent</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span> <span class="n">AccessLevel</span><span class="p">,</span> <span class="n">check_tool_access</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathRequest</span><span class="p">,</span> <span class="n">detect_path_requests</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PathRequest</span><span class="p">,</span>
+    <span class="n">detect_path_requests</span><span class="p">,</span>
+    <span class="n">resolve_path_arguments</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.permission_hitl</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionResolution</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
 
@@ -631,6 +636,19 @@
                 <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_denied_result</span><span class="p">([</span><span class="n">denial</span><span class="p">])</span>
                 <span class="k">continue</span>
         <span class="n">gated</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="c1"># 1b. Resolve relative path arguments to absolute against the project root</span>
+    <span class="c1"># so the (subprocess) tools operate under the session root regardless of</span>
+    <span class="c1"># their own fixed working directory.  This runs before the permission gate</span>
+    <span class="c1"># so the gate checks the final arguments.</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">gated</span><span class="p">:</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">resolved_args</span> <span class="o">=</span> <span class="n">resolve_path_arguments</span><span class="p">(</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">project_root</span><span class="o">=</span><span class="n">project_root</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved_args</span> <span class="o">!=</span> <span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">resolved_args</span>
 
     <span class="c1"># 2. Permission gate: detect the paths each call would touch -- outside the</span>
     <span class="c1"># roots, and (when a resolver is given) sensitive files inside them --</span>

@@ -208,6 +208,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
 </ul>
@@ -249,7 +250,7 @@
 <li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -653,6 +654,115 @@
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Detected path requests</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">requests</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_relative_value</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the absolute form of a single relative path *value*, or ``None``.</span>
+
+<span class="sd">    ``None`` means "leave the value as-is": empty, a URL (non-``file:``),</span>
+<span class="sd">    a ``file:`` URI, a flag, a glob fragment, or already absolute.  A ``file:``</span>
+<span class="sd">    URI is left untouched because it is not a bare filesystem path argument.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">_strip_file_uri</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">_is_nonfile_url</span><span class="p">(</span><span class="n">text</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"-"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">text</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="s2">"*?["</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">candidate</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">((</span><span class="n">root</span> <span class="o">/</span> <span class="n">candidate</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="resolve_path_arguments">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.resolve_path_arguments">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_path_arguments</span><span class="p">(</span>
+    <span class="n">arguments</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">tool_info</span><span class="p">:</span> <span class="n">ToolInfo</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return *arguments* with relative filesystem paths made absolute.</span>
+
+<span class="sd">    The tools run in the MCP subprocess, whose working directory is fixed at</span>
+<span class="sd">    spawn, so a per-session project root cannot reach them via ``chdir``.</span>
+<span class="sd">    Resolving relative path arguments to absolute against the session root here</span>
+<span class="sd">    lets any local tool operate under the root regardless of its own cwd, and</span>
+<span class="sd">    works for third-party tools too (it does not depend on the tool being</span>
+<span class="sd">    Klea-authored).</span>
+
+<span class="sd">    Rules:</span>
+
+<span class="sd">    * a declared ``checkpaths`` argument is always resolved (string or</span>
+<span class="sd">      ``list[str]`` value);</span>
+<span class="sd">    * other arguments are resolved heuristically when the argument **name** is</span>
+<span class="sd">      path-ish (:func:`_name_is_pathy`) and the value is a **single-token**,</span>
+<span class="sd">      non-URL/non-flag/non-glob string (multi-token shell command strings are</span>
+<span class="sd">      never rewritten);</span>
+<span class="sd">    * ``working_directory`` (the ``run_command`` convention) defaults to the</span>
+<span class="sd">      session root when unset;</span>
+<span class="sd">    * absolute paths and URLs are left unchanged.</span>
+
+<span class="sd">    :param arguments: The call's bound arguments.</span>
+<span class="sd">    :param tool_info: The tool's metadata (for ``checkpaths``), or ``None``.</span>
+<span class="sd">    :param project_root: Session root; defaults to the process working</span>
+<span class="sd">        directory.</span>
+<span class="sd">    :returns: A copy of *arguments* with relative path values made absolute.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">arguments</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">project_root</span>
+        <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="p">)</span>
+    <span class="n">declared</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">declared_checkpaths</span><span class="p">(</span><span class="n">tool_info</span><span class="p">)}</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">arguments</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">name_lower</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">is_declared</span> <span class="o">=</span> <span class="n">name_lower</span> <span class="ow">in</span> <span class="n">declared</span>
+        <span class="c1"># ``run_command`` runs in the project root when no directory is given.</span>
+        <span class="k">if</span> <span class="n">name_lower</span> <span class="o">==</span> <span class="s2">"working_directory"</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">is_declared</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">resolved_items</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">_resolve_relative_value</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span> <span class="ow">or</span> <span class="n">item</span>
+                <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span>
+            <span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolved_items</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolved_items</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="n">heuristic</span> <span class="o">=</span> <span class="n">_name_is_pathy</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
+            <span class="n">ch</span><span class="o">.</span><span class="n">isspace</span><span class="p">()</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">is_declared</span> <span class="ow">or</span> <span class="n">heuristic</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">_resolve_relative_value</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">root</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">resolved</span>
+    <span class="c1"># ``run_command``'s working directory may be omitted entirely; default it to</span>
+    <span class="c1"># the session root when the tool declares it.</span>
+    <span class="k">if</span> <span class="s2">"working_directory"</span> <span class="ow">in</span> <span class="n">declared</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+            <span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">arguments</span> <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">"working_directory"</span><span class="p">),</span>
+            <span class="s2">"working_directory"</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+            <span class="n">result</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Resolved path arguments</span><span class="se">\n</span><span class="si">{</span><span class="n">arguments</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">result</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">root</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
 
 </pre></div>
         </article>

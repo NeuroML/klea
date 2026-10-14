@@ -71,8 +71,8 @@ Features
 
 **Interfaces and models**
 
-* CLI/REPL, FastAPI server, NiceGUI web UI, and Streamlit (a full Textual
-  TUI is planned)
+* CLI/REPL, FastAPI server, NiceGUI web UI, Streamlit, and a Textual
+  terminal TUI
 * Bring-your-own LLM: OpenAI-compatible, Anthropic, HuggingFace, and custom
   endpoints, with runtime model switching and prompt caching
 * NeuroML MCP tools: model validation, OSB and NeuroML-DB lookups, and

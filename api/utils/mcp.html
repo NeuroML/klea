@@ -209,6 +209,7 @@
 <li class="toctree-l2"><a class="reference internal" href="../../components/tools.html">Tools</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../components/commands.html">Session commands</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/tui.html">Terminal interface</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../components/agent.html">Klea Agent</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../components/utils.html">Klea Utils</a></li>
 </ul>
@@ -250,7 +251,7 @@
 <li class="toctree-l3"><a class="reference internal" href="commands.html">Commands</a></li>
 <li class="toctree-l3 has-children"><a class="reference internal" href="ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
 <li class="toctree-l4"><a class="reference internal" href="ui-nicegui.html">UI — NiceGUI</a></li>
-<li class="toctree-l4"><a class="reference internal" href="ui-tui.html">UI - terminal REPL</a></li>
+<li class="toctree-l4"><a class="reference internal" href="ui-tui.html">UI - terminal client</a></li>
 <li class="toctree-l4"><a class="reference internal" href="ui-cli.html">UI — client CLI</a></li>
 <li class="toctree-l4"><a class="reference internal" href="ui-stores-create.html">UI — store creation CLI</a></li>
 </ul>
@@ -711,6 +712,43 @@ confidence tier.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>Approval requests, sorted by approval key.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.mcp.path_detect.resolve_path_arguments">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.mcp.path_detect.</span></span><span class="sig-name descname"><span class="pre">resolve_path_arguments</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">arguments</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tool_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.mcp.schemas.ToolInfo" title="klea_utils.mcp.schemas.ToolInfo"><span class="pre">ToolInfo</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">project_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/os.html#os.PathLike" title="(in Python v3.15)"><span class="pre">PathLike</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/mcp/path_detect.html#resolve_path_arguments"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.mcp.path_detect.resolve_path_arguments" title="Link to this definition">¶</a></dt>
+<dd><p>Return <em>arguments</em> with relative filesystem paths made absolute.</p>
+<p>The tools run in the MCP subprocess, whose working directory is fixed at
+spawn, so a per-session project root cannot reach them via <code class="docutils literal notranslate"><span class="pre">chdir</span></code>.
+Resolving relative path arguments to absolute against the session root here
+lets any local tool operate under the root regardless of its own cwd, and
+works for third-party tools too (it does not depend on the tool being
+Klea-authored).</p>
+<p>Rules:</p>
+<ul class="simple">
+<li><p>a declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code> argument is always resolved (string or
+<code class="docutils literal notranslate"><span class="pre">list[str]</span></code> value);</p></li>
+<li><p>other arguments are resolved heuristically when the argument <strong>name</strong> is
+path-ish (<code class="xref py py-func docutils literal notranslate"><span class="pre">_name_is_pathy()</span></code>) and the value is a <strong>single-token</strong>,
+non-URL/non-flag/non-glob string (multi-token shell command strings are
+never rewritten);</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">working_directory</span></code> (the <code class="docutils literal notranslate"><span class="pre">run_command</span></code> convention) defaults to the
+session root when unset;</p></li>
+<li><p>absolute paths and URLs are left unchanged.</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>arguments</strong> – The call’s bound arguments.</p></li>
+<li><p><strong>tool_info</strong> – The tool’s metadata (for <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>), or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>project_root</strong> – Session root; defaults to the process working
+directory.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A copy of <em>arguments</em> with relative path values made absolute.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -4059,6 +4097,7 @@ diff, error.</p>
 </li>
 <li><a class="reference internal" href="#klea_utils.mcp.path_detect.declared_checkpaths"><code class="docutils literal notranslate"><span class="pre">declared_checkpaths()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.path_detect.detect_path_requests"><code class="docutils literal notranslate"><span class="pre">detect_path_requests()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.mcp.path_detect.resolve_path_arguments"><code class="docutils literal notranslate"><span class="pre">resolve_path_arguments()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.sensitive.SENSITIVE_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">SENSITIVE_ENV_VAR</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.sensitive.is_sensitive"><code class="docutils literal notranslate"><span class="pre">is_sensitive()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.mcp.permission_hitl.DEFAULT_QUESTION"><code class="docutils literal notranslate"><span class="pre">DEFAULT_QUESTION</span></code></a></li>
