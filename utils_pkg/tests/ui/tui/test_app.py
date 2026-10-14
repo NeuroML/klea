@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
+from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
@@ -621,6 +622,46 @@ async def test_model_dialog_blocked_while_streaming(
         assert app._worker is not None
         app._worker.cancel()
         await pilot.pause()
+
+
+async def test_model_dialog_credentials_save(fake_backend, make_app):
+    """Saving a key from the credentials dialog posts it to the server."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-keys", Button).press()
+        await _settle(pilot, app)
+        assert isinstance(app.screen, CredentialsDialog)
+        app.screen.query_one("#cred-key-0", Input).value = "sk-test"
+        app.screen.query_one("#cred-save-0", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.credentials_set == [
+        {"provider": "openai", "secret": "sk-test", "endpoint": ""}
+    ]
+
+
+async def test_model_dialog_credentials_clear(fake_backend, make_app):
+    """A stored key can be cleared from the credentials dialog."""
+    fake_backend.model_info = _model_info()
+    fake_backend.credentials = [
+        {"provider": "openai", "endpoint": "", "masked": "sk-***"}
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        app.screen.query_one("#model-keys", Button).press()
+        await _settle(pilot, app)
+        assert isinstance(app.screen, CredentialsDialog)
+        app.screen.query_one("#cred-clear-0", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.credentials_cleared == [{"provider": "openai", "endpoint": ""}]
 
 
 async def test_unknown_command_is_rejected_locally(fake_backend, make_app):

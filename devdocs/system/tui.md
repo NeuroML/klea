@@ -12,8 +12,8 @@ MIME-aware transcript, the inspector view, the status pane, session commands,
 the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
-`/sessions`), and the per-role model dialog (`Ctrl+M` / `/model`) have landed
-(Phase 2.2-5.3a); the credentials dialog and the mode/access selectors are
+`/sessions`), the per-role model dialog (`Ctrl+M` / `/model`) and its provider
+credentials dialog have landed (Phase 2.2-5.3b); the mode/access selectors are
 still to come.
 
 ## Overview
@@ -94,6 +94,7 @@ I8); each app composes its own screen from them, mirroring the NiceGUI
 | Inspector view | `ui/tui/components/inspector.py` | Inspect entries; a toggle view inside the chat panel | `inspector.py` |
 | Session picker | `ui/tui/components/sessions.py` | `ModalScreen` list / switch / rename / delete | `chat_list.py` |
 | Model dialog | `ui/tui/components/model_dialog.py` | `ModalScreen` per-role model editor (shared core in `ui/model_config.py`) | `model_dialog.py` |
+| Credentials dialog | `ui/tui/components/credentials_dialog.py` | `ModalScreen` masked provider API-key editor (shared scopes) | `model_dialog.py` (credentials) |
 | HITL | `ui/tui/components/hitl.py` | Review / input / permission modals | `choice.py` + status-region form |
 | Commands | `ui/tui/components/commands.py` | Merged catalogue, dispatch, `/` autocomplete | `components/commands.py` |
 | Shared state | `ui/state.py` | `ChatData` store + helpers | `web/nicegui/state.py` (moved) |

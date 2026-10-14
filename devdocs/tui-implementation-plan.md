@@ -61,10 +61,10 @@ Invariants I1-I8 are in ADR-0050 and restated in `system/tui.md`.
 * Phase 2+: Phases 2-4 (skeleton, streaming, rendering, panes, commands,
   HITL), the committed test suite (`utils_pkg/tests/ui/tui/`, added
   retroactively), 5.1 (identity seam), 5.2a-e (load/switch, `--continue` /
-  `--resume`, the session picker + rename/delete, `/sessions`) and 5.3a (the
-  model dialog, with the shared `ui/model_config.py` core) are done.  Next
-  step is **5.3b** (credentials dialog).  Each checklist item below is one
-  atomic commit.
+  `--resume`, the session picker + rename/delete, `/sessions`) and 5.3a-b (the
+  model dialog + credentials dialog, with the shared `ui/model_config.py`
+  core) are done.  Next step is **5.3c** (missing-model/credential gating).
+  Each checklist item below is one atomic commit.
 
 ## Checklist
 
@@ -127,7 +127,7 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
   hook).
 - [x] 5.3a Model dialog: per-role models + set/clear a per-chat override
   (`fetch_active_models` + catalogue + set/clear `_model_override`).
-- [ ] 5.3b Credential dialog: list + set/clear credentials
+- [x] 5.3b Credential dialog: list + set/clear credentials
   (`fetch_credentials` + set/clear `_credential`).
 - [ ] 5.3c Missing-model/credential gating (warn/block send).
 - [ ] 5.4a `StatusPanel` renders the `TuiContext.status_extras` app slots.
