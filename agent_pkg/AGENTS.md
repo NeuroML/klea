@@ -69,6 +69,7 @@ klea_agent/
     │   ├── mode_ui.py    # operating-mode selector (status-pane slot; ADR-0030)
     │   └── page.py   # setup_layout -- composes the shared components
     └── tui/         # Textual TUI composition over klea_utils components (ADR-0050)
+        ├── access_ui.py  # tool-access selector (status-panel slot; ADR-0037)
         ├── mode_ui.py    # operating-mode selector (status-panel slot; ADR-0030)
         └── page.py   # run_agent_tui -- composes the shared screen
 ```

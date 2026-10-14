@@ -14,8 +14,8 @@ re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
 credentials dialog, the missing-model/API-key send gating, the app-slot status
-extras, and the agent operating-mode selector have landed (Phase 2.2-5.4b);
-the tool-access selector is still to come.
+extras, and the agent operating-mode and tool-access selectors have landed
+(Phase 2.2-5.4c); Phase 6 (composition, docs) remains.
 
 ## Overview
 
@@ -201,7 +201,8 @@ streamed state, so a state refresh never disturbs them, and rebuilds them on a
 must run a query posts a shared `SubmitQuery` message
 (`ui/tui/events.py`), which the app routes through `submit` (commands and the
 setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
-`/mode <value>` this way.
+`/mode <value>` and its `access_ui.AccessSelector` dispatches `/access
+<value>` this way.
 
 ## Rendering and non-goals
 
