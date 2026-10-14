@@ -934,7 +934,7 @@ async def test_ask_policy_sensitive_session_persists_file(tmp_path, monkeypatch)
     assert updates["tool_results"][0].is_error is False
     assert updates["allowed_files"] == [resolved]
     assert "allowed_dirs" not in updates
-    assert client.calls == [("read_file", {"path": ".env"})]
+    assert client.calls == [("read_file", {"path": resolved})]
 
 
 async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):

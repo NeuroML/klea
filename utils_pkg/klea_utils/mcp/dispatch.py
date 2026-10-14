@@ -19,7 +19,11 @@ from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
-from klea_utils.mcp.path_detect import PathRequest, detect_path_requests
+from klea_utils.mcp.path_detect import (
+    PathRequest,
+    detect_path_requests,
+    resolve_path_arguments,
+)
 from klea_utils.mcp.permission_hitl import PermissionResolution
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 
@@ -318,6 +322,19 @@ async def dispatch_tool_calls(
                 results[i] = _denied_result([denial])
                 continue
         gated.append(i)
+
+    # 1b. Resolve relative path arguments to absolute against the project root
+    # so the (subprocess) tools operate under the session root regardless of
+    # their own fixed working directory.  This runs before the permission gate
+    # so the gate checks the final arguments.
+    for i in gated:
+        call = calls[i]
+        info = tool_infos.get(call.tool) if tool_infos is not None else None
+        resolved_args = resolve_path_arguments(
+            call.args, info, project_root=project_root
+        )
+        if resolved_args != call.args:
+            call.args = resolved_args
 
     # 2. Permission gate: detect the paths each call would touch -- outside the
     # roots, and (when a resolver is given) sensitive files inside them --

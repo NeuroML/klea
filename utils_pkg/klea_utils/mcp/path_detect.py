@@ -340,3 +340,109 @@ def detect_path_requests(
 
     logger.debug(f"Detected path requests\n{len(requests) = }\n{list(requests) = }")
     return sorted(requests.values(), key=lambda request: request.approval_key)
+
+
+def _resolve_relative_value(value: str, root: Path) -> str | None:
+    """Return the absolute form of a single relative path *value*, or ``None``.
+
+    ``None`` means "leave the value as-is": empty, a URL (non-``file:``),
+    a ``file:`` URI, a flag, a glob fragment, or already absolute.  A ``file:``
+    URI is left untouched because it is not a bare filesystem path argument.
+    """
+    if not value.strip():
+        return None
+    text = value.strip()
+    if _strip_file_uri(text) is not None or _is_nonfile_url(text):
+        return None
+    if text.startswith("-") or text[0] in "*?[":
+        return None
+    candidate = Path(text).expanduser()
+    if candidate.is_absolute():
+        return None
+    try:
+        return str((root / candidate).resolve())
+    except (OSError, RuntimeError):
+        return None
+
+
+def resolve_path_arguments(
+    arguments: Mapping[str, Any],
+    tool_info: ToolInfo | None,
+    *,
+    project_root: str | os.PathLike | None = None,
+) -> dict[str, Any]:
+    """Return *arguments* with relative filesystem paths made absolute.
+
+    The tools run in the MCP subprocess, whose working directory is fixed at
+    spawn, so a per-session project root cannot reach them via ``chdir``.
+    Resolving relative path arguments to absolute against the session root here
+    lets any local tool operate under the root regardless of its own cwd, and
+    works for third-party tools too (it does not depend on the tool being
+    Klea-authored).
+
+    Rules:
+
+    * a declared ``checkpaths`` argument is always resolved (string or
+      ``list[str]`` value);
+    * other arguments are resolved heuristically when the argument **name** is
+      path-ish (:func:`_name_is_pathy`) and the value is a **single-token**,
+      non-URL/non-flag/non-glob string (multi-token shell command strings are
+      never rewritten);
+    * ``working_directory`` (the ``run_command`` convention) defaults to the
+      session root when unset;
+    * absolute paths and URLs are left unchanged.
+
+    :param arguments: The call's bound arguments.
+    :param tool_info: The tool's metadata (for ``checkpaths``), or ``None``.
+    :param project_root: Session root; defaults to the process working
+        directory.
+    :returns: A copy of *arguments* with relative path values made absolute.
+    """
+    if not arguments:
+        return dict(arguments)
+    root = (
+        Path(project_root).expanduser().resolve()
+        if project_root
+        else Path.cwd().resolve()
+    )
+    declared = {name.lower() for name in declared_checkpaths(tool_info)}
+    result = dict(arguments)
+    for name, value in arguments.items():
+        name_lower = name.lower()
+        is_declared = name_lower in declared
+        # ``run_command`` runs in the project root when no directory is given.
+        if name_lower == "working_directory" and not value:
+            result[name] = str(root)
+            continue
+        if isinstance(value, list):
+            if not is_declared:
+                continue
+            resolved_items = [
+                _resolve_relative_value(item, root) or item
+                for item in value
+                if isinstance(item, str)
+            ]
+            if len(resolved_items) == len(value):
+                result[name] = resolved_items
+            continue
+        if not isinstance(value, str) or not value.strip():
+            continue
+        heuristic = _name_is_pathy(name) and not any(
+            ch.isspace() for ch in value.strip()
+        )
+        if not (is_declared or heuristic):
+            continue
+        resolved = _resolve_relative_value(value, root)
+        if resolved is not None:
+            result[name] = resolved
+    # ``run_command``'s working directory may be omitted entirely; default it to
+    # the session root when the tool declares it.
+    if "working_directory" in declared:
+        key = next(
+            (name for name in arguments if name.lower() == "working_directory"),
+            "working_directory",
+        )
+        if not result.get(key):
+            result[key] = str(root)
+    logger.debug(f"Resolved path arguments\n{arguments = }\n{result = }\n{root = }")
+    return result

@@ -81,6 +81,51 @@ async def test_dispatch_denies_outside_project_without_calling(tmp_path):
     assert client.calls == []
 
 
+async def test_dispatch_resolves_relative_path_to_absolute(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    client = FakeMCPClient()
+    tools = {"read_file": ToolInfo(checkpaths=["path"])}
+    await dispatch_tool_calls(
+        client,
+        [("read_file", {"path": "a.txt"})],
+        tools,
+        str(root),
+    )
+    assert client.calls == [("read_file", {"path": str(root / "a.txt")})]
+
+
+async def test_dispatch_sets_run_command_working_directory(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    client = FakeMCPClient()
+    tools = {"run_command": ToolInfo(checkpaths=["working_directory"])}
+    await dispatch_tool_calls(
+        client,
+        [("run_command", {"command": "pwd"})],
+        tools,
+        str(root),
+    )
+    assert client.calls == [
+        ("run_command", {"command": "pwd", "working_directory": str(root)})
+    ]
+
+
+async def test_dispatch_heuristic_resolves_third_party_relative_path(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    client = FakeMCPClient()
+    # An unannotated third-party tool: no checkpaths, no tags.
+    tools = {"ext_read": ToolInfo()}
+    await dispatch_tool_calls(
+        client,
+        [("ext_read", {"path": "notes.txt"})],
+        tools,
+        str(root),
+    )
+    assert client.calls == [("ext_read", {"path": str(root / "notes.txt")})]
+
+
 async def test_dispatch_mixed_keeps_order(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
@@ -517,7 +562,7 @@ class _ConcurrencyClient:
         return CallToolResult(content=[], structured_content=None, meta=None)
 
 
-async def test_dispatch_serialises_same_resource_calls():
+async def test_dispatch_serialises_same_resource_calls(tmp_path):
     client = _ConcurrencyClient()
     infos = {"edit_file": ToolInfo(checkpaths=["path"])}
 
@@ -525,10 +570,12 @@ async def test_dispatch_serialises_same_resource_calls():
         client,
         [("edit_file", {"path": "X"}), ("edit_file", {"path": "X"})],
         tool_infos=infos,
+        project_root=str(tmp_path),
     )
 
+    x = str(tmp_path / "X")
     assert client.same_resource_overlap is False
-    assert client.events == ["start:X", "end:X", "start:X", "end:X"]
+    assert client.events == [f"start:{x}", f"end:{x}", f"start:{x}", f"end:{x}"]
 
 
 async def test_dispatch_runs_different_resources_concurrently():
@@ -569,7 +616,7 @@ async def test_dispatch_sensitive_requires_approval(tmp_path):
     )
 
     assert [r.is_error for r in results] == [False]
-    assert client.calls == [("read_file", {"path": ".env"})]
+    assert client.calls == [("read_file", {"path": str(root / ".env")})]
     assert seen and seen[0][0].kind == "sensitive"
 
 
@@ -618,4 +665,4 @@ async def test_dispatch_allowed_files_skip_resolver(tmp_path):
     )
 
     assert [r.is_error for r in results] == [False]
-    assert client.calls == [("read_file", {"path": ".env"})]
+    assert client.calls == [("read_file", {"path": str(env)})]
