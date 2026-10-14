@@ -66,7 +66,6 @@ class ToolsCallerNode(
         label: str,
         mcp_client: Any | None,
         tool_infos: dict[str, ToolInfo] | None = None,
-        project_root: str | None = None,
         post_dispatch: Callable[[Any, list[CallToolResult], list[bool]], dict[str, Any]]
         | None = None,
         permission_policy: Literal["deny", "ask"] = "deny",
@@ -85,8 +84,6 @@ class ToolsCallerNode(
             ADR-0037 ``read_only``/``destructive`` capability).  Built by the
             orchestrator from ``BaseLangGraph.tools_info``.  ``None`` disables
             both gates.
-        :param project_root: Boundary directory for the client-side permission
-            gate.  Defaults to the current working directory.
         :param post_dispatch: Optional ``(state, results, displayed) -> state_updates``
             callback for application-specific updates after dispatch.  The
             state is passed untyped so app-specific state schemas fit, and
@@ -96,11 +93,15 @@ class ToolsCallerNode(
             touches a path outside the permitted roots; ``ask`` pauses the run
             for a per-path allow-now / allow-session / deny decision via the
             shared HITL interrupt (ADR-0007).  RAG keeps the default.
+
+        The path-permission boundary is the per-session ``state.project_root``
+        (falling back to the process working directory); the node holds no
+        root of its own so a shared node instance cannot leak one session's
+        root into another.
         """
         super().__init__(logger=logger, label=label)
         self._mcp_client = mcp_client
         self._tool_infos = tool_infos
-        self._project_root = project_root
         self._post_dispatch = post_dispatch
         self._permission_policy = permission_policy
 
@@ -156,7 +157,7 @@ class ToolsCallerNode(
             self._mcp_client,
             tool_calls,
             self._tool_infos,
-            getattr(state, "project_root", "") or self._project_root,
+            getattr(state, "project_root", "") or None,
             access_level=access_level,
             allowed_dirs=allowed_dirs,
             allowed_files=allowed_files,

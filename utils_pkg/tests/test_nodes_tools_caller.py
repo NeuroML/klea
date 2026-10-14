@@ -53,7 +53,6 @@ class FakeMCPClient:
 def _make_node(
     client: FakeMCPClient | None = None,
     tool_infos: dict | None = None,
-    project_root: str | None = None,
     post_dispatch=None,
     permission_policy: Literal["deny", "ask"] = "deny",
 ) -> ToolsCallerNode:
@@ -62,7 +61,6 @@ def _make_node(
         label="Running tools",
         mcp_client=client,
         tool_infos=tool_infos,
-        project_root=project_root,
         post_dispatch=post_dispatch,
         permission_policy=permission_policy,
     )
@@ -181,12 +179,12 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
     )
     _record_stream(node, [])
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     updates = await node.execute(state)
 
@@ -196,32 +194,28 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     assert client.calls == []
 
 
-async def test_state_project_root_overrides_node_default(tmp_path):
-    """``state.project_root`` is the boundary; the node's ``project_root`` is a fallback."""
-    root_a = tmp_path / "a"
-    root_a.mkdir()
-    root_b = tmp_path / "b"
-    root_b.mkdir()
-    inside_b = root_b / "file.txt"
-    inside_b.touch()
+async def test_state_project_root_is_the_gate_boundary(tmp_path):
+    """The permission boundary is ``state.project_root`` (empty -> cwd)."""
+    root = tmp_path / "root"
+    root.mkdir()
+    inside = root / "file.txt"
+    inside.touch()
 
     client = FakeMCPClient()
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root_a),  # node default, must lose to the state value
     )
     _record_stream(node, [])
 
     state = MiniState(
-        project_root=str(root_b),
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(inside_b)})],
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(inside)})],
     )
     updates = await node.execute(state)
 
-    # Inside the state root -> allowed, even though it is outside the node default.
     assert updates["tool_results"][0].is_error is False
-    assert client.calls == [("list_files", {"path": str(inside_b)})]
+    assert client.calls == [("list_files", {"path": str(inside)})]
 
 
 def _approve(directory: str, decision: Literal["once", "session", "deny"] = "session"):
@@ -247,7 +241,6 @@ async def test_ask_policy_session_approval_persists(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -256,7 +249,8 @@ async def test_ask_policy_session_approval_persists(tmp_path, monkeypatch):
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     updates = await node.execute(state)
 
@@ -271,7 +265,6 @@ async def test_ask_policy_once_is_not_persisted(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -280,7 +273,8 @@ async def test_ask_policy_once_is_not_persisted(tmp_path, monkeypatch):
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     updates = await node.execute(state)
 
@@ -295,7 +289,6 @@ async def test_ask_policy_denial_blocks_call(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -304,7 +297,8 @@ async def test_ask_policy_denial_blocks_call(tmp_path, monkeypatch):
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     updates = await node.execute(state)
 
@@ -320,7 +314,6 @@ async def test_ask_policy_cancel_denies_call(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -330,7 +323,8 @@ async def test_ask_policy_cancel_denies_call(tmp_path, monkeypatch):
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     updates = await node.execute(state)
 
@@ -345,7 +339,6 @@ async def test_ask_policy_no_request_skips_interrupt(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -355,7 +348,8 @@ async def test_ask_policy_no_request_skips_interrupt(tmp_path, monkeypatch):
 
     monkeypatch.setattr("klea_utils.nodes.tools_caller.interrupt", _boom)
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(root)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(root)})],
     )
     updates = await node.execute(state)
 
@@ -369,7 +363,6 @@ async def test_ask_policy_preapproved_dir_skips_interrupt(tmp_path, monkeypatch)
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -379,6 +372,7 @@ async def test_ask_policy_preapproved_dir_skips_interrupt(tmp_path, monkeypatch)
 
     monkeypatch.setattr("klea_utils.nodes.tools_caller.interrupt", _boom)
     state = MiniState(
+        project_root=str(root),
         tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
         allowed_dirs=[str(outside)],
     )
@@ -864,6 +858,7 @@ class _GraphState(BaseModel):
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
     allowed_dirs: list[str] = Field(default_factory=list)
+    project_root: str = ""
 
 
 async def test_interrupt_resume_persists_session_directory(tmp_path):
@@ -877,7 +872,6 @@ async def test_interrupt_resume_persists_session_directory(tmp_path):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     cast(Any, node).write_custom_stream = lambda ev: None
@@ -891,7 +885,8 @@ async def test_interrupt_resume_persists_session_directory(tmp_path):
 
     await compiled.ainvoke(
         _GraphState(
-            tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+            project_root=str(root),
+            tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
         ),
         config=config,
     )
@@ -923,7 +918,6 @@ async def test_ask_policy_sensitive_session_persists_file(tmp_path, monkeypatch)
     node = _make_node(
         client=client,
         tool_infos={"read_file": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     _record_stream(node, [])
@@ -932,7 +926,8 @@ async def test_ask_policy_sensitive_session_persists_file(tmp_path, monkeypatch)
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="read_file", args={"path": ".env"})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="read_file", args={"path": ".env"})],
     )
     updates = await node.execute(state)
 
@@ -949,7 +944,6 @@ async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):
     node = _make_node(
         client=client,
         tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
-        project_root=str(root),
         permission_policy="ask",
     )
     events: list[dict] = []
@@ -959,7 +953,8 @@ async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):
     )
 
     state = MiniState(
-        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})]
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
     )
     await node.execute(state)
 
