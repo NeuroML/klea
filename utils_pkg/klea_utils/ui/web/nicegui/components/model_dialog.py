@@ -29,30 +29,31 @@ from nicegui import background_tasks, ui
 
 from klea_utils.api.sse import (
     fetch_active_models,
-    fetch_catalogue_models,
-    fetch_catalogue_providers,
     fetch_credentials,
     fetch_session_models,
 )
 from klea_utils.llm import (
     HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER,
-    HUGGINGFACE_LOCAL_SUFFIX,
     HUGGINGFACE_PROVIDER,
     HUGGINGFACE_ROUTING_POLICIES,
     PROVIDERS_WITHOUT_CUSTOM_URL,
-    ParsedModelName,
-    credential_scope,
-    join_model_string,
-    parse_model_name,
-    requires_api_key,
 )
-from klea_utils.ui.client import (
-    clear_credential,
-    clear_model_override,
-    clear_session_model_override,
-    set_credential,
-    set_model_override,
-    set_session_model_override,
+from klea_utils.ui.client import clear_credential, set_credential
+from klea_utils.ui.model_config import (
+    TONE_ERROR,
+    CatalogueCache,
+    build_model_string,
+    clear_role,
+    credential_display,
+    live_credential,
+    live_info,
+    parse_model_origin,
+    required_credential_scopes,
+    save_roles,
+    use_for_all_targets,
+)
+from klea_utils.ui.model_config import (
+    role_label as _role_label,
 )
 from klea_utils.ui.state import ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
@@ -148,33 +149,13 @@ class _ModelPicker:
         :param on_change: Called with the joined model string on any edit.
         """
         model = (model or "").strip()
-        try:
-            parsed = parse_model_name(model)
-        except ValueError:
-            # Half typed (e.g. ``openai:``): keep it whole in the model field
-            # so nothing the user typed is lost.
-            parsed = ParsedModelName(provider=None, model_name=model, suffix=None)
-        suffix = parsed.suffix or ""
-        is_url = suffix.startswith(("http://", "https://"))
-        self._original_provider = parsed.provider or ""
-        self._original_model = parsed.model_name
-        # Any other suffix (e.g. a custom endpoint or a HuggingFace
-        # inference provider) has no field of its own for non-HF providers;
-        # it is put back on save while the model is unchanged.
-        self._original_suffix = "" if is_url else suffix
-        # HuggingFace parses its suffix into a backend + inference provider.
-        if self._original_provider.lower() == HUGGINGFACE_PROVIDER:
-            self._original_backend = (
-                "local" if suffix == HUGGINGFACE_LOCAL_SUFFIX else "endpoint"
-            )
-            self._original_inference = (
-                ""
-                if self._original_backend == "local"
-                else (suffix or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER)
-            )
-        else:
-            self._original_backend = "endpoint"
-            self._original_inference = ""
+        origin = parse_model_origin(model)
+        self._origin = origin
+        self._original_provider = origin.provider
+        self._original_model = origin.model
+        self._original_suffix = origin.suffix
+        self._original_backend = origin.backend
+        self._original_inference = origin.inference_provider
         self._load_models = load_models
         self._on_change = on_change
         self.provider = _autocomplete_select(
@@ -222,7 +203,7 @@ class _ModelPicker:
         )
         self.url = ui.input(
             "Custom URL (optional)",
-            value=suffix if is_url else "",
+            value=origin.url,
             on_change=lambda _: self._changed(),
         ).classes("w-full")
         with self.url:
@@ -235,24 +216,14 @@ class _ModelPicker:
     @property
     def value(self) -> str:
         """The model string built from the current field values."""
-        provider = (self.provider.value or "").strip()
-        model = (self.model.value or "").strip()
-        if provider.lower() == HUGGINGFACE_PROVIDER:
-            if (self.backend.value or "endpoint") == "local":
-                suffix = HUGGINGFACE_LOCAL_SUFFIX
-            else:
-                suffix = (
-                    self.inference_provider.value or ""
-                ).strip() or HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER
-            return join_model_string(provider, model, suffix)
-        url = (self.url.value or "").strip()
-        if url and provider.lower() not in PROVIDERS_WITHOUT_CUSTOM_URL:
-            suffix = url
-        elif (provider, model) == (self._original_provider, self._original_model):
-            suffix = self._original_suffix
-        else:
-            suffix = None
-        return join_model_string(provider, model, suffix)
+        return build_model_string(
+            self.provider.value or "",
+            self.model.value or "",
+            url=self.url.value or "",
+            backend=self.backend.value or "endpoint",
+            inference_provider=self.inference_provider.value or "",
+            original=self._origin,
+        )
 
     def disable(self) -> None:
         """Disable all fields (locked roles)."""
@@ -288,18 +259,6 @@ class _ModelPicker:
 
     def _changed(self) -> None:
         self._on_change(self.value)
-
-
-def _role_label(role: str) -> str:
-    """Return the human-facing tab label for a model role key.
-
-    ``tool_picker`` -> ``"Tool picker"`` (``str.capitalize()`` alone would
-    give ``"Tool_picker"``).
-
-    :param role: Model role key (``chat``, ``tool_picker``, ...).
-    :returns: Display label.
-    """
-    return role.replace("_", " ").capitalize()
 
 
 def attach_model_info(ctx: PageContext) -> None:
@@ -366,15 +325,7 @@ def attach_model_info(ctx: PageContext) -> None:
 
     def _required_credential_scopes(info: dict) -> dict[tuple[str, str], dict]:
         """Distinct provider(+endpoint) scopes that the current roles need."""
-        scopes: dict[tuple[str, str], dict] = {}
-        for role_cfg in info.values():
-            cred = role_cfg.get("credential") or {}
-            if not cred.get("requires_key"):
-                continue
-            provider = cred.get("provider") or ""
-            if not provider:
-                continue
-            scopes[(provider, cred.get("endpoint") or "")] = cred
+        scopes = required_credential_scopes(info)
         logger.debug(f"required credential scopes: {list(scopes) = }")
         return scopes
 
@@ -557,70 +508,18 @@ def attach_model_info(ctx: PageContext) -> None:
             return ensure_chat(ctx.user_id, chat_id).get("model_info", {})
 
         def _live_credential(model_name: str, saved: dict) -> dict:
-            """Credential block for a (possibly unsaved) model string.
-
-            Provider and key requirement are derived client-side so typed
-            but unsaved models are recognised; the source/masked come from
-            the stored credentials or, when the scope matches, the saved
-            block.
-            """
-            scope = credential_scope(model_name)
-            provider = scope.provider or ""
-            endpoint = scope.endpoint or ""
-            block: dict[str, Any] = {
-                "provider": provider,
-                "endpoint": endpoint,
-                "requires_key": requires_api_key(model_name),
-            }
-            saved = saved or {}
-            same_scope = (
-                saved.get("provider", "") == provider
-                and (saved.get("endpoint") or "") == endpoint
-            )
-            stored_cred = stored_by_scope.get((provider, endpoint))
-            if stored_cred:
-                block["source"] = "user"
-                block["masked"] = stored_cred.get("masked", "")
-            elif same_scope and saved.get("source") in ("env", "user"):
-                block["source"] = saved.get("source")
-                block["masked"] = saved.get("masked", "")
-            else:
-                block["source"] = "none"
-                block["masked"] = ""
-            return block
+            """Credential block for a (possibly unsaved) model string."""
+            return live_credential(model_name, saved, stored_by_scope)
 
         def _live_info() -> dict:
             """Model config built from the dialog's current input values."""
-            live: dict[str, Any] = {}
-            for role, cfg in _current_info().items():
-                cfg = dict(cfg)
-                model = role_values.get(role, cfg.get("model", ""))
-                cfg["model"] = model
-                cfg["credential"] = _live_credential(model, cfg.get("credential") or {})
-                live[role] = cfg
-            return live
+            return live_info(_current_info(), role_values, stored_by_scope)
 
         def _credential_display(model_name: str, saved: dict) -> tuple[str, str]:
             """Return ``(label, colour class)`` for a model's credential status."""
-            cred = _live_credential(model_name, saved)
-            provider = cred["provider"]
-            if not model_name:
-                return "No model selected", "text-grey-6"
-            if not provider:
-                return "No API key configured", "text-negative"
-            if not cred["requires_key"]:
-                return "No API key required", "text-grey-6"
-            if cred["source"] == "env":
-                return (
-                    f"Using API key from the environment ({provider})",
-                    "text-grey-6",
-                )
-            if cred["source"] == "user":
-                return (
-                    f"Stored API key {cred.get('masked', '')} ({provider})",
-                    "text-grey-6",
-                )
-            return f"No API key configured for {provider}", "text-negative"
+            text, tone = credential_display(model_name, saved, stored_by_scope)
+            colour = "text-negative" if tone == TONE_ERROR else "text-grey-6"
+            return text, colour
 
         def _on_model_change(role: str, value: str) -> None:
             """Track a typed model and refresh just its credential label."""
@@ -649,29 +548,19 @@ def attach_model_info(ctx: PageContext) -> None:
         # Catalogue suggestions for the model pickers.  Providers are
         # fetched once; each provider's models are fetched the first time
         # it is picked and cached for the life of the dialog.
-        providers = await fetch_catalogue_providers(ctx.server_url, ctx.user_id)
-        catalogue_models: dict[str, list[str]] = {}
+        catalogue = CatalogueCache(ctx.server_url, ctx.user_id)
+        providers = await catalogue.providers()
 
         async def _load_models(provider: str) -> list[str]:
-            if provider not in catalogue_models:
-                catalogue_models[provider] = await fetch_catalogue_models(
-                    ctx.server_url, ctx.user_id, provider
-                )
-            return catalogue_models[provider]
+            return await catalogue.load_models(provider)
 
         # Preload the providers already in use so the model fields open
         # with their suggestions.
         for model_name in role_values.values():
-            try:
-                role_provider = parse_model_name((model_name or "").strip()).provider
-            except ValueError:
-                continue
+            role_provider = parse_model_origin((model_name or "").strip()).provider
             if role_provider:
                 await _load_models(role_provider)
-        logger.debug(
-            f"model config dialog: {len(providers)} catalogue provider(s)\n"
-            f"{list(catalogue_models) = }"
-        )
+        logger.debug(f"model config dialog: {len(providers)} catalogue provider(s)")
 
         # Enter an explicit slot: this may run in a background task (the
         # first-run prompt), which has no ambient slot (see PageContext).
@@ -685,60 +574,45 @@ def attach_model_info(ctx: PageContext) -> None:
             go (otherwise the dialog has to be reopened per role).
             """
             info = _current_info()
-            saved: list[tuple[str, str]] = []
-            for role, model_input in role_inputs.items():
-                cfg = info.get(role, {})
-                if not cfg.get("modifiable", True):
-                    continue
-                new_model = model_input.value.strip()
-                original_model = cfg.get("model", "")
-                if new_model == original_model:
-                    # Nothing changed: avoid pinning an inherited value.
-                    continue
-                logger.debug(
-                    f"model config dialog: saving {role = }\n{original_model = }\n"
-                    f"{new_model = }\n{session_scope = }"
+            current_values = {
+                role: (model_input.value or "").strip()
+                for role, model_input in role_inputs.items()
+            }
+            logger.debug(f"model config dialog: saving\n{session_scope = }")
+            outcome = await save_roles(
+                ctx.server_url,
+                ctx.user_id,
+                chat_id,
+                session_scope=session_scope,
+                info=info,
+                role_values=current_values,
+            )
+            if not outcome.ok:
+                logger.warning(
+                    "model config dialog: failed to save role=%s",
+                    outcome.failed_role,
                 )
-                if session_scope:
-                    ok = await set_session_model_override(
-                        ctx.server_url, ctx.user_id, role, {"model": new_model}
-                    )
-                else:
-                    ok = await set_model_override(
-                        ctx.server_url,
-                        ctx.user_id,
-                        chat_id,
-                        role,
-                        {"model": new_model, "promote_default": True},
-                    )
-                if not ok:
-                    logger.warning(
-                        "model config dialog: failed to save role=%s model=%s",
-                        role,
-                        new_model,
-                    )
-                    ui.notification(
-                        f"Failed to save the model for {role}.", type="negative"
-                    )
-                    return
-                saved.append((role, new_model))
-            logger.debug(f"model config dialog: saved roles: {saved}")
+                ui.notification(
+                    f"Failed to save the model for {outcome.failed_role}.",
+                    type="negative",
+                )
+                return
+            logger.debug(f"model config dialog: saved roles: {outcome.saved}")
             dialog.close()
-            if saved:
+            if outcome.saved:
                 await _refresh_scope(session_scope)
 
         async def _clear_role(role: str):
             logger.debug(
                 f"model config dialog: resetting {role = }\n{session_scope = }"
             )
-            if session_scope:
-                ok = await clear_session_model_override(
-                    ctx.server_url, ctx.user_id, role
-                )
-            else:
-                ok = await clear_model_override(
-                    ctx.server_url, ctx.user_id, chat_id, role
-                )
+            ok = await clear_role(
+                ctx.server_url,
+                ctx.user_id,
+                chat_id,
+                session_scope=session_scope,
+                role=role,
+            )
             if not ok:
                 logger.warning("model config dialog: failed to reset role=%s", role)
                 ui.notification("Failed to reset the model.", type="negative")
@@ -767,18 +641,11 @@ def attach_model_info(ctx: PageContext) -> None:
                 return
             value = source.value.strip()
             info = _current_info()
-            source_type = info.get(role, {}).get("model_type", "text_generation")
-            applied: list[str] = []
-            for target, cfg in info.items():
-                if target == role or not cfg.get("modifiable", True):
-                    continue
-                if cfg.get("model_type", "text_generation") != source_type:
-                    continue
-                role_values[target] = value
-                applied.append(target)
+            applied = use_for_all_targets(info, role, value)
+            role_values.update(applied)
             logger.debug(
                 f"model config dialog: use for all\n{source = }\n{value = }\n"
-                f"{applied = }\n{source_type = }"
+                f"{list(applied) = }"
             )
             _render_body.refresh()
 
@@ -857,7 +724,7 @@ def attach_model_info(ctx: PageContext) -> None:
                             model_picker = _ModelPicker(
                                 model_value,
                                 providers,
-                                lambda p: catalogue_models.get(p, []),
+                                lambda p: catalogue.models_for(p),
                                 _load_models,
                                 lambda value, r=role: _on_model_change(r, value),
                             )
