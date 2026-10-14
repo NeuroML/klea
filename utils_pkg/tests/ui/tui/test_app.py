@@ -466,6 +466,42 @@ async def test_client_help_command_renders_locally(fake_backend, make_app):
     assert fake_backend.calls == []
 
 
+async def test_sessions_command_opens_picker(fake_backend, make_app):
+    """A client ``/sessions`` opens the session picker."""
+    fake_backend.chats = [{"chat_id": "c1", "title": "A"}]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await _submit(pilot, app, "/sessions")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, SessionPicker)
+
+    assert fake_backend.calls == []
+
+
+async def test_sessions_command_blocked_while_streaming(
+    fake_backend, make_app, monkeypatch
+):
+    """``/sessions`` is refused while a run is streaming (I2)."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await _submit(pilot, app, "/sessions")
+        await pilot.pause()
+        assert not isinstance(app.screen, SessionPicker)
+        assert app._worker is not None
+        app._worker.cancel()
+        await pilot.pause()
+
+
 async def test_unknown_command_is_rejected_locally(fake_backend, make_app):
     """An unknown command renders an error and is never forwarded."""
     app = make_app()

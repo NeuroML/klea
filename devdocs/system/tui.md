@@ -11,9 +11,9 @@ skeleton, the thin per-app entries, the single run worker (basic
 MIME-aware transcript, the inspector view, the status pane, session commands,
 the HITL review/input and permission modals, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
-`--continue`/`--resume`, and the session picker with rename/delete have
-landed (Phase 2.2-5.2d); `/sessions` and the model/access selectors are still
-to come.
+`--continue`/`--resume`, and the session picker (rename/delete, via `Ctrl+S`
+and `/sessions`) have landed (Phase 2.2-5.2e); the model/access selectors are
+still to come.
 
 ## Overview
 

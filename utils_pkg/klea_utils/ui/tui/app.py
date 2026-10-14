@@ -42,6 +42,7 @@ from klea_utils.commands.common import (
     unescape_command,
 )
 from klea_utils.ui.tui.components.commands import (
+    OPEN_SESSIONS_SERVICE,
     TUI_CAPABILITIES,
     CommandSuggestions,
     build_catalogue,
@@ -466,11 +467,20 @@ class KleaTuiApp(App[None]):
         if unescaped is not None:
             self.start_run(unescaped)
             return
-        result = handle_command(text, self._catalogue, TUI_CAPABILITIES)
+        result = handle_command(
+            text,
+            self._catalogue,
+            TUI_CAPABILITIES,
+            services={OPEN_SESSIONS_SERVICE: self._open_sessions_hook},
+        )
         if result is None:
             self.start_run(text)
             return
         await self._render_command_result(result)
+
+    def _open_sessions_hook(self) -> None:
+        """Command-service hook for ``/sessions`` (schedules the picker)."""
+        self.run_worker(self.action_open_sessions())
 
     async def _render_command_result(self, result: CommandResult) -> None:
         """Render a client command's result as a ``system`` transcript message.

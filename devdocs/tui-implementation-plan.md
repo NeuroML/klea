@@ -116,12 +116,12 @@ Each item ends at a review + commit gate.  Mark `[x]` when committed.
   TUI-local UUID) + one-active-session state (keyed store + active pointer).
 - [x] 5.2a Chat load/switch plumbing + `--continue` / `--resume <chat_id>`
   (`fetch_chats` / `fetch_chat_messages`, `load_chat`, `render_chat`).
-- [ ] 5.2b Session picker `ModalScreen` (`Ctrl+S`): list chats, switch
+- [x] 5.2b Session picker `ModalScreen` (`Ctrl+S`): list chats, switch
   (calls `load_chat`); refuse while streaming.
-- [ ] 5.2c Rename a chat from the picker (`rename_chat_on_server` + refresh).
-- [ ] 5.2d Delete a chat from the picker (`delete_chat_on_server`; switch
+- [x] 5.2c Rename a chat from the picker (`rename_chat_on_server` + refresh).
+- [x] 5.2d Delete a chat from the picker (`delete_chat_on_server`; switch
   away if it is the active chat).
-- [ ] 5.2e `/sessions` client command opens the picker (command service
+- [x] 5.2e `/sessions` client command opens the picker (command service
   hook).
 - [ ] 5.3a Model dialog: per-role models + set/clear a per-chat override
   (`fetch_active_models` + catalogue + set/clear `_model_override`).

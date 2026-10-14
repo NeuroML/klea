@@ -22,6 +22,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from rich.text import Text
@@ -47,6 +48,10 @@ TUI_CAPABILITIES: frozenset[str] = frozenset()
 #: ``CommandContext.services`` key for the merged registry (used by ``/help``).
 _REGISTRY_SERVICE = "registry"
 
+#: ``CommandContext.services`` key for the app hook that opens the session
+#: picker (used by ``/sessions``).  The app registers a no-argument callable.
+OPEN_SESSIONS_SERVICE = "open_sessions"
+
 
 def client_commands() -> CommandRegistry:
     """Return the TUI's own client-side commands (ADR-0047).
@@ -61,6 +66,15 @@ def client_commands() -> CommandRegistry:
             side="client",
             arg_hint="[command]",
             handler=_handle_help,
+        )
+    )
+    registry.register(
+        Command(
+            name="sessions",
+            summary="List and switch chat sessions",
+            side="client",
+            while_streaming="block",
+            handler=_handle_sessions,
         )
     )
     return registry
@@ -88,10 +102,25 @@ def _handle_help(context: CommandContext, parsed: ParsedCommand) -> CommandResul
     return render_help(registry, context.capabilities, name=name)
 
 
+def _handle_sessions(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Open the session picker via the app-provided hook.
+
+    The handler itself renders nothing: opening the modal is the effect.  The
+    hook is a no-argument callable the app registers under
+    :data:`OPEN_SESSIONS_SERVICE` (it schedules the async action).
+    """
+    open_sessions = context.service(OPEN_SESSIONS_SERVICE)
+    if open_sessions is None:
+        return CommandResult.fail("The session picker is not available.")
+    open_sessions()
+    return CommandResult.ok()
+
+
 def handle_command(
     text: str,
     catalogue: CommandRegistry | None,
     capabilities: frozenset[str] = TUI_CAPABILITIES,
+    services: Mapping[str, Any] | None = None,
 ) -> CommandResult | None:
     """Handle *text* as a command if it is one.
 
@@ -102,6 +131,7 @@ def handle_command(
     :param text: The raw input.
     :param catalogue: The merged command catalogue, or ``None`` if not loaded.
     :param capabilities: The TUI's capabilities.
+    :param services: Extra frontend/app hooks for the handler context.
     :returns: A local result, or ``None`` to forward the input as a query.
     """
     parsed = parse_command(text)
@@ -119,9 +149,12 @@ def handle_command(
     if command.side == "server":
         # Forward to the graph: the command node runs it (ADR-0047).
         return None
+    merged = {_REGISTRY_SERVICE: catalogue}
+    if services:
+        merged.update(services)
     context = CommandContext(
         capabilities=capabilities,
-        services={_REGISTRY_SERVICE: catalogue},
+        services=merged,
     )
     return catalogue.dispatch(parsed, context)
 
