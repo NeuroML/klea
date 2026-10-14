@@ -241,10 +241,10 @@ Last updated: 2026-10-12.
   session + summonable picker (switch/rename/delete), one in-flight run
   attached to the session, streaming transcript + inspector, a full-height
   status panel, per-role model + credentials dialogs, HITL/permission modals,
-  `/`-commands, and missing-model/API-key send gating.  Remaining: (a) drop
-  the temporary `cli` REPL above; (b) refresh the stale "Textual planned"
-  wording in ADR-0013/0026 and the TUI consumer note in `system/streams.md`;
-  (c) a `CHANGELOG.md` entry for the TUI.
+  `/`-commands, and missing-model/API-key send gating.  Remaining: drop the
+  temporary `cli` REPL above (and retire its `-tui` identity) once parity is
+  confirmed by an end-to-end pass; the stale ADR/`system/streams.md` wording
+  and the `CHANGELOG.md` entry are done.
 - Cross-frontend sessions / shared identity (**partly done**, ADR-0052): the
   TUI and web UI now share a host-local identity file
   (`PlatformDirs(<server-app>)/user_id`) via `klea_utils/ui/identity.py`,

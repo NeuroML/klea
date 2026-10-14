@@ -55,8 +55,8 @@ validate and trust its output?
   requirements.
 * Must compose with the general Klea framework
   (``klea_utils.graph.base.BaseLangGraph`` streaming) and the existing
-  web/terminal clients (NiceGUI 3-column, terminal REPL; a Textual TUI is
-  planned) without forking UIs; not a RAG-only concern.
+  web/terminal clients (NiceGUI 3-column, terminal clients; a Textual TUI
+  now built, ADR-0050) without forking UIs; not a RAG-only concern.
 
 ## Considered Options
 
@@ -124,8 +124,9 @@ Chosen option: "C. Structured per-node inspection signals".
   are the single streaming seam used by both ``klea-rag-serve`` SSE
   (``klea_utils/api/sse.py``) and direct clients.
 
-* UI: web (NiceGUI 3-column with an inspector pane) and TUI REPL both
-  consume the same event stream: ``progress`` drives the step indicator,
+* UI: web (NiceGUI 3-column with an inspector pane) and the TUI
+  (transcript/inspector toggle) both consume the same event stream:
+  ``progress`` drives the step indicator,
   ``inspect`` populates the per-node inspector (summary shown, ``details``
   collapsed), ``state`` fills the status pane, ``tool`` renders chat output,
   ``usage`` surfaces per-node token counts for cost introspection, and
@@ -171,7 +172,7 @@ Chosen option: "C. Structured per-node inspection signals".
   implement ``_get_info``/``_get_debug``; ``utils_pkg/tests/test_nodes_*.py``
   asserts the ``NodeStreamData`` shapes.
 * ``docs: make html`` still renders the ``rag-lang-graph.png`` with the
-  same edge labels; web inspector + TUI REPL both consume
+  same edge labels; web inspector + TUI inspector both consume
   ``run_graph_astream_events`` and show ``progress``/``info``/``debug``
   per node in local and HuggingFace (``klea-rag-serve`` SSE) deployments.
 * Live: ``klea-rag web`` inspector pane already shows
@@ -233,3 +234,7 @@ Chosen option: "C. Structured per-node inspection signals".
 * Update (2026-10-09): the terminal client reached by ``klea-rag cli`` is a
   lightweight ``input()``-based REPL, not a Textual TUI; a full TUI is
   planned (``devdocs/backlog.md``).
+* Update (2026-10-14): the full Textual TUI has landed (ADR-0050); it has a
+  transcript/inspector toggle that consumes the same ``inspect``/``progress``
+  events (``system/tui.md``).  ADR-0040 later replaced ``info``/``debug``
+  with a single ``inspect`` event.

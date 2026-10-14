@@ -34,17 +34,17 @@ exception.
 
 | Event | Source | Shape | Web consumer | TUI |
 |-------|--------|-------|--------------|-----|
-| `progress` | node (custom) | `{type, node, data{heading}}` | streaming spinner label (`data.heading`) | spinner text |
+| `progress` | node (custom) | `{type, node, data{heading}}` | streaming spinner label (`data.heading`) | turn-status heading |
 | `ping` | `chat_core` (heartbeat) | `{type}` | ignored (keeps the SSE alive) | ignored |
-| `inspect` | node (custom) | `{type, node, data{heading, summary, details}}` | inspection pane entry (summary shown, `details` collapsed) | ignored |
-| `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | ignored |
-| `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | ignored |
-| `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | ignored |
-| `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored |
-| `context` | runner (values) | `{type, data}` | status pane (mode/access) | ignored |
-| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, question/questions, interrupt_id, hitl_response_schema}}` | chat ask form | prompt |
-| `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | printed |
-| `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | spinner fail |
+| `inspect` | node (custom) | `{type, node, data{heading, summary, details}}` | inspection pane entry (summary shown, `details` collapsed) | inspector view entry (chat-panel toggle) |
+| `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | status-panel section |
+| `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | token totals |
+| `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | transcript block (MIME-aware) |
+| `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
+| `context` | runner (values) | `{type, data}` | status pane (mode/access) | stored on the chat; status-panel mode/access slots refresh |
+| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, question/questions, interrupt_id, hitl_response_schema}}` | chat ask form | HITL / permission modal |
+| `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | transcript message |
+| `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | turn-status error (+ Retry) |
 
 `interrupt` is the HITL pause (ADR-0046): the stream ends at the pause and is
 continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
@@ -60,6 +60,9 @@ runs the page's `context_hooks`, so a context control reconciles its per-chat
 preference with the value the server just reported - for example after a
 `/mode` graph command changes the checkpointed mode (ADR-0047); without it the
 stale preference (resolved first) would keep the selector on the old value.
+The TUI stores it on the chat and rebuilds the status-panel app slots on a
+`context` change (`StatusPanel.set_state(refresh_extras=True)`), and its
+mode/access selectors read the resolved value from the chat's context.
 
 ### `progress`
 
@@ -152,7 +155,6 @@ are emitted until the upstream bug is fixed; see the backlog.
   attempts, step outputs) lives in graph state instead (ADR-0033).
 * Inline media rendering (`image/*`, `audio/*`) is deferred to the `display`
   text fallback; `image/svg+xml` needs sanitisation.
-* `tool` entries render in the web only; TUI ignores them.
 
 ## Pointers
 
@@ -165,6 +167,8 @@ are emitted until the upstream bug is fixed; see the backlog.
   `klea_utils/nodes/tools_caller.py` (`tool` entries and the `permission`
   interrupt).
 * Transport: `klea_utils/api/sse.py`, `klea_utils/api/chat_core.py`.
-* Consumers: `klea_utils/ui/web/nicegui/components/{stream,chat_area,chat_bubble,status_pane,inspector}.py`.
+* Consumers: `klea_utils/ui/web/nicegui/components/{stream,chat_area,chat_bubble,status_pane,inspector}.py`
+  (web) and `klea_utils/ui/tui/app.py` + `ui/tui/components/*` (TUI); the
+  framework-agnostic reducer is `klea_utils/ui/stream_events.py`.
 * Decisions: ADR-0013 (amended), ADR-0040, ADR-0019, ADR-0020, ADR-0031,
   ADR-0032, ADR-0033.
