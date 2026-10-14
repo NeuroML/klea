@@ -42,6 +42,7 @@
 - Session commands (continued): `/sessions` (client) lists the sessions (pinned first), switches the active one, and deletes one after confirmation; `/compact` (server) summarises the conversation memory on demand; `/init` (server) generates project guidance (`AGENTS.md`) for the current project.
 - A graph command handler may be `async` and may hand off to another graph node (via `GraphCommandResult.route` and the transient `command_route` state field), so a command can run further nodes before the run ends (for example `/compact` -> the compaction node; `/init` -> the normal planner/tool path).
 - The summarise-memory node reports its outcome to the inspect pane (summarised / nothing new / no usable summary) instead of writing the chat, and can optionally set a chat confirmation for a manual compaction.
+- The TUI and web UI share a host-local identity file (`PlatformDirs(<server-app>)/user_id`, used only for a loopback server) instead of relying on the browser session cookie, so a session opened in either frontend appears in both and survives new windows/browsers; both frontends accept `--user-id` (ADR-0052).
 
 ### Changed
 

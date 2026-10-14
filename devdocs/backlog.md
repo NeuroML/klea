@@ -245,25 +245,18 @@ Last updated: 2026-10-12.
   state sections, token usage) and a chat-panel inspector view, tool results,
   `/`-commands, and permission + HITL forms.  Replaces the REPL (dropped once
   parity lands).
-- Cross-frontend sessions / shared identity (**deferred; needs its own ADR**):
-  any frontend should list existing sessions and load one.  Sessions already
-  live server-side in `{graph.paths.user_data_dir}/sessions.db` keyed by
-  `(user_id, chat_id)` and are reached over HTTP, so this is **not** solved by
-  a shared client data folder -- the client folders hold only logs and the
-  web's browser -> `user_id` map.  The missing piece is a shared, persistent
-  `user_id`.  The TUI resolves its own `user_id` through a seam (`--user-id` >
-  `KLEA_USER_ID` > a persisted TUI-local UUID, ADR-0050) and does not share it
-  with the web yet.  Security caveat: the server has no auth and treats
-  `user_id` as an opaque client token (`sessions.py`), so a naive "most
-  recently used" identity would leak across users on a shared deployment and
-  must never be inferred server-side.  Intended direction when picked up: a
-  single **host-local canonical identity file** read by both the local web and
-  the TUI, with a localhost-only guard and first-run adoption (not MRU, which
-  oscillates and orphans prior sessions on adoption).  A `klea sessions`
-  subcommand to list/delete sessions is a companion nicety.  Caveat: unifying
-  the frontend folders is still not the fix -- `app_name` is both the data dir
-  and the log file name, so the server, web and TUI cannot share one
-  `app_name` without colliding on `{app_name}.log`.
+- Cross-frontend sessions / shared identity (**partly done**, ADR-0052): the
+  TUI and web UI now share a host-local identity file
+  (`PlatformDirs(<server-app>)/user_id`) via `klea_utils/ui/identity.py`,
+  loopback-gated, with `--user-id` on both.  Remaining: (a) a remote/multi-user
+  deployment still uses the per-browser NiceGUI session cookie, so chats can
+  "disappear" on a new window/browser/profile; a stable per-user id requires
+  authentication (the user's username/id) instead of a random, browser-bound
+  cookie.  (b) a `klea sessions` subcommand to list/delete sessions is a
+  companion nicety.  Caveat: unifying the frontend data folders is still not
+  the fix -- `app_name` is both the data dir and the log file name, so the
+  server, web and TUI cannot share one `app_name` without colliding on
+  `{app_name}.log`.
 - Session-command framework (ADR-0047; catalogue in
   `system/session-commands.md`): a `/`-command surface shared by all frontends
   (web first; the temporary REPL is not touched).  Commands are user-invoked
