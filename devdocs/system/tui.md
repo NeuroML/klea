@@ -155,9 +155,11 @@ enforcement point for each:
   the picker lists only server metadata (`GET /chat/{user_id}`).
 * Create mints a chat id (coolname slug) and `POST`s it; `--continue` resumes
   the most recently updated session and `--resume <chat_id>` loads one.
-* `user_id` resolves through one seam: `--user-id` > `KLEA_USER_ID` > a
-  persisted TUI-local UUID (I5).  Sharing an identity with the web is a
-  deferred design (backlog), not part of the TUI.
+* `user_id` resolves through one seam (`klea_utils/ui/identity.py`):
+  `--user-id` > `KLEA_USER_ID` > a persisted host-local UUID, the last only for
+  a loopback server (I5).  The identity key is the server app
+  (`klea-agent` / `klea-rag`), shared with the web UI, so a local session
+  opened in either frontend appears in both (ADR-0052).
 
 ## Commands (ADR-0047)
 
