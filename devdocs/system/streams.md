@@ -48,10 +48,11 @@ exception.
 
 `interrupt` is the HITL pause (ADR-0046): the stream ends at the pause and is
 continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
-`kind` is authored by the interrupting node: `review`/`input` (the agent's
-`AwaitHuman` nodes) or `permission` (the shared `ToolsCallerNode`, pausing
-before a call that would touch a path outside the permitted roots; ADR-0007
-update 2026-10-08).
+`kind` is authored by the interrupting node: `review` (a `review` step:
+plan approval or a progress checkpoint) / `input` (a blocked step's questions)
+from the agent's `AwaitHuman` nodes, or `permission` (the shared
+`ToolsCallerNode`, pausing before a call that would touch a path outside the
+permitted roots; ADR-0007 update 2026-10-08).  See ADR-0051 for review steps.
 
 `context` carries the checkpointed session context (e.g. the agent operating
 mode / tool access, ADR-0030/0032).  The web frontend stores it on the chat and
@@ -129,13 +130,17 @@ Emitted from the `messages` channel only for node labels in
 output nodes do not (their deltas are JSON fragments).  No web/TUI consumer
 today; it exists for a future live-typing UI.
 
-**Currently disabled.**  Klea sets `disable_streaming=True` on every model
-(`LLMModel.build_config`): the graph's `astream_events` forces chat models to
-stream, and LangChain's streamed `usage_metadata` merge then sums input/total
-tokens across chunks for providers that report usage per chunk (VLLM,
-HuggingFace Inference Providers, ...), inflating the reported token counts
-(langchain#30429).  No `token` events are emitted until the upstream bug is
-fixed; see the backlog.
+**Currently disabled.**  Klea disables streaming on the model *instance* in
+`LLMModel.build_config` (`disable_streaming=True`; HuggingFace uses its
+`streaming=False` field instead, which does not leak into the inference
+params): the graph's `astream_events` forces chat models to stream, and
+LangChain's streamed `usage_metadata` merge then sums input/total tokens across
+chunks for providers that report usage per chunk (VLLM, HuggingFace Inference
+Providers, ...), inflating the reported token counts (langchain#30429).  It
+must be an instance field, not a per-call `stream=False` kwarg:
+`with_structured_output` wraps the model in a `RunnableMap` that drops call
+kwargs, so the flag would be ignored on the structured path.  No `token` events
+are emitted until the upstream bug is fixed; see the backlog.
 
 ## Known limitations
 

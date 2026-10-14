@@ -49,7 +49,7 @@ class TestRouteSchema:
 class TestPlanSchema:
     """Entry routing statuses on the plan."""
 
-    @pytest.mark.parametrize("status", ["in_review", "in_progress", "unplannable"])
+    @pytest.mark.parametrize("status", ["in_progress", "unplannable"])
     def test_entry_statuses_accepted(self, status):
         assert PlanSchema(status=status).status == status
 
@@ -221,7 +221,6 @@ class TestPlannerPlanSchema:
         status = PlannerPlanSchema.model_json_schema()["properties"]["status"]
         assert set(status["enum"]) == {
             "in_progress",
-            "in_review",
             "needs_input",
             "no_plan_required",
             "unplannable",
@@ -238,7 +237,6 @@ class TestPlanSchemaRuntime:
         status = PlanSchema.model_json_schema()["properties"]["status"]
         assert set(status["enum"]) == {
             "not_started",
-            "in_review",
             "in_progress",
             "needs_input",
             "no_plan_required",

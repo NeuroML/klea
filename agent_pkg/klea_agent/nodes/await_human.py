@@ -39,10 +39,12 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
 
     One class, two instances:
 
-    * ``kind="review"`` presents the plan for an explicit approve/revise
-      decision (or cancel).  An approval sets ``plan.status = in_progress``
-      and the router dispatches straight into the execution loop -- no Planner
-      call; a revision carries ``feedback`` back to the Planner.
+    * ``kind="review"`` presents a review step for an explicit approve/revise
+      decision (or cancel): a plan approval before any work, or a progress
+      checkpoint after some steps have run (ADR-0051).  An approval marks the
+      review step(s) at the frontier ``done`` and the router dispatches
+      straight into the execution loop -- no Planner call; a revision carries
+      ``feedback`` back to the Planner.
     * ``kind="input"`` asks the questions on the plan's blocked steps (all
       batched into one interrupt) and writes the answers to ``human_input`` so
       the Planner can re-author a runnable plan.
@@ -82,11 +84,25 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                 for question in step.needs_input
             ]
             return {"kind": "input", "questions": questions}
+        # A review step before any work is a plan approval; once work has run
+        # it is a progress checkpoint (ADR-0051), so carry the observations
+        # too.  The rendered plan is always included so the form is
+        # self-contained (the same payload is re-presented on reload via
+        # checkpoint hydration).
+        done = any(step.status in ("done", "skipped") for step in state.plan.step_list)
+        if done:
+            return {
+                "kind": "review",
+                "question": (
+                    "Review the progress: approve to continue, request changes "
+                    "to revise the plan, or cancel."
+                ),
+                "plan": state.plan.render(markdown=True),
+                "progress": state.observations_text(),
+            }
         return {
             "kind": "review",
             "question": "Review the plan: approve it, request changes, or cancel.",
-            # Carry the rendered plan so the form is self-contained (the same
-            # payload is re-presented on reload via checkpoint hydration).
             "plan": state.plan.render(markdown=True),
         }
 
@@ -151,16 +167,17 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         decision = str(answers.get("decision", "approve"))
         feedback = str(answers.get("feedback", ""))
         if decision == "approve":
-            # A human approval is an explicit decision: set the plan runnable
-            # so the router dispatches straight into the execution loop, and
-            # account for the review round (the Planner is not re-entered).
-            plan = state.plan.model_copy(
-                update={
-                    "status": "in_progress",
-                    "human_feedback_rounds": state.plan.human_feedback_rounds + 1,
-                    "automated_plan_revisions": 0,
-                }
-            )
+            # A human approval resolves the review step(s) at the frontier
+            # (ADR-0051): mark them done so the router dispatches straight into
+            # the execution loop (no Planner call), and account for the review
+            # round.  Revisions leave the review step pending (the router sends
+            # the feedback back to the Planner).
+            plan = state.plan.model_copy(deep=True)
+            for step in plan.review_frontier():
+                step.status = "done"
+            plan.status = "in_progress"
+            plan.human_feedback_rounds = state.plan.human_feedback_rounds + 1
+            plan.automated_plan_revisions = 0
             return {
                 "plan": plan,
                 "human_feedback": "",
@@ -176,7 +193,9 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             else ("User requested plan changes.")
         )
         return {
-            "human_feedback": feedback,
+            # Always non-empty: the router treats a set ``human_feedback`` as
+            # the revision signal (an approval clears it).
+            "human_feedback": feedback or "Please revise the plan.",
             "replan_reason": "",
             "messages": [*state.messages, HumanMessage(content=note)],
         }

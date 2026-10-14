@@ -115,12 +115,19 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
         ui.label(heading).classes("text-sm font-bold")
         if kind == "review":
+            if question := ask.get("question"):
+                ui.label(question).classes("text-sm")
             if plan := ask.get("plan"):
                 ui.code(plan, language=None).classes(
                     "text-xs w-full nicegui-code-noformat"
                 )
-            if question := ask.get("question"):
-                ui.label(question).classes("text-sm")
+            # A mid-plan checkpoint (ADR-0051) carries the progress made so
+            # far, so the user reviews the work and not only the plan.
+            if progress := ask.get("progress"):
+                ui.label("Progress").classes("text-xs font-bold")
+                ui.code(progress, language=None).classes(
+                    "text-xs w-full nicegui-code-noformat"
+                )
             feedback = (
                 ui.textarea(placeholder="Feedback (required to request changes)")
                 .props("outlined autogrow")

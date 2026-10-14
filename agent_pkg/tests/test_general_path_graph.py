@@ -90,13 +90,15 @@ async def test_general_path_work_loop(monkeypatch):
 
     # Planner routing on plan.status and step kind.
     assert ("Planning", "Composing answer") in edges  # unplannable -> failure
-    assert ("Planning", "Awaiting review") in edges  # in_review
+    assert ("Planning", "Awaiting review") in edges  # review step at the frontier
     assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
     assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
 
-    # Human-in-the-loop (ADR-0046): both await nodes loop back to the Planner;
-    # a cancel routes to the terminal "Cancelled" node.
+    # Human-in-the-loop (ADR-0046/ADR-0051): both await nodes loop back to the
+    # Planner; a review approval can reach a further review step; a cancel
+    # routes to the terminal "Cancelled" node.
     assert ("Awaiting review", "Planning") in edges
+    assert ("Awaiting review", "Awaiting review") in edges  # further review step
     assert ("Planning", "Awaiting input") in edges  # needs_input
     assert ("Awaiting input", "Planning") in edges
     assert ("Awaiting review", "Cancelled") in edges
@@ -112,6 +114,7 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Reasoning", "Evaluating") in edges  # reasoning step judged
     assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done, tool
     assert ("Evaluating", "Reasoning") in edges  # step_incomplete/step_done, reasoning
+    assert ("Evaluating", "Awaiting review") in edges  # next frontier head is review
     assert ("Evaluating", "Planning") in edges  # need_replan
     assert ("Evaluating", "Composing answer") in edges  # plan_done/abort
     assert ("Composing answer", "Preparing response") in edges
@@ -172,7 +175,8 @@ async def test_picker_router_retries_bad_names(monkeypatch):
 
 
 def _plan_with_step(
-    kind: Literal["tool", "reasoning"], status: Literal["in_progress"] = "in_progress"
+    kind: Literal["tool", "reasoning", "review"],
+    status: Literal["in_progress"] = "in_progress",
 ) -> KleaAgentState:
     state = KleaAgentState()
     state.plan = PlanSchema(
@@ -184,10 +188,46 @@ def _plan_with_step(
 
 @pytest.mark.asyncio
 async def test_planner_router_dispatches_by_step_kind():
-    """in_progress routes to the picker or the reasoning node by step kind."""
+    """in_progress routes to the picker, reasoning, or review by step kind."""
     agent = KleaAgent(checkpoint="inmemory")
     assert await agent._planner_router(_plan_with_step("tool")) == "tool"
     assert await agent._planner_router(_plan_with_step("reasoning")) == "reasoning"
+    assert await agent._planner_router(_plan_with_step("review")) == "review"
+
+
+@pytest.mark.asyncio
+async def test_review_router_routes_on_the_review_step():
+    """A revision (feedback set) -> Planner; an approval -> the next step."""
+    agent = KleaAgent(checkpoint="inmemory")
+
+    # Revision: human_feedback is set, the review step is unresolved.
+    revise = _plan_with_step("review")
+    revise.human_feedback = "change it"
+    assert await agent._review_router(revise) == "planner"
+
+    # Approval: feedback cleared and the frontier review step marked done, so
+    # the next pending step dispatches by kind.
+    approved = KleaAgentState()
+    approved.plan = PlanSchema(
+        step_list=[
+            StepSchema(
+                step_number=1, description="review", kind="review", status="done"
+            ),
+            StepSchema(step_number=2, description="work", kind="tool"),
+        ],
+        status="in_progress",
+    )
+    assert await agent._review_router(approved) == "tool"
+
+    # Approval resolving the last step -> the answer.
+    finished = _plan_with_step("review")
+    finished.plan.step_list[0].status = "done"
+    assert await agent._review_router(finished) == "plan_done"
+
+    # Cancel is terminal.
+    cancelled = _plan_with_step("review")
+    cancelled.plan.status = "user_cancelled"
+    assert await agent._review_router(cancelled) == "cancelled"
 
 
 @pytest.mark.asyncio

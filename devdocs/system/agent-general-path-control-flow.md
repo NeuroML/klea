@@ -34,10 +34,12 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
                  |-- status no_plan_required -> AnswerFromResults (success; no execution needed) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
-                 |-- status in_review -----> AwaitHuman (review) --approve--> batch entry
-                 |                                        '--revise----> Planner
                  |-- status needs_input ---> AwaitHuman (input) --answer--> Planner
-                 '-- status in_progress ---> batch entry (ADR-0041)
+                 '-- status in_progress ---> next step by kind (ADR-0041):
+                       review -------> AwaitHuman (review) --approve--> next step
+                       |                                 '--revise----> Planner
+                       tool ---------> batch entry (tool steps)
+                       reasoning ----> ReasoningNode -> Evaluator
 
 Batch entry (maximal same-kind prefix of the frontier, capped at 8 steps):
   kind = tool:
@@ -83,8 +85,8 @@ persists) the result.
 | ModeDecision / ModeInformer | resolve mode (ADR-0030) | no |
 | Guard | safety classification (ADR-0010) | yes (guard role) |
 | RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
-| Planner | task-path brain: write the immutable goal, create/revise the plan, flag review (ADR-0035); never answers the user | yes (plan role) |
-| AwaitHuman | HITL pause/resume (ADR-0046): plan review (approve/revise) or a blocked step's questions; no LLM | no |
+| Planner | task-path brain: write the immutable goal, create/revise the plan (ADR-0035); never answers the user | yes (plan role) |
+| AwaitHuman | HITL pause/resume (ADR-0046/ADR-0051): a review step (approve/revise) or a blocked step's questions; no LLM | no |
 | ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
 | ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
 | TriageRouter | deterministic per-step tool-error triage: which steps errored? retries left? | no |
@@ -107,17 +109,17 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 
 | status | meaning | edge |
 |--------|---------|------|
-| ``in_review`` | plan produced, awaiting human review | ``AwaitHuman`` (review) |
 | ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``no_plan_required`` | no execution needed; the goal is satisfiable from the available information (for example session ``artefacts``) | ``AnswerFromResults`` (success) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | ready; execute the next batch (same-kind frontier prefix) by its ``kind`` | batch entry |
+| ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``AwaitHuman`` (review) or batch entry |
 
 ``Planner._update_state``: any step with ``needs_input`` questions forces
-``needs_input`` (a draft; the status is derived from the steps); steps + review
--> ``in_review``; steps -> ``in_progress``; ``no_plan_required`` is kept as a
-success (the goal is set, no steps run); ``unplannable`` (or any other status
-with no steps) -> ``unplannable``.  It never answers the user.
+``needs_input`` (a draft; the status is derived from the steps); steps ->
+``in_progress`` (a ``review`` step pauses when it reaches the frontier; there is
+no review status -- ADR-0051); ``no_plan_required`` is kept as a success (the
+goal is set, no steps run); ``unplannable`` (or any other status with no steps)
+-> ``unplannable``.  It never answers the user.
 ``PlannerPlanSchema`` exposes only
 these editable statuses to the model; the state ``PlanSchema`` also carries the
 runtime ones
@@ -175,13 +177,16 @@ template node (``klea_utils/nodes/await_human.py``, ``AwaitHumanNode``) owns
 the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
 (``AwaitHuman``) is instantiated twice:
 
-* ``AwaitHuman`` **review** is human evaluation of the plan, symmetric to the
-  Evaluator's judgement of steps, with **no LLM call**.  It captures an
-  explicit decision (``ReviewResponse``: approve / revise / cancel).
-  **Approve** deterministically sets ``in_progress`` and the router sends the
-  run straight into execution (no Planner call); **revise** returns the
-  feedback to the Planner, which owns the revised plan; **cancel** ends the
-  run (``user_cancelled``).
+* ``AwaitHuman`` **review** pauses at a ``review`` step (ADR-0051): human
+  evaluation of the plan or the progress so far, symmetric to the Evaluator's
+  judgement of steps, with **no LLM call**.  It captures an explicit decision
+  (``ReviewResponse``: approve / revise / cancel).  A ``review`` step with no
+  ``depends_on`` is a whole-plan approval (the ask carries the plan); one after
+  step N (``depends_on: [N]``) is a checkpoint (the ask also carries the
+  observations).  **Approve** deterministically marks the review step(s) at the
+  frontier ``done`` and the router sends the run straight on (no Planner call);
+  **revise** returns the feedback to the Planner, which owns the revised plan;
+  **cancel** ends the run (``user_cancelled``).
 * ``AwaitHuman`` **input** asks the questions a *blocked step* carries
   (``StepSchema.needs_input``); the answers resume the same run at the
   Planner, which re-authors the plan without the questions.
@@ -190,7 +195,8 @@ A step with ``needs_input`` questions is a draft: it is not executed (and is
 exempt from the executable-step checks) until the Planner re-authors it.  The
 plan status ``needs_input`` is derived from the steps, so a plan can never be
 "runnable" while carrying unanswered questions.  A plan-level question is just
-a clarification step carrying its ``needs_input``.
+a clarification step carrying its ``needs_input``.  ``needs_input`` supplies
+facts only -- never approval; there is no bound on the number of input rounds.
 
 The resume carries an optional typed ``response_schema`` (forwarded on the
 stream event as ``hitl_response_schema``).  A plain query (or a failure resume)

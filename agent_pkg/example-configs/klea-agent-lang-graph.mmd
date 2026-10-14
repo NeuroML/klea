@@ -39,6 +39,7 @@ graph TD;
 	Deciding\20route -. &nbsp;chat&nbsp; .-> Preparing\20response;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
+	Evaluating -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
@@ -66,6 +67,7 @@ graph TD;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
+	Awaiting\20review -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0

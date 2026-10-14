@@ -236,29 +236,52 @@ class TestPlannerState(unittest.TestCase):
             planner._validate_result(output, KleaAgentState(), LLMNodeContext())
         )
 
-    def test_in_review_status_is_kept(self):
-        """A plan the Planner flags for review keeps ``in_review``."""
+    def test_review_step_keeps_in_progress(self):
+        """A plan reviewed via a review step stays runnable (ADR-0051)."""
         update = self._planner()._update_state(
             PlannerOutput(
                 goal=GoalSchema(goal="g"),
                 plan=PlannerPlanSchema(
                     step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
+                        StepSchema(description="Review the plan", kind="review"),
+                        StepSchema(
+                            step_number=2,
+                            description="s",
+                            suggested_tools=["read_file"],
+                            depends_on=[1],
+                        ),
                     ],
-                    status="in_review",
+                    status="in_progress",
                 ),
             ),
             KleaAgentState(query="q"),
             LLMNodeContext(),
         )
-        self.assertEqual(update["plan"].status, "in_review")
+        self.assertEqual(update["plan"].status, "in_progress")
+        self.assertEqual(update["plan"].step_list[0].kind, "review")
+        self.assertEqual(update["plan"].step_list[0].description, "Review the plan")
+
+    def test_review_step_must_describe_and_name_no_tools(self):
+        """A review step needs a description and must not name tools."""
+        errors = self._planner()._validate_result(
+            PlannerOutput(
+                goal=GoalSchema(goal="g"),
+                plan=PlannerPlanSchema(
+                    step_list=[StepSchema(kind="review", suggested_tools=["read_file"])]
+                ),
+            ),
+            KleaAgentState(),
+            LLMNodeContext(),
+        )
+        self.assertIsNotNone(errors)
+        self.assertIn("review step", errors or "")
 
     def test_human_feedback_is_consumed(self):
         """Review feedback is cleared once the Planner has read it."""
         state = KleaAgentState(
             human_feedback="looks good, proceed",
             plan=PlanSchema(
-                step_list=[StepSchema(description="s")], status="in_review"
+                step_list=[StepSchema(description="s")], status="in_progress"
             ),
         )
         update = self._planner()._update_state(
@@ -402,7 +425,7 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
 
     def test_human_review_resets_revision_counter(self):
-        """A review re-entry (entry status in_review) resets the counter."""
+        """A review re-entry (feedback set) resets the counter."""
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
@@ -414,7 +437,7 @@ class TestPlannerState(unittest.TestCase):
             KleaAgentState(
                 human_feedback="looks good",
                 plan=PlanSchema(
-                    status="in_review", plan_version=1, automated_plan_revisions=3
+                    status="in_progress", plan_version=1, automated_plan_revisions=3
                 ),
             ),
             LLMNodeContext(),

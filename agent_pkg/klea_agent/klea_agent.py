@@ -207,21 +207,18 @@ class KleaAgent(BaseLangGraph):
 
         ``unplannable`` -> failure answer; ``no_plan_required`` -> answer
         (success: no execution needed, the answer-composer writes the reply);
-        ``in_review`` -> human review;
         ``needs_input`` -> the HITL input node asks the blocked steps'
         questions (ADR-0046); ``completed`` (all steps already done) -> answer;
-        otherwise
-        (``in_progress``) -> dispatch the next runnable step by ``kind``
-        (ADR-0041).  An ``in_progress`` plan with no runnable step is blocked
-        and fails closed.
+        otherwise (``in_progress``) -> dispatch the next runnable step by
+        ``kind`` (ADR-0041): a ``review`` step pauses for human review
+        (ADR-0051), ``tool``/``reasoning`` execute.  An ``in_progress`` plan
+        with no runnable step is blocked and fails closed.
         """
         status = state.plan.status
         if status == "unplannable":
             return "failure"
         if status == "no_plan_required":
             return "plan_done"
-        if status == "in_review":
-            return "review"
         if status == "needs_input":
             return "needs_input"
         if status == "completed":
@@ -242,25 +239,27 @@ class KleaAgent(BaseLangGraph):
         return "planner"
 
     async def _review_router(self, state: KleaAgentState) -> str:
-        """Route after plan review (ADR-0046).
+        """Route after plan review (ADR-0046/ADR-0051).
 
-        An approval sets ``plan.status == "in_progress"`` and dispatches
-        straight into the execution loop by step kind (or to the answer when
-        no step remains); a revision (still ``in_review``) returns to the
-        Planner with the feedback; a cancel is terminal.
+        An approval marks the review step(s) at the frontier ``done`` and
+        dispatches straight into the execution loop by step kind (or to the
+        answer when no step remains); a revision leaves the review step pending
+        and returns to the Planner with the feedback; a cancel is terminal.
         """
-        status = state.plan.status
-        if status == "user_cancelled":
+        if state.plan.status == "user_cancelled":
             return "cancelled"
-        if status == "in_progress":
-            if state.plan.current_step() is None:
-                return "plan_done"
-            return self._step_kind(state)
-        return "planner"
+        # A revision writes ``human_feedback`` (approve clears it); an approval
+        # resolves the frontier review step(s), so the next frontier head may
+        # be an executing step or a further review step.
+        if state.human_feedback:
+            return "planner"
+        if state.plan.current_step() is None:
+            return "plan_done"
+        return self._step_kind(state)
 
     @staticmethod
     def _step_kind(state: KleaAgentState) -> str:
-        """Return the batch's dispatch label: ``tool`` | ``reasoning``.
+        """Return the batch's dispatch label: ``tool`` | ``reasoning`` | ``review``.
 
         Uses the maximal same-kind prefix of the frontier (ADR-0041); a missing
         batch defaults to ``tool``: the picker then has nothing to bind and
@@ -818,6 +817,7 @@ class KleaAgent(BaseLangGraph):
                 "planner": self._planner_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
+                "review": self._await_review_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "cancelled": self._cancelled_answer_node.label,
             },
@@ -863,6 +863,7 @@ class KleaAgent(BaseLangGraph):
             {
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
+                "review": self._await_review_node.label,
                 "need_replan": self._planner_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "abort": self._answer_from_results_node.label,

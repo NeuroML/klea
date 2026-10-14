@@ -213,7 +213,7 @@ sequenceDiagram
             Graph-->>Core: resumes at Awaiting input
         else review
             Graph-->>Core: Awaiting review (interrupt)
-            Core-->>UI: data: interrupt (plan review)
+            Core-->>UI: data: interrupt (review: plan approval or checkpoint)
             Note over UI,Store: If the run is paused, a new query is rejected with 409.
             UI->>API: POST /query/stream {interrupt_response: decision}
             API->>Core: stream_response(interrupt_response=...)

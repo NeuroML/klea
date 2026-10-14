@@ -8,6 +8,14 @@ informed: ""
 
 # Human-in-the-loop: interrupt and resume
 
+**Update (2026-10-14):** the `in_review` *plan status* and the whole-plan
+review flow described here are superseded by ADR-0051, which models review
+as a plan step (`StepSchema.kind = "review"`) so it can be positioned
+(whole-plan or after step N).  The interrupt/resume mechanism, the
+deterministic approve, the `needs_input` input instance, and the response
+schemas are unchanged.  Read "review" below as "a `review` step at the
+frontier".
+
 ## Context and Problem Statement
 
 The general operational path has two points where the Planner needs the

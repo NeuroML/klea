@@ -29,6 +29,10 @@ class _HitlState(BaseModel):
     messages: list[AnyMessage] = Field(default_factory=list)
     plan: PlanSchema = Field(default_factory=PlanSchema)
 
+    def observations_text(self) -> str:
+        """Minimal stand-in for ``KleaAgentState.observations_text``."""
+        return "(no observations)"
+
 
 def _compile(kind: Literal["review", "input"]):
     """Compile a tiny START -> AwaitHuman -> END graph with a checkpointer."""
@@ -80,15 +84,20 @@ async def test_input_batches_step_questions_and_writes_answers():
 
 
 async def test_review_approve_runs_the_plan():
-    """Approval sets in_progress, counts the round, and clears feedback."""
+    """Approval resolves the review step, counts the round, clears feedback."""
     graph = _compile("review")
     config = {"configurable": {"thread_id": "approve"}}
+    plan = PlanSchema(
+        status="in_progress",
+        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+    )
 
-    await graph.ainvoke(_HitlState(plan=PlanSchema(status="in_review")), config=config)
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
 
     intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
     assert intr.value["kind"] == "review"
     assert "plan" in intr.value  # the form carries the rendered plan
+    assert "progress" not in intr.value  # a plan approval, no work done yet
     assert intr.response_schema is not None  # typed review form
 
     result = await graph.ainvoke(
@@ -96,16 +105,44 @@ async def test_review_approve_runs_the_plan():
     )
 
     assert result["plan"].status == "in_progress"
+    assert result["plan"].step_list[0].status == "done"  # review step resolved
     assert result["plan"].human_feedback_rounds == 1
     assert result["human_feedback"] == ""
 
 
+async def test_review_checkpoint_carries_progress():
+    """A review step after completed work is a checkpoint carrying progress."""
+    graph = _compile("review")
+    config = {"configurable": {"thread_id": "checkpoint"}}
+    plan = PlanSchema(
+        status="in_progress",
+        step_list=[
+            StepSchema(step_number=1, description="fetch", status="done"),
+            StepSchema(
+                step_number=2,
+                kind="review",
+                description="Review progress",
+                depends_on=[1],
+            ),
+        ],
+    )
+
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
+    intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
+    assert intr.value["kind"] == "review"
+    assert "progress" in intr.value  # work has run: a checkpoint
+
+
 async def test_review_revise_returns_feedback():
-    """A revision keeps the plan in review and passes the feedback on."""
+    """A revision keeps the review step pending and passes the feedback on."""
     graph = _compile("review")
     config = {"configurable": {"thread_id": "revise"}}
+    plan = PlanSchema(
+        status="in_progress",
+        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+    )
 
-    await graph.ainvoke(_HitlState(plan=PlanSchema(status="in_review")), config=config)
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
     result = await graph.ainvoke(
         Command(
             resume={
@@ -118,7 +155,24 @@ async def test_review_revise_returns_feedback():
     )
 
     assert result["human_feedback"] == "use api v2"
-    assert result["plan"].status == "in_review"
+    assert result["plan"].step_list[0].status == "pending"  # not resolved
+    assert result["plan"].status == "in_progress"
+
+
+async def test_review_revise_without_feedback_sets_signal():
+    """An empty-feedback revision still sets the router's revision signal."""
+    graph = _compile("review")
+    config = {"configurable": {"thread_id": "revise-empty"}}
+    plan = PlanSchema(
+        status="in_progress",
+        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+    )
+
+    await graph.ainvoke(_HitlState(plan=plan), config=config)
+    result = await graph.ainvoke(
+        Command(resume={"action": "answer", "decision": "revise"}), config=config
+    )
+    assert result["human_feedback"]  # non-empty: the revision signal
 
 
 async def test_cancel_marks_user_cancelled():

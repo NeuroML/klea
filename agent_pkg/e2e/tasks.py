@@ -148,13 +148,14 @@ TASKS: list[E2ETask] = [
         tags=["reasoning"],
         setup=_seed_project,
     ),
-    # --- review path (AwaitHuman pauses for approve/revise; the harness
-    # must answer the interrupt, ADR-0046) ---
+    # --- review path (AwaitHuman pauses at a review step; the harness must
+    # answer the interrupt, ADR-0046/ADR-0051) ---
     E2ETask(
         id="review",
         query=(
-            "Create a plan to add a short README to this directory and wait for "
-            "my review before doing anything."
+            "Create a plan to add a short README to this directory and a short "
+            "CONTRIBUTING file, then stop for my review right after you write "
+            "the README, before writing CONTRIBUTING."
         ),
         tags=["review"],
     ),

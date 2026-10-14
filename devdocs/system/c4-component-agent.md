@@ -74,7 +74,7 @@ flowchart TD
         decline["Declining query<br/>FixedAnswer (shared)<br/>I cannot respond..."]
         route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat vs task (fail-closed)"]
         planner["Planning<br/>Planner (plan)<br/>sole author of goal + plan; ADR-0035"]
-        review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>approve/revise; ADR-0046"]
+        review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>a review step: approve/revise; ADR-0046/0051"]
         awaitInput["Awaiting input<br/>AwaitHuman (non-LLM)<br/>answers a blocked step's questions; ADR-0046"]
         cancelled["Cancelled<br/>FixedAnswer (shared)<br/>terminal: run cancelled"]
         picker["Selecting tools<br/>ToolsPicker (chat, shared)<br/>binds args for suggested_tools; ADR-0020/0034"]
@@ -116,6 +116,7 @@ flowchart TD
     review -. planner .-> planner
     review -. tool .-> picker
     review -. reasoning .-> reasoning
+    review -. review .-> review
     review -. plan_done .-> compose
     review -. cancelled .-> cancelled
     awaitInput -. planner .-> planner
@@ -131,6 +132,7 @@ flowchart TD
     reasoning --> evaluator
     evaluator -. tool .-> picker
     evaluator -. reasoning .-> reasoning
+    evaluator -. review .-> review
     evaluator -. need_replan .-> planner
     evaluator -. plan_done .-> compose
     evaluator -. abort .-> compose
@@ -221,7 +223,7 @@ are normalised to it (``Summarizing history`` not ``Summarizing_history``).
 
 ## Auto-generated LangGraph topology (faithful to code, for drift check)
 
-This is the verbatim ``draw_mermaid()`` output from ``klea_agent.py:699``
+This is the verbatim ``draw_mermaid()`` output from ``klea_agent.py:893``
 (``agent_pkg/example-configs/klea-agent-lang-graph.mmd``, also writes
 ``.mmd`` alongside ``.png`` via ``BaseLangGraph._export_graph_png``). Keep
 the explicit diagram above in sync with it; do not edit this block by
@@ -267,6 +269,7 @@ graph TD;
 	Deciding\20route -. &nbsp;chat&nbsp; .-> Preparing\20response;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
+	Evaluating -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
@@ -289,6 +292,7 @@ graph TD;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
+	Awaiting\20review -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
@@ -311,7 +315,7 @@ graph TD;
 | Declining query | ``klea_utils/nodes/fixed_answer.py`` | ``FixedAnswer``: canned refusal | terminal; writes ``message_for_user`` |
 | Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow entry router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task``; no tool list (ADR-0035) |
 | Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035) |
-| Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046): reusable HITL node, two instances (review writes ``human_feedback``; input writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve -> execution, revise -> Planner, cancel -> terminal |
+| Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
 | Selecting tools | ``klea_utils/nodes/tools_picker.py`` | ``ToolsPicker`` (shared, ``chat``): binds arguments for the step's ``suggested_tools`` | per-app prompt registry, full static ``tools_info``; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034) |
 | Running tools | ``klea_utils/nodes/tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
 | Triaging | ``klea_agent/nodes/triage_router.py`` | ``TriageRouter`` (deterministic router): mechanical tool-error triage | ``retry`` (re-pick same tool) / ``evaluate`` / ``replan``; ADaPT counter via ``update_tool_retry_counts`` (ADR-0035) |

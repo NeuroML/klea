@@ -9,13 +9,12 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from graphlib import CycleError, TopologicalSorter
-from typing import Literal
+from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.tools import textualize_tool_results
 from pydantic import BaseModel, Field
-from typing_extensions import Any
 
 
 class CodeSchema(BaseModel):
@@ -28,12 +27,18 @@ class StepSchema(BaseModel):
     step_number: int = 1
     description: str = ""
     success_criteria: str = ""
-    #: Whether this step executes tools or reasons over the evidence
-    #: (ADR-0035 update 2026-09-19).  A ``tool`` step names at least one tool
-    #: in :attr:`suggested_tools` and runs through the picker/caller; a
-    #: ``reasoning`` step names none and is handled by the ``ReasoningNode``,
-    #: its conclusion recorded as a :class:`StepOutput`.
-    kind: Literal["tool", "reasoning"] = Field(default="tool", validate_default=True)
+    #: How this step executes (ADR-0035 update 2026-09-19; ADR-0051).  A
+    #: ``tool`` step names at least one tool in :attr:`suggested_tools` and
+    #: runs through the picker/caller; a ``reasoning`` step names none and is
+    #: handled by the ``ReasoningNode``, its conclusion recorded as a
+    #: :class:`StepOutput`; a ``review`` step is a human checkpoint -- its
+    #: "execution" is the user's approve/revise decision at that point in the
+    #: plan (whole-plan review is a ``review`` step with no ``depends_on``;
+    #: "review after step N" is a ``review`` step depending on ``N``).  It
+    #: names no tools and is not judged by the Evaluator.
+    kind: Literal["tool", "reasoning", "review"] = Field(
+        default="tool", validate_default=True
+    )
     suggested_tools: list[str] = Field(default_factory=list)
     depends_on: list[int] = []
     status: Literal["pending", "done", "skipped", "failed"] = Field(
@@ -104,7 +109,9 @@ class StepSchema(BaseModel):
                 f"(depends on: {depends})"
             )
         criteria = self.success_criteria or "(none)"
-        if self.kind == "reasoning":
+        if self.kind == "review":
+            detail = f"{self.description} (kind: review; depends on: {depends})"
+        elif self.kind == "reasoning":
             detail = (
                 f"{self.description} (success criteria: {criteria}; "
                 f"kind: reasoning; depends on: {depends})"
@@ -128,20 +135,21 @@ class PlannerPlanSchema(BaseModel):
     step_list: list[StepSchema] = Field(default_factory=list)
     #: The statuses the Planner may set:
     #:
-    #: * ``in_progress`` -- run the plan (default);
-    #: * ``in_review`` -- the plan should be reviewed before it runs;
+    #: * ``in_progress`` -- run the plan (default).  A plan that needs human
+    #:   review carries a ``review`` step at the relevant position instead of
+    #:   a special status (ADR-0051);
     #: * ``needs_input`` -- cannot finalise a plan without a missing fact from
-    #:   the user; the question is carried in the Planner's ``reason`` and may
-    #:   be accompanied by a partial plan;
+    #:   the user; the questions are carried on the blocked step(s) and the
+    #:   run pauses to ask;
     #: * ``no_plan_required`` -- no execution steps are needed: the goal is
     #:   already satisfiable from the available information (for example the
     #:   session ``artefacts``).  A success, distinct from ``unplannable`` (the
     #:   goal cannot be met); the answer-composer writes the reply.  The Planner
     #:   still sets the goal.
     #: * ``unplannable`` -- no workable plan with the available tools.
-    status: Literal[
-        "in_progress", "in_review", "needs_input", "no_plan_required", "unplannable"
-    ] = Field(default="in_progress", validate_default=True)
+    status: Literal["in_progress", "needs_input", "no_plan_required", "unplannable"] = (
+        Field(default="in_progress", validate_default=True)
+    )
 
     def render(
         self, *, markdown: bool = False, current_numbers: set[int] | None = None
@@ -218,6 +226,23 @@ class PlannerPlanSchema(BaseModel):
             if s.status == "pending" and all(dep in resolved for dep in s.depends_on)
         ]
         return runnable[:max_steps] if max_steps is not None else runnable
+
+    def review_frontier(self) -> list[StepSchema]:
+        """Return the pending ``review`` steps at the head of the frontier.
+
+        A ``review`` step is a human checkpoint (ADR-0051): its "execution" is
+        the user's approve/revise decision.  Because ``next_batch`` returns the
+        maximal same-kind prefix of the frontier, the review steps at the head
+        form their own batch; this returns them so routing can pause and the
+        checkpoint can be resolved.  Returns ``[]`` when the frontier head is
+        not a review step.
+
+        :returns: The pending review steps at the frontier head, in order.
+        """
+        frontier = self.frontier()
+        if not frontier or frontier[0].kind != "review":
+            return []
+        return [step for step in frontier if step.kind == "review"]
 
     def next_batch(self, max_steps: int | None = None) -> list[StepSchema]:
         """Return the maximal same-kind prefix of the frontier (ADR-0041).
@@ -312,7 +337,6 @@ class PlanSchema(PlannerPlanSchema):
 
     status: Literal[
         "not_started",
-        "in_review",
         "in_progress",
         "needs_input",
         "no_plan_required",
