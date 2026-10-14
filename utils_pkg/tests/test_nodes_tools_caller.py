@@ -30,6 +30,7 @@ class MiniState(BaseModel):
     access_level: str = "full"
     allowed_dirs: list[str] = Field(default_factory=list)
     allowed_files: list[str] = Field(default_factory=list)
+    project_root: str = ""
 
 
 class FakeMCPClient:
@@ -193,6 +194,34 @@ async def test_denies_path_arg_without_server_call(tmp_path):
     assert result.is_error
     assert "denied" in str(result.content)
     assert client.calls == []
+
+
+async def test_state_project_root_overrides_node_default(tmp_path):
+    """``state.project_root`` is the boundary; the node's ``project_root`` is a fallback."""
+    root_a = tmp_path / "a"
+    root_a.mkdir()
+    root_b = tmp_path / "b"
+    root_b.mkdir()
+    inside_b = root_b / "file.txt"
+    inside_b.touch()
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        project_root=str(root_a),  # node default, must lose to the state value
+    )
+    _record_stream(node, [])
+
+    state = MiniState(
+        project_root=str(root_b),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(inside_b)})],
+    )
+    updates = await node.execute(state)
+
+    # Inside the state root -> allowed, even though it is outside the node default.
+    assert updates["tool_results"][0].is_error is False
+    assert client.calls == [("list_files", {"path": str(inside_b)})]
 
 
 def _approve(directory: str, decision: Literal["once", "session", "deny"] = "session"):

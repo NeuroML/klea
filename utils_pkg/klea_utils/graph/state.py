@@ -64,3 +64,9 @@ class BaseGraphSchema(BaseModel):
     #: Sensitive files (inside the permitted roots) the user approved for this
     #: session.  File-granularity companion to ``allowed_dirs``.
     allowed_files: list[str] = Field(default_factory=list)
+    #: Session project root: the directory the file tools operate in and the
+    #: default path-permission boundary.  Set by the ``/cwd`` session command
+    #: (ADR-0047); empty means the server process working directory.  Session-
+    #: scoped (kept in the thread checkpoint), so app init nodes must not reset
+    #: it.
+    project_root: str = ""

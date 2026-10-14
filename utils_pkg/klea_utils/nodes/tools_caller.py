@@ -156,7 +156,7 @@ class ToolsCallerNode(
             self._mcp_client,
             tool_calls,
             self._tool_infos,
-            self._project_root,
+            getattr(state, "project_root", "") or self._project_root,
             access_level=access_level,
             allowed_dirs=allowed_dirs,
             allowed_files=allowed_files,
