@@ -4,7 +4,7 @@ Agent operating-mode selector for the Textual TUI (ADR-0030).
 
 The agent-specific mode control that slots into the shared status panel via
 :attr:`TuiContext.status_extras` (ADR-0031/ADR-0050): a compact one-line
-display of the active mode and the ``/mode`` command (the graph's command node
+display of the active mode (the graph's command node
 changes the checkpointed mode).  The resolved mode streamed back as a
 ``context`` event re-renders the line, so the active mode stays current (the
 status panel refreshes its slots on a ``context`` change).
@@ -48,7 +48,7 @@ def current_mode(ctx: TuiContext) -> str:
 
 
 class ModeSelector(Static):
-    """A compact one-line display of the active mode and the ``/mode`` command."""
+    """A compact one-line display of the active mode."""
 
     def __init__(self, ctx: TuiContext, *, id: str | None = None) -> None:
         """Build the selector for *ctx*.
@@ -61,7 +61,7 @@ class ModeSelector(Static):
 
     def on_mount(self) -> None:
         """Render the active mode line."""
-        self.update(f"Mode: {MODES[current_mode(self._ctx)][0]}  (/mode)")
+        self.update(f"Mode: {MODES[current_mode(self._ctx)][0]}")
 
 
 def mode_status_extra(ctx: TuiContext) -> ModeSelector:

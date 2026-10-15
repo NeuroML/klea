@@ -4,7 +4,7 @@ Agent tool-access-level selector for the Textual TUI (ADR-0037).
 
 The agent-specific access control that slots into the shared status panel via
 :attr:`TuiContext.status_extras` (ADR-0031/ADR-0050): a compact one-line
-display of the active access level and the ``/access`` command (the graph's
+display of the active access level (the graph's
 command node changes the checkpointed access level).  The effective level
 streamed back as a ``context`` event re-renders the line, so the active level
 stays current (the status panel refreshes its slots on a ``context`` change).
@@ -48,7 +48,7 @@ def current_access_level(ctx: TuiContext) -> str:
 
 
 class AccessSelector(Static):
-    """A compact one-line display of the active access level and ``/access``."""
+    """A compact one-line display of the active access level."""
 
     def __init__(self, ctx: TuiContext, *, id: str | None = None) -> None:
         """Build the selector for *ctx*.
@@ -62,7 +62,7 @@ class AccessSelector(Static):
     def on_mount(self) -> None:
         """Render the active access-level line."""
         label = ACCESS_LEVELS[current_access_level(self._ctx)][0]
-        self.update(f"Access: {label}  (/access)")
+        self.update(f"Access: {label}")
 
 
 def access_status_extra(ctx: TuiContext) -> AccessSelector:
