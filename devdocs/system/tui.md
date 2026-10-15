@@ -207,11 +207,11 @@ builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
 renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
 streamed state, so a state refresh never disturbs them, and rebuilds them on a
 `context` change (so a control follows the checkpointed state).  The agent's
-`mode_ui.ModeSelector` is a compact one-line display of the active mode and the
-`/mode` command, with no buttons.  A control that must run a query posts a
-shared `SubmitQuery` message (`ui/tui/events.py`), which the app routes through
-`submit` (commands and the setup gating still apply); the agent's
-`access_ui.AccessSelector` dispatches `/access <value>` this way.
+`mode_ui.ModeSelector` and `access_ui.AccessSelector` are compact one-line
+displays of the active mode / access level and the `/mode` / `/access`
+commands, with no buttons.  A control that must run a query posts a shared
+`SubmitQuery` message (`ui/tui/events.py`), which the app routes through
+`submit` (commands and the setup gating still apply).
 
 ## Rendering and non-goals
 
