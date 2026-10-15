@@ -171,6 +171,20 @@ class TestHandleCommand:
         result = handle_command("/help", None)
         assert result is not None and "not loaded" in result.error
 
+    def test_exit_calls_the_service_hook(self):
+        calls: list[str] = []
+        result = handle_command(
+            "/exit",
+            build_catalogue([]),
+            services={"exit_app": lambda: calls.append("exit")},
+        )
+        assert calls == ["exit"]
+        assert result is not None and result.error == ""
+
+    def test_exit_without_the_hook_fails(self):
+        result = handle_command("/exit", build_catalogue([]))
+        assert result is not None and "not supported" in result.error
+
 
 class TestCommandSuggestions:
     """The ``/``-autocomplete matcher."""

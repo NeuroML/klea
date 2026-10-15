@@ -42,6 +42,7 @@ from klea_utils.commands.common import (
     unescape_command,
 )
 from klea_utils.ui.tui.components.commands import (
+    EXIT_APP_SERVICE,
     OPEN_MODELS_SERVICE,
     OPEN_SESSIONS_SERVICE,
     TUI_CAPABILITIES,
@@ -489,6 +490,7 @@ class KleaTuiApp(App[None]):
                 services={
                     OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
                     OPEN_MODELS_SERVICE: self._open_models_hook,
+                    EXIT_APP_SERVICE: self._exit_hook,
                 },
             )
             if result is not None:
@@ -531,6 +533,17 @@ class KleaTuiApp(App[None]):
     def _open_models_hook(self) -> None:
         """Command-service hook for ``/model`` (schedules the dialog)."""
         self.run_worker(self.action_open_models())
+
+    def _exit_hook(self) -> None:
+        """Command-service hook for ``/exit`` (stop the run, then quit)."""
+        self.run_worker(self._exit_after_stop())
+
+    async def _exit_after_stop(self) -> None:
+        """Stop the active run (if any), then quit the application."""
+        logger.debug(f"exit requested: {self.ctx.chat_id = } {self._streaming = }")
+        if self._streaming:
+            await self.action_stop()
+        self.exit()
 
     async def _render_command_result(self, result: CommandResult) -> None:
         """Render a client command's result as a ``system`` transcript message.

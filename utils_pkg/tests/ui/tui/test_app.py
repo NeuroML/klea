@@ -401,6 +401,48 @@ async def test_open_sessions_blocked_while_streaming(
         await pilot.pause()
 
 
+async def test_exit_command_quits(fake_backend, make_app, monkeypatch):
+    """A client ``/exit`` quits the application."""
+    exited: list[bool] = []
+    app = make_app(chat_id="c1")
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await _submit(pilot, app, "/exit")
+        await _settle(pilot, app)
+    assert exited == [True]
+
+
+async def test_exit_command_stops_run_then_quits(fake_backend, make_app, monkeypatch):
+    """``/exit`` while streaming stops the run, then quits."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    cancelled: list[str] = []
+
+    async def _fake_cancel(server_url, chat_id, user_id=""):
+        cancelled.append(chat_id)
+
+    monkeypatch.setattr("klea_utils.api.sse.request_cancel", _fake_cancel)
+
+    exited: list[bool] = []
+    app = make_app(chat_id="c1")
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        assert app._streaming
+        await _submit(pilot, app, "/exit")
+        await _settle(pilot, app)
+    assert cancelled == ["c1"]
+    assert exited == [True]
+
+
 async def test_toggle_inspector_view(fake_backend, make_app):
     """Ctrl+I toggles the chat panel to the inspector with query sections."""
     fake_backend.scripts = [

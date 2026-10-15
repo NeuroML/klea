@@ -56,6 +56,11 @@ OPEN_SESSIONS_SERVICE = "open_sessions"
 #: dialog (used by ``/model``).  The app registers a no-argument callable.
 OPEN_MODELS_SERVICE = "open_models"
 
+#: ``CommandContext.services`` key for the app hook that quits the application
+#: (used by ``/exit``).  The app registers a no-argument callable that stops
+#: any active run, then exits.
+EXIT_APP_SERVICE = "exit_app"
+
 
 def client_commands() -> CommandRegistry:
     """Return the TUI's own client-side commands (ADR-0047).
@@ -88,6 +93,15 @@ def client_commands() -> CommandRegistry:
             side="client",
             while_streaming="block",
             handler=_handle_models,
+        )
+    )
+    registry.register(
+        Command(
+            name="exit",
+            summary="Quit the application",
+            side="client",
+            while_streaming="allow",
+            handler=_handle_exit,
         )
     )
     return registry
@@ -139,6 +153,20 @@ def _handle_models(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     if open_models is None:
         return CommandResult.fail("The model dialog is not available.")
     open_models()
+    return CommandResult.ok()
+
+
+def _handle_exit(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Quit the application via the app-provided hook.
+
+    Like ``/sessions``, the handler renders nothing: quitting is the effect.
+    The hook is registered under :data:`EXIT_APP_SERVICE` (it stops any active
+    run, then exits).
+    """
+    exit_app = context.service(EXIT_APP_SERVICE)
+    if exit_app is None:
+        return CommandResult.fail("Quitting is not supported here.")
+    exit_app()
     return CommandResult.ok()
 
 
