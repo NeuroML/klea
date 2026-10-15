@@ -334,9 +334,10 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_prompt_permission</span><span class="p">(</span><span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">app_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Prompt for a path-permission ask, one decision per request.</span>
 
-<span class="sd">    Each request is shown as an outside-project directory or a sensitive file;</span>
-<span class="sd">    the user chooses once / session / deny, or cancels the whole ask.</span>
-<span class="sd">    ``(None, True)`` means cancel.</span>
+<span class="sd">    Each request is shown as an outside-project directory or a sensitive file</span>
+<span class="sd">    with the tool call behind it; the user chooses once / session / deny, or</span>
+<span class="sd">    cancels the whole ask.  A guessed (heuristic) value also offers</span>
+<span class="sd">    ``not a path`` to dismiss it.  ``(None, True)`` means cancel.</span>
 
 <span class="sd">    :param ask: The permission interrupt ``data`` (``requests``).</span>
 <span class="sd">    :param app_prefix: Prefix for the input prompts.</span>
@@ -356,12 +357,20 @@
             <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span>
             <span class="k">else</span> <span class="sa">f</span><span class="s2">"outside project </span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
+        <span class="n">tool</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tool"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="n">argument</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"argument"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tool</span> <span class="ow">or</span> <span class="n">argument</span><span class="p">:</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> [</span><span class="si">{</span><span class="n">tool</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">argument</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">raw</span><span class="si">}</span><span class="s2">]"</span>
+        <span class="c1"># "Not a path" is offered only for a guessed (heuristic) value.</span>
+        <span class="n">guess</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"confidence"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"guess"</span>
+        <span class="n">options</span> <span class="o">=</span> <span class="s2">"[o]nce / [s]ession / "</span>
+        <span class="k">if</span> <span class="n">guess</span><span class="p">:</span>
+            <span class="n">options</span> <span class="o">+=</span> <span class="s2">"[n]ot a path / "</span>
+        <span class="n">options</span> <span class="o">+=</span> <span class="s2">"[d]eny / [c]ancel"</span>
         <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
             <span class="n">choice</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="nb">input</span><span class="p">(</span>
-                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (PERMISSION) </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: "</span>
-                    <span class="s2">"[o]nce / [s]ession / [d]eny / [c]ancel &gt;&gt;&gt; "</span>
-                <span class="p">)</span>
+                <span class="nb">input</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">app_prefix</span><span class="si">}</span><span class="s2"> (PERMISSION) </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">options</span><span class="si">}</span><span class="s2"> &gt;&gt;&gt; "</span><span class="p">)</span>
                 <span class="o">.</span><span class="n">strip</span><span class="p">()</span>
                 <span class="o">.</span><span class="n">lower</span><span class="p">()</span>
             <span class="p">)</span>
@@ -369,12 +378,15 @@
                 <span class="n">decision</span> <span class="o">=</span> <span class="s2">"once"</span>
             <span class="k">elif</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"s"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">):</span>
                 <span class="n">decision</span> <span class="o">=</span> <span class="s2">"session"</span>
+            <span class="k">elif</span> <span class="n">guess</span> <span class="ow">and</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"n"</span><span class="p">,</span> <span class="s2">"not a path"</span><span class="p">):</span>
+                <span class="n">decision</span> <span class="o">=</span> <span class="s2">"not_a_path"</span>
             <span class="k">elif</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"d"</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">):</span>
                 <span class="n">decision</span> <span class="o">=</span> <span class="s2">"deny"</span>
             <span class="k">elif</span> <span class="n">choice</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"c"</span><span class="p">,</span> <span class="s2">"cancel"</span><span class="p">):</span>
                 <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s2">"Please choose o, s, d, or c."</span><span class="p">)</span>
+                <span class="n">extra</span> <span class="o">=</span> <span class="s2">"n, "</span> <span class="k">if</span> <span class="n">guess</span> <span class="k">else</span> <span class="s2">""</span>
+                <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Please choose o, s, </span><span class="si">{</span><span class="n">extra</span><span class="si">}</span><span class="s2">d, or c."</span><span class="p">)</span>
                 <span class="k">continue</span>
             <span class="n">decisions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"key"</span><span class="p">:</span> <span class="n">target</span><span class="p">,</span> <span class="s2">"decision"</span><span class="p">:</span> <span class="n">decision</span><span class="p">})</span>
             <span class="k">break</span>

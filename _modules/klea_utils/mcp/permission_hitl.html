@@ -340,8 +340,10 @@
 <span class="p">)</span>
 
 <span class="c1">#: A per-path decision: allow for this dispatch only, allow for the session</span>
-<span class="c1">#: (persisted in ``allowed_dirs``), or deny.</span>
-<span class="n">Decision</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"once"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">]</span>
+<span class="c1">#: (persisted in ``allowed_dirs``), deny, or dismiss the request as "not a</span>
+<span class="c1">#: path" (a heuristic false positive; the call proceeds for this dispatch and</span>
+<span class="c1">#: nothing is remembered).</span>
+<span class="n">Decision</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"once"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">,</span> <span class="s2">"not_a_path"</span><span class="p">]</span>
 
 
 <div class="viewcode-block" id="PathDecision">
@@ -352,7 +354,8 @@
 <span class="sd">    ``key`` matches a request's :attr:`~klea_utils.mcp.path_detect.PathRequest.approval_key`</span>
 <span class="sd">    (the directory for an ``outside`` request, the file for a ``sensitive``</span>
 <span class="sd">    one); ``decision`` is ``once`` (this dispatch), ``session`` (also</span>
-<span class="sd">    persisted for the thread), or ``deny``.</span>
+<span class="sd">    persisted for the thread), ``deny``, or ``not_a_path`` (dismiss a guessed</span>
+<span class="sd">    false positive for this dispatch; the call proceeds).</span>
 <span class="sd">    """</span>
 
     <span class="n">key</span><span class="p">:</span> <span class="nb">str</span>
@@ -383,12 +386,16 @@
 <span class="sd">    Fields hold approval keys (a directory for an ``outside`` request, a file</span>
 <span class="sd">    for a ``sensitive`` one).  :attr:`allowed_now` is allowed for this</span>
 <span class="sd">    dispatch only; :attr:`allowed_session` is also persisted for the thread;</span>
-<span class="sd">    :attr:`denied` is refused (the gate turns each into a non-halting denial).</span>
+<span class="sd">    :attr:`denied` is refused (the gate turns each into a non-halting denial);</span>
+<span class="sd">    :attr:`not_a_path` is dismissed for **this dispatch only** -- the request</span>
+<span class="sd">    was a heuristic false positive (the user is not approving it), so the call</span>
+<span class="sd">    proceeds without gating it, and no memory is kept.</span>
 <span class="sd">    """</span>
 
     <span class="n">allowed_now</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">allowed_session</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
     <span class="n">denied</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">not_a_path</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PermissionResolution.effective_keys">
 <a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.permission_hitl.PermissionResolution.effective_keys">[docs]</a>
@@ -475,6 +482,8 @@
             <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="k">elif</span> <span class="n">decision</span> <span class="o">==</span> <span class="s2">"once"</span><span class="p">:</span>
             <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_now</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">decision</span> <span class="o">==</span> <span class="s2">"not_a_path"</span><span class="p">:</span>
+            <span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">resolution</span><span class="o">.</span><span class="n">denied</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Resolved permission ask</span><span class="se">\n</span><span class="si">{</span><span class="n">resolution</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>

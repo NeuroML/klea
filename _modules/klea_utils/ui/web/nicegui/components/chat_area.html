@@ -499,6 +499,38 @@
     <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"directory"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_permission_hint</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the tool-call context for a request (tool, argument, value).</span>
+
+<span class="sd">    Gives the user the tool call behind the ask so they can judge it.  Includes</span>
+<span class="sd">    the confidence tier: a ``guess`` is a heuristic path-like value (e.g. a</span>
+<span class="sd">    regex fragment), which is also the only tier offered the "Not a path"</span>
+<span class="sd">    choice.</span>
+<span class="sd">    """</span>
+    <span class="n">tool</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tool"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="n">argument</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"argument"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="n">confidence</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"confidence"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+    <span class="n">detail</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">argument</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">raw</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">confidence</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">tool</span> <span class="ow">or</span> <span class="n">argument</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="s2">"Commonly holds credentials."</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">detail</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">detail</span> <span class="k">else</span> <span class="n">note</span>
+    <span class="k">return</span> <span class="n">detail</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_permission_options</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the per-request decision options.</span>
+
+<span class="sd">    The "Not a path" dismissal is offered only for a ``guess``-tier request,</span>
+<span class="sd">    where the gate may have mistaken a non-path value for a path.</span>
+<span class="sd">    """</span>
+    <span class="n">options</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"once"</span><span class="p">:</span> <span class="s2">"Once"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">:</span> <span class="s2">"Session"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"confidence"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"guess"</span><span class="p">:</span>
+        <span class="n">options</span><span class="p">[</span><span class="s2">"not_a_path"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Not a path"</span>
+    <span class="n">options</span><span class="p">[</span><span class="s2">"deny"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Deny"</span>
+    <span class="k">return</span> <span class="n">options</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_render_permission_form</span><span class="p">(</span>
     <span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">interrupt_id</span><span class="p">:</span> <span class="n">Any</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -535,12 +567,9 @@
                     <span class="k">continue</span>
                 <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
                     <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Sensitive file: </span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'path'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-                    <span class="n">hint</span> <span class="o">=</span> <span class="s2">"Commonly holds credentials."</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Outside project: </span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'directory'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
-                    <span class="n">hint</span> <span class="o">=</span> <span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'tool'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'confidence'</span><span class="p">,</span><span class="w"> </span><span class="s1">''</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span>
-                    <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">hint</span> <span class="o">=</span> <span class="n">_permission_hint</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
                 <span class="n">key</span> <span class="o">=</span> <span class="n">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
 
                 <span class="k">def</span><span class="w"> </span><span class="nf">_set</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">k</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">key</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
@@ -549,12 +578,12 @@
 
                 <span class="n">choice_buttons</span><span class="p">(</span>
                     <span class="n">title</span><span class="p">,</span>
-                    <span class="p">{</span><span class="s2">"once"</span><span class="p">:</span> <span class="s2">"Once"</span><span class="p">,</span> <span class="s2">"session"</span><span class="p">:</span> <span class="s2">"Session"</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"Deny"</span><span class="p">},</span>
+                    <span class="n">_permission_options</span><span class="p">(</span><span class="n">request</span><span class="p">),</span>
                     <span class="n">decisions</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">"deny"</span><span class="p">),</span>
                     <span class="n">_set</span><span class="p">,</span>
-                    <span class="n">colors</span><span class="o">=</span><span class="p">{</span><span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"red-5"</span><span class="p">},</span>
+                    <span class="n">colors</span><span class="o">=</span><span class="p">{</span><span class="s2">"deny"</span><span class="p">:</span> <span class="s2">"red-5"</span><span class="p">,</span> <span class="s2">"not_a_path"</span><span class="p">:</span> <span class="s2">"grey-7"</span><span class="p">},</span>
                     <span class="n">label_width</span><span class="o">=</span><span class="s2">"20ch"</span><span class="p">,</span>
-                    <span class="n">group_width</span><span class="o">=</span><span class="s2">"12rem"</span><span class="p">,</span>
+                    <span class="n">group_width</span><span class="o">=</span><span class="s2">"16rem"</span><span class="p">,</span>
                 <span class="p">)</span>
                 <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
