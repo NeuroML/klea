@@ -67,6 +67,35 @@ The TUI stores it on the chat and rebuilds the status-panel app slots on a
 `context` change (`StatusPanel.set_state(refresh_extras=True)`), and its
 mode/access selectors read the resolved value from the chat's context.
 
+## Persistence and hydration (ADR-0032 update)
+
+A reloaded chat must match the live session, so the UI-visible outputs are
+persisted server-side and rehydrated on load:
+
+* **Transcript** - `sessions_db.messages`: the `user`/`assistant` turns
+  written by `chat_core`, plus one `tool` row per chat-renderable tool entry
+  (`role="tool"`, `content` = the display fallback, rendering keys
+  `header`/`mime`/`data`/`meta`/`is_error` in the row's `metadata`).
+  Hydrated via `GET /chat/{user_id}/{chat_id}/messages`;
+  `server_message_to_data` rebuilds the frontend message shape.
+* **Inspection/status panes** - `sessions_db.chat_events`:
+  `chat_core.stream_response` persists the pane events (`inspect`, `state`)
+  plus a leading per-turn `query` marker (only on a new turn), flushed when
+  the run ends.  `GET /chat/{user_id}/{chat_id}/events` returns them, and the
+  frontends replay them through the shared reducer
+  (`ui/stream_events.py:replay_chat_events`): a `query` event opens a new
+  inspector section (the live marker), the rest reduce exactly as live.
+* **Session context and token totals** - checkpointed state, projected by
+  `GET /chat/{user_id}/{chat_id}/context`: the app `context_snapshot` hook
+  plus the cumulative `usage_metrics` (the frontends seed `token_usage` from
+  it).  `usage` events are therefore **not** stored: they are a projection of
+  checkpointed state (same reasoning as `context`; see ADR-0032).
+
+Only these UI-relevant events are persisted; `progress`/`ping`/`token` are
+transient, and `complete`/`tool`/`interrupt` are covered by the transcript.
+Deleting a chat (or all of a user's chats) purges both `messages` and
+`chat_events`.
+
 ### `progress`
 
 `node` is the emitting node's label and is the stable identity the runner

@@ -22,10 +22,10 @@ docs-as-code form; renders on GitHub).  These are documentation of the
 panel or distributed tracing.
 
 Every app is assembled by `make_app` (`klea_utils/api/app.py`) from the shared
-routers (`health`, `sessions`, `messages`, `context`, `models`, `credentials`)
-plus the app's own chat router (`klea_utils/api/chat_core.py` plumbing).  The
-app port differs (`klea_rag` :8005, `klea_agent` :8006) but the paths below are
-identical across apps.
+routers (`health`, `sessions`, `messages`, `events`, `context`, `models`,
+`credentials`) plus the app's own chat router
+(`klea_utils/api/chat_core.py` plumbing).  The app port differs (`klea_rag`
+:8005, `klea_agent` :8006) but the paths below are identical across apps.
 
 ## Shared framing (both apps)
 
@@ -61,8 +61,10 @@ sequenceDiagram
     API-->>UI: chat list
     UI->>API: GET /chat/{user_id}/{chat_id}/messages
     API-->>UI: message history
+    UI->>API: GET /chat/{user_id}/{chat_id}/events
+    API-->>UI: stored UI events (pane hydration)
     UI->>API: GET /chat/{user_id}/{chat_id}/context
-    API-->>UI: session context projection
+    API-->>UI: session context + usage projection
     UI->>API: GET /chat/{user_id}/{chat_id}/models/active
     API-->>UI: resolved model per role
 
@@ -266,6 +268,12 @@ Notes:
   input so the failed node re-runs from its checkpoint (no user turn written).
 * **Stopping an active run**: `POST /query/cancel` (idempotent, 204) cancels
   the asyncio task; the checkpoint stays resumable.
+* **Hydration**: the transcript comes from `/messages`
+  (`user`/`assistant`/`tool` rows); the inspection/status panes from `/events`
+  (the stored `inspect`/`state` events plus a per-turn `query` marker,
+  replayed through the shared reducer); and the session context plus the
+  cumulative token totals from `/context`.  See `streams.md` ("Persistence
+  and hydration") and the ADR-0032 update.
 
 ## Per-app deltas
 
@@ -293,4 +301,4 @@ Notes:
   `agent_pkg/klea_agent/api/chat.py` (ADR-0031).
 * Session context: `agent_pkg/klea_agent/klea_agent.py` `context_snapshot`;
   ADR-0032.
-* Routers: `klea_utils/api/{health,sessions,messages,context,models,credentials}.py`.
+* Routers: `klea_utils/api/{health,sessions,messages,events,context,models,credentials}.py`.

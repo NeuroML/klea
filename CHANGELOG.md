@@ -48,6 +48,7 @@
 - Web UI: `klea web` / `klea-rag web` open in the default browser once ready (disable with `--no-open`) and accept `--resume <chat_id>` / `--continue` to open a specific or the most recently updated session on load, matching the TUI.
 - `/exit` session command in the web UI and TUI: it stops any active run and then exits (the TUI equivalent of `Ctrl+Q`; the web frontend also stops the server it launched and closes the tab on a best-effort basis). The web header also gains an exit button, which confirms before exiting.
 - The tool path-permission ask now shows the tool call (`tool: argument = value (confidence)`) and, for a heuristically guessed value, offers a **Not a path** dismissal that lets the call proceed without approving it (ADR-0007 update 2026-10-14).
+- Web UI and TUI: reloading a chat now restores the full session, not only the user/assistant transcript -- the inspection and status panes and the chat's tool/diff blocks are persisted and replayed on load, and the session's cumulative token totals are restored from the checkpoint (ADR-0032 update).
 
 ### Changed
 
