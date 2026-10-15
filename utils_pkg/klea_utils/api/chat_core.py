@@ -36,6 +36,7 @@ import json
 import logging
 import traceback
 from collections.abc import AsyncGenerator, AsyncIterator, Callable, Mapping
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -94,6 +95,14 @@ def _command_persist_mode(graph: Any, query: str | None) -> bool | None:
 #: in ``sse.py``) and intermediary proxies drop the stream.  15 s is well below
 #: both.
 HEARTBEAT_INTERVAL_SECONDS = 15.0
+
+#: Event types persisted per chat for hydration (ADR-0032 update): the pane
+#: events the frontends replay to rebuild the inspection/status panes on load.
+#: The transcript is hydrated from ``messages`` (``complete``/``tool`` are
+#: stored there); ``context`` and ``usage`` are checkpointed state with their
+#: own projection endpoints (``GET .../context``); ``progress``/``ping`` are
+#: transient.
+_HYDRATION_EVENT_TYPES = frozenset({"inspect", "state"})
 
 
 def _tool_event_messages(event: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -496,6 +505,18 @@ async def stream_response(
         task = asyncio.current_task()
         if task is not None:
             registry.register(thread_id, task)
+        # Pane events persisted for hydration (ADR-0032 update); a new turn
+        # opens a per-query section with a ``query`` marker, mirroring the
+        # frontend's live marker.  Flushed once the run ends (or is cancelled).
+        pane_events: list[dict[str, Any]] = []
+        if user_turn:
+            pane_events.append(
+                {
+                    "type": "query",
+                    "text": user_turn,
+                    "stamp": datetime.now().astimezone().strftime("%X"),
+                }
+            )
         try:
             raw_events = graph.run_graph_astream_events(
                 graph_input,
@@ -552,6 +573,10 @@ async def stream_response(
                             rows = _tool_event_messages(event)
                             if rows:
                                 store.add_messages(user_id, chat_id, rows)
+                    if t in _HYDRATION_EVENT_TYPES:
+                        # Pane event: persisted so the inspector/status panes
+                        # survive a reload (flushed in ``finally``).
+                        pane_events.append(event)
                     yield f"data: {json.dumps(event)}\n\n"
         except EmptyInputError as e:
             logger.warning(
@@ -570,6 +595,11 @@ async def stream_response(
             yield _error_frame(str(e), type(e).__name__, resumable=True)
         finally:
             registry.clear(thread_id)
+            if pane_events:
+                try:
+                    store.add_chat_events(user_id, chat_id, pane_events)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("failed to persist UI events: %s", e)
 
     return StreamingResponse(
         event_stream(),

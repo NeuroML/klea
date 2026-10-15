@@ -331,6 +331,74 @@ class TestStreamResponseToolBlocks:
         assert store.get_messages("u", "c") == []
 
 
+class TestStreamResponseEventPersistence:
+    """The pane events are persisted per chat for hydration (ADR-0032 update)."""
+
+    async def _collect(self, response):
+        return [c async for c in response.body_iterator]
+
+    async def test_persists_query_marker_and_pane_events_only(self, store, graph):
+        """A new turn stores a query marker then the pane events; others skip."""
+
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            yield {"type": "progress", "node": "Plan", "data": {"heading": "Plan"}}
+            yield {"type": "inspect", "node": "Plan", "data": {"summary": "s"}}
+            yield {"type": "state", "node": "Plan", "data": {"key": "plan"}}
+            # usage/progress are transient or checkpoint-projected, and
+            # tool/complete are stored as transcript rows: none belong here.
+            yield {"type": "usage", "data": {"details": {"total_tokens": 3}}}
+            yield {"type": "tool", "data": {"tools": [{"display": "diff"}]}}
+            yield {"type": "complete", "message_for_user": "done"}
+
+        graph.run_graph_astream_events = _stream
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="hello", user_id="u", chat_id="c"
+        )
+        await self._collect(response)
+
+        events = store.get_chat_events("u", "c")
+        assert [e["type"] for e in events] == ["query", "inspect", "state"]
+        marker = events[0]
+        assert marker["text"] == "hello"
+        assert marker["stamp"]  # HH:MM:SS
+
+    async def test_resume_writes_no_marker(self, store, graph):
+        """A resume/answer run continues the section: no new marker."""
+
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            yield {"type": "inspect", "node": "Plan", "data": {"summary": "s"}}
+            yield {"type": "complete", "message_for_user": "done"}
+
+        graph.run_graph_astream_events = _stream
+        response = await chat_core.stream_response(
+            _make_request(store, graph), user_id="u", chat_id="c", resume=True
+        )
+        await self._collect(response)
+
+        assert [e["type"] for e in store.get_chat_events("u", "c")] == ["inspect"]
+
+    async def test_events_persisted_even_when_the_run_errors(self, store, graph):
+        """An error mid-run still flushes the pane events collected so far."""
+        seen = {"emitted": False}
+
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            seen["emitted"] = True
+            yield {"type": "inspect", "node": "Plan", "data": {"summary": "s"}}
+            raise RuntimeError("boom")
+
+        graph.run_graph_astream_events = _stream
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="hi", user_id="u", chat_id="c"
+        )
+        await self._collect(response)
+
+        # The marker (new turn) and the inspect event before the failure.
+        assert [e["type"] for e in store.get_chat_events("u", "c")] == [
+            "query",
+            "inspect",
+        ]
+
+
 class TestStreamResponseHeartbeat:
     """``stream_response`` keeps the SSE connection warm with ``ping`` frames."""
 
