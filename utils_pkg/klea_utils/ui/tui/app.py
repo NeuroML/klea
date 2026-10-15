@@ -79,13 +79,13 @@ _CSS = """
 #chat-panel {
     width: 2fr;
     height: 100%;
-    border: round $primary;
+    background: $surface;
     padding: 0 1;
 }
 #status-panel {
     width: 1fr;
     height: 100%;
-    border: round $primary;
+    background: $panel;
     padding: 0 1;
 }
 #chat-title {
@@ -94,14 +94,12 @@ _CSS = """
 }
 #transcript {
     height: 1fr;
-    border: solid $panel;
 }
 #view-toggle {
     height: 1;
 }
 #inspector {
     height: 1fr;
-    border: solid $panel;
 }
 #key-hints {
     height: 1;

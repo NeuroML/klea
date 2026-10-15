@@ -64,6 +64,8 @@ web page's chat column plus its right drawer:
 
 Because the status panel spans the full height, there is no separate
 full-width header or footer bar; the title/keys live inside the chat panel.
+The two panels are distinguished by slightly different background colours
+rather than border lines.
 
 ```
 +---------------------------------------------+----------------------+
