@@ -272,6 +272,23 @@ async def test_model_command_opens_the_model_dialog(fake_backend, agent_user):
     await agent_user.should_see("Manage API keys", retries=50)
 
 
+def test_exit_handler_calls_the_hook_silently():
+    """``/exit`` invokes the hook and produces no output (ADR-0047)."""
+    calls: list[str] = []
+    context = CommandContext(services={"exit_app": lambda: calls.append("exit")})
+    result = client_commands().dispatch(ParsedCommand(name="exit"), context)
+    assert calls == ["exit"]
+    assert result.output == []
+    assert result.error == ""
+    assert result.notice == ""
+
+
+def test_exit_without_the_hook_fails_cleanly():
+    """``/exit`` with no hook is reported, not raised."""
+    result = client_commands().dispatch(ParsedCommand(name="exit"), CommandContext())
+    assert "not supported" in result.error
+
+
 def test_export_handler_requires_an_active_chat():
     """``/export`` with no active session is an error."""
     result = client_commands().dispatch(

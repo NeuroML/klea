@@ -13,6 +13,44 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from klea_utils.ui.web.nicegui.components import header
+from nicegui import ui
+from nicegui.testing.user_interaction import UserInteraction
+
+
+def _buttons_with(user, predicate) -> list:
+    return [button for button in user.find(ui.button).elements if predicate(button)]
+
+
+def _power_button(user) -> list:
+    return _buttons_with(
+        user, lambda b: "power_settings_new" in str(getattr(b, "_props", ""))
+    )
+
+
+def _exit_button(user) -> list:
+    return _buttons_with(user, lambda b: getattr(b, "text", "") == "Exit")
+
+
+async def _wait_for(predicate, retries: int = 50, delay: float = 0.05) -> bool:
+    """Poll *predicate* until it is true (or give up after *retries*)."""
+    import asyncio
+
+    for _ in range(retries):
+        if predicate():
+            return True
+        await asyncio.sleep(delay)
+    return False
+
+
+def _stub_exit_hooks(monkeypatch) -> list[int]:
+    """Replace the exit side effects (browser close + server shutdown)."""
+    shutdown_calls: list[int] = []
+    monkeypatch.setattr(header, "stop_all_streams", lambda ctx: None)
+    monkeypatch.setattr(header.ui, "run_javascript", lambda *a, **k: None)
+    monkeypatch.setattr(header.app, "shutdown", lambda: shutdown_calls.append(1))
+    return shutdown_calls
+
 
 async def test_page_renders_chrome(utils_user):
     """The header title, chat empty-state and center tabs render."""
@@ -20,6 +58,50 @@ async def test_page_renders_chrome(utils_user):
     await utils_user.should_see("Klea Test")
     await utils_user.should_see("Start a conversation")
     await utils_user.should_see("inspect")
+
+
+async def test_header_has_an_exit_button(utils_user):
+    """The header offers an exit button (the ``/exit`` affordance)."""
+    await utils_user.open("/")
+    assert _power_button(utils_user)
+
+
+async def test_exit_button_confirms_before_exiting(utils_user, monkeypatch):
+    """The header exit button asks first; only Exit stops the server."""
+    shutdown_calls = _stub_exit_hooks(monkeypatch)
+
+    await utils_user.open("/")
+    power = _power_button(utils_user)
+    assert power
+    UserInteraction(utils_user, {power[0]}, None).click()
+
+    await utils_user.should_see("Exit Klea?", retries=50)
+    assert shutdown_calls == []
+
+    exit_buttons = _exit_button(utils_user)
+    assert exit_buttons
+    UserInteraction(utils_user, {exit_buttons[0]}, None).click()
+
+    assert await _wait_for(lambda: shutdown_calls == [1])
+
+
+async def test_exit_dialog_cancel_keeps_the_server_running(utils_user, monkeypatch):
+    """Cancelling the exit dialog does not shut the server down."""
+    shutdown_calls = _stub_exit_hooks(monkeypatch)
+
+    await utils_user.open("/")
+    power = _power_button(utils_user)
+    assert power
+    UserInteraction(utils_user, {power[0]}, None).click()
+    await utils_user.should_see("Exit Klea?", retries=50)
+
+    cancel_buttons = _buttons_with(
+        utils_user, lambda b: getattr(b, "text", "") == "Cancel"
+    )
+    assert cancel_buttons
+    UserInteraction(utils_user, {cancel_buttons[0]}, None).click()
+
+    assert shutdown_calls == []
 
 
 async def test_empty_state_prompts_when_a_required_model_is_missing(

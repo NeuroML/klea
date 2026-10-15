@@ -57,6 +57,22 @@ def stop_stream(ctx: PageContext, chat_id: str) -> None:
         background_tasks.create(request_cancel(ctx.server_url, chat_id, ctx.user_id))
 
 
+def stop_all_streams(ctx: PageContext) -> None:
+    """Stop every active run on this page (used when exiting the frontend).
+
+    Cancels each chat's ``run_stream`` task and fires the best-effort cancel
+    request, so a reused/remote server does not keep running after the page
+    goes away.
+
+    :param ctx: The shared page context.
+    """
+    keys = list(ctx.stream_tasks)
+    logger.debug(f"stop_all_streams: {keys = }")
+    for key in keys:
+        chat_id = key.split(":", 1)[1] if ":" in key else key
+        stop_stream(ctx, chat_id)
+
+
 async def run_stream(
     ctx: PageContext,
     query: str,

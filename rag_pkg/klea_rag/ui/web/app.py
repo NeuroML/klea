@@ -42,4 +42,5 @@ if __name__ in {"__main__", "__mp_main__"}:
         identity_app_name=args.identity_app_name,
         resume=args.resume,
         continue_session=args.continue_session,
+        open_browser=args.open_browser,
     )

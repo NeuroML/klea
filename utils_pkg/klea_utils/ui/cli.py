@@ -244,6 +244,7 @@ def _run_web(
     identity_app_name: str = "",
     resume: str = "",
     continue_session: bool = False,
+    open_browser: bool = True,
     profile: str | None = None,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
@@ -312,6 +313,7 @@ def _run_web(
                     + f" --identity-app-name {shlex.quote(identity_app_name)}"
                     + (f" --resume {shlex.quote(resume)}" if resume else "")
                     + (" --continue" if continue_session else "")
+                    + ("" if open_browser else " --no-open")
                     + (f" --favicon '{favicon}'" if favicon else "")
                     + (" --reload" if reload else "")
                 ),
@@ -546,6 +548,11 @@ def make_client_app(
             "--continue",
             help="Open the most recently updated chat session on load.",
         ),
+        open_browser: bool = typer.Option(
+            True,
+            "--open/--no-open",
+            help="Open the UI in the default browser once ready (default: yes).",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -567,6 +574,7 @@ def make_client_app(
             identity_app_name=identity_app_name,
             resume=resume,
             continue_session=continue_,
+            open_browser=open_browser,
             profile=profile,
             config_env_var=config_env_var,
             config_dir=config_dir,

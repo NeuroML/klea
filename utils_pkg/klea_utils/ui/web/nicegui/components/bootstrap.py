@@ -153,6 +153,7 @@ def run_nicegui_server(
     identity_app_name: str = "klea-agent",
     resume: str = "",
     continue_session: bool = False,
+    open_browser: bool = True,
 ) -> None:
     """Start the NiceGUI web server with a Klea page.
 
@@ -189,6 +190,9 @@ def run_nicegui_server(
     :param resume: Chat id to open on load (``--resume``), or ``""``.
     :param continue_session: Open the most recently updated chat on load
         (``--continue``).
+    :param open_browser: When ``True``, open the UI in the user's default
+        browser once the port is ready (NiceGUI's ``show``; uses the portable
+        ``webbrowser`` module).  Pass ``False`` for headless/remote use.
     """
     _configure_logging(app_name)
     _configure_storage(app_name)
@@ -235,7 +239,7 @@ def run_nicegui_server(
         port=port,
         host=host,
         title=title,
-        show=False,
+        show=open_browser,
         reload=reload,
         storage_secret=storage_secret,
         favicon=resolved_favicon,

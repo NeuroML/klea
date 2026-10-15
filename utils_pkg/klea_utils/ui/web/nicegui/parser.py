@@ -106,4 +106,11 @@ def make_parser(
         action="store_true",
         help="Open the most recently updated chat session on load.",
     )
+    parser.add_argument(
+        "--open",
+        dest="open_browser",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Open the UI in the default browser once ready (default: enabled).",
+    )
     return parser

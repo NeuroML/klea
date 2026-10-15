@@ -167,6 +167,7 @@ def run_agent_web(
     identity_app_name: str = "klea-agent",
     resume: str = "",
     continue_session: bool = False,
+    open_browser: bool = True,
 ) -> None:
     """Start the agent NiceGUI web server with :func:`setup_layout`.
 
@@ -189,6 +190,7 @@ def run_agent_web(
     :param identity_app_name: Canonical identity key shared with the TUI.
     :param resume: Chat id to open on load (``--resume``).
     :param continue_session: Open the most recently updated chat (``--continue``).
+    :param open_browser: Open the UI in the default browser once ready.
     """
     bootstrap.run_nicegui_server(
         title,
@@ -206,4 +208,5 @@ def run_agent_web(
         identity_app_name=identity_app_name,
         resume=resume,
         continue_session=continue_session,
+        open_browser=open_browser,
     )

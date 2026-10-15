@@ -70,6 +70,10 @@ _SWITCH_CHAT_SERVICE = "switch_chat"
 #: (``/sessions delete``): ``(chat_id) -> None`` (opens a confirmation).
 _DELETE_CHAT_SERVICE = "delete_chat"
 
+#: ``CommandContext.services`` key for the "exit the frontend" hook
+#: (``/exit``): ``() -> None`` (stops active runs, then the server).
+_EXIT_SERVICE = "exit_app"
+
 
 def _save_export(filename: str, content: str) -> None:
     """Deliver an export to the user as a browser download (default hook)."""
@@ -131,6 +135,16 @@ def client_commands() -> CommandRegistry:
             klass="ui",
             while_streaming="allow",
             handler=_handle_export,
+        )
+    )
+    registry.register(
+        Command(
+            name="exit",
+            summary="Stop the server and close the session",
+            side="client",
+            klass="ui",
+            while_streaming="allow",
+            handler=_handle_exit,
         )
     )
     registry.register(
@@ -266,6 +280,22 @@ def _handle_export(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     )
     save(filename, content)
     return CommandResult.ok(f"Exported the session transcript to {filename}.")
+
+
+def _handle_exit(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Stop the frontend (and any server it spawned) via the ``exit_app`` hook.
+
+    Silent on success: the page shutting down is the feedback.  The hook stops
+    this page's active runs first, so a reused/remote server is told to cancel
+    them before the frontend goes away.
+    """
+    exit_app = context.service(_EXIT_SERVICE)
+    if exit_app is None:
+        logger.warning("command /exit: exit_app hook is not registered")
+        return CommandResult.fail("Exiting is not supported here.")
+    logger.info("command /exit: stopping the frontend")
+    exit_app()
+    return CommandResult()
 
 
 def _session_rows(
@@ -436,6 +466,7 @@ def handle_command(ctx: PageContext, text: str) -> bool:
             _SAVE_EXPORT_SERVICE: _save_export,
             _SWITCH_CHAT_SERVICE: ctx.switch_chat,
             _DELETE_CHAT_SERVICE: ctx.delete_chat,
+            _EXIT_SERVICE: ctx.exit_app,
         },
     )
     result = registry.dispatch(parsed, context)

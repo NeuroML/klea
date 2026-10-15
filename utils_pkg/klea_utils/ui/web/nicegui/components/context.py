@@ -190,6 +190,11 @@ class PageContext:
     #: Registered by the input area; lets client-command output (e.g. ``/help``)
     #: land in a chat even when the first input is a command (ADR-0047).
     ensure_active_chat: Callable[[], str] = field(default=_noop_str)
+    #: Stop the frontend and the server it spawned: stops any active runs, then
+    #: shuts the NiceGUI server down.  Registered by the header component and
+    #: used by the header's exit button and the ``/exit`` client command
+    #: (ADR-0047).
+    exit_app: Callable[[], None] = field(default=_noop)
 
     def chat_is_streaming(self, chat_id: str) -> bool:
         """Return whether *chat_id* has an active run on this page.
