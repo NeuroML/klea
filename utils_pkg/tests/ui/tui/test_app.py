@@ -164,6 +164,36 @@ async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
     assert any("Plan approved" in text for text in texts)
 
 
+async def test_review_interrupt_modal_shows_plan_and_progress(fake_backend, make_app):
+    """The review modal renders the plan and the concise progress summary."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "review",
+                    "question": "Approve?",
+                    "plan": "[x] Step 1: copy the file (depends on: (none))",
+                    "progress": "Step 1:\n- run_command: ok",
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, HitlModal)
+        plan = app.screen.query_one("#hitl-plan", Static)
+        assert "copy the file" in str(plan.render())
+        progress = app.screen.query_one("#hitl-progress", Static)
+        assert "run_command: ok" in str(progress.render())
+        app.screen.query_one("#hitl-approve", Button).press()
+        await _settle(pilot, app)
+
+
 async def test_permission_interrupt_modal(fake_backend, make_app):
     """A permission ask opens the permission modal; Submit sends decisions."""
     fake_backend.scripts = [

@@ -82,6 +82,10 @@ class HitlModal(ModalScreen[HitlDecision]):
         height: auto;
         max-height: 12;
     }
+    #hitl-progress {
+        height: auto;
+        max-height: 10;
+    }
     """
 
     def __init__(self, ask: dict[str, Any]) -> None:
@@ -107,13 +111,19 @@ class HitlModal(ModalScreen[HitlDecision]):
                 yield from self._compose_input()
 
     def _compose_review(self) -> ComposeResult:
-        """Compose the review form (plan, question, feedback, buttons)."""
+        """Compose the review form (plan, question, progress, feedback, buttons)."""
         plan = self.ask.get("plan")
         if plan:
             yield Static(plan, id="hitl-plan", markup=False)
         question = self.ask.get("question")
         if question:
             yield Static(str(question), id="hitl-question")
+        # A mid-plan checkpoint (ADR-0051) carries a concise summary of the work
+        # so far (tool names + outcomes), rendered monospace like the plan so
+        # tool names and paths stay literal; full results are in the inspector.
+        progress = self.ask.get("progress")
+        if progress:
+            yield Static(str(progress), id="hitl-progress", markup=False)
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )
