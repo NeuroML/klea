@@ -364,3 +364,12 @@ Last updated: 2026-10-15.
   `_get_default_error_result` returns an all-default `RetrievalQueryOutput()`
   (empty `search_query`); decide whether that should degrade to a clear
   failure/known sentinel.
+
+## Frontends / TUI (deferred commands)
+
+- `/inspect` command (deferred): a command that switches the chat panel to the
+  inspector view (the transcript/inspector toggle).  It must be added to both
+  frontends -- the TUI and the web UI -- as neither exposes it as a command
+  today.  The `Ctrl+I` keybinding currently does not work (possibly because
+  there is nothing to show when no inspect entries have been emitted); confirm
+  the toggle and wire the command once the inspector view has content.

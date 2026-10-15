@@ -18,27 +18,20 @@ from klea_agent.ui.tui.access_ui import (
 )
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.tui.context import TuiContext
-from klea_utils.ui.tui.events import SubmitQuery
 from textual.app import App, ComposeResult
-from textual.widgets import Button
 
 
 class _Host(App):
-    """A minimal host that records ``SubmitQuery`` messages."""
+    """A minimal host that mounts the access selector."""
 
     def __init__(self, ctx: TuiContext) -> None:
-        """Store the context and an empty submission log."""
+        """Store the context."""
         super().__init__()
         self.ctx = ctx
-        self.submitted: list[str] = []
 
     def compose(self) -> ComposeResult:
         """Mount the access selector."""
         yield AccessSelector(self.ctx)
-
-    def on_submit_query(self, event: SubmitQuery) -> None:
-        """Record a submitted query."""
-        self.submitted.append(event.text)
 
 
 @pytest.fixture(autouse=True)
@@ -66,14 +59,14 @@ def test_access_levels_has_full_and_read_only():
     assert set(ACCESS_LEVELS) == {"full", "read_only"}
 
 
-async def test_access_selector_dispatches_command():
-    """Picking a level posts an ``/access <value>`` submission."""
+async def test_access_selector_renders_compact_line():
+    """The selector renders the active level as a compact one-line Static."""
     ctx = TuiContext(server_url="http://x", user_id="u", chat_id="c")
     app = _Host(ctx)
     async with app.run_test() as pilot:
-        app.query_one("#access-read_only", Button).press()
         await pilot.pause()
-    assert app.submitted == ["/access read_only"]
+        selector = app.query_one(AccessSelector)
+        assert str(selector.render()) == "Access: Full"
 
 
 if __name__ == "__main__":

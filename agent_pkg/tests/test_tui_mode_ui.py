@@ -14,27 +14,20 @@ import pytest
 from klea_agent.ui.tui.mode_ui import MODES, ModeSelector, current_mode
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.tui.context import TuiContext
-from klea_utils.ui.tui.events import SubmitQuery
 from textual.app import App, ComposeResult
-from textual.widgets import Button
 
 
 class _Host(App):
-    """A minimal host that records ``SubmitQuery`` messages."""
+    """A minimal host that mounts the mode selector."""
 
     def __init__(self, ctx: TuiContext) -> None:
-        """Store the context and an empty submission log."""
+        """Store the context."""
         super().__init__()
         self.ctx = ctx
-        self.submitted: list[str] = []
 
     def compose(self) -> ComposeResult:
         """Mount the mode selector."""
         yield ModeSelector(self.ctx)
-
-    def on_submit_query(self, event: SubmitQuery) -> None:
-        """Record a submitted query."""
-        self.submitted.append(event.text)
 
 
 @pytest.fixture(autouse=True)
@@ -62,14 +55,14 @@ def test_modes_has_general_and_scientific():
     assert set(MODES) == {"general", "scientific"}
 
 
-async def test_mode_selector_dispatches_command():
-    """Picking a mode posts a ``/mode <value>`` submission."""
+async def test_mode_selector_renders_compact_line():
+    """The selector renders the active mode as a compact one-line Static."""
     ctx = TuiContext(server_url="http://x", user_id="u", chat_id="c")
     app = _Host(ctx)
     async with app.run_test() as pilot:
-        app.query_one("#mode-scientific", Button).press()
         await pilot.pause()
-    assert app.submitted == ["/mode scientific"]
+        selector = app.query_one(ModeSelector)
+        assert str(selector.render()) == "Mode: General"
 
 
 if __name__ == "__main__":

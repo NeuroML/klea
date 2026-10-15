@@ -53,22 +53,25 @@ flowchart LR
 ## Layout
 
 The screen is a horizontal split into exactly two full-height panels, like the
-web page's chat column plus its right drawer:
+web page's chat column plus its right drawer.  The chat panel is the wider of
+the two (a 3:1 split), so the status panel stays a narrow sidebar:
 
-* **Chat panel** (left, full height): the app title and server line, a view
-  toggle between the transcript and the inspector, the turn-status line, the
-  input, and the keybinding hints.
-* **Status panel** (right, full height): the operating-mode / tool-access
-  selectors, the resolved models, the streamed state sections, and token
-  usage.
+* **Chat panel** (left, full height): a view toggle between the transcript and
+  the inspector, the turn-status line, the input, and the keybinding hints.
+* **Status panel** (right, full height): the app title and server line, the
+  operating-mode / tool-access selectors, the resolved models, the streamed
+  state sections, and token usage.
 
 Because the status panel spans the full height, there is no separate
-full-width header or footer bar; the title/keys live inside the chat panel.
+full-width header or footer bar; the title sits at the top of the status panel
+and the key hints at the foot of the chat panel.  The two panels are
+distinguished by slightly different background colours rather than border
+lines.
 
 ```
 +---------------------------------------------+----------------------+
 | chat panel                                  | status panel         |
-|  title: <app> | <server>                    | (full height)        |
+|                                             |  title: <app> | <srv>|
 | ------------------------------------------- |                      |
 |  [ transcript | inspect ]  <- view toggle   |  mode / access       |
 |  ...messages...                             |  models              |
@@ -203,12 +206,13 @@ mirroring `run_agent_web`) and pass only the title/prefix/app-name and page
 builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
 renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
 streamed state, so a state refresh never disturbs them, and rebuilds them on a
-`context` change (so a selector follows the checkpointed mode).  A control that
-must run a query posts a shared `SubmitQuery` message
-(`ui/tui/events.py`), which the app routes through `submit` (commands and the
-setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
-`/mode <value>` and its `access_ui.AccessSelector` dispatches `/access
-<value>` this way.
+`context` change (so a control follows the checkpointed state).  The agent's
+`mode_ui.ModeSelector`, `access_ui.AccessSelector` and
+`project_root_ui.project_root_status_extra` are compact one-line displays of
+the active mode / access level / project root, with no buttons.  A control that
+must run a query posts a shared `SubmitQuery` message (`ui/tui/events.py`),
+which the app routes through
+`submit` (commands and the setup gating still apply).
 
 ## Rendering and non-goals
 

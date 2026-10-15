@@ -77,39 +77,34 @@ _CSS = """
     height: 100%;
 }
 #chat-panel {
-    width: 2fr;
+    width: 3fr;
     height: 100%;
-    border: round $primary;
+    background: $surface;
     padding: 0 1;
 }
 #status-panel {
     width: 1fr;
     height: 100%;
-    border: round $primary;
+    background: $panel;
     padding: 0 1;
 }
 #chat-title {
     height: 1;
-    text-style: bold;
+    color: $text-muted;
+    text-overflow: ellipsis;
 }
 #transcript {
     height: 1fr;
-    border: solid $panel;
 }
 #view-toggle {
     height: 1;
 }
 #inspector {
     height: 1fr;
-    border: solid $panel;
 }
 #key-hints {
     height: 1;
     color: $text-muted;
-}
-#status-title {
-    height: 1;
-    text-style: bold;
 }
 #status {
     height: 1fr;
@@ -157,9 +152,6 @@ class KleaTuiScreen(Screen):
         """Compose the two-panel layout."""
         with Horizontal(id="root"):
             with Vertical(id="chat-panel"):
-                yield Static(
-                    f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
-                )
                 yield Static(_view_toggle_text("transcript"), id="view-toggle")
                 yield Transcript(id="transcript")
                 yield Inspector(id="inspector")
@@ -175,7 +167,9 @@ class KleaTuiScreen(Screen):
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
-                yield Static("status", id="status-title")
+                yield Static(
+                    f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
+                )
                 yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
