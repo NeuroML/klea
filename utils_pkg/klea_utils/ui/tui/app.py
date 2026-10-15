@@ -77,7 +77,7 @@ _CSS = """
     height: 100%;
 }
 #chat-panel {
-    width: 2fr;
+    width: 3fr;
     height: 100%;
     background: $surface;
     padding: 0 1;
@@ -90,7 +90,8 @@ _CSS = """
 }
 #chat-title {
     height: 1;
-    text-style: bold;
+    color: $text-muted;
+    text-overflow: ellipsis;
 }
 #transcript {
     height: 1fr;
@@ -155,9 +156,6 @@ class KleaTuiScreen(Screen):
         """Compose the two-panel layout."""
         with Horizontal(id="root"):
             with Vertical(id="chat-panel"):
-                yield Static(
-                    f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
-                )
                 yield Static(_view_toggle_text("transcript"), id="view-toggle")
                 yield Transcript(id="transcript")
                 yield Inspector(id="inspector")
@@ -173,6 +171,9 @@ class KleaTuiScreen(Screen):
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
+                yield Static(
+                    f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
+                )
                 yield Static("status", id="status-title")
                 yield StatusPanel(ctx=self.ctx, id="status")
 
