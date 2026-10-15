@@ -144,6 +144,19 @@ class TestMakeClientApp(unittest.TestCase):
             self.assertEqual(kwargs["favicon"], "")
             self.assertEqual(kwargs["user_id"], "")
             self.assertEqual(kwargs["identity_app_name"], "klea-rag")
+            self.assertEqual(kwargs["resume"], "")
+            self.assertFalse(kwargs["continue_session"])
+
+    def test_web_resume_and_continue_routing(self):
+        with mock.patch("klea_utils.ui.cli._run_web") as run_web:
+            result = self.runner.invoke(self.app, ["web", "--resume", "chat-1"])
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(run_web.call_args.kwargs["resume"], "chat-1")
+
+        with mock.patch("klea_utils.ui.cli._run_web") as run_web:
+            result = self.runner.invoke(self.app, ["web", "--continue"])
+            self.assertEqual(result.exit_code, 0)
+            self.assertTrue(run_web.call_args.kwargs["continue_session"])
 
     def test_web_user_id_routing(self):
         with mock.patch("klea_utils.ui.cli._run_web") as run_web:
@@ -276,6 +289,8 @@ class TestRunWeb(unittest.TestCase):
                 web_entry="klea_rag.ui.web.app",
                 user_id="u1",
                 identity_app_name="klea-rag",
+                resume="chat-1",
+                continue_session=True,
             )
 
         # The command is already shlex-split, so quotes are gone.
@@ -285,6 +300,8 @@ class TestRunWeb(unittest.TestCase):
         self.assertIn("--app-name klea-rag-web", command)
         self.assertIn("--user-id u1", command)
         self.assertIn("--identity-app-name klea-rag", command)
+        self.assertIn("--resume chat-1", command)
+        self.assertIn("--continue", command)
         self.assertIn("http://127.0.0.1:8005", command)
         self.assertNotIn("--reload", command)
         logger.debug("web client launched with command: %s", command)

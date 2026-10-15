@@ -242,6 +242,8 @@ def _run_web(
     favicon: str | None = None,
     user_id: str = "",
     identity_app_name: str = "",
+    resume: str = "",
+    continue_session: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
@@ -308,6 +310,8 @@ def _run_web(
                     + f" --app-name '{web_app_name}'"
                     + f" --user-id {shlex.quote(user_id)}"
                     + f" --identity-app-name {shlex.quote(identity_app_name)}"
+                    + (f" --resume {shlex.quote(resume)}" if resume else "")
+                    + (" --continue" if continue_session else "")
                     + (f" --favicon '{favicon}'" if favicon else "")
                     + (" --reload" if reload else "")
                 ),
@@ -532,6 +536,16 @@ def make_client_app(
             help="Opaque user id. Defaults to KLEA_USER_ID, else a shared "
             "host-local identity file (loopback only).",
         ),
+        resume: str = typer.Option(
+            "",
+            "--resume",
+            help="Open a specific chat session by id on load.",
+        ),
+        continue_: bool = typer.Option(
+            False,
+            "--continue",
+            help="Open the most recently updated chat session on load.",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -551,6 +565,8 @@ def make_client_app(
             favicon=favicon,
             user_id=user_id,
             identity_app_name=identity_app_name,
+            resume=resume,
+            continue_session=continue_,
             profile=profile,
             config_env_var=config_env_var,
             config_dir=config_dir,

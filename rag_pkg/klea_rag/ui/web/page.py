@@ -158,6 +158,8 @@ def run_rag_web(
     favicon: str | None = None,
     user_id: str = "",
     identity_app_name: str = "klea-rag",
+    resume: str = "",
+    continue_session: bool = False,
 ) -> None:
     """Start the RAG NiceGUI web server with :func:`setup_layout`.
 
@@ -178,6 +180,8 @@ def run_rag_web(
     :param favicon: Browser-tab favicon (defaults to the bundled Klea icon).
     :param user_id: Explicit ``--user-id`` override for the page identity.
     :param identity_app_name: Canonical identity key shared with the TUI.
+    :param resume: Chat id to open on load (``--resume``).
+    :param continue_session: Open the most recently updated chat (``--continue``).
     """
     bootstrap.run_nicegui_server(
         title,
@@ -193,4 +197,6 @@ def run_rag_web(
         favicon=favicon,
         user_id=user_id,
         identity_app_name=identity_app_name,
+        resume=resume,
+        continue_session=continue_session,
     )

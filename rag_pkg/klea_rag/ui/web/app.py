@@ -40,4 +40,6 @@ if __name__ in {"__main__", "__mp_main__"}:
         favicon=args.favicon,
         user_id=args.user_id,
         identity_app_name=args.identity_app_name,
+        resume=args.resume,
+        continue_session=args.continue_session,
     )

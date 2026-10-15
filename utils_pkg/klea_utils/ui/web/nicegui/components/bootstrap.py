@@ -100,6 +100,42 @@ def _configure_storage(app_name: str) -> None:
         )
 
 
+async def resolve_initial_chat(
+    *,
+    resume: str = "",
+    continue_session: bool = False,
+    server_url: str = "",
+    user_id: str = "",
+) -> str:
+    """Return the chat id the page should open on load.
+
+    ``--resume <chat_id>`` wins; else ``--continue`` opens the most recently
+    updated chat for the user (``GET /chat/{user_id}`` is ordered most-recent
+    first); else ``""`` so the frontend starts a new chat.
+
+    :param resume: The ``--resume`` chat id, or ``""``.
+    :param continue_session: Whether ``--continue`` was given.
+    :param server_url: Base URL of the backend API server.
+    :param user_id: The resolved user id.
+    :returns: The chat id to open, or ``""`` for a fresh chat.
+    """
+    resume = (resume or "").strip()
+    if resume:
+        return resume
+    if continue_session:
+        # Lazy: the server API client is only needed for --continue.
+        from klea_utils.ui.client import fetch_chats
+
+        try:
+            chats = await fetch_chats(server_url, user_id)
+        except Exception as exc:  # noqa: BLE001 - best-effort launch default
+            logger.warning("--continue: could not list chats: %s", exc)
+            return ""
+        if chats:
+            return str(chats[0].get("chat_id", "") or "")
+    return ""
+
+
 def run_nicegui_server(
     title: str,
     server_url: str,
@@ -115,6 +151,8 @@ def run_nicegui_server(
     favicon: str | Path | None = None,
     user_id: str = "",
     identity_app_name: str = "klea-agent",
+    resume: str = "",
+    continue_session: bool = False,
 ) -> None:
     """Start the NiceGUI web server with a Klea page.
 
@@ -148,6 +186,9 @@ def run_nicegui_server(
     :param user_id: Explicit ``--user-id`` override for the page identity.
     :param identity_app_name: Canonical identity key (the server app, e.g.
         ``"klea-agent"``) for the shared host-local identity file.
+    :param resume: Chat id to open on load (``--resume``), or ``""``.
+    :param continue_session: Open the most recently updated chat on load
+        (``--continue``).
     """
     _configure_logging(app_name)
     _configure_storage(app_name)
@@ -170,9 +211,13 @@ def run_nicegui_server(
             server_url=server_url,
             identity_app_name=identity_app_name,
         )
+        chat_id = await resolve_initial_chat(
+            resume=resume,
+            continue_session=continue_session,
+            server_url=server_url,
+            user_id=resolved_user_id,
+        )
         await ui.context.client.connected()
-
-        chat_id = ""
 
         logger.debug("user_id=%s chat_id=%s", resolved_user_id, chat_id)
 

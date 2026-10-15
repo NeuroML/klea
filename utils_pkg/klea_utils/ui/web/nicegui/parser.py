@@ -95,4 +95,15 @@ def make_parser(
             "server app, e.g. 'klea-agent')."
         ),
     )
+    parser.add_argument(
+        "--resume",
+        default="",
+        help="Open a specific chat session by id on load.",
+    )
+    parser.add_argument(
+        "--continue",
+        dest="continue_session",
+        action="store_true",
+        help="Open the most recently updated chat session on load.",
+    )
     return parser
