@@ -29,9 +29,9 @@ class _HitlState(BaseModel):
     messages: list[AnyMessage] = Field(default_factory=list)
     plan: PlanSchema = Field(default_factory=PlanSchema)
 
-    def observations_text(self) -> str:
-        """Minimal stand-in for ``KleaAgentState.observations_text``."""
-        return "(no observations)"
+    def progress_text(self) -> str:
+        """Minimal stand-in for ``KleaAgentState.progress_text``."""
+        return "(progress)"
 
 
 def _compile(kind: Literal["review", "input"]):
@@ -130,7 +130,8 @@ async def test_review_checkpoint_carries_progress():
     await graph.ainvoke(_HitlState(plan=plan), config=config)
     intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
     assert intr.value["kind"] == "review"
-    assert "progress" in intr.value  # work has run: a checkpoint
+    # The concise progress summary is carried (not the full observations).
+    assert intr.value["progress"] == "(progress)"
 
 
 async def test_review_revise_returns_feedback():

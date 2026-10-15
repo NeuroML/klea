@@ -85,10 +85,12 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             ]
             return {"kind": "input", "questions": questions}
         # A review step before any work is a plan approval; once work has run
-        # it is a progress checkpoint (ADR-0051), so carry the observations
-        # too.  The rendered plan is always included so the form is
+        # it is a progress checkpoint (ADR-0051), so carry the progress too.
+        # The rendered plan is always included so the form is
         # self-contained (the same payload is re-presented on reload via
-        # checkpoint hydration).
+        # checkpoint hydration).  ``progress_text`` (not ``observations_text``)
+        # keeps the checkpoint concise for the user: tool names and outcomes
+        # only, no result bodies (those are in the inspection pane).
         done = any(step.status in ("done", "skipped") for step in state.plan.step_list)
         if done:
             return {
@@ -98,7 +100,7 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                     "to revise the plan, or cancel."
                 ),
                 "plan": state.plan.render(markdown=True),
-                "progress": state.observations_text(),
+                "progress": state.progress_text(),
             }
         return {
             "kind": "review",
