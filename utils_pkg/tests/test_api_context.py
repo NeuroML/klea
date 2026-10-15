@@ -152,10 +152,31 @@ class TestContextProjection:
                 "note": "source ready",
             },
             "pending_interrupt": None,
+            "usage": None,
         }
         # The hook received the raw values dict, untouched by normalization.
         assert fake.snapshot_states == [values]
         assert fake.graph.aget_state_calls == 1
+
+    async def test_projects_checkpointed_usage(self, app, client):
+        """The checkpointed cumulative token totals are projected."""
+        values = {
+            "mode": {"requested": "general", "resolved": "general", "note": ""},
+            "usage_metrics": {
+                "input_tokens": 5,
+                "output_tokens": 3,
+                "total_tokens": 8,
+            },
+        }
+        app.state.graph = self._fake(values=values)
+
+        resp = await client.get("/chat/alice/chat-1/context")
+        assert resp.status_code == 200
+        assert resp.json()["usage"] == {
+            "input_tokens": 5,
+            "output_tokens": 3,
+            "total_tokens": 8,
+        }
 
     async def test_pydantic_values_normalised_before_hook(self, app, client):
         """Pydantic-backed values are model_dump'd so the hook sees a dict."""
@@ -189,7 +210,11 @@ class TestContextProjection:
 
         resp = await client.get("/chat/alice/fresh-chat/context")
         assert resp.status_code == 200
-        assert resp.json() == {"context": None, "pending_interrupt": None}
+        assert resp.json() == {
+            "context": None,
+            "pending_interrupt": None,
+            "usage": None,
+        }
         # The compiled graph is never read for an untouched thread.
         assert fake.graph.aget_state_calls == 0
 
@@ -200,7 +225,11 @@ class TestContextProjection:
 
         resp = await client.get("/chat/alice/chat-1/context")
         assert resp.status_code == 200
-        assert resp.json() == {"context": None, "pending_interrupt": None}
+        assert resp.json() == {
+            "context": None,
+            "pending_interrupt": None,
+            "usage": None,
+        }
 
     async def test_pending_interrupt_is_exposed(self, app, client):
         """A paused thread exposes its pending HITL ask for hydration."""

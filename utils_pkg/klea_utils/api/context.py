@@ -43,12 +43,15 @@ def create_context_router() -> APIRouter:
     """Create an APIRouter exposing the graph-level ``context`` projection.
 
     ``GET /chat/{user_id}/{chat_id}/context``
-        Return ``{"context": {...}, "pending_interrupt": {...} | null}`` --
-        the checkpointed session context projected by the app's
-        ``context_snapshot`` hook, plus any pending HITL interrupt
-        (ADR-0046) so a reloaded frontend can re-present the ask.  Both are
-        ``null`` when the thread has no checkpoint yet (a chat that never
-        ran a query) or the graph uses no checkpointer.
+        Return ``{"context": {...}, "pending_interrupt": {...} | null,
+        "usage": {...} | null}`` -- the checkpointed session context
+        projected by the app's ``context_snapshot`` hook, plus any pending
+        HITL interrupt (ADR-0046) so a reloaded frontend can re-present the
+        ask, and the checkpointed cumulative ``usage_metrics`` (ADR-0032
+        update) so the token totals survive a reload without storing the
+        per-node ``usage`` events.  All are ``null`` when the thread has no
+        checkpoint yet (a chat that never ran a query) or the graph uses no
+        checkpointer.
     """
     router = APIRouter(prefix="/chat", tags=["context"])
 
@@ -72,7 +75,7 @@ def create_context_router() -> APIRouter:
                 user_id,
                 chat_id,
             )
-            return {"context": None, "pending_interrupt": None}
+            return {"context": None, "pending_interrupt": None, "usage": None}
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         # ``aget_tuple`` returns None for a thread that never ran.  That is
@@ -83,7 +86,7 @@ def create_context_router() -> APIRouter:
             logger.debug(
                 "get_chat_context(%s, %s): no checkpoint yet", user_id, chat_id
             )
-            return {"context": None, "pending_interrupt": None}
+            return {"context": None, "pending_interrupt": None, "usage": None}
 
         snapshot = await graph.graph.aget_state(config)
         # ``_normalise_state_snapshot`` keeps this identical to the stream
@@ -91,17 +94,24 @@ def create_context_router() -> APIRouter:
         # a plain dict whatever the state backend renders.
         values = _normalise_state_snapshot(snapshot.values)
         context = graph.context_snapshot(values)
+        # The checkpointed cumulative token totals ride the same snapshot, so
+        # the frontends can restore the session total without replaying the
+        # per-node ``usage`` events.
+        usage = values.get("usage_metrics")
+        if hasattr(usage, "model_dump"):
+            usage = usage.model_dump()
         # The same snapshot carries any pending HITL interrupt (ADR-0046), so
         # a reloaded frontend can re-present the ask without a second read.
         interrupts = _snapshot_interrupts(snapshot)
         interrupt = _interrupt_event(interrupts[0], "")["data"] if interrupts else None
         logger.debug(
-            "get_chat_context(%s, %s): context=%s pending_interrupt=%s",
+            "get_chat_context(%s, %s): context=%s pending_interrupt=%s usage=%s",
             user_id,
             chat_id,
             context,
             bool(interrupts),
+            usage,
         )
-        return {"context": context, "pending_interrupt": interrupt}
+        return {"context": context, "pending_interrupt": interrupt, "usage": usage}
 
     return router

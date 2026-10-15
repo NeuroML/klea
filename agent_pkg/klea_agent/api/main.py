@@ -14,6 +14,7 @@ from klea_utils.api.app import make_app
 from klea_utils.api.commands import create_commands_router
 from klea_utils.api.context import create_context_router
 from klea_utils.api.credentials import create_credentials_router
+from klea_utils.api.events import create_events_router
 from klea_utils.api.health import create_health_router
 from klea_utils.api.messages import create_messages_router
 from klea_utils.api.models import create_models_router
@@ -36,6 +37,7 @@ app = make_app(
         create_commands_router(),
         create_context_router(),
         create_credentials_router(),
+        create_events_router(),
         create_health_router(),
         create_messages_router(),
         create_models_router(),

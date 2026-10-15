@@ -48,8 +48,9 @@ async def fetch_chat_context(
     """Fetch a chat's session context and pending interrupt (ADR-0032/0046).
 
     Calls ``GET /chat/{user_id}/{chat_id}/context`` and returns the body
-    (``{"context": {...}, "pending_interrupt": {...}}``), so a frontend can
-    restore a chat's context and re-present a paused HITL ask on load/switch.
+    (``{"context": {...}, "pending_interrupt": {...}, "usage": {...}}``), so a
+    frontend can restore a chat's context, token totals, and re-present a
+    paused HITL ask on load/switch.
 
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
@@ -111,6 +112,32 @@ async def fetch_chat_messages(
             logger.warning("GET %s status=%d", url, resp.status_code)
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to fetch chat messages: %s", e)
+    return []
+
+
+async def fetch_chat_events(
+    server_url: str, user_id: str, chat_id: str
+) -> list[dict[str, Any]]:
+    """Fetch a chat's persisted UI events (inspection/status panes).
+
+    Calls ``GET /chat/{user_id}/{chat_id}/events``; the frontends replay the
+    events through the shared reducer to rebuild the panes on load
+    (ADR-0032 update).
+
+    :param server_url: Base URL of the backend API server.
+    :param user_id: Opaque persistent user identifier.
+    :param chat_id: Chat conversation identifier.
+    :returns: The event dicts, or ``[]`` on failure.
+    """
+    url = f"{server_url}/chat/{user_id}/{chat_id}/events"
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.json()
+            logger.warning("GET %s status=%d", url, resp.status_code)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Failed to fetch chat events: %s", e)
     return []
 
 
