@@ -628,7 +628,7 @@ class SessionStore:
                 "SELECT id, role, content, metadata, created_at "
                 "FROM messages "
                 "WHERE user_id = ? AND chat_id = ? "
-                "ORDER BY created_at ASC",
+                "ORDER BY created_at ASC, id ASC",
                 (user_id, chat_id),
             ).fetchall()
         result: list[dict[str, Any]] = []

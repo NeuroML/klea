@@ -117,15 +117,30 @@ async def fetch_chat_messages(
 def server_message_to_data(message: Mapping[str, Any]) -> MessageData:
     """Convert a server message row to the frontend ``MessageData`` shape.
 
+    A ``tool`` row is rebuilt from its stored ``metadata`` (``header`` /
+    ``mime`` / ``data`` / ``meta`` / ``is_error``) so a reloaded chat renders
+    the same blocks as the live stream; other roles map to ``user``/``agent``.
+
     :param message: A ``GET .../messages`` row (``role``, ``content``,
-        ``created_at``).
+        ``metadata``, ``created_at``).
     :returns: A message dict for ``ChatData["messages"]``.
     """
+    stamp = datetime.fromtimestamp(message["created_at"]).astimezone().strftime("%X")
+    if message.get("role") == "tool":
+        meta = message.get("metadata") or {}
+        return {
+            "text": message["content"],
+            "stamp": stamp,
+            "role": "tool",
+            "header": meta.get("header", ""),
+            "mime": meta.get("mime", ""),
+            "data": meta.get("data", ""),
+            "meta": meta.get("meta", {}),
+            "is_error": bool(meta.get("is_error", False)),
+        }
     return {
         "text": message["content"],
-        "stamp": datetime.fromtimestamp(message["created_at"])
-        .astimezone()
-        .strftime("%X"),
+        "stamp": stamp,
         "role": "user" if message.get("role") == "user" else "agent",
         "header": "",
     }

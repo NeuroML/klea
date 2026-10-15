@@ -266,6 +266,71 @@ class TestStreamResponseResume:
             )
 
 
+class TestStreamResponseToolBlocks:
+    """``stream_response`` persists chat-renderable tool blocks (reload parity)."""
+
+    async def _collect(self, response):
+        return [c async for c in response.body_iterator]
+
+    @staticmethod
+    def _tool_stream(entries: list[dict]):
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            yield {"type": "tool", "node": "Running tools", "data": {"tools": entries}}
+            yield {"type": "complete", "message_for_user": "done"}
+
+        return _stream
+
+    async def test_persists_tool_blocks_before_the_answer(self, store, graph):
+        """Each renderable tool entry is stored as a ``tool`` row, in order."""
+        graph.run_graph_astream_events = self._tool_stream(
+            [
+                {
+                    "header": "edit_file",
+                    "mime": "text/x-diff",
+                    "data": "--- a\n+++ b\n",
+                    "display": "edit_file diff",
+                    "meta": {},
+                    "is_error": False,
+                },
+                {"header": "run_command", "display": "boom", "is_error": True},
+                {"header": "empty"},  # no data/display: skipped
+            ]
+        )
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="go", user_id="u", chat_id="c"
+        )
+        await self._collect(response)
+
+        rows = store.get_messages("u", "c")
+        assert [m["role"] for m in rows] == ["user", "tool", "tool", "assistant"]
+        diff = rows[1]
+        assert diff["content"] == "edit_file diff"
+        assert diff["metadata"]["mime"] == "text/x-diff"
+        assert diff["metadata"]["data"] == "--- a\n+++ b\n"
+        assert diff["metadata"]["is_error"] is False
+        error = rows[2]
+        assert error["content"] == "boom"
+        assert error["metadata"]["is_error"] is True
+        assert rows[3]["content"] == "done"
+
+    async def test_no_tool_rows_for_an_ephemeral_command(self, store, graph):
+        """A tool event during an ephemeral command writes no rows."""
+        registry = CommandRegistry()
+        registry.register(
+            CommandSpec(name="mode", summary="", side="server", persists="checkpoint")
+        )
+        graph.command_registry = registry
+        graph.run_graph_astream_events = self._tool_stream(
+            [{"header": "run_command", "display": "out", "is_error": False}]
+        )
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="/mode general", user_id="u", chat_id="c"
+        )
+        await self._collect(response)
+
+        assert store.get_messages("u", "c") == []
+
+
 class TestStreamResponseHeartbeat:
     """``stream_response`` keeps the SSE connection warm with ``ping`` frames."""
 

@@ -96,6 +96,40 @@ def _command_persist_mode(graph: Any, query: str | None) -> bool | None:
 HEARTBEAT_INTERVAL_SECONDS = 15.0
 
 
+def _tool_event_messages(event: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return transcript rows for a ``tool`` event's renderable entries.
+
+    A ``tool`` event carries chat-renderable output (a file-edit diff, an
+    image, command output, ...) per entry.  Each entry is persisted as a
+    ``messages`` row (``role="tool"``) so a reloaded chat shows the same
+    blocks as the live stream; the rendering keys are stored in the row's
+    ``metadata`` (the ``messages`` table's ``content`` holds the text
+    fallback), mirroring the frontend reducer
+    (``klea_utils/ui/stream_events.py``).
+
+    :param event: A streamed ``tool`` event.
+    :returns: One row per entry that has rendered content, else ``[]``.
+    """
+    rows: list[dict[str, Any]] = []
+    for entry in event.get("data", {}).get("tools", []):
+        if not entry.get("data") and not entry.get("display"):
+            continue
+        rows.append(
+            {
+                "role": "tool",
+                "content": entry.get("display", ""),
+                "metadata": {
+                    "header": entry.get("header", entry.get("title", "")),
+                    "mime": entry.get("mime", ""),
+                    "data": entry.get("data", ""),
+                    "meta": entry.get("meta", {}),
+                    "is_error": bool(entry.get("is_error", False)),
+                },
+            }
+        )
+    return rows
+
+
 # ---------------------------------------------------------------------------
 # SSE framing
 # ---------------------------------------------------------------------------
@@ -510,6 +544,14 @@ async def stream_response(
                             user_id,
                             chat_id,
                         )
+                    elif t == "tool":
+                        # Chat-renderable tool output (e.g. a file-edit diff):
+                        # persist each entry as a transcript row so a reloaded
+                        # chat shows the same blocks as the live stream.
+                        if not ephemeral_command:
+                            rows = _tool_event_messages(event)
+                            if rows:
+                                store.add_messages(user_id, chat_id, rows)
                     yield f"data: {json.dumps(event)}\n\n"
         except EmptyInputError as e:
             logger.warning(
