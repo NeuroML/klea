@@ -206,12 +206,12 @@ mirroring `run_agent_web`) and pass only the title/prefix/app-name and page
 builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
 renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
 streamed state, so a state refresh never disturbs them, and rebuilds them on a
-`context` change (so a selector follows the checkpointed mode).  A control that
-must run a query posts a shared `SubmitQuery` message
-(`ui/tui/events.py`), which the app routes through `submit` (commands and the
-setup gating still apply); the agent's `mode_ui.ModeSelector` dispatches
-`/mode <value>` and its `access_ui.AccessSelector` dispatches `/access
-<value>` this way.
+`context` change (so a control follows the checkpointed state).  The agent's
+`mode_ui.ModeSelector` is a compact one-line display of the active mode and the
+`/mode` command, with no buttons.  A control that must run a query posts a
+shared `SubmitQuery` message (`ui/tui/events.py`), which the app routes through
+`submit` (commands and the setup gating still apply); the agent's
+`access_ui.AccessSelector` dispatches `/access <value>` this way.
 
 ## Rendering and non-goals
 
