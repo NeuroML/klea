@@ -13,7 +13,7 @@ from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.graph.state import BaseGraphSchema
-from klea_utils.tools import textualize_tool_results
+from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from pydantic import BaseModel, Field
 
 
@@ -538,6 +538,30 @@ class EvaluationSchema(BaseModel):
     reason: str = ""
 
 
+#: Cap the length of a progress-summary line: the review modal is compact and
+#: the full result is available in the inspection pane.
+_SUMMARY_MAX_LEN = 80
+
+
+def _first_line(text: str) -> str:
+    """Return the first non-empty line of *text*, truncated to one line.
+
+    Used to compress a tool error or a reasoning conclusion into a single
+    readable line for the progress summary.
+
+    :param text: The text to compress.
+    :returns: The first non-empty line (truncated with ``...``), or ``""``.
+    """
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if len(stripped) > _SUMMARY_MAX_LEN:
+            return stripped[: _SUMMARY_MAX_LEN - 3].rstrip() + "..."
+        return stripped
+    return ""
+
+
 class StepOutput(BaseModel):
     """A result recorded against a plan step.
 
@@ -581,6 +605,27 @@ class StepOutput(BaseModel):
             body = f"{body}\n\nRationale: {self.rationale.strip()}"
         shown = "yes" if self.displayed else "no"
         return f"### {tool} (displayed_to_user: {shown})\n{body}"
+
+    def summary(self) -> str:
+        """Return a concise one-line summary for the human-facing progress view.
+
+        Unlike :meth:`render` (the full, LLM-facing body with the
+        ``displayed_to_user`` flag), this keeps only the tool name and whether
+        the call succeeded (with a short error reason), so the plan-review
+        ``progress`` stays readable; the full result is a click away in the
+        inspection pane.  A reasoning step renders its conclusion's first line.
+
+        :returns: ``"<tool>: ok"`` / ``"<tool>: error - <reason>"`` for a tool
+            result, or ``"reasoning: <first line>"``.
+        """
+        if isinstance(self.result, CallToolResult):
+            tool = self.tool or "(unknown tool)"
+            if self.result.is_error:
+                reason = _first_line(last_tool_error_text([self.result]))
+                return f"{tool}: error - {reason}" if reason else f"{tool}: error"
+            return f"{tool}: ok"
+        conclusion = _first_line(str(self.result))
+        return f"reasoning: {conclusion}" if conclusion else "reasoning"
 
 
 class KleaAgentState(BaseGraphSchema):
@@ -664,6 +709,35 @@ class KleaAgentState(BaseGraphSchema):
             for ind, entry in enumerate(entries):
                 rendered += f"\n\nTool call {ind}: {entry.render()}"
             parts.append(f"Step {step_key}:\n{rendered}")
+        return "\n\n".join(parts) if parts else "(no observations)"
+
+    def progress_text(self) -> str:
+        """Render the completed steps as a concise, human-facing summary.
+
+        Used for the ``progress`` field of an ``AwaitHuman`` review
+        checkpoint.  Unlike :meth:`observations_text` (the full, LLM-facing
+        render with result bodies and the ``displayed_to_user`` flag), each
+        recorded output becomes one line via :meth:`StepOutput.summary` -- the
+        tool name and whether it succeeded, or a reasoning step's conclusion
+        first line -- so the review modal stays readable; full results live in
+        the inspection pane.
+
+        Steps appear in plan order, and only those with a recorded output (the
+        review modal already shows the plan's step list with status markers).
+        Outputs keyed to a step missing from the plan are appended last.
+
+        :returns: The summary block, or ``"(no observations)"`` when no step
+            has an output.
+        """
+        ordered = [step.step_number for step in self.plan.step_list]
+        extras = [key for key in self.step_outputs if key not in set(ordered)]
+        parts: list[str] = []
+        for step_key in [*ordered, *extras]:
+            entries = self.step_outputs.get(step_key)
+            if not entries:
+                continue
+            bullets = "\n".join(f"- {entry.summary()}" for entry in entries)
+            parts.append(f"Step {step_key}:\n{bullets}")
         return "\n\n".join(parts) if parts else "(no observations)"
 
     def artefacts_text(self) -> str:

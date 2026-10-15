@@ -189,6 +189,62 @@ class TestStepOutputRender:
     def test_observations_text_empty(self):
         assert KleaAgentState().observations_text() == "(no observations)"
 
+    def test_summary_tool_ok(self):
+        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        assert entry.summary() == "edit_file: ok"
+
+    def test_summary_tool_error_includes_reason(self):
+        result = CallToolResult(
+            content=[TextContent(type="text", text="old_string not found")],
+            structured_content=None,
+            meta=None,
+            is_error=True,
+        )
+        entry = StepOutput(result=result, tool="edit_file")
+        assert entry.summary() == "edit_file: error - old_string not found"
+
+    def test_summary_reasoning_first_line(self):
+        entry = StepOutput(result="H1: X causes Y\nextra detail", tool="")
+        assert entry.summary() == "reasoning: H1: X causes Y"
+
+    def test_summary_truncates_a_long_line(self):
+        entry = StepOutput(result="x" * 200, tool="")
+        summary = entry.summary()
+        assert summary.endswith("...")
+        assert len(summary) == len("reasoning: ") + 80
+
+    def test_progress_text_summarises_in_plan_order(self):
+        """Outputs render as concise bullets, ordered by the plan."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, description="a"),
+                    StepSchema(step_number=2, description="b"),
+                ]
+            ),
+            step_outputs={
+                2: [StepOutput(result=self._result(), tool="run_command")],
+                1: [StepOutput(result=self._result(), tool="edit_file")],
+            },
+        )
+        assert state.progress_text() == (
+            "Step 1:\n- edit_file: ok\n\nStep 2:\n- run_command: ok"
+        )
+
+    def test_progress_text_reasoning_line(self):
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, kind="reasoning", description="r"),
+                ]
+            ),
+            step_outputs={1: [StepOutput(result="H1", tool="")]},
+        )
+        assert state.progress_text() == "Step 1:\n- reasoning: H1"
+
+    def test_progress_text_empty(self):
+        assert KleaAgentState().progress_text() == "(no observations)"
+
     def test_artefacts_text_empty(self):
         assert KleaAgentState().artefacts_text() == "(no artefacts)"
 
