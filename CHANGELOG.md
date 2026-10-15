@@ -44,6 +44,8 @@
 - A graph command handler may be `async` and may hand off to another graph node (via `GraphCommandResult.route` and the transient `command_route` state field), so a command can run further nodes before the run ends (for example `/compact` -> the compaction node; `/init` -> the normal planner/tool path).
 - The summarise-memory node reports its outcome to the inspect pane (summarised / nothing new / no usable summary) instead of writing the chat, and can optionally set a chat confirmation for a manual compaction.
 - The TUI and web UI share a host-local identity file (`PlatformDirs(<server-app>)/user_id`, used only for a loopback server) instead of relying on the browser session cookie, so a session opened in either frontend appears in both and survives new windows/browsers; both frontends accept `--user-id` (ADR-0052).
+- Per-session project root (ADR-0053): `/cwd [path]` shows or sets the directory the file tools operate in, which is also the default path-permission boundary; relative tool arguments are resolved against it (the tools run in a subprocess whose working directory is fixed), and project discovery (`AGENTS.md`) is read from it. The root is shown in the web status pane and the TUI status panel.
+- The tool path-permission ask now shows the tool call (`tool: argument = value (confidence)`) and, for a heuristically guessed value, offers a **Not a path** dismissal that lets the call proceed without approving it (ADR-0007 update 2026-10-14).
 
 ### Changed
 

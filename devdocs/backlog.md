@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-12.
+Last updated: 2026-10-14.
 
 ## Cancellation / concurrency
 
@@ -166,8 +166,6 @@ Last updated: 2026-10-12.
 
 ## Configuration / UX
 
-- Mode and access selectors in the terminal frontends (the web UI has them;
-  the terminal REPL and the planned Textual TUI do not -- see Frontends / TUI).
 - Optional `KLEA_AGENT_ACCESS_LEVEL` env default (deferred; JSON config
   default used instead).
 - Third-party trust roadmap (consent loop, sandbox-by-default, curated server
@@ -195,30 +193,19 @@ Last updated: 2026-10-12.
 
 ## Sessions / working directory
 
-- Per-session project root (needs an ADR).  Today there is no project-root
-  concept: the file-tool permission boundary and the bundled MCP subprocess
-  both inherit the API server's process cwd, so a session can only target the
-  folder `klea web` / `klea-serve` was started in.  Parallel sessions should be
-  able to target different project folders.
-  - Surface (code map): `check_path_access` / `check_tool_arguments_permissions`
-    are already parameterised by `project_root`, but production never supplies
-    it -- the bundled tool wrappers omit it and `ToolsCallerNode` /
-    `dispatch_tool_calls` pass `None`; the bundled MCP subprocess is spawned
-    once per server with no cwd; and two boundary layers (the client-side
-    pre-dispatch gate in the API process and the author-side gate in the MCP
-    process) must both receive the root or they disagree.
-  - Constraint: the MCP client/subprocess is process-level, so a per-session
-    root must be conveyed per tool call (or via a per-session server).  It
-    touches tool schemas / `checkpaths`, the picker/caller, dispatch, tool
-    impls, discovery (`AGENTS.md`), and cwd-relative config/env and
-    vector-store paths.
-  - Central ADR question: what a "session root" means -- a per-chat
-    user-selected folder (with an operator-configured base/allowlist for
-    safety) versus one global base directory with per-chat subfolders.
-  - Security: `check_path_access` is the only non-OS confinement for Klea file
-    tools; `run_command` is advisory, not a sandbox.  A per-session root must
-    let the operator bound what a session may choose, not let the model name an
-    arbitrary root.
+- Per-session project root: **implemented** (ADR-0053); deferred follow-ups:
+  - **Operator allowlist** (needs auth): without authentication the root is the
+    user's free choice (they run the server).  An authenticated/multi-tenant
+    deployment should bound what a session may choose before `/cwd` is exposed
+    to untrusted users.
+  - **MCP roots interop**: Klea sends absolute paths and gates client-side;
+    servers that rigidly enforce MCP roots or prefix all paths with a root are
+    incompatible (ADR-0053).  Advertise roots only if such servers become a
+    target.
+  - **cwd-dependent / remote servers**: a tool that resolves relative paths
+    against its own cwd for non-argument work, or a remote server that does not
+    share the client's filesystem, is out of scope; only OS sandboxing is a hard
+    boundary (advisory gate, ADR-0007).
 
 ## Frontends / TUI
 
@@ -234,41 +221,22 @@ Last updated: 2026-10-12.
   quick testing with simple queries.  It is **not** the TUI; the historical
   "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale.
   Drop the REPL (and retire its `-tui` identity) once TUI parity is confirmed.
-- Textual TUI: **landed** (ADR-0050; architecture `system/tui.md`, tests
-  `system/tui-testing.md`, public `docs/components/tui.rst`).  Shared
-  `klea_utils/ui/tui` with per-app composition (`klea_agent` mode/access
-  slots, `klea_rag` none), mirroring the web component split: one active
-  session + summonable picker (switch/rename/delete), one in-flight run
-  attached to the session, streaming transcript + inspector, a full-height
-  status panel, per-role model + credentials dialogs, HITL/permission modals,
-  `/`-commands, and missing-model/API-key send gating.  Remaining: drop the
-  temporary `cli` REPL above (and retire its `-tui` identity) once parity is
-  confirmed by an end-to-end pass; the stale ADR/`system/streams.md` wording
-  and the `CHANGELOG.md` entry are done.
-- Cross-frontend sessions / shared identity (**partly done**, ADR-0052): the
-  TUI and web UI now share a host-local identity file
-  (`PlatformDirs(<server-app>)/user_id`) via `klea_utils/ui/identity.py`,
-  loopback-gated, with `--user-id` on both.  Remaining: (a) a remote/multi-user
-  deployment still uses the per-browser NiceGUI session cookie, so chats can
-  "disappear" on a new window/browser/profile; a stable per-user id requires
-  authentication (the user's username/id) instead of a random, browser-bound
-  cookie.  (b) a `klea sessions` subcommand to list/delete sessions is a
-  companion nicety.  Caveat: unifying the frontend data folders is still not
-  the fix -- `app_name` is both the data dir and the log file name, so the
-  server, web and TUI cannot share one `app_name` without colliding on
-  `{app_name}.log`.
+- Cross-frontend sessions / shared identity (ADR-0052): the shared host-local
+  identity file (`PlatformDirs(<server-app>)/user_id`, loopback-gated,
+  `--user-id` on both frontends) is **implemented**.  Remaining: (a) a
+  remote/multi-user deployment still uses the per-browser NiceGUI session
+  cookie, so chats can "disappear" on a new window/browser/profile; a stable
+  per-user id requires authentication (the user's username/id) instead of a
+  random, browser-bound cookie.  (b) a `klea sessions` subcommand to
+  list/delete sessions is a companion nicety.  Caveat: unifying the frontend
+  data folders is still not the fix -- `app_name` is both the data dir and the
+  log file name, so the server, web and TUI cannot share one `app_name` without
+  colliding on `{app_name}.log`.
 - Session-command framework (ADR-0047; catalogue in
-  `system/session-commands.md`): a `/`-command surface shared by all frontends
-  (web first; the temporary REPL is not touched).  Commands are user-invoked
-  tool calls -- UI-local ones run in the frontend, graph ones in a command node
-  (mirroring the tool picker/caller) right after `Initializing`; graph-state
-  changes are checkpointed (no `sessions.db` divergence).  A universal
-  catalogue is served via `GET /commands`; each frontend filters by capability.
-  Phases: P1 framework (shared core, `GET /commands`, web routing + `/`-menu,
-  `/help`, documented stubs) and P2 (graph command node + `/mode`,`/access`,
-  unified with the selectors) are **done**; P3 and P4 remain (below).
-  `/cwd` (project root) reuses the framework once the per-session-root ADR
-  lands.  `/runlocal` is intentionally omitted.
+  `system/session-commands.md`): the `/`-command surface (framework,
+  `GET /commands`, the graph command node, `/help`, `/mode`, `/access`,
+  `/cwd`, `/compact`, `/init`, and the client commands) is **implemented**.
+  `/runlocal` is intentionally omitted.
 
 - Session workspace + attachment commands (`/file`, `/upload`, `/webfetch`;
   P3 of ADR-0047): **deferred -- decide the use cases before implementing.**
@@ -293,15 +261,6 @@ Last updated: 2026-10-12.
   the LangGraph checkpoint and clear the workspace (see Session deletion
   cleanup).
 
-- Session commands (P4 of ADR-0047): `/compact` and `/init` are implemented.
-  `/compact` forces a summarisation via the compaction node and reports the
-  outcome in the inspection pane; `/init` (a cheap first cut) hands off to the
-  normal agent loop with a canned prompt.  Client-only commands (`/new`,
-  `/sessions`, `/rename`, `/model`, `/export`) are small, frontend-owned wins.
-  Dropped as not applicable: `/plan` (Klea has no plan mode -- read-only is the
-  access level, not a workflow), `/theme` (Klea offers only light/dark, toggled
-  in the header; not worth a command), and `/commands` (redundant with bare
-  `/help`, which already lists the merged catalogue).
 - Full-fledged `/init` (deferred).  The current `/init` hands off to the normal
   agent loop with a canned prompt: non-deterministic, uses the full tool loop,
   and needs full access to write.  A dedicated init node -- bounded exploration

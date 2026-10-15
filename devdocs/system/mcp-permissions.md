@@ -32,21 +32,31 @@ The single enforcement point is the pre-dispatch gate in
 - **Client-side (pre-dispatch):** every call's paths are detected before it
   reaches the MCP server.  With a `permission_resolver` the run pauses for
   the user's per-path *allow now* / *allow for session* / *deny* decision
-  (ADR-0007 update 2026-10-08) via the shared HITL interrupt (ADR-0046); a
-  request left unapproved blocks the call -- it never reaches the server and
-  becomes a synthetic, non-halting error result so the LLM can adapt.  With
-  no resolver, every outside path is denied (the pre-ADR-0007 behaviour).
-  The gate runs in the shared `ToolsCallerNode`
+  (ADR-0007 update 2026-10-08), or *not a path* to dismiss a guessed false
+  positive for this dispatch (ADR-0007 update 2026-10-14), via the shared
+  HITL interrupt (ADR-0046); a request left unapproved blocks the call -- it
+  never reaches the server and becomes a synthetic, non-halting error result
+  so the LLM can adapt.  With no resolver, every outside path is denied (the
+  pre-ADR-0007 behaviour).  The ask shows the tool call behind each request
+  (`tool: argument = raw (confidence)`); *not a path* is offered only for a
+  `guess`-tier value and keeps no memory (a genuine path is never silently
+  ungated).  The gate runs in the shared `ToolsCallerNode`
   (`klea_utils/nodes/tools_caller.py`) used by both Klea Agent and Klea RAG;
   the agent opts into `permission_policy="ask"`, RAG keeps `"deny"`.  A
   resolved ask is also emitted as an `inspect` entry (heading "Path
-  permission": the requested keys and the allow/deny resolution) so the
-  inspection pane keeps an audit of the decision after the chat form is
+  permission": the requested keys, tool/argument/raw, and the resolution) so
+  the inspection pane keeps an audit of the decision after the chat form is
   gone.
 
-Both agents/RAG are expected to run from the directory the user is working
-in, so the client-side gate uses `project_root=None` (the current working
-directory) by default.
+The boundary is the **session project root** (`BaseGraphSchema.project_root`,
+ADR-0053), set with `/cwd`; it defaults to the API server's working directory
+when unset.  Before detection and dispatch, relative path arguments are
+resolved to absolute against it (`klea_utils.mcp.path_detect.resolve_path_arguments`),
+because the tools run in a subprocess whose cwd is fixed at spawn and cannot be
+changed per session.  Declared `checkpaths` are always resolved; other arguments
+are resolved heuristically when the argument name is path-ish and the value is a
+single-token, non-URL/flag/glob string (shell command strings are never
+rewritten).
 
 ### Layered path discovery
 
@@ -87,7 +97,7 @@ flowchart TD
     Caller --> PreCheck{"detect_path_requests\n(outside / sensitive?)"}
     PreCheck -- none / approved --> Server[MCP server]
     PreCheck -- denied / unapproved --> Synth1[Synthetic error\nnever reaches server]
-    PreCheck -- "outside or sensitive + ask" --> Approval["interrupt (per path):\nallow now / session / deny"]
+    PreCheck -- "outside or sensitive + ask" --> Approval["interrupt (per path):\nallow now / session / deny\n(+ not a path for a guess)"]
     Approval --> PreCheck
     Server --> Exec[Execute]
 ```

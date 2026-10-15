@@ -52,7 +52,10 @@ continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
 plan approval or a progress checkpoint) / `input` (a blocked step's questions)
 from the agent's `AwaitHuman` nodes, or `permission` (the shared
 `ToolsCallerNode`, pausing before a call that would touch a path outside the
-permitted roots; ADR-0007 update 2026-10-08).  See ADR-0051 for review steps.
+permitted roots; ADR-0007 update 2026-10-08).  A permission ask shows the tool
+call (`tool: argument = raw (confidence)`) and its per-path decisions are
+`once`/`session`/`deny`, plus `not_a_path` (a per-dispatch dismissal for a
+guessed value; ADR-0007 update 2026-10-14).  See ADR-0051 for review steps.
 
 `context` carries the checkpointed session context (e.g. the agent operating
 mode / tool access, ADR-0030/0032).  The web frontend stores it on the chat and

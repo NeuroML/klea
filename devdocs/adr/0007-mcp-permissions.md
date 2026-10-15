@@ -8,6 +8,14 @@ informed: ""
 
 # Declarative path permissions with dual-layer check and deferred interactive policy
 
+> **Update (2026-10-14):** the per-path decision set now includes **`not a
+> path`** -- a per-dispatch dismissal for a heuristic false positive (the call
+> proceeds and nothing is remembered, so a genuine path is never silently
+> ungated), offered only for a `guess`-tier request; and the ask shows the tool
+> call (`tool: argument = raw (confidence)`) for context.  The boundary now
+> follows the per-session project root (ADR-0053) instead of a fixed cwd, and
+> relative path arguments are resolved to absolute against it before dispatch.
+
 ## Context and Problem Statement
 
 MCP tools can read/write the filesystem and fetch URLs.  Klea must

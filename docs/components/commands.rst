@@ -76,6 +76,11 @@ These are sent to the graph and run there.
      - ``/access [read_only|full]``
      - Show or set the tool access level; with no argument it reports the
        current level.
+   * - ``/cwd``
+     - ``/cwd [path]``
+     - Show or set the session project root -- the directory the file tools
+       operate in and the default permission boundary.  The path must be an
+       existing directory; with no argument it reports the current root.
    * - ``/compact``
      - ``/compact``
      - Summarise and shorten the conversation memory now (Agent, when

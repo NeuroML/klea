@@ -14,7 +14,8 @@ re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
 credentials dialog, the missing-model/API-key send gating, the app-slot status
-extras, and the agent operating-mode and tool-access selectors have landed;
+extras, and the agent operating-mode, tool-access and project-root selectors
+have landed;
 the composition/slots are finalized with an I8 guard test, and the public
 `docs/components/tui.rst` and `system/tui-testing.md` document the frontend.
 
@@ -92,7 +93,7 @@ I8); each app composes its own screen from them, mirroring the NiceGUI
 | Transcript | `ui/tui/components/transcript.py` | Message widgets, MIME-aware rendering | `chat_area.py` + `chat_bubble.py` |
 | Input | `ui/tui/components/input.py` | Query entry, send/stop routing, `/` completion | `input_area.py` |
 | Turn status | `ui/tui/components/turn_status.py` | Live heading, error+Retry, stopped, awaiting input | chat-area turn-status region |
-| Status panel | `ui/tui/components/status_panel.py` | Full-height right panel: mode/access, models, state sections, token usage | `status_pane.py` |
+| Status panel | `ui/tui/components/status_panel.py` | Full-height right panel: mode/access/project-root, models, state sections, token usage | `status_pane.py` |
 | Inspector view | `ui/tui/components/inspector.py` | Inspect entries; a toggle view inside the chat panel | `inspector.py` |
 | Session picker | `ui/tui/components/sessions.py` | `ModalScreen` list / switch / rename / delete | `chat_list.py` |
 | Model dialog | `ui/tui/components/model_dialog.py` | `ModalScreen` per-role model editor (shared core in `ui/model_config.py`) | `model_dialog.py` |
@@ -121,7 +122,7 @@ TUI must not reinterpret them.  Per event:
 | `usage` | Accumulate token totals in the status panel | token totals |
 | `tool` | Append a message widget (MIME-aware, text fallback) | chat blocks |
 | `token` | Not consumed (no live typing; see streams.md) | ignored |
-| `context` | Store on the active chat; reconcile the status-panel mode/access slots | status pane + `context_hooks` |
+| `context` | Store on the active chat; reconcile the status-panel mode/access/project-root slots | status pane + `context_hooks` |
 | `interrupt` | Open the HITL / permission modal; stop streaming until answered | chat ask form |
 | `complete` | Append the agent message; set turn status idle | chat bubble |
 | `error` | Turn status error; offer Retry when `resumable` | notification |

@@ -122,13 +122,16 @@ and the menu (`CommandRegistry.available`).
 |---|---|---|---|---|
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
+| `/cwd [path]` | session-state | checkpoint | block | show or set the session project root |
 | `/compact` | workflow | checkpoint | block | summarise and shorten the conversation memory |
 | `/init` | workflow | message | block | generate project guidance (`AGENTS.md`) |
 
 Planned server commands (present in code as `implemented=False`, not
-published yet): `/cwd`, `/file`, `/webfetch`, `/run`.
-`/compact` is registered only when conversation memory is enabled (it hands
-off to the compaction node); it forces a summarisation past the automatic
+published yet): `/file`, `/webfetch`, `/run`.
+`/cwd` sets the session project root (the file tools' boundary and default
+directory, ADR-0053); it must be an existing directory.  `/compact` is
+registered only when conversation memory is enabled (it
+hands off to the compaction node); it forces a summarisation past the automatic
 threshold and reports the outcome in the inspection pane.  `/init` is a
 workflow command that hands off *back into the normal path* with a
 synthesised query, so the ordinary planner/tool loop explores the project and
