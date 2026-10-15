@@ -361,6 +361,12 @@ with the commands it handles itself.  A client-side command (such as
 <code class="docutils literal notranslate"><span class="pre">/help</span></code>) runs in the browser; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, the
 agent’s operating mode) is sent to the agent.  An unknown command is reported
 locally and never sent.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>
+<p><code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> opens the interface in your default browser on launch (pass
+<code class="docutils literal notranslate"><span class="pre">--no-open</span></code> on a headless or remote host), and accepts <code class="docutils literal notranslate"><span class="pre">--continue</span></code> or
+<code class="docutils literal notranslate"><span class="pre">--resume</span> <span class="pre">&lt;chat_id&gt;</span></code> to open the most recently updated or a specific session
+on load.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code> – or the header’s power button, which confirms first –
+stops the server this client launched, closes any active runs, and closes the
+browser tab on a best-effort basis.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>

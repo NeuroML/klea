@@ -53,6 +53,13 @@ with the commands it handles itself.  A client-side command (such as
 agent's operating mode) is sent to the agent.  An unknown command is reported
 locally and never sent.  See :doc:`commands` for the list.
 
+``klea web`` opens the interface in your default browser on launch (pass
+``--no-open`` on a headless or remote host), and accepts ``--continue`` or
+``--resume <chat_id>`` to open the most recently updated or a specific session
+on load.  ``/exit`` -- or the header's power button, which confirms first --
+stops the server this client launched, closes any active runs, and closes the
+browser tab on a best-effort basis.
+
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer
    :width: 80%

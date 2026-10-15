@@ -398,43 +398,60 @@ ready for general use.</p>
  Klea Agent web client (NiceGUI)                                      
                                                                       
 ╭─ Options ──────────────────────────────────────────────────────────╮
-│ --server          -s      TEXT  KLEA Agent server (URL:port)       │
-│                                 [default: http://127.0.0.1:8006]   │
-│ --title           -t      TEXT  Title for application              │
-│                                 [default: KLEA Agent]              │
-│ --subtitle        -b      TEXT  Subtitle shown next to title in    │
-│                                 header                             │
-│ --disclaimer      -c      TEXT  Disclaimer text shown in the       │
-│                                 footer                             │
-│                                 [default: Answers use LLM          │
-│                                 technology and may be incorrect.   │
-│                                 Please re-confirm.]                │
-│ --footer                  TEXT  Footer HTML content                │
-│                                 [default: Powered by &lt;a            │
-│                                 href="https://github.com/neuroml/… │
-│ --nicegui-url             TEXT  Host:port to bind the NiceGUI web  │
-│                                 server to                          │
-│                                 [default: 0.0.0.0:7860]            │
-│ --storage-secret          TEXT  NiceGUI storage secret for session │
-│                                 persistence                        │
-│                                 [default:                          │
-│                                 klea-nicegui-secret-change-me]     │
-│ --favicon                 TEXT  Browser-tab icon: a file path,     │
-│                                 http(s)/data URL, raw SVG or a     │
-│                                 single character. Defaults to the  │
-│                                 bundled Klea icon.                 │
-│ --reload          -r            Enable auto-reload on file changes │
-│ --user-id                 TEXT  Opaque user id. Defaults to        │
-│                                 KLEA_USER_ID, else a shared        │
-│                                 host-local identity file (loopback │
-│                                 only).                             │
-│ --debug                         Enable debug logging               │
-│ --profile         -p      TEXT  Config profile name: loads         │
-│                                 &lt;name&gt;.json from the current       │
-│                                 directory or the config dir. Use   │
-│                                 'template' to scaffold a new       │
-│                                 config and exit.                   │
-│ --help                          Show this message and exit.        │
+│ --server          -s               TEXT  KLEA Agent server         │
+│                                          (URL:port)                │
+│                                          [default:                 │
+│                                          http://127.0.0.1:8006]    │
+│ --title           -t               TEXT  Title for application     │
+│                                          [default: KLEA Agent]     │
+│ --subtitle        -b               TEXT  Subtitle shown next to    │
+│                                          title in header           │
+│ --disclaimer      -c               TEXT  Disclaimer text shown in  │
+│                                          the footer                │
+│                                          [default: Answers use LLM │
+│                                          technology and may be     │
+│                                          incorrect. Please         │
+│                                          re-confirm.]              │
+│ --footer                           TEXT  Footer HTML content       │
+│                                          [default: Powered by &lt;a   │
+│                                          href="https://github.com… │
+│ --nicegui-url                      TEXT  Host:port to bind the     │
+│                                          NiceGUI web server to     │
+│                                          [default: 0.0.0.0:7860]   │
+│ --storage-secret                   TEXT  NiceGUI storage secret    │
+│                                          for session persistence   │
+│                                          [default:                 │
+│                                          klea-nicegui-secret-chan… │
+│ --favicon                          TEXT  Browser-tab icon: a file  │
+│                                          path, http(s)/data URL,   │
+│                                          raw SVG or a single       │
+│                                          character. Defaults to    │
+│                                          the bundled Klea icon.    │
+│ --reload          -r                     Enable auto-reload on     │
+│                                          file changes              │
+│ --user-id                          TEXT  Opaque user id. Defaults  │
+│                                          to KLEA_USER_ID, else a   │
+│                                          shared host-local         │
+│                                          identity file (loopback   │
+│                                          only).                    │
+│ --resume                           TEXT  Open a specific chat      │
+│                                          session by id on load.    │
+│ --continue                               Open the most recently    │
+│                                          updated chat session on   │
+│                                          load.                     │
+│ --open                --no-open          Open the UI in the        │
+│                                          default browser once      │
+│                                          ready (default: yes).     │
+│                                          [default: open]           │
+│ --debug                                  Enable debug logging      │
+│ --profile         -p               TEXT  Config profile name:      │
+│                                          loads &lt;name&gt;.json from    │
+│                                          the current directory or  │
+│                                          the config dir. Use       │
+│                                          'template' to scaffold a  │
+│                                          new config and exit.      │
+│ --help                                   Show this message and     │
+│                                          exit.                     │
 ╰────────────────────────────────────────────────────────────────────╯
 </pre></div>
 </div>

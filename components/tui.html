@@ -389,11 +389,12 @@ updated chat and <code class="docutils literal notranslate"><span class="pre">--
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading">¶</a></h2>
 <p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a completion list.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
 commands: the TUI merges the server’s command catalogue with the commands it
-handles itself.  A client-side command (<code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code>)
-runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code>, the
-agent’s operating mode and tool access level) is sent to the agent.  An
-unknown command is reported locally and never sent.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for
-the list.</p>
+handles itself.  A client-side command (<code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/exit</span></code>) runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or
+<code class="docutils literal notranslate"><span class="pre">/access</span></code>, the agent’s operating mode and tool access level) is sent to the
+agent.  An unknown command is reported locally and never sent.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code>
+stops any active run and quits (the same as <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd>).  See
+<a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>
 </section>
 <section id="models-and-api-keys">
 <h2>Models and API keys<a class="headerlink" href="#models-and-api-keys" title="Link to this heading">¶</a></h2>

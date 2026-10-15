@@ -324,6 +324,7 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
@@ -454,6 +455,34 @@
         <span class="k">return</span> <span class="s2">"error"</span>
 
     <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="replay_chat_events">
+<a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.stream_events.replay_chat_events">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">replay_chat_events</span><span class="p">(</span><span class="n">chat</span><span class="p">:</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">events</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Rebuild the pane state from a chat's stored UI events (ADR-0032 update).</span>
+
+<span class="sd">    Mirrors the live stream so a reloaded chat shows the same inspection /</span>
+<span class="sd">    status panes: a ``query`` event opens a new inspector section (the same</span>
+<span class="sd">    marker the live path inserts at run start), and every other event is</span>
+<span class="sd">    reduced through :func:`apply_stream_event`.  The transcript is hydrated</span>
+<span class="sd">    separately from the persisted messages.</span>
+
+<span class="sd">    :param chat: The chat session dict (see ``state.ensure_chat``).</span>
+<span class="sd">    :param events: The stored events (``GET .../events``), oldest first.</span>
+<span class="sd">    """</span>
+    <span class="k">for</span> <span class="n">event</span> <span class="ow">in</span> <span class="n">events</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"query"</span><span class="p">:</span>
+            <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"inspector_entries"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"query"</span><span class="p">,</span>
+                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"stamp"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="n">apply_stream_event</span><span class="p">(</span><span class="n">chat</span><span class="p">,</span> <span class="n">event</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

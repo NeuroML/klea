@@ -327,6 +327,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">httpx</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">MessageData</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">ensure_chat</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.stream_events</span><span class="w"> </span><span class="kn">import</span> <span class="n">replay_chat_events</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -359,8 +360,9 @@
 <span class="w">    </span><span class="sd">"""Fetch a chat's session context and pending interrupt (ADR-0032/0046).</span>
 
 <span class="sd">    Calls ``GET /chat/{user_id}/{chat_id}/context`` and returns the body</span>
-<span class="sd">    (``{"context": {...}, "pending_interrupt": {...}}``), so a frontend can</span>
-<span class="sd">    restore a chat's context and re-present a paused HITL ask on load/switch.</span>
+<span class="sd">    (``{"context": {...}, "pending_interrupt": {...}, "usage": {...}}``), so a</span>
+<span class="sd">    frontend can restore a chat's context, token totals, and re-present a</span>
+<span class="sd">    paused HITL ask on load/switch.</span>
 
 <span class="sd">    :param server_url: Base URL of the backend API server.</span>
 <span class="sd">    :param user_id: Opaque persistent user identifier.</span>
@@ -432,20 +434,64 @@
 
 
 
+<div class="viewcode-block" id="fetch_chat_events">
+<a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.client.fetch_chat_events">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">fetch_chat_events</span><span class="p">(</span>
+    <span class="n">server_url</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Fetch a chat's persisted UI events (inspection/status panes).</span>
+
+<span class="sd">    Calls ``GET /chat/{user_id}/{chat_id}/events``; the frontends replay the</span>
+<span class="sd">    events through the shared reducer to rebuild the panes on load</span>
+<span class="sd">    (ADR-0032 update).</span>
+
+<span class="sd">    :param server_url: Base URL of the backend API server.</span>
+<span class="sd">    :param user_id: Opaque persistent user identifier.</span>
+<span class="sd">    :param chat_id: Chat conversation identifier.</span>
+<span class="sd">    :returns: The event dicts, or ``[]`` on failure.</span>
+<span class="sd">    """</span>
+    <span class="n">url</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="si">}</span><span class="s2">/chat/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">/events"</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">httpx</span><span class="o">.</span><span class="n">AsyncClient</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span> <span class="k">as</span> <span class="n">client</span><span class="p">:</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"GET </span><span class="si">%s</span><span class="s2"> status=</span><span class="si">%d</span><span class="s2">"</span><span class="p">,</span> <span class="n">url</span><span class="p">,</span> <span class="n">resp</span><span class="o">.</span><span class="n">status_code</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Failed to fetch chat events: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[]</span></div>
+
+
+
 <div class="viewcode-block" id="server_message_to_data">
 <a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.client.server_message_to_data">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">server_message_to_data</span><span class="p">(</span><span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">MessageData</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Convert a server message row to the frontend ``MessageData`` shape.</span>
 
+<span class="sd">    A ``tool`` row is rebuilt from its stored ``metadata`` (``header`` /</span>
+<span class="sd">    ``mime`` / ``data`` / ``meta`` / ``is_error``) so a reloaded chat renders</span>
+<span class="sd">    the same blocks as the live stream; other roles map to ``user``/``agent``.</span>
+
 <span class="sd">    :param message: A ``GET .../messages`` row (``role``, ``content``,</span>
-<span class="sd">        ``created_at``).</span>
+<span class="sd">        ``metadata``, ``created_at``).</span>
 <span class="sd">    :returns: A message dict for ``ChatData["messages"]``.</span>
 <span class="sd">    """</span>
+    <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">message</span><span class="p">[</span><span class="s2">"created_at"</span><span class="p">])</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"metadata"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"text"</span><span class="p">:</span> <span class="n">message</span><span class="p">[</span><span class="s2">"content"</span><span class="p">],</span>
+            <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
+            <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span>
+            <span class="s2">"header"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="s2">"mime"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="s2">"data"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="s2">"meta"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="s2">"is_error"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+        <span class="p">}</span>
     <span class="k">return</span> <span class="p">{</span>
         <span class="s2">"text"</span><span class="p">:</span> <span class="n">message</span><span class="p">[</span><span class="s2">"content"</span><span class="p">],</span>
-        <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">message</span><span class="p">[</span><span class="s2">"created_at"</span><span class="p">])</span>
-        <span class="o">.</span><span class="n">astimezone</span><span class="p">()</span>
-        <span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">),</span>
+        <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
         <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"user"</span> <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"user"</span> <span class="k">else</span> <span class="s2">"agent"</span><span class="p">,</span>
         <span class="s2">"header"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
     <span class="p">}</span></div>
@@ -497,6 +543,17 @@
                             <span class="n">current_chat</span><span class="p">[</span><span class="s2">"messages"</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
                                 <span class="n">server_message_to_data</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">msg_resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
                             <span class="p">]</span>
+                    <span class="c1"># Stored UI events rebuild the inspection/status panes</span>
+                    <span class="c1"># (ADR-0032 update); replayed through the shared reducer so</span>
+                    <span class="c1"># a reloaded chat matches the live session.</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"GET /chat/</span><span class="si">%s</span><span class="s2">/</span><span class="si">%s</span><span class="s2">/events"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
+                    <span class="n">evt_resp</span> <span class="o">=</span> <span class="k">await</span> <span class="n">client</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">server_url</span><span class="si">}</span><span class="s2">/chat/</span><span class="si">{</span><span class="n">user_id</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">/events"</span>
+                    <span class="p">)</span>
+                    <span class="k">if</span> <span class="n">evt_resp</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span><span class="p">:</span>
+                        <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
+                            <span class="n">replay_chat_events</span><span class="p">(</span><span class="n">current_chat</span><span class="p">,</span> <span class="n">evt_resp</span><span class="o">.</span><span class="n">json</span><span class="p">())</span>
                     <span class="c1"># Session context (the agent's operating mode etc.,</span>
                     <span class="c1"># ADR-0032) is a projection of checkpointed graph state.</span>
                     <span class="c1"># Restore it so the selector renders correctly before</span>
@@ -517,6 +574,18 @@
                                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                                     <span class="s2">"hydrated context for </span><span class="si">%s</span><span class="s2">: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">context</span>
                                 <span class="p">)</span>
+                        <span class="c1"># The checkpointed cumulative token totals (ADR-0032</span>
+                        <span class="c1"># update) restore the session total without replaying</span>
+                        <span class="c1"># the per-node ``usage`` events.</span>
+                        <span class="n">usage</span> <span class="o">=</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"usage"</span><span class="p">)</span>
+                        <span class="k">if</span> <span class="n">usage</span><span class="p">:</span>
+                            <span class="n">current_chat</span> <span class="o">=</span> <span class="n">chats</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">current_chat</span><span class="p">:</span>
+                                <span class="n">current_chat</span><span class="p">[</span><span class="s2">"token_usage"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                                    <span class="s2">"input_tokens"</span><span class="p">:</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"input_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                                    <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"output_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                                    <span class="s2">"total_tokens"</span><span class="p">:</span> <span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"total_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                                <span class="p">}</span>
                         <span class="c1"># A paused thread re-presents its HITL ask (ADR-0046),</span>
                         <span class="c1"># so a reload renders the form instead of a dead chat.</span>
                         <span class="n">pending</span> <span class="o">=</span> <span class="n">body</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"pending_interrupt"</span><span class="p">)</span>

@@ -342,6 +342,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">traceback</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">AsyncGenerator</span><span class="p">,</span> <span class="n">AsyncIterator</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">fastapi</span><span class="w"> </span><span class="kn">import</span> <span class="n">HTTPException</span><span class="p">,</span> <span class="n">Request</span>
@@ -400,6 +401,48 @@
 <span class="c1">#: in ``sse.py``) and intermediary proxies drop the stream.  15 s is well below</span>
 <span class="c1">#: both.</span>
 <span class="n">HEARTBEAT_INTERVAL_SECONDS</span> <span class="o">=</span> <span class="mf">15.0</span>
+
+<span class="c1">#: Event types persisted per chat for hydration (ADR-0032 update): the pane</span>
+<span class="c1">#: events the frontends replay to rebuild the inspection/status panes on load.</span>
+<span class="c1">#: The transcript is hydrated from ``messages`` (``complete``/``tool`` are</span>
+<span class="c1">#: stored there); ``context`` and ``usage`` are checkpointed state with their</span>
+<span class="c1">#: own projection endpoints (``GET .../context``); ``progress``/``ping`` are</span>
+<span class="c1">#: transient.</span>
+<span class="n">_HYDRATION_EVENT_TYPES</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">})</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_tool_event_messages</span><span class="p">(</span><span class="n">event</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Return transcript rows for a ``tool`` event's renderable entries.</span>
+
+<span class="sd">    A ``tool`` event carries chat-renderable output (a file-edit diff, an</span>
+<span class="sd">    image, command output, ...) per entry.  Each entry is persisted as a</span>
+<span class="sd">    ``messages`` row (``role="tool"``) so a reloaded chat shows the same</span>
+<span class="sd">    blocks as the live stream; the rendering keys are stored in the row's</span>
+<span class="sd">    ``metadata`` (the ``messages`` table's ``content`` holds the text</span>
+<span class="sd">    fallback), mirroring the frontend reducer</span>
+<span class="sd">    (``klea_utils/ui/stream_events.py``).</span>
+
+<span class="sd">    :param event: A streamed ``tool`` event.</span>
+<span class="sd">    :returns: One row per entry that has rendered content, else ``[]``.</span>
+<span class="sd">    """</span>
+    <span class="n">rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tools"</span><span class="p">,</span> <span class="p">[]):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span>
+                <span class="s2">"content"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                <span class="s2">"metadata"</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">"header"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
+                    <span class="s2">"mime"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"data"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                    <span class="s2">"meta"</span><span class="p">:</span> <span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+                    <span class="s2">"is_error"</span><span class="p">:</span> <span class="nb">bool</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)),</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">rows</span>
 
 
 <span class="c1"># ---------------------------------------------------------------------------</span>
@@ -773,6 +816,18 @@
         <span class="n">task</span> <span class="o">=</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">current_task</span><span class="p">()</span>
         <span class="k">if</span> <span class="n">task</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">thread_id</span><span class="p">,</span> <span class="n">task</span><span class="p">)</span>
+        <span class="c1"># Pane events persisted for hydration (ADR-0032 update); a new turn</span>
+        <span class="c1"># opens a per-query section with a ``query`` marker, mirroring the</span>
+        <span class="c1"># frontend's live marker.  Flushed once the run ends (or is cancelled).</span>
+        <span class="n">pane_events</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">user_turn</span><span class="p">:</span>
+            <span class="n">pane_events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"type"</span><span class="p">:</span> <span class="s2">"query"</span><span class="p">,</span>
+                    <span class="s2">"text"</span><span class="p">:</span> <span class="n">user_turn</span><span class="p">,</span>
+                    <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>
             <span class="n">raw_events</span> <span class="o">=</span> <span class="n">graph</span><span class="o">.</span><span class="n">run_graph_astream_events</span><span class="p">(</span>
                 <span class="n">graph_input</span><span class="p">,</span>
@@ -821,6 +876,18 @@
                             <span class="n">user_id</span><span class="p">,</span>
                             <span class="n">chat_id</span><span class="p">,</span>
                         <span class="p">)</span>
+                    <span class="k">elif</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
+                        <span class="c1"># Chat-renderable tool output (e.g. a file-edit diff):</span>
+                        <span class="c1"># persist each entry as a transcript row so a reloaded</span>
+                        <span class="c1"># chat shows the same blocks as the live stream.</span>
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">ephemeral_command</span><span class="p">:</span>
+                            <span class="n">rows</span> <span class="o">=</span> <span class="n">_tool_event_messages</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
+                            <span class="k">if</span> <span class="n">rows</span><span class="p">:</span>
+                                <span class="n">store</span><span class="o">.</span><span class="n">add_messages</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">rows</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">_HYDRATION_EVENT_TYPES</span><span class="p">:</span>
+                        <span class="c1"># Pane event: persisted so the inspector/status panes</span>
+                        <span class="c1"># survive a reload (flushed in ``finally``).</span>
+                        <span class="n">pane_events</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">event</span><span class="p">)</span>
                     <span class="k">yield</span> <span class="sa">f</span><span class="s2">"data: </span><span class="si">{</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">event</span><span class="p">)</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">"</span>
         <span class="k">except</span> <span class="n">EmptyInputError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
             <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
@@ -839,6 +906,11 @@
             <span class="k">yield</span> <span class="n">_error_frame</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">e</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">resumable</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="k">finally</span><span class="p">:</span>
             <span class="n">registry</span><span class="o">.</span><span class="n">clear</span><span class="p">(</span><span class="n">thread_id</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">pane_events</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">store</span><span class="o">.</span><span class="n">add_chat_events</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">,</span> <span class="n">pane_events</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"failed to persist UI events: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">StreamingResponse</span><span class="p">(</span>
         <span class="n">event_stream</span><span class="p">(),</span>

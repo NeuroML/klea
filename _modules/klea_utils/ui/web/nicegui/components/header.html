@@ -306,7 +306,7 @@
           <h1>Source code for klea_utils.ui.web.nicegui.components.header</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">Header component: title bar and dark-mode toggle.</span>
+<span class="sd">Header component: title bar, dark-mode toggle and exit button.</span>
 
 <span class="sd">File: klea_utils/ui/web/nicegui/components/header.py</span>
 
@@ -314,25 +314,85 @@
 <span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
 <span class="sd">"""</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">ui</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span><span class="p">,</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.stream</span><span class="w"> </span><span class="kn">import</span> <span class="n">stop_all_streams</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Delay before shutting the server down, so the fire-and-forget</span>
+<span class="c1">#: ``window.close()`` has a chance to reach the browser first.</span>
+<span class="n">_TAB_CLOSE_GRACE_SECONDS</span> <span class="o">=</span> <span class="mf">0.2</span>
 
 
 <div class="viewcode-block" id="attach_header">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.header.attach_header">[docs]</a>
 <span class="k">def</span><span class="w"> </span><span class="nf">attach_header</span><span class="p">(</span><span class="n">ctx</span><span class="p">:</span> <span class="n">PageContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Build the page header: title, optional subtitle, dark-mode toggle.</span>
+<span class="w">    </span><span class="sd">"""Build the page header: title, subtitle, dark-mode toggle, exit button.</span>
 
 <span class="sd">    Relies on ``ctx.dark`` being set by :func:`theme.install_theme`</span>
-<span class="sd">    before this is called.</span>
+<span class="sd">    before this is called.  Registers ``ctx.exit_app``: it stops this page's</span>
+<span class="sd">    active runs, then shuts the NiceGUI server down (which, for a</span>
+<span class="sd">    client-spawned server, ends the subprocess via the CLI's process-group</span>
+<span class="sd">    teardown).  ``ctx.exit_app`` is the immediate action used by the ``/exit``</span>
+<span class="sd">    client command; the header's exit button confirms first, since an</span>
+<span class="sd">    accidental click would stop the server for every open tab.</span>
 
 <span class="sd">    :param ctx: The shared page context.</span>
 <span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_exit_app</span><span class="p">():</span>
+<span class="w">        </span><span class="sd">"""Stop the page's runs, close the tab, then shut the server down."""</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"exit requested from the web header"</span><span class="p">)</span>
+        <span class="n">stop_all_streams</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+        <span class="n">_close_browser_tab</span><span class="p">()</span>
+        <span class="c1"># Give the fire-and-forget ``window.close()`` a moment to reach the</span>
+        <span class="c1"># browser before the socket drops, then stop the server.</span>
+        <span class="n">background_tasks</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">_shutdown_soon</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_close_browser_tab</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Best-effort ``window.close()``.</span>
+
+<span class="sd">        Browsers only let a script close a window it opened itself, so this is</span>
+<span class="sd">        a no-op for a normal, user-opened tab; the server is stopped either way.</span>
+<span class="sd">        """</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">run_javascript</span><span class="p">(</span><span class="s2">"window.close()"</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"window.close() not sent: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>
+
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_shutdown_soon</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="n">_TAB_CLOSE_GRACE_SECONDS</span><span class="p">)</span>
+        <span class="n">app</span><span class="o">.</span><span class="n">shutdown</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_confirm_exit</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Confirm before exiting: the header button is easy to hit by accident.</span>
+
+<span class="sd">        The dialog always shows (an accidental click would stop the web server</span>
+<span class="sd">        for every open tab, not just this one); ``/exit`` skips it because</span>
+<span class="sd">        typing the command is deliberate.</span>
+<span class="sd">        """</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"opening exit-confirmation dialog"</span><span class="p">)</span>
+        <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
+        <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">():</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Exit Klea?"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
+                <span class="s2">"This stops the web interface and disconnects any open tabs. "</span>
+                <span class="s2">"The backend server is stopped only if this client started it."</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Exit"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">(</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">(),</span> <span class="n">_exit_app</span><span class="p">()))</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
+                    <span class="s2">"unelevated color=negative"</span>
+                <span class="p">)</span>
+        <span class="n">dialog</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+
+    <span class="n">ctx</span><span class="o">.</span><span class="n">exit_app</span> <span class="o">=</span> <span class="n">_exit_app</span>
+
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">header</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"items-center"</span><span class="p">):</span>
         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">title</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xl font-bold"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">subtitle</span><span class="p">:</span>
@@ -346,7 +406,10 @@
 
         <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"dark_mode"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">_toggle_dark</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
             <span class="s2">"flat color=white round"</span>
-        <span class="p">)</span></div>
+        <span class="p">)</span>
+        <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="n">icon</span><span class="o">=</span><span class="s2">"power_settings_new"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">_confirm_exit</span><span class="p">)</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
+            <span class="s2">"flat color=white round"</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="s2">"Exit"</span><span class="p">)</span></div>
 
 </pre></div>
         </article>

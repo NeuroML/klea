@@ -548,6 +548,9 @@
     <span class="n">favicon</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
     <span class="n">identity_app_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">resume</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">continue_session</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">open_browser</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -614,6 +617,9 @@
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --app-name '</span><span class="si">{</span><span class="n">web_app_name</span><span class="si">}</span><span class="s2">'"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --user-id </span><span class="si">{</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">user_id</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
                     <span class="o">+</span> <span class="sa">f</span><span class="s2">" --identity-app-name </span><span class="si">{</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">identity_app_name</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" --resume </span><span class="si">{</span><span class="n">shlex</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">resume</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">resume</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+                    <span class="o">+</span> <span class="p">(</span><span class="s2">" --continue"</span> <span class="k">if</span> <span class="n">continue_session</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
+                    <span class="o">+</span> <span class="p">(</span><span class="s2">""</span> <span class="k">if</span> <span class="n">open_browser</span> <span class="k">else</span> <span class="s2">" --no-open"</span><span class="p">)</span>
                     <span class="o">+</span> <span class="p">(</span><span class="sa">f</span><span class="s2">" --favicon '</span><span class="si">{</span><span class="n">favicon</span><span class="si">}</span><span class="s2">'"</span> <span class="k">if</span> <span class="n">favicon</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                     <span class="o">+</span> <span class="p">(</span><span class="s2">" --reload"</span> <span class="k">if</span> <span class="n">reload</span> <span class="k">else</span> <span class="s2">""</span><span class="p">)</span>
                 <span class="p">),</span>
@@ -840,6 +846,21 @@
             <span class="n">help</span><span class="o">=</span><span class="s2">"Opaque user id. Defaults to KLEA_USER_ID, else a shared "</span>
             <span class="s2">"host-local identity file (loopback only)."</span><span class="p">,</span>
         <span class="p">),</span>
+        <span class="n">resume</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"--resume"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Open a specific chat session by id on load."</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">continue_</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="kc">False</span><span class="p">,</span>
+            <span class="s2">"--continue"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Open the most recently updated chat session on load."</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">open_browser</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span>
+            <span class="kc">True</span><span class="p">,</span>
+            <span class="s2">"--open/--no-open"</span><span class="p">,</span>
+            <span class="n">help</span><span class="o">=</span><span class="s2">"Open the UI in the default browser once ready (default: yes)."</span><span class="p">,</span>
+        <span class="p">),</span>
         <span class="n">debug</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="n">typer</span><span class="o">.</span><span class="n">Option</span><span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="s2">"--debug"</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">"Enable debug logging"</span><span class="p">),</span>
         <span class="n">profile</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">profile_option</span><span class="p">,</span>
     <span class="p">):</span>
@@ -859,6 +880,9 @@
             <span class="n">favicon</span><span class="o">=</span><span class="n">favicon</span><span class="p">,</span>
             <span class="n">user_id</span><span class="o">=</span><span class="n">user_id</span><span class="p">,</span>
             <span class="n">identity_app_name</span><span class="o">=</span><span class="n">identity_app_name</span><span class="p">,</span>
+            <span class="n">resume</span><span class="o">=</span><span class="n">resume</span><span class="p">,</span>
+            <span class="n">continue_session</span><span class="o">=</span><span class="n">continue_</span><span class="p">,</span>
+            <span class="n">open_browser</span><span class="o">=</span><span class="n">open_browser</span><span class="p">,</span>
             <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span>
             <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
             <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>

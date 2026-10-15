@@ -431,7 +431,10 @@
                     <span class="s2">"text-xs w-full nicegui-code-noformat"</span>
                 <span class="p">)</span>
             <span class="c1"># A mid-plan checkpoint (ADR-0051) carries the progress made so</span>
-            <span class="c1"># far, so the user reviews the work and not only the plan.</span>
+            <span class="c1"># far, so the user reviews the work and not only the plan.  It is a</span>
+            <span class="c1"># concise summary (tool names + outcomes) rendered monospace like</span>
+            <span class="c1"># the plan, so tool names and paths stay literal; the full results</span>
+            <span class="c1"># are in the inspection pane.</span>
             <span class="k">if</span> <span class="n">progress</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"progress"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Progress"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold"</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">progress</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>

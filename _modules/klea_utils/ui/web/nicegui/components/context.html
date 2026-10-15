@@ -498,6 +498,11 @@
     <span class="c1">#: Registered by the input area; lets client-command output (e.g. ``/help``)</span>
     <span class="c1">#: land in a chat even when the first input is a command (ADR-0047).</span>
     <span class="n">ensure_active_chat</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop_str</span><span class="p">)</span>
+    <span class="c1">#: Stop the frontend and the server it spawned: stops any active runs, then</span>
+    <span class="c1">#: shuts the NiceGUI server down.  Registered by the header component and</span>
+    <span class="c1">#: used by the header's exit button and the ``/exit`` client command</span>
+    <span class="c1">#: (ADR-0047).</span>
+    <span class="n">exit_app</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="n">_noop</span><span class="p">)</span>
 
 <div class="viewcode-block" id="PageContext.chat_is_streaming">
 <a class="viewcode-back" href="../../../../../../api/utils/ui-nicegui.html#klea_utils.ui.web.nicegui.components.context.PageContext.chat_is_streaming">[docs]</a>
