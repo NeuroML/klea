@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 
 from klea_utils.ui.state import MessageData, chats, ensure_chat
+from klea_utils.ui.stream_events import replay_chat_events
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +217,17 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                             current_chat["messages"] = [
                                 server_message_to_data(msg) for msg in msg_resp.json()
                             ]
+                    # Stored UI events rebuild the inspection/status panes
+                    # (ADR-0032 update); replayed through the shared reducer so
+                    # a reloaded chat matches the live session.
+                    logger.debug("GET /chat/%s/%s/events", user_id, chat_id)
+                    evt_resp = await client.get(
+                        f"{server_url}/chat/{user_id}/{chat_id}/events"
+                    )
+                    if evt_resp.status_code == 200:
+                        current_chat = chats.get(key)
+                        if current_chat:
+                            replay_chat_events(current_chat, evt_resp.json())
                     # Session context (the agent's operating mode etc.,
                     # ADR-0032) is a projection of checkpointed graph state.
                     # Restore it so the selector renders correctly before
@@ -236,6 +248,18 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                                 logger.debug(
                                     "hydrated context for %s: %s", key, context
                                 )
+                        # The checkpointed cumulative token totals (ADR-0032
+                        # update) restore the session total without replaying
+                        # the per-node ``usage`` events.
+                        usage = body.get("usage")
+                        if usage:
+                            current_chat = chats.get(key)
+                            if current_chat:
+                                current_chat["token_usage"] = {
+                                    "input_tokens": usage.get("input_tokens", 0),
+                                    "output_tokens": usage.get("output_tokens", 0),
+                                    "total_tokens": usage.get("total_tokens", 0),
+                                }
                         # A paused thread re-presents its HITL ask (ADR-0046),
                         # so a reload renders the form instead of a dead chat.
                         pending = body.get("pending_interrupt")

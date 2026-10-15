@@ -18,6 +18,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Iterable
 from datetime import datetime
 from typing import Any
 
@@ -146,3 +147,28 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
         return "error"
 
     return None
+
+
+def replay_chat_events(chat: ChatData, events: Iterable[dict[str, Any]]) -> None:
+    """Rebuild the pane state from a chat's stored UI events (ADR-0032 update).
+
+    Mirrors the live stream so a reloaded chat shows the same inspection /
+    status panes: a ``query`` event opens a new inspector section (the same
+    marker the live path inserts at run start), and every other event is
+    reduced through :func:`apply_stream_event`.  The transcript is hydrated
+    separately from the persisted messages.
+
+    :param chat: The chat session dict (see ``state.ensure_chat``).
+    :param events: The stored events (``GET .../events``), oldest first.
+    """
+    for event in events:
+        if event.get("type") == "query":
+            chat.setdefault("inspector_entries", []).append(
+                {
+                    "type": "query",
+                    "text": event.get("text", ""),
+                    "stamp": event.get("stamp", ""),
+                }
+            )
+            continue
+        apply_stream_event(chat, event)

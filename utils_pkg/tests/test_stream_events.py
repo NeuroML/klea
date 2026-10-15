@@ -14,6 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import asyncio
 import json
 import logging
+from typing import cast
 
 import httpx
 import pytest
@@ -26,7 +27,7 @@ from klea_utils.api.sse import (
     stream_events_sync,
 )
 from klea_utils.ui.state import chats, ensure_chat, interrupt_display
-from klea_utils.ui.stream_events import apply_stream_event
+from klea_utils.ui.stream_events import apply_stream_event, replay_chat_events
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.stream import stop_stream
 
@@ -645,3 +646,38 @@ class TestStopStream:
         ctx = PageContext(server_url="http://backend", user_id="")
         stop_stream(ctx, "")
         assert calls == []
+
+
+class TestReplayChatEvents:
+    """Unit tests for :func:`replay_chat_events` (ADR-0032 update)."""
+
+    def test_marker_opens_a_section_and_events_reduce(self, chat):
+        """A ``query`` event opens a section; the rest reduce as live."""
+        replay_chat_events(
+            chat,
+            [
+                {"type": "query", "text": "hello", "stamp": "10:00:00"},
+                {
+                    "type": "inspect",
+                    "node": "Plan",
+                    "data": {"heading": "Plan", "summary": "s", "details": {}},
+                },
+                {
+                    "type": "state",
+                    "node": "Plan",
+                    "data": {"key": "plan", "display": "[x] Step 1"},
+                },
+            ],
+        )
+
+        assert [e["type"] for e in chat["inspector_entries"]] == ["query", "inspect"]
+        entries = cast(list[dict], chat["inspector_entries"])
+        assert entries[0]["text"] == "hello"
+        assert entries[1]["heading"] == "Plan"
+        assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
+
+    def test_empty_events_are_a_noop(self, chat):
+        """No stored events leaves the chat untouched."""
+        replay_chat_events(chat, [])
+        assert chat["inspector_entries"] == []
+        assert chat["state_sections"] == {}
