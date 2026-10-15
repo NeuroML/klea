@@ -122,7 +122,10 @@ def _render_interrupt_form(ctx: PageContext) -> None:
                     "text-xs w-full nicegui-code-noformat"
                 )
             # A mid-plan checkpoint (ADR-0051) carries the progress made so
-            # far, so the user reviews the work and not only the plan.
+            # far, so the user reviews the work and not only the plan.  It is a
+            # concise summary (tool names + outcomes) rendered monospace like
+            # the plan, so tool names and paths stay literal; the full results
+            # are in the inspection pane.
             if progress := ask.get("progress"):
                 ui.label("Progress").classes("text-xs font-bold")
                 ui.code(progress, language=None).classes(

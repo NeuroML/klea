@@ -127,6 +127,33 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
 
 
+async def test_review_interrupt_renders_plan_and_concise_progress(
+    fake_backend, agent_user
+):
+    """A review checkpoint renders the plan and the concise progress summary."""
+    fake_backend.stream_events = [
+        {
+            "type": "interrupt",
+            "node": "Awaiting review",
+            "data": {
+                "kind": "review",
+                "question": "Review the progress: approve to continue.",
+                "plan": "[x] Step 1: copy the file (depends on: (none))",
+                "progress": "Step 1:\n- run_command: ok",
+                "interrupt_id": "r1",
+            },
+        }
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Plan review", retries=50)
+    await agent_user.should_see("Step 1: copy the file", retries=50)
+    await agent_user.should_see("run_command: ok", retries=50)
+    # The prompt-facing detail must not reach the user.
+    await agent_user.should_not_see("displayed_to_user")
+
+
 def _permission_event(request: dict) -> dict:
     return {
         "type": "interrupt",
