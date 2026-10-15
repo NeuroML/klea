@@ -21,6 +21,7 @@ import coolname
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from klea_utils.api.chat_common import cancel_run, thread_id_for
 from klea_utils.api.sessions_db import SessionStore
 from klea_utils.graph.base import BaseLangGraph
 
@@ -52,7 +53,7 @@ def create_sessions_router() -> APIRouter:
         Update a chat's metadata (title).
 
     ``DELETE /chat/{user_id}/{chat_id}``
-        Remove a chat and all associated data.
+        Remove a chat, its messages, and its LangGraph checkpoint history.
 
     ``DELETE /chat/{user_id}``
         Remove all chats, messages, and checkpoints for the user.
@@ -114,9 +115,17 @@ def create_sessions_router() -> APIRouter:
         request: Request,
     ):
         store: SessionStore = request.app.state.chat_sessions
+        graph: BaseLangGraph = request.app.state.graph
         if not store.get_chat(user_id, chat_id):
             logger.warning("delete_chat(%s, %s): chat not found", user_id, chat_id)
             raise HTTPException(status_code=404, detail="Chat not found")
+        # Stop any active run for this thread before purging, so a finishing
+        # run cannot write a fresh checkpoint after the purge.
+        cancel_run(request, user_id, chat_id)
+        # Purge the chat's LangGraph checkpoint history too (otherwise the
+        # append-only checkpoint DB keeps growing with every deleted chat).
+        if graph.checkpointer:
+            await graph.checkpointer.adelete_thread(thread_id_for(user_id, chat_id))
         store.delete_chat(user_id, chat_id)
         logger.debug("delete_chat(%s, %s): OK", user_id, chat_id)
         return {"status": "ok", "chat_id": chat_id}
@@ -131,7 +140,7 @@ def create_sessions_router() -> APIRouter:
         # Purge LangGraph checkpoints for every chat thread.
         removed = 0
         for chat in store.list_chats(user_id):
-            thread_id = f"user_{user_id}:chat_{chat['chat_id']}"
+            thread_id = thread_id_for(user_id, chat["chat_id"])
             if graph.checkpointer:
                 await graph.checkpointer.adelete_thread(thread_id)
             removed += 1

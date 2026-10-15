@@ -439,3 +439,75 @@ class TestCredentials:
         )
         assert status["source"] == "env"
         assert status["masked"] == "...4321"
+
+
+class _FakeCheckpointer:
+    """Records ``adelete_thread`` calls (stands in for a LangGraph checkpointer)."""
+
+    def __init__(self):
+        self.deleted: list[str] = []
+
+    async def adelete_thread(self, thread_id: str) -> None:
+        self.deleted.append(thread_id)
+
+
+class _FakeGraph:
+    """Minimal graph bundle: only ``checkpointer`` is used by the routes."""
+
+    def __init__(self):
+        self.checkpointer = _FakeCheckpointer()
+
+
+@pytest.fixture
+def sessions_app(tmp_path):
+    """A FastAPI app exposing the sessions router over a real SessionStore."""
+    from klea_utils.api.sessions import create_sessions_router
+
+    _app = FastAPI()
+    _app.state.chat_sessions = SessionStore(str(tmp_path / "sessions.db"))
+    _app.state.graph = _FakeGraph()
+    _app.include_router(create_sessions_router())
+    yield _app
+    _app.state.chat_sessions.close()
+
+
+@pytest.fixture
+async def sessions_client(sessions_app):
+    transport = ASGITransport(app=sessions_app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://test"
+    ) as _client:
+        yield _client
+
+
+class TestSessionsDelete:
+    """Per-chat and per-user delete also purge the LangGraph checkpoint history."""
+
+    async def test_delete_chat_purges_checkpoint(self, sessions_app, sessions_client):
+        await sessions_client.post("/chat/u1", json={"chat_id": "c1"})
+        response = await sessions_client.delete("/chat/u1/c1")
+
+        assert response.status_code == 200
+        assert sessions_app.state.graph.checkpointer.deleted == ["user_u1:chat_c1"]
+        assert (await sessions_client.get("/chat/u1")).json() == []
+
+    async def test_delete_missing_chat_is_404(self, sessions_app, sessions_client):
+        response = await sessions_client.delete("/chat/u1/nope")
+        assert response.status_code == 404
+        # Nothing to purge for a chat that does not exist.
+        assert sessions_app.state.graph.checkpointer.deleted == []
+
+    async def test_delete_user_purges_each_checkpoint(
+        self, sessions_app, sessions_client
+    ):
+        await sessions_client.post("/chat/u1", json={"chat_id": "c1"})
+        await sessions_client.post("/chat/u1", json={"chat_id": "c2"})
+
+        response = await sessions_client.delete("/chat/u1")
+
+        assert response.status_code == 200
+        assert sorted(sessions_app.state.graph.checkpointer.deleted) == [
+            "user_u1:chat_c1",
+            "user_u1:chat_c2",
+        ]
+        assert (await sessions_client.get("/chat/u1")).json() == []
