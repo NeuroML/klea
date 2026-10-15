@@ -106,10 +106,6 @@ _CSS = """
     height: 1;
     color: $text-muted;
 }
-#status-title {
-    height: 1;
-    text-style: bold;
-}
 #status {
     height: 1fr;
 }
@@ -174,7 +170,6 @@ class KleaTuiScreen(Screen):
                 yield Static(
                     f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
                 )
-                yield Static("status", id="status-title")
                 yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
