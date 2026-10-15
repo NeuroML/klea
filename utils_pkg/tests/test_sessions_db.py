@@ -217,3 +217,51 @@ def test_touch_credential_throttled_then_bumps(store, monkeypatch):
     monkeypatch.setattr(store, "_now", lambda: future)
     store.touch_credential("u1", "openai")
     assert store.list_credentials("u1")[0]["last_used_at"] == future
+
+
+def _events() -> list[dict]:
+    """A small UI-event batch (a query marker + two pane events)."""
+    return [
+        {"type": "query", "text": "hi", "stamp": "10:00:00"},
+        {"type": "inspect", "node": "Plan", "data": {"summary": "s"}},
+        {"type": "state", "node": "Plan", "data": {"key": "plan"}},
+    ]
+
+
+def test_chat_events_round_trip_in_order(store):
+    """Stored events come back whole, in insertion order."""
+    store.add_chat_events("u1", "c1", _events())
+    assert store.get_chat_events("u1", "c1") == _events()
+
+
+def test_chat_events_empty_is_a_noop(store):
+    """An empty batch stores nothing."""
+    store.add_chat_events("u1", "c1", [])
+    assert store.get_chat_events("u1", "c1") == []
+
+
+def test_chat_events_are_per_chat(store):
+    """Events are isolated per chat."""
+    store.add_chat_events("u1", "c1", _events())
+    store.add_chat_events("u1", "c2", [{"type": "query", "text": "other"}])
+    assert store.get_chat_events("u1", "c1") == _events()
+    assert store.get_chat_events("u1", "c2") == [{"type": "query", "text": "other"}]
+
+
+def test_delete_chat_purges_events(store):
+    """Deleting a chat drops its UI events (but not another chat's)."""
+    store.create_chat("u1", "c1")
+    store.create_chat("u1", "c2")
+    store.add_chat_events("u1", "c1", _events())
+    store.add_chat_events("u1", "c2", [{"type": "query", "text": "keep"}])
+    store.delete_chat("u1", "c1")
+    assert store.get_chat_events("u1", "c1") == []
+    assert store.get_chat_events("u1", "c2") == [{"type": "query", "text": "keep"}]
+
+
+def test_delete_user_chats_purges_events(store):
+    """Deleting a user's chats drops its UI events."""
+    store.create_chat("u1", "c1")
+    store.add_chat_events("u1", "c1", _events())
+    store.delete_user_chats("u1")
+    assert store.get_chat_events("u1", "c1") == []

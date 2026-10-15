@@ -137,6 +137,22 @@ class SessionStore:
     CREATE INDEX IF NOT EXISTS idx_messages_chat
         ON messages(user_id, chat_id, created_at);
 
+    -- Per-chat UI events: the stream-time projection the frontends replay to
+    -- rebuild the inspection/status panes on load (ADR-0032 update).  Only
+    -- UI-relevant event types are stored; ``payload`` is the full event JSON
+    -- and rows are read back in insertion order (``id``).
+    CREATE TABLE IF NOT EXISTS chat_events (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT NOT NULL,
+        chat_id     TEXT NOT NULL,
+        type        TEXT NOT NULL,
+        payload     TEXT NOT NULL,
+        created_at  REAL NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_events_chat
+        ON chat_events(user_id, chat_id, id);
+
     """
 
     def __init__(
@@ -245,6 +261,10 @@ class SessionStore:
                 "DELETE FROM messages WHERE user_id = ? AND chat_id = ?",
                 (user_id, chat_id),
             )
+            self._conn.execute(
+                "DELETE FROM chat_events WHERE user_id = ? AND chat_id = ?",
+                (user_id, chat_id),
+            )
             self._conn.commit()
         logger.debug("delete_chat(%s, %s)", user_id, chat_id)
 
@@ -252,6 +272,7 @@ class SessionStore:
         """Remove all chats, messages, overrides, and credentials for a user."""
         with self._lock:
             self._conn.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
+            self._conn.execute("DELETE FROM chat_events WHERE user_id = ?", (user_id,))
             self._conn.execute(
                 "DELETE FROM chat_sessions WHERE user_id = ?", (user_id,)
             )
@@ -697,6 +718,54 @@ class SessionStore:
         logger.debug(
             "add_messages(%s, %s): %d message(s)", user_id, chat_id, len(batch)
         )
+
+    def add_chat_events(
+        self, user_id: str, chat_id: str, events: Sequence[dict[str, Any]]
+    ) -> None:
+        """Append UI events to a chat atomically, preserving insertion order.
+
+        Each event is stored whole (its JSON) so the frontend can replay it
+        through the shared reducer; ``type`` is stored alongside for optional
+        filtering.  A ``created_at`` timestamp is stamped per batch.
+        """
+        if not events:
+            return
+        now = self._now()
+        batch = [
+            (
+                user_id,
+                chat_id,
+                str(event.get("type", "")),
+                self._json_dumps(event),
+                now,
+            )
+            for event in events
+        ]
+        with self._lock:
+            self._conn.executemany(
+                "INSERT INTO chat_events (user_id, chat_id, type, payload, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                batch,
+            )
+            self._conn.commit()
+        logger.debug(
+            "add_chat_events(%s, %s): %d event(s)", user_id, chat_id, len(batch)
+        )
+
+    def get_chat_events(self, user_id: str, chat_id: str) -> list[dict[str, Any]]:
+        """Return a chat's stored UI events, oldest first."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload FROM chat_events "
+                "WHERE user_id = ? AND chat_id = ? "
+                "ORDER BY id ASC",
+                (user_id, chat_id),
+            ).fetchall()
+        result = [self._json_loads(r["payload"]) for r in rows]
+        logger.debug(
+            "get_chat_events(%s, %s): %d event(s)", user_id, chat_id, len(result)
+        )
+        return result
 
     # ------------------------------------------------------------------
     # Lifecycle
