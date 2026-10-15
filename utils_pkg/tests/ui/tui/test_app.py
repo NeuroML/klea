@@ -257,6 +257,37 @@ async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
         assert _chat()["context"]["mode"] == "general"
 
 
+async def test_hydration_rebuilds_panes_and_token_usage(fake_backend, make_app):
+    """Stored events + the usage projection hydrate the panes on load."""
+    fake_backend.chat_events = [
+        {"type": "query", "text": "hello", "stamp": "10:00:00"},
+        {
+            "type": "inspect",
+            "node": "Plan",
+            "data": {"heading": "Plan", "summary": "1 step", "details": {}},
+        },
+        {
+            "type": "state",
+            "node": "Plan",
+            "data": {"key": "plan", "heading": "Plan", "display": "[x] Step 1"},
+        },
+    ]
+    fake_backend.chat_context = {
+        "context": None,
+        "pending_interrupt": None,
+        "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+    }
+    app = make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        chat = _chat()
+        assert [e["type"] for e in chat["inspector_entries"]] == ["query", "inspect"]
+        assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
+        assert chat["token_usage"]["total_tokens"] == 8
+
+
 async def test_active_chat_is_keyed_by_user(fake_backend, make_app):
     """The keyed store entry is ``{user_id}:{chat_id}`` for the active chat."""
     app = make_app(user_id="u1", chat_id="c1")

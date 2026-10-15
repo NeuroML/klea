@@ -433,19 +433,27 @@ class KleaTuiApp(App[None]):
         self._present_pending(chat)
 
     async def _hydrate_chat(self, chat_id: str, chat: Any) -> None:
-        """Restore *chat*'s messages, context and pending ask from the server."""
+        """Restore *chat*'s messages, panes, context and pending ask."""
         # Lazy: httpx and the server client are only needed for a live server.
         from klea_utils.ui.client import (
             fetch_chat_context,
+            fetch_chat_events,
             fetch_chat_messages,
             server_message_to_data,
         )
+        from klea_utils.ui.stream_events import replay_chat_events
 
         messages = await fetch_chat_messages(
             self.ctx.server_url, self.ctx.user_id, chat_id
         )
         if messages:
             chat["messages"] = [server_message_to_data(msg) for msg in messages]
+        # Stored UI events rebuild the inspection/status panes (ADR-0032
+        # update); replayed through the shared reducer so a reloaded chat
+        # matches the live session.
+        events = await fetch_chat_events(self.ctx.server_url, self.ctx.user_id, chat_id)
+        if events:
+            replay_chat_events(chat, events)
         # Lazy: httpx and the SSE client are only needed for a live server.
         from klea_utils.api.sse import fetch_active_models
 
@@ -458,6 +466,15 @@ class KleaTuiApp(App[None]):
         context = body.get("context")
         if context:
             chat.setdefault("context", {}).update(context)
+        # The checkpointed cumulative token totals (ADR-0032 update) restore
+        # the session total without replaying the per-node ``usage`` events.
+        usage = body.get("usage")
+        if usage:
+            chat["token_usage"] = {
+                "input_tokens": usage.get("input_tokens", 0),
+                "output_tokens": usage.get("output_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+            }
         pending = body.get("pending_interrupt")
         if pending:
             chat["interrupt"] = pending

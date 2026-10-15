@@ -43,6 +43,8 @@ class FakeBackend:
         self.calls: list[dict[str, Any]] = []
         #: The active chat's ``GET /chat/.../context`` body (for hydration).
         self.chat_context: dict[str, Any] = {}
+        #: Stored UI events returned by ``GET .../events`` (pane hydration).
+        self.chat_events: list[dict[str, Any]] = []
         #: ``GET /chat/{user_id}`` rows, most recently updated first.
         self.chats: list[dict[str, Any]] = []
         #: ``GET /chat/{user_id}/{chat_id}/messages`` rows, keyed by chat id.
@@ -117,6 +119,13 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
         return backend.chat_context
 
     monkeypatch.setattr("klea_utils.ui.client.fetch_chat_context", _fetch_chat_context)
+
+    async def _fetch_chat_events(
+        server_url: str, user_id: str, chat_id: str
+    ) -> list[dict[str, Any]]:
+        return backend.chat_events
+
+    monkeypatch.setattr("klea_utils.ui.client.fetch_chat_events", _fetch_chat_events)
 
     async def _fetch_chats(server_url: str, user_id: str) -> list[dict[str, Any]]:
         return backend.chats
