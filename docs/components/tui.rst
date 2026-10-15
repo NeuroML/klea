@@ -70,11 +70,12 @@ Commands
 
 Type ``/`` in the input for a completion list.  ``/help`` lists the available
 commands: the TUI merges the server's command catalogue with the commands it
-handles itself.  A client-side command (``/help``, ``/sessions``, ``/model``)
-runs locally; a server-side command (such as ``/mode`` or ``/access``, the
-agent's operating mode and tool access level) is sent to the agent.  An
-unknown command is reported locally and never sent.  See :doc:`commands` for
-the list.
+handles itself.  A client-side command (``/help``, ``/sessions``, ``/model``,
+``/exit``) runs locally; a server-side command (such as ``/mode`` or
+``/access``, the agent's operating mode and tool access level) is sent to the
+agent.  An unknown command is reported locally and never sent.  ``/exit``
+stops any active run and quits (the same as :kbd:`Ctrl+Q`).  See
+:doc:`commands` for the list.
 
 Models and API keys
 -------------------

@@ -154,6 +154,7 @@ implemented commands are registered (and so rendered in the ``/``-menu).
 | `/model` | ui | - | open the model and API-key configuration |
 | `/export` | ui | - | export the session transcript as Markdown |
 | `/sessions [list\|switch\|delete <n\|id>]` | ui | - | list, switch, or delete sessions |
+| `/exit` | ui | - | stop the frontend (web: stop runs, then shut the server; TUI: stop the run, then quit) |
 
 Planned client commands (not registered yet): `/upload`.
 
@@ -169,6 +170,10 @@ Notes:
   being replaced.
 * `/mode`/`/access`/`/cwd` change checkpointed graph state; the UI selectors
   dispatch the same command so there is one path.
+* `/exit` is `while_streaming: allow`: it stops any active run itself before
+  exiting (the web shuts the NiceGUI server down and best-effort closes the
+  tab; the TUI stops the worker and cancels server-side, then quits).  The web
+  header's exit button runs the same action but confirms first.
 * Custom `/prompt` commands (opencode-style templates) expand to a normal
   query and persist normally.  `/skills` is **deferred**: skills are not
   designed yet, so the surface is not defined (see backlog).

@@ -45,6 +45,8 @@
 - The summarise-memory node reports its outcome to the inspect pane (summarised / nothing new / no usable summary) instead of writing the chat, and can optionally set a chat confirmation for a manual compaction.
 - The TUI and web UI share a host-local identity file (`PlatformDirs(<server-app>)/user_id`, used only for a loopback server) instead of relying on the browser session cookie, so a session opened in either frontend appears in both and survives new windows/browsers; both frontends accept `--user-id` (ADR-0052).
 - Per-session project root (ADR-0053): `/cwd [path]` shows or sets the directory the file tools operate in, which is also the default path-permission boundary; relative tool arguments are resolved against it (the tools run in a subprocess whose working directory is fixed), and project discovery (`AGENTS.md`) is read from it. The root is shown in the web status pane and the TUI status panel.
+- Web UI: `klea web` / `klea-rag web` open in the default browser once ready (disable with `--no-open`) and accept `--resume <chat_id>` / `--continue` to open a specific or the most recently updated session on load, matching the TUI.
+- `/exit` session command in the web UI and TUI: it stops any active run and then exits (the TUI equivalent of `Ctrl+Q`; the web frontend also stops the server it launched and closes the tab on a best-effort basis). The web header also gains an exit button, which confirms before exiting.
 - The tool path-permission ask now shows the tool call (`tool: argument = value (confidence)`) and, for a heuristically guessed value, offers a **Not a path** dismissal that lets the call proceed without approving it (ADR-0007 update 2026-10-14).
 
 ### Changed
@@ -85,6 +87,7 @@
 
 ### Fixed
 
+- `DELETE /chat/{user_id}/{chat_id}` now cancels the chat's active run and purges its LangGraph checkpoint as well as the chat row, so re-creating a chat does not inherit stale run state.
 - Token usage is reported accurately again: model streaming is disabled, because the graph's event stream forces chat models to stream and LangChain's streamed `usage_metadata` merge sums input/total tokens across chunks for providers that report usage per chunk (VLLM, HuggingFace Inference Providers, ...), inflating the counts massively (langchain#30429).
 - Path-permission confirmations render each decision on its own line, with the path in code formatting, instead of one `;`-joined line.
 - The answer-composer (`AnswerFromResults`) now receives the session artefacts, so a task whose reply builds on earlier tasks' deliverables (for example compiling results gathered in prior turns) can use them; previously only the Planner saw them.

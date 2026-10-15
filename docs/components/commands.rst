@@ -53,6 +53,12 @@ These run in the frontend.
      - ``/sessions [list]`` / ``/sessions switch <n|id>`` / ``/sessions delete <n|id>``
      - List the sessions (pinned first), switch the active session by number
        or id, or delete a session (with confirmation).
+   * - ``/exit``
+     - ``/exit``
+     - Stop the frontend.  In the web UI this stops the server it launched and
+       closes any active runs; in the TUI it stops the active run, then quits
+       (the command form of :kbd:`Ctrl+Q`).  The web header also has an exit
+       button that confirms first.
 
 A command may define **subcommands** (verbs); ``/help <command>`` lists them,
 and the ``/`` menu autocompletes them.

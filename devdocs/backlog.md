@@ -158,11 +158,6 @@ Last updated: 2026-10-15.
 - Sphinx build: importing `mcp` / `fastmcp` fails only inside the Sphinx
   process (not reproduced in isolation; 2026-10-02 session).  Unresolved;
   revisit if the MCP autodoc paths must build.
-- Session deletion cleanup: `DELETE /chat/{user_id}/{chat_id}` removes the
-  store row but **not** the chat's LangGraph checkpoint (only
-  `DELETE /chat/{user_id}` purges checkpoints via `adelete_thread`).  Fix the
-  per-chat delete to purge its checkpoint, and -- once the session workspace
-  lands (ADR-0047) -- clear `{user_data_dir}/sessions/{user_id}/{chat_id}/`.
 
 ## Configuration / UX
 
@@ -193,7 +188,7 @@ Last updated: 2026-10-15.
 
 ## Sessions / working directory
 
-- Per-session project root: **implemented** (ADR-0053); deferred follow-ups:
+- Per-session project root follow-ups (ADR-0053):
   - **Operator allowlist** (needs auth): without authentication the root is the
     user's free choice (they run the server).  An authenticated/multi-tenant
     deployment should bound what a session may choose before `/cwd` is exposed
@@ -221,9 +216,7 @@ Last updated: 2026-10-15.
   quick testing with simple queries.  It is **not** the TUI; the historical
   "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale.
   Drop the REPL (and retire its `-tui` identity) once TUI parity is confirmed.
-- Cross-frontend sessions / shared identity (ADR-0052): the shared host-local
-  identity file (`PlatformDirs(<server-app>)/user_id`, loopback-gated,
-  `--user-id` on both frontends) is **implemented**.  Remaining: (a) a
+- Cross-frontend sessions / shared identity follow-ups (ADR-0052): (a) a
   remote/multi-user deployment still uses the per-browser NiceGUI session
   cookie, so chats can "disappear" on a new window/browser/profile; a stable
   per-user id requires authentication (the user's username/id) instead of a
@@ -232,11 +225,6 @@ Last updated: 2026-10-15.
   data folders is still not the fix -- `app_name` is both the data dir and the
   log file name, so the server, web and TUI cannot share one `app_name` without
   colliding on `{app_name}.log`.
-- Session-command framework (ADR-0047; catalogue in
-  `system/session-commands.md`): the `/`-command surface (framework,
-  `GET /commands`, the graph command node, `/help`, `/mode`, `/access`,
-  `/cwd`, `/compact`, `/init`, and the client commands) is **implemented**.
-  `/runlocal` is intentionally omitted.
 
 - Session workspace + attachment commands (`/file`, `/upload`, `/webfetch`;
   P3 of ADR-0047): **deferred -- decide the use cases before implementing.**
@@ -257,9 +245,8 @@ Last updated: 2026-10-15.
   original file alongside the converted text; add a small `Discovery` pointer
   so the agent knows the attachment exists; `/upload` needs the frontend
   `file_picker` capability plus an upload widget; the `[ingest]` extra
-  (Docling) becomes a dependency.  Coupled fix: per-chat `DELETE` must purge
-  the LangGraph checkpoint and clear the workspace (see Session deletion
-  cleanup).
+  (Docling) becomes a dependency.  Coupled fix: per-chat `DELETE` must clear
+  the session workspace (the checkpoint purge is done).
 
 - Full-fledged `/init` (deferred).  The current `/init` hands off to the normal
   agent loop with a canned prompt: non-deterministic, uses the full tool loop,
