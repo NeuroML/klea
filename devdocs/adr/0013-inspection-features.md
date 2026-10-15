@@ -15,6 +15,13 @@ informed: ""
 > `token` is opt-in.  The text below is kept as the historical record; see
 > ADR-0040 for the current contract.
 
+> **Amended 2026-10-15:** the inspection signals are no longer live-only.  The
+> inspector/status panes and the chat tool blocks are persisted per chat and
+> rehydrated on load (a per-chat UI-event store replayed through the shared
+> reducer; tool blocks stored as transcript rows), so a reloaded chat shows the
+> same panes and transcript as the live session.  The emission contract above
+> is unchanged; see the ADR-0032 update and `system/streams.md`.
+
 ## Context and Problem Statement
 
 Most agentic coding tools today show little about how they function

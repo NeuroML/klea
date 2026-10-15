@@ -204,13 +204,11 @@ Last updated: 2026-10-15.
 
 ## Frontends / TUI
 
-- Chat hydration via graph replay (needs review): frontends hydrate the
-  transcript from `sessions.db` messages, which stores only the curated
-  user/assistant rows (`chat_core` writes no tool/system rows), so tool blocks
-  and inspector-pane entries are lost on reload.  Consider reconstructing the
-  transcript (and inspection entries) from the LangGraph checkpoint/replay
-  instead of, or in addition to, the messages table.  Needs a design; overlaps
-  the full-session-export research above.
+- Client-side command output (`system` bubbles) is not persisted (the server
+  never sees client commands), so it is lost on reload.  Decide whether to
+  persist it.
+- `chat_events` retention/pruning: the per-chat UI-event store grows with
+  every run; add a retention/size policy (cf. the checkpoint-growth item).
 - Terminal client status: the `cli` subcommand still runs a lightweight
   `input()`-based REPL (`klea_utils/ui/tui/repl.py`), a temporary tool for
   quick testing with simple queries.  It is **not** the TUI; the historical

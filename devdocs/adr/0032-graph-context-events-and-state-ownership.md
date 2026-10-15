@@ -156,7 +156,10 @@ layer, not by nodes.
   through the same ``context_snapshot`` hook + ``_normalise_state_snapshot``
   used by the stream path, and returns ``{"context": null}`` while a
   thread has no checkpoint (expectation is 200 + null -- the chat exists,
-  only its projection is unset).
+  only its projection is unset).  **Generalized 2026-10-15:** the same
+  stream-only-to-hydrate approach now covers the rest of the stream-derived
+  UI state -- the inspection/status panes and the chat tool blocks (see More
+  Information).
 * Bad, because who may write the mode fields is a behavioural contract
   (LangGraph offers no per-node write restriction).  Documented, and the
   rejected registry (C) is the cautionary alternative.
@@ -219,6 +222,20 @@ layer, not by nodes.
 
 ## More Information
 
+* Update (2026-10-15): the "stream-only -> hydrate" principle behind the
+  ``context`` endpoint is extended to the rest of the stream-derived UI state.
+  The inspection pane (``inspector_entries``) and the status pane
+  (``state_sections``) are persisted server-side as a per-chat UI-event store
+  (``sessions_db`` ``chat_events``, teed from the stream) and replayed on load
+  through the shared reducer (``ui/stream_events.py:replay_chat_events``) --
+  deliberately **not** a checkpoint replay, because the node-authored
+  ``inspect.details`` (``input_prompt``/``unprocessed_output``/
+  ``tools_description``) are not in state.  Chat tool blocks (``tool`` events)
+  are persisted as transcript ``messages`` rows (``role="tool"`` plus
+  metadata), so a reloaded transcript matches the live one.  A
+  ``GET /chat/{user_id}/{chat_id}/events`` endpoint mirrors the ``context``
+  hydration endpoint, and both delete paths purge ``chat_events``.  See
+  ``system/streams.md`` and ``system/api-sse-sequence.md``.
 * Amended ``2026-09-14``: the shared cross-app state fields are factored
   into ``klea_utils.graph.state.BaseGraphSchema``; ``KleaAgentState`` and
   ``RAGState`` subclass it and add their own fields.  See
