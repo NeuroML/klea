@@ -105,7 +105,7 @@ These are sent to the graph and run there.
    * - ``/compact``
      - ``/compact``
      - Summarise and shorten the conversation memory now (Agent, when
-       conversation memory is enabled).  The outcome is shown in the inspect
+       conversation memory is enabled).  The outcome is shown in the inspection
        pane.
    * - ``/init``
      - ``/init``

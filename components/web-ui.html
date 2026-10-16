@@ -317,68 +317,55 @@
           <section id="web-interface">
 <h1>Web interface<a class="headerlink" href="#web-interface" title="Link to this heading">¶</a></h1>
 <p>Klea’s web interface is a <a class="reference external" href="https://nicegui.io/">NiceGUI</a> frontend that
-talks to the backend API.  It is started with <code class="docutils literal notranslate"><span class="pre">klea-rag</span> <span class="pre">web</span></code> (RAG) or
-<code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> (agent), and is the interface used by the hosted prototypes
-linked from the <a class="reference internal" href="../index.html"><span class="doc">home page</span></a>.</p>
-<p>The layout has three parts: a left drawer listing chat sessions, a centre
-panel with two tabs (<strong>chat</strong> and <strong>inspect</strong>), and a right drawer with
-per-chat state (the <em>status pane</em>).  A single footer line carries the
+talks to the backend API.  It talks to the same backend as the <a class="reference internal" href="tui.html"><span class="doc">Terminal interface</span></a>,
+so the sessions, models and graph state are shared.  It is started with
+<code class="docutils literal notranslate"><span class="pre">klea-rag</span> <span class="pre">web</span></code> (RAG) or <code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> (agent), and is the interface used
+by the hosted prototypes linked from the <a class="reference internal" href="../index.html"><span class="doc">home page</span></a>.</p>
+<p>The layout has three parts: a left pane listing chat sessions, a centre
+pane with two tabs (<strong>chat</strong> and <strong>inspect</strong>), and a right pane with
+per-chat state (the <strong>status pane</strong>).  A single footer line carries the
 disclaimer and the “Powered by” note.</p>
-<section id="chat">
-<h2>Chat<a class="headerlink" href="#chat" title="Link to this heading">¶</a></h2>
-<p>The chat tab is where questions are asked.  Each answer appears when the
+<section id="chat-pane">
+<h2>Chat pane<a class="headerlink" href="#chat-pane" title="Link to this heading">¶</a></h2>
+<p>The chat pane is where you ask questions.  Each answer appears when the
 turn completes (there is no live token typing) and is grounded in the
-retrieved sources rather than the model’s memory alone.  Messages render as
-full-width blocks: the user’s prompt is tinted and shown <strong>verbatim</strong> (no
-Markdown decoration, so underscores, <code class="docutils literal notranslate"><span class="pre">#</span></code> and line breaks in URLs, paths or
-pasted code are preserved; bare URLs stay clickable), the agent’s reply is
-rendered as Markdown (code blocks, lists, tables), and file changes the
-agent makes appear as their own diff blocks before the reply.  Tool
-results (file-edit diffs, command output) render as compact blocks
+retrieved sources rather than the model’s memory alone.</p>
+<p>Messages render as full-width blocks: the user’s prompt is tinted and shown
+<strong>verbatim</strong> (no Markdown decoration, so underscores, <code class="docutils literal notranslate"><span class="pre">#</span></code> and line breaks
+in URLs, paths or pasted code are preserved; bare URLs stay clickable), the
+agent’s reply is rendered as Markdown (code blocks, lists, tables), and file
+changes the agent makes appear as their own diff blocks before the reply.
+Tool results (file-edit diffs, command output) render as compact blocks
 collapsed to a one-line preview that expands on click; an errored tool
-block’s title is shown in red.  Long lines wrap, and the input box sits at
-the bottom and grows upward with its content.  Use the left drawer to start a
-new chat or switch between existing ones, and the status pane to choose
-the model for the chat.</p>
-<p>Send stays disabled until the models a run needs (and any required API
+block’s title appears in red.</p>
+<p>Long lines wrap, and the input box sits at the bottom and grows upward with
+its content.  Use the status pane to choose the model for the chat.</p>
+<p>Send is blocked until the models a run needs (and any required API
 keys) are configured; the first run opens a <strong>Choose models</strong> prompt to set
 them.  If a run fails with a recoverable error, an inline <strong>Retry</strong> action
 resumes it from its checkpoint – re-running only the failed step – instead
 of starting the query over.</p>
-<p>In the agent, a run can pause for your input.  The ask appears in a per-turn
-region under the transcript (the <em>turn status</em> region, distinct from the
-right-drawer status pane): a plan awaiting review shows the plan with
-<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked on a
-missing fact shows one field per question, and a tool call that would touch a
-path outside the project directory (or a sensitive file inside it, such as
-<code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.  The
-main input box is disabled until you answer or cancel, and reloading the page
-re-shows a pending ask.  Answering (or requesting a revision) resumes the
-same run with its state intact.</p>
-<p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a command menu.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
-commands: the browser fetches the server’s command catalogue and merges it
-with the commands it handles itself.  A client-side command (such as
-<code class="docutils literal notranslate"><span class="pre">/help</span></code>) runs in the browser; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, the
-agent’s operating mode) is sent to the agent.  An unknown command is reported
-locally and never sent.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>
-<p><code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> opens the interface in your default browser on launch (pass
-<code class="docutils literal notranslate"><span class="pre">--no-open</span></code> on a headless or remote host), and accepts <code class="docutils literal notranslate"><span class="pre">--continue</span></code> or
-<code class="docutils literal notranslate"><span class="pre">--resume</span> <span class="pre">&lt;chat_id&gt;</span></code> to open the most recently updated or a specific session
-on load.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code> – or the header’s power button, which confirms first –
-stops the server this client launched, closes any active runs, and closes the
-browser tab on a best-effort basis.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-chat.png"><img alt="Klea RAG web interface chat tab showing a question and a cited answer" src="../_images/20260916-klea-rag-chat.png" style="width: 80%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The chat tab: ask a question and receive a streamed, source-backed
+<p><span class="caption-text">The chat pane: ask a question and receive a streamed, source-backed
 answer.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </section>
-<section id="inspect">
-<h2>Inspect<a class="headerlink" href="#inspect" title="Link to this heading">¶</a></h2>
-<p>The inspect tab is the transparency view.  It updates live as the graph
+<section id="status-pane">
+<h2>Status pane<a class="headerlink" href="#status-pane" title="Link to this heading">¶</a></h2>
+<p>The right pane summarises the current chat: its name, the model used
+for each role (with a settings button to change them), running token
+totals, and the per-step state sections that stream while the graph runs.
+Tool calls appear here as they run, marked <code class="docutils literal notranslate"><span class="pre">running</span></code> and replaced by
+<code class="docutils literal notranslate"><span class="pre">ok</span></code>/<code class="docutils literal notranslate"><span class="pre">error</span></code> when the round ends.  In the agent, the operating mode and
+tool access level selectors appear here as well.</p>
+</section>
+<section id="inspection-pane">
+<h2>Inspection pane<a class="headerlink" href="#inspection-pane" title="Link to this heading">¶</a></h2>
+<p>The inspection pane is the transparency view.  It updates live as the graph
 runs: each pipeline step appends an entry as it finishes – for example
 classification, retrieval, answering and evaluation – with the step’s
 heading, how long it took, a short summary, and a collapsible <strong>View
@@ -394,37 +381,49 @@ pipeline arrived at its response.</p>
 <a class="reference internal image-reference" href="../_images/20260916-klea-rag-inspection.png"><img alt="Klea RAG web interface inspect tab showing the per-step pipeline trace" src="../_images/20260916-klea-rag-inspection.png" style="width: 80%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The inspect tab: the per-step trace behind the latest answer.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+<p><span class="caption-text">The inspection pane: the per-step trace behind the latest answer.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </section>
-<section id="status-pane">
-<h2>Status pane<a class="headerlink" href="#status-pane" title="Link to this heading">¶</a></h2>
-<p>The right drawer summarises the current chat: its name, the model used
-for each role (with a settings button to change them), running token
-totals, and the per-step state sections that stream while the graph runs.
-Tool calls appear here as they run, marked <code class="docutils literal notranslate"><span class="pre">running</span></code> and replaced by
-<code class="docutils literal notranslate"><span class="pre">ok</span></code>/<code class="docutils literal notranslate"><span class="pre">error</span></code> when the round ends.  In the agent, the operating mode and
-tool access level selectors appear here as well.</p>
+<section id="sessions">
+<h2>Sessions<a class="headerlink" href="#sessions" title="Link to this heading">¶</a></h2>
+<p>Use the left pane to start a new chat or switch between existing ones.
+<code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> opens the interface in your default browser on launch (pass
+<code class="docutils literal notranslate"><span class="pre">--no-open</span></code> on a headless or remote host), and accepts <code class="docutils literal notranslate"><span class="pre">--continue</span></code> or
+<code class="docutils literal notranslate"><span class="pre">--resume</span> <span class="pre">&lt;chat_id&gt;</span></code> to open the most recently updated or a specific session
+on load.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code> – or the header’s power button, which confirms first –
+stops the server this client launched, closes any active runs, and closes the
+browser tab on a best-effort basis.</p>
+</section>
+<section id="commands">
+<h2>Commands<a class="headerlink" href="#commands" title="Link to this heading">¶</a></h2>
+<p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a command menu.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
+commands: the browser fetches the server’s command catalogue and merges it
+with the commands it handles itself.  A client-side command (such as
+<code class="docutils literal notranslate"><span class="pre">/help</span></code>) runs in the browser; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, the
+agent’s operating mode) is sent to the agent.  An unknown command is reported
+locally and never sent.  See <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>
+</section>
+<section id="models-and-api-keys">
+<h2>Models and API keys<a class="headerlink" href="#models-and-api-keys" title="Link to this heading">¶</a></h2>
 <p>The settings button opens the model dialog.  Each role’s model is chosen
-with three fields – a <strong>provider</strong> dropdown, a <strong>model</strong> dropdown, and an
-optional <strong>custom URL</strong> – filled from the <a class="reference external" href="https://models.dev">models.dev</a>
-catalogue.  Free text is still accepted for models that are not in the
-catalogue (for example <code class="docutils literal notranslate"><span class="pre">ollama:</span></code> models or a self-hosted endpoint), and a
-custom URL overrides the provider’s default endpoint.  The catalogue is a
-convenience subset, not an exhaustive list: enter any other model – a
-local/on-device server (Ollama, LM Studio), a self-hosted endpoint, or a
-regional provider – as free text.  The dialog edits the
-current chat’s models when a chat is open and the per-session defaults
-otherwise; saving in a chat also updates the session defaults (“last used”),
-so new chats start from the same models.  <strong>Manage API keys</strong> opens the
-provider-scoped credentials editor: keys are stored per provider on the
+with a <strong>provider</strong> field, a <strong>model</strong> field, and an optional <strong>custom
+URL</strong>, filled from the <a class="reference external" href="https://models.dev">models.dev</a> catalogue; free
+text is accepted for models not in the catalogue.  <strong>Manage API keys</strong> opens
+the provider-scoped credentials editor: keys are stored per provider on the
 server, returned only in masked form, and expire after a period unused.</p>
-<p>For a <code class="docutils literal notranslate"><span class="pre">huggingface</span></code> role the dialog also shows a <strong>Run</strong> choice
-(hosted inference providers, or local) and, for the hosted backend, an
-<strong>inference provider</strong> field (<code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">cheapest</span></code>, <code class="docutils literal notranslate"><span class="pre">fastest</span></code>,
-<code class="docutils literal notranslate"><span class="pre">preferred</span></code>, or a specific provider).  A hosted model is therefore never
-silently downloaded; <code class="docutils literal notranslate"><span class="pre">Run:</span> <span class="pre">Local</span></code> is the explicit opt-in.</p>
+</section>
+<section id="human-in-the-loop">
+<h2>Human-in-the-loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading">¶</a></h2>
+<p>In the agent, a run can pause for your input.  The ask appears in a per-turn
+region under the transcript (the <strong>turn status</strong> line, distinct from the
+status pane): a plan awaiting review shows the plan with
+<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked on a
+missing fact shows one field per question, and a tool call that would touch a
+path outside the project directory (or a sensitive file inside it, such as
+<code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.
+Answering (or requesting a revision) resumes the same run with its state
+intact.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The screenshots on this page are captured from a local deployment and
@@ -433,9 +432,11 @@ may lag the latest interface.</p>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <ul class="simple">
+<li><p><a class="reference internal" href="tui.html"><span class="doc">Terminal interface</span></a> – the terminal interface over the same backend</p></li>
+<li><p><a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> – the session-command catalogue</p></li>
 <li><p><a class="reference internal" href="../guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a> – build a RAG system and
 query it through this interface</p></li>
-<li><p><a class="reference internal" href="rag.html"><span class="doc">Klea RAG</span></a> – the pipeline the inspect tab exposes</p></li>
+<li><p><a class="reference internal" href="rag.html"><span class="doc">Klea RAG</span></a> – the pipeline the inspection pane exposes</p></li>
 </ul>
 </div>
 </section>
@@ -496,9 +497,13 @@ query it through this interface</p></li>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Web interface</a><ul>
-<li><a class="reference internal" href="#chat">Chat</a></li>
-<li><a class="reference internal" href="#inspect">Inspect</a></li>
+<li><a class="reference internal" href="#chat-pane">Chat pane</a></li>
 <li><a class="reference internal" href="#status-pane">Status pane</a></li>
+<li><a class="reference internal" href="#inspection-pane">Inspection pane</a></li>
+<li><a class="reference internal" href="#sessions">Sessions</a></li>
+<li><a class="reference internal" href="#commands">Commands</a></li>
+<li><a class="reference internal" href="#models-and-api-keys">Models and API keys</a></li>
+<li><a class="reference internal" href="#human-in-the-loop">Human-in-the-loop</a></li>
 </ul>
 </li>
 </ul>

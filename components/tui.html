@@ -325,44 +325,59 @@ extra (<code class="docutils literal notranslate"><span class="pre">pip</span> <
 <code class="docutils literal notranslate"><span class="pre">tui</span></code> exits with a message pointing at the extra.  The process title is set
 to the frontend name (for example <code class="docutils literal notranslate"><span class="pre">klea-agent-tui</span></code>) so it is identifiable in
 <code class="docutils literal notranslate"><span class="pre">ps</span></code>/<code class="docutils literal notranslate"><span class="pre">top</span></code> instead of <code class="docutils literal notranslate"><span class="pre">python</span></code>.</p>
-<p>The layout is a horizontal split: a chat panel on the left and a full-height
-status panel on the right.  The title and server line, and the active chat’s
-name and id, sit at the top of the status panel.</p>
-<section id="chat-panel">
-<h2>Chat panel<a class="headerlink" href="#chat-panel" title="Link to this heading">¶</a></h2>
-<p>The left panel holds a transcript/inspector toggle, the transcript, the live
+<p>The layout is a horizontal split: a chat pane on the left and a full-height
+status pane on the right.  The title and server line, and the active chat’s
+name and id, sit at the top of the status pane.</p>
+<section id="chat-pane">
+<h2>Chat pane<a class="headerlink" href="#chat-pane" title="Link to this heading">¶</a></h2>
+<p>The chat pane holds a transcript/inspector toggle, the transcript, the live
 turn-status line, and the input.  The answer appears when the turn completes
-(there is no live token typing; see <a class="reference internal" href="#limitations">Limitations</a>).  The input soft-wraps and
-grows with the
+(there is no live token typing).  The input soft-wraps and grows with the
 text (up to a cap, then it scrolls); the cursor sits on the bottom line and
 the box grows upward.  <kbd class="kbd docutils literal notranslate">Enter</kbd> sends and <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">J</kbd> inserts a newline
 (<kbd class="kbd docutils literal notranslate">Shift</kbd>+<kbd class="kbd docutils literal notranslate">Enter</kbd> also works on terminals that report the shifted key).</p>
 <p>The transcript renders each message MIME-aware, mirroring the web: Markdown
-for the agent’s replies, syntax-highlighted diffs and code blocks for file
+for the agent’s reply, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press <kbd class="kbd docutils literal notranslate">Enter</kbd>, to
-expand or collapse.  Press <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd>
-(or <kbd class="kbd docutils literal notranslate">Tab</kbd>, which is the byte a terminal sends for it) to switch the same
-panel to the <strong>inspector</strong> view: the per-step trace behind
-the latest answer (each pipeline step’s heading, timing, summary and raw
-structured details), grouped per query.</p>
-<figure class="align-center" id="id1">
-<a class="reference internal image-reference" href="../_images/klea-tui-inspect.png"><img alt="Klea terminal interface inspector view showing the per-step pipeline trace" src="../_images/klea-tui-inspect.png" style="width: 80%;" />
-</a>
-<figcaption>
-<p><span class="caption-text">The inspector view: the per-step trace behind the latest answer.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
-</figcaption>
-</figure>
-<p>A failed run that can be recovered shows a <strong>Retry</strong> hint; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
+expand or collapse.</p>
+<p>A failed run that can be recovered shows a <strong>Retry</strong> action; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
 resumes it from its checkpoint, re-running only the failed step.  If the
 agent pauses for your input, a review / input / permission dialog opens (see
 below) and the input is held until you answer or cancel.</p>
-<figure class="align-center" id="id2">
+<figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/klea-tui-chat.png"><img alt="Klea terminal interface chat view showing the transcript and the status panel" src="../_images/klea-tui-chat.png" style="width: 80%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The chat view: the transcript, the live turn-status line and the status panel.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+<p><span class="caption-text">The chat pane: the transcript, the live turn-status line and the status pane.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="status-pane">
+<h2>Status pane<a class="headerlink" href="#status-pane" title="Link to this heading">¶</a></h2>
+<p>The right pane summarises the current chat: its title and server line, its
+<strong>name and id</strong>, and, in the agent, a read-only <strong>mode</strong> and tool <strong>access</strong>
+line (change them with <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code>; there are no in-panel
+selectors) plus a read-only <strong>project root</strong>.  Below that are the chat’s
+selected <strong>models</strong> – a collapsible group (collapsed by default) listing one
+role per line with its provider, and a warning when a required model or API key
+is still missing – the running token totals (thousands-separated), and the
+per-step state sections that stream while the graph runs.  Everything down to
+the token totals stays fixed while only the state sections scroll.  The groups
+are spaced apart, and the state sections sit on the pane’s own background.</p>
+</section>
+<section id="inspection-pane">
+<h2>Inspection pane<a class="headerlink" href="#inspection-pane" title="Link to this heading">¶</a></h2>
+<p>Press <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd> (or <kbd class="kbd docutils literal notranslate">Tab</kbd>, which is the byte a terminal sends for
+it) to switch the same pane to the <strong>inspection</strong> view: the per-step trace
+behind the latest answer (each pipeline step’s heading, timing, summary and
+raw structured details), grouped per query.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="../_images/klea-tui-inspect.png"><img alt="Klea terminal interface inspector view showing the per-step pipeline trace" src="../_images/klea-tui-inspect.png" style="width: 80%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The inspection pane: the per-step trace behind the latest answer.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
 </figcaption>
 </figure>
 </section>
@@ -418,7 +433,7 @@ updated chat and <code class="docutils literal notranslate"><span class="pre">--
 </section>
 <section id="commands">
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading">¶</a></h2>
-<p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a completion list.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
+<p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a command menu.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
 commands: the TUI merges the server’s command catalogue with the commands it
 handles itself.  A client-side command (<code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code>,
 <code class="docutils literal notranslate"><span class="pre">/exit</span></code>) runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or
@@ -433,49 +448,19 @@ stops any active run and quits immediately (typing it is deliberate, so – unli
 <p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">M</kbd> (or <code class="docutils literal notranslate"><span class="pre">/model</span></code>) opens the model dialog.  Each role’s model is
 chosen with a <strong>provider</strong> field, a <strong>model</strong> field, and an optional <strong>custom
 URL</strong>, filled from the <a class="reference external" href="https://models.dev">models.dev</a> catalogue; free text
-is accepted for models not in the catalogue (for example <code class="docutils literal notranslate"><span class="pre">ollama:</span></code> models or
-a self-hosted endpoint).  For a <code class="docutils literal notranslate"><span class="pre">huggingface</span></code> role the dialog also offers a
-<strong>Run</strong> choice (hosted inference providers, or local) and, for the hosted
-backend, an <strong>inference provider</strong> field.  Saving updates the current chat’s
-overrides (and its session defaults); <strong>Reset</strong> clears a role’s override and
-<strong>Use for all roles</strong> copies a model onto the other roles of the same kind.</p>
-<p><strong>Manage API keys</strong> opens the provider-scoped credentials editor: keys are
-stored per provider on the server, returned only in masked form, and expire
-after a period unused.  A query is blocked with a warning until the models a
-run needs (and any required API keys) are configured; client commands such as
-<code class="docutils literal notranslate"><span class="pre">/help</span></code> still work.</p>
+is accepted for models not in the catalogue.  <strong>Manage API keys</strong> opens the
+provider-scoped credentials editor: keys are stored per provider on the
+server, returned only in masked form, and expire after a period unused.</p>
 </section>
 <section id="human-in-the-loop">
 <h2>Human-in-the-loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading">¶</a></h2>
-<p>When the agent needs input, a modal opens over the screen:</p>
-<ul class="simple">
-<li><p>a plan awaiting review shows a <strong>headline</strong> and either the plan (a whole-plan
-approval) or, at a mid-plan checkpoint, the steps completed since the
-previous review (with their output summaries) plus the remaining steps the
-approval unblocks, with <strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong>;</p></li>
-<li><p>a plan blocked on a missing fact shows one field per question;</p></li>
-<li><p>a tool call that would touch a path outside the project directory (or a
-sensitive file inside it) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice
-per path (plus <strong>Not a path</strong> when the value was only guessed by a heuristic,
-so the gate may have mistaken a non-path value for a path).</p></li>
-</ul>
-<p>The dialog scrolls when its content (a long plan or many paths) is taller than
-the box, so the action buttons stay reachable.  Answering or requesting a
-revision resumes the same run with its state intact; a pending ask is re-shown
-if the chat is reloaded.</p>
-</section>
-<section id="status-panel">
-<h2>Status panel<a class="headerlink" href="#status-panel" title="Link to this heading">¶</a></h2>
-<p>The right panel summarises the current chat: its title and server line, its
-<strong>name and id</strong>, and, in the agent, a read-only <strong>mode</strong> and tool <strong>access</strong>
-line (change them with <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code>; there are no in-panel
-selectors) plus a read-only <strong>project root</strong>.  Below that are the chat’s
-selected <strong>models</strong> – a collapsible group (collapsed by default) listing one
-role per line with its provider, and a warning when a required model or API key
-is still missing – the running token totals (thousands-separated), and the
-per-step state sections that stream while the graph runs.  Everything down to
-the token totals stays fixed while only the state sections scroll.  The groups
-are spaced apart, and the state sections sit on the pane’s own background.</p>
+<p>When the agent needs input, a modal opens over the screen: a plan awaiting
+review shows the plan with <strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong>
+controls, a plan blocked on a missing fact shows one field per question, and a
+tool call that would touch a path outside the project directory (or a
+sensitive file inside it, such as <code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> /
+<strong>Deny</strong> choice per path.  Answering (or requesting a revision) resumes the
+same run with its state intact.</p>
 </section>
 <section id="identity">
 <h2>Identity<a class="headerlink" href="#identity" title="Link to this heading">¶</a></h2>
@@ -483,15 +468,6 @@ are spaced apart, and the state sections sit on the pane’s own background.</p>
 a persisted TUI-local UUID.  The local UUID is sent to the server only when it
 is a loopback address, so a local TUI does not accidentally share an identity
 with a remote deployment.</p>
-</section>
-<section id="limitations">
-<h2>Limitations<a class="headerlink" href="#limitations" title="Link to this heading">¶</a></h2>
-<ul class="simple">
-<li><p>No inline media: images and other rich MIME types degrade to a text
-fallback.</p></li>
-<li><p>No live token typing (answers appear on completion of the turn).</p></li>
-<li><p>No always-visible session sidebar; use the picker (<kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd>).</p></li>
-</ul>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
 <p>The screenshots on this page are captured from a local deployment and
@@ -502,7 +478,9 @@ may lag the latest interface.</p>
 <ul class="simple">
 <li><p><a class="reference internal" href="web-ui.html"><span class="doc">Web interface</span></a> – the browser interface over the same backend</p></li>
 <li><p><a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> – the session-command catalogue</p></li>
-<li><p><a class="reference internal" href="../guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a> – build a RAG system and query it</p></li>
+<li><p><a class="reference internal" href="../guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a> – build a RAG system and
+query it through this interface</p></li>
+<li><p><a class="reference internal" href="rag.html"><span class="doc">Klea RAG</span></a> – the pipeline the inspection pane exposes</p></li>
 </ul>
 </div>
 </section>
@@ -563,15 +541,15 @@ may lag the latest interface.</p>
           <div class="toc-tree">
             <ul>
 <li><a class="reference internal" href="#">Terminal interface</a><ul>
-<li><a class="reference internal" href="#chat-panel">Chat panel</a></li>
+<li><a class="reference internal" href="#chat-pane">Chat pane</a></li>
+<li><a class="reference internal" href="#status-pane">Status pane</a></li>
+<li><a class="reference internal" href="#inspection-pane">Inspection pane</a></li>
 <li><a class="reference internal" href="#keys">Keys</a></li>
 <li><a class="reference internal" href="#sessions">Sessions</a></li>
 <li><a class="reference internal" href="#commands">Commands</a></li>
 <li><a class="reference internal" href="#models-and-api-keys">Models and API keys</a></li>
 <li><a class="reference internal" href="#human-in-the-loop">Human-in-the-loop</a></li>
-<li><a class="reference internal" href="#status-panel">Status panel</a></li>
 <li><a class="reference internal" href="#identity">Identity</a></li>
-<li><a class="reference internal" href="#limitations">Limitations</a></li>
 </ul>
 </li>
 </ul>
