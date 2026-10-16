@@ -19,8 +19,8 @@ from collections.abc import Callable
 from nicegui import ui
 
 #: Fixed width for the row label (fits the longest expected label, e.g.
-#: ``"Access:"``), so labels of different lengths stay aligned.
-DEFAULT_LABEL_WIDTH = "7ch"
+#: ``"Project root:"``), so labels of different lengths stay aligned.
+DEFAULT_LABEL_WIDTH = "13ch"
 
 #: Fixed width for the button group, so controls with different option
 #: lengths (e.g. ``General | Scientific`` vs ``Full | Read-only``) match.

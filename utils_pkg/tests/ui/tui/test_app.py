@@ -728,8 +728,29 @@ async def test_status_panel_shows_models(fake_backend, make_app):
         texts = [str(static.render()) for static in panel.query(Static)]
         assert any("gpt-4o" in text for text in texts)
         assert any("Not set" in text for text in texts)
-        assert any(text.startswith("- Chat:") for text in texts)
+        # Each role shows its provider, with the model indented beneath.
+        assert "- Chat: openai" in texts
+        assert any(text.strip() == "gpt-4o" for text in texts)
         assert any("Select a model to start" in text for text in texts)
+
+
+async def test_models_group_is_a_persistent_collapsible(fake_backend, make_app):
+    """The models group is collapsed by default and keeps its state on refresh."""
+    fake_backend.model_info = {
+        "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}}
+    }
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        models = app.screen.query_one("#status-models", Collapsible)
+        assert models.collapsed is True
+        models.collapsed = False
+        await pilot.pause()
+        assert _chat().get("status_models_expanded") is True
+        # A status refresh rebuilds the group but keeps it expanded.
+        await app.screen.refresh_status(_chat())
+        await pilot.pause()
+        assert app.screen.query_one("#status-models", Collapsible).collapsed is False
 
 
 async def test_status_panel_shows_chat_name(fake_backend, make_app):

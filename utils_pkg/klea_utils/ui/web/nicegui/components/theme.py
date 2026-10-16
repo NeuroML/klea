@@ -263,6 +263,19 @@ def _add_css_overrides() -> None:
         ".status-details summary::before { content: '\\25B6'; font-size: 0.6rem; margin-right: 0.35rem; }"
     )
     ui.add_css(".status-details[open] summary::before { content: '\\25BC'; }")
+    # The Models group's collapsible header is the scope row (chat name +
+    # settings).  Quasar's ``q-item`` pads the header, which would indent the
+    # title past the controls above it (e.g. the project root), so flush it
+    # left.  The list uses bullets (matching the TUI) with no extra indent.
+    ui.add_css(
+        ".models-group .q-item { padding: 0 !important; min-height: 0 !important; }"
+    )
+    ui.add_css(
+        ".models-group .models-list { "
+        "list-style: disc outside; "
+        "margin: 0; "
+        "padding-inline-start: 1rem; }"
+    )
     ui.add_css(
         ".status-details code { white-space: pre-wrap !important; word-break: break-all !important; }"
     )

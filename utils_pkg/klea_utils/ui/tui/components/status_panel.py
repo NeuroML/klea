@@ -18,10 +18,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping, MutableMapping
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.markdown import Markdown
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Collapsible, Static
@@ -41,9 +42,11 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     """Format the token usage totals.
 
     :param usage: The chat's ``token_usage`` dict.
-    :returns: ``"<in> in / <out> out"``.
+    :returns: ``"<in> in / <out> out"`` with thousands separators.
     """
-    return f"{usage.get('input_tokens', 0)} in / {usage.get('output_tokens', 0)} out"
+    return (
+        f"{usage.get('input_tokens', 0):,} in / {usage.get('output_tokens', 0):,} out"
+    )
 
 
 def _model_name(raw: str) -> str:
@@ -57,24 +60,28 @@ def _model_name(raw: str) -> str:
     return parse_model_name(raw).model_name or raw
 
 
-def _models_widgets(model_info: Mapping[str, Any]) -> Vertical:
+def _models_widgets(model_info: Mapping[str, Any], *, collapsed: bool) -> Collapsible:
     """Build the selected-models group and any missing-config warning.
 
-    Mirrors the web status pane: one line per role naming its resolved model
-    (a role per line reads more neatly than a wrapped ``|``-joined line in the
-    narrow pane), then a warning when a required model or API key is missing.
+    Mirrors the web status pane: one bullet per role naming its provider, with
+    the resolved model indented beneath it, then a warning when a required
+    model or API key is missing.  Wrapped in a collapsible (titled ``Models``)
+    so the fixed part of the pane stays compact.
 
     :param model_info: The chat's ``model_info`` (role -> config).
+    :param collapsed: Whether the group starts collapsed.
     :returns: The models group widget.
     """
-    widgets = [
-        Static(
-            f"- {role_label(role)}: "
-            f"{_model_name(str((cfg or {}).get('model', '') or ''))}",
-            markup=False,
+    widgets: list[Static] = []
+    for role, cfg in model_info.items():
+        raw = str((cfg or {}).get("model", "") or "")
+        provider = str((cfg or {}).get("provider", "") or "")
+        if not provider and raw:
+            provider = parse_model_name(raw).provider or ""
+        widgets.append(
+            Static(f"- {role_label(role)}: {provider or '(unknown)'}", markup=False)
         )
-        for role, cfg in model_info.items()
-    ]
+        widgets.append(Static(f"    {_model_name(raw)}", markup=False))
     missing = missing_required_roles(model_info)
     if missing:
         widgets.append(
@@ -101,7 +108,9 @@ def _models_widgets(model_info: Mapping[str, Any]) -> Vertical:
                     classes="status-missing",
                 )
             )
-    return Vertical(*widgets, id="status-models")
+    return Collapsible(
+        *widgets, title="Models", collapsed=collapsed, id="status-models"
+    )
 
 
 def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
@@ -158,7 +167,24 @@ class StatusPanel(Vertical):
     StatusPanel #status-models {
         height: auto;
         margin-bottom: 1;
-        color: $text-muted;
+        /* Left-align with the row above (the Collapsible default indents). */
+        padding-left: 0;
+    }
+    /* Flush every status-pane collapsible (models + state sections) left, so
+     * the titles line up with the rows above (the Collapsible default indents
+     * both the box and its title/contents). */
+    StatusPanel Collapsible {
+        padding-left: 0;
+        /* Restore the space below each section (setting an edge here resets
+         * the Collapsible's own padding). */
+        padding-bottom: 1;
+    }
+    StatusPanel CollapsibleTitle {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    StatusPanel Collapsible > Contents {
+        padding-left: 0;
     }
     StatusPanel #status-usage {
         margin-bottom: 1;
@@ -183,6 +209,8 @@ class StatusPanel(Vertical):
         """
         super().__init__(id=id)
         self._ctx = ctx
+        #: The chat whose Models open/closed state is being tracked.
+        self._status_chat: MutableMapping[str, Any] | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the app slots, the fixed info, and the scrolling sections."""
@@ -225,12 +253,20 @@ class StatusPanel(Vertical):
         await fixed.remove_children()
         scroll = self.query_one("#status-scroll", VerticalScroll)
         await scroll.remove_children()
+        self._status_chat = (
+            cast("MutableMapping[str, Any]", chat) if chat is not None else None
+        )
         fixed_widgets: list[Any] = []
         sections: list[Any] = []
         if chat:
             model_info = chat.get("model_info") or {}
             if model_info:
-                fixed_widgets.append(_models_widgets(model_info))
+                fixed_widgets.append(
+                    _models_widgets(
+                        model_info,
+                        collapsed=not bool(chat.get("status_models_expanded")),
+                    )
+                )
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 fixed_widgets.append(Static(_usage_line(usage), id="status-usage"))
@@ -242,3 +278,16 @@ class StatusPanel(Vertical):
             sections.append(Static("State updates will appear here."))
         await scroll.mount_all(sections)
         scroll.scroll_end(animate=False)
+
+    @on(Collapsible.Toggled)
+    def on_collapsible_toggled(self, event: Collapsible.Toggled) -> None:
+        """Persist the Models group's open/closed state across refreshes.
+
+        The fixed widgets are rebuilt on every status update, so the collapsed
+        state is remembered on the chat rather than on the widget.
+
+        :param event: The ``Collapsible.Toggled`` event.
+        """
+        if event.collapsible.id != "status-models" or self._status_chat is None:
+            return
+        self._status_chat["status_models_expanded"] = not event.collapsible.collapsed

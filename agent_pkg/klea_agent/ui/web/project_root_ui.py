@@ -18,6 +18,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import logging
 
 from klea_utils.ui.state import chats
+from klea_utils.ui.web.nicegui.components.choice import DEFAULT_LABEL_WIDTH
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from nicegui import ui
 
@@ -42,8 +43,13 @@ def attach_project_root_ui(ctx: PageContext) -> None:
         root = str(context.get("project_root", "") or "").strip()
         display = root or "(server working directory)"
         logger.debug("user=%s chat=%s project_root=%s", ctx.user_id, ctx.chat_id, root)
-        with ui.column().classes("w-full gap-0 pt-1"):
-            label = ui.label(f"Project root: {display}").classes("text-xs")
+        # Styled like the mode/access choice rows: a bold muted label in a
+        # fixed-width column, then the (read-only) value.
+        with ui.row().classes("items-center w-full gap-2 choice-row"):
+            ui.label("Project root:").classes("text-xs font-bold choice-label").style(
+                f"min-width: {DEFAULT_LABEL_WIDTH}"
+            )
+            label = ui.label(display).classes("text-xs")
             label.style("word-break: break-all")
             ui.tooltip(
                 "Directory the file tools operate in. Change it with /cwd <path>."

@@ -4,7 +4,9 @@ Status pane component: the right drawer with chat state details.
 
 Shows the chat name, per-role model summary (with a settings button
 opening the model-config dialog), token usage totals, and the
-per-node status sections streamed by the graph.
+per-node status sections streamed by the graph.  Everything up to (and
+including) the token usage stays visible: it is a sticky header, so the state
+sections below scroll under it (mirroring the TUI status panel).
 
 File: klea_utils/ui/web/nicegui/components/status_pane.py
 
@@ -40,12 +42,12 @@ def attach_status_pane(ctx: PageContext) -> None:
     with (
         ui.right_drawer(value=True)
         .props("width=420 bordered")
-        .classes("overflow-y-auto overflow-x-hidden")
+        .classes("overflow-y-auto overflow-x-hidden bg-white dark:bg-[#1d1d1d]")
     ):
 
         @ui.refreshable
         def _status_pane() -> None:
-            """Render context controls, then chat state for the active chat.
+            """Render the sticky header, then the state sections below it.
 
             The app-defined context controls (mode/access) render even before a
             chat exists, so they can be set before the first message; they
@@ -75,90 +77,102 @@ def attach_status_pane(ctx: PageContext) -> None:
                 f"{ctx.chat_id = }\n{missing_models = }\n{missing_providers = }"
             )
 
-            with ui.column().classes("w-full gap-0 p-2"):
+            # Sticky header: stays visible while the state sections scroll.
+            with ui.column().classes(
+                "w-full gap-0 p-2 sticky top-0 z-20 bg-white dark:bg-[#1d1d1d]"
+            ):
                 # App-defined context slots (e.g. operating-mode and
-                # tool-access selectors, ADR-0030/ADR-0037).  Rendered
-                # inside the refreshable pane, so they update on pane refresh.
+                # tool-access selectors, ADR-0030/ADR-0037).
                 for render in ctx.status_extras:
                     render()
 
-                with ui.row().classes("items-center w-full gap-0 pt-2 pb-1"):
-                    with ui.label(scope_label).classes("text-sm font-bold mb-0"):
-                        created = current_chat.get("created", 0)
-                        if created:
-                            ui.tooltip(
-                                "Created: "
-                                + datetime.fromtimestamp(created)
-                                .astimezone()
-                                .strftime("%a %d %b %Y at %X")
-                            )
-                    ui.space()
-                    gear = (
-                        ui.button(
-                            icon="settings",
-                            on_click=ctx.model_config_dialog,
-                        )
-                        .props("flat dense round")
-                        .classes("text-sm icon-btn")
-                    )
-                    if needs_attention:
-                        gear.classes("model-btn--attention")
-                    with gear:
-                        ui.tooltip(
-                            "Choose models"
-                            + (" - configuration needed" if needs_attention else "")
-                        )
-
-                if model_info:
-                    tooltip_parts: list[str] = []
-                    # One bullet per role, matching the TUI status panel.
-                    models_list = ui.element("ul").classes(
-                        "text-xs text-grey-5 pl-4 m-0"
-                    )
-                    with models_list:
-                        for role, cfg in model_info.items():
-                            raw = cfg.get("model", "")
-                            provider = cfg.get("provider", "")
-                            required = cfg.get("required", True)
-                            if not raw:
-                                # No model set for this role -- show a clear
-                                # placeholder so the user knows it is missing.
-                                display_short = "Not set"
-                                required_mark = " (required)" if required else ""
-                                tooltip_short = f"Not set{required_mark}"
-                            else:
-                                display_short = parse_model_name(raw).model_name or raw
-                                if provider:
-                                    tooltip_short = f"{display_short} ({provider})"
-                                else:
-                                    tooltip_short = display_short
-                                credential = cfg.get("credential") or {}
-                                if credential.get("requires_key"):
-                                    if credential.get("source") == "none":
-                                        tooltip_short += " [no API key]"
-                                    elif credential.get("source") == "user":
-                                        tooltip_short += (
-                                            f" [key {credential.get('masked', '')}]"
-                                        )
-                            if cfg.get("overridden"):
-                                tooltip_short += (
-                                    " [Chat]" if chat_scope else " [Default]"
+                # The scope row (chat name + settings) is the Models group's
+                # collapsible header, so the whole group toggles from one line.
+                with ui.expansion().classes("w-full text-xs models-group") as models:
+                    with (
+                        models.add_slot("header"),
+                        ui.row().classes("items-center w-full no-wrap py-1"),
+                    ):
+                        with ui.label(scope_label).classes("text-sm font-bold mb-0"):
+                            created = current_chat.get("created", 0)
+                            if created:
+                                ui.tooltip(
+                                    "Created: "
+                                    + datetime.fromtimestamp(created)
+                                    .astimezone()
+                                    .strftime("%a %d %b %Y at %X")
                                 )
-                            if chat_scope and cfg.get("session_overridden"):
-                                tooltip_short += " [Default]"
-                            with ui.element("li"):
-                                ui.label(f"{role.capitalize()}: {display_short}")
-                            tooltip_parts.append(
-                                f"{role.capitalize()}: {tooltip_short}"
+                        ui.space()
+                        gear = (
+                            ui.button(
+                                icon="settings",
+                                on_click=ctx.model_config_dialog,
                             )
-                        if tooltip_parts:
-                            ui.tooltip("\n".join(tooltip_parts)).classes(
-                                "model-tooltip"
+                            .props("flat dense round")
+                            .classes("text-sm icon-btn")
+                        )
+                        if needs_attention:
+                            gear.classes("model-btn--attention")
+                        with gear:
+                            ui.tooltip(
+                                "Choose models"
+                                + (" - configuration needed" if needs_attention else "")
                             )
-                else:
-                    ui.label("Model information is loading...").classes(
-                        "text-xs text-grey-5"
-                    )
+                    if model_info:
+                        tooltip_parts: list[str] = []
+                        with ui.element("ul").classes("models-list"):
+                            for role, cfg in model_info.items():
+                                raw = cfg.get("model", "")
+                                provider = cfg.get("provider", "")
+                                required = cfg.get("required", True)
+                                if not raw:
+                                    # No model set for this role -- show a
+                                    # clear placeholder so the user knows it is
+                                    # missing.
+                                    display_short = "Not set"
+                                    required_mark = " (required)" if required else ""
+                                    tooltip_short = f"Not set{required_mark}"
+                                else:
+                                    display_short = (
+                                        parse_model_name(raw).model_name or raw
+                                    )
+                                    if provider:
+                                        tooltip_short = f"{display_short} ({provider})"
+                                    else:
+                                        tooltip_short = display_short
+                                    credential = cfg.get("credential") or {}
+                                    if credential.get("requires_key"):
+                                        if credential.get("source") == "none":
+                                            tooltip_short += " [no API key]"
+                                        elif credential.get("source") == "user":
+                                            tooltip_short += (
+                                                f" [key {credential.get('masked', '')}]"
+                                            )
+                                if cfg.get("overridden"):
+                                    tooltip_short += (
+                                        " [Chat]" if chat_scope else " [Default]"
+                                    )
+                                if chat_scope and cfg.get("session_overridden"):
+                                    tooltip_short += " [Default]"
+                                with ui.element("li"):
+                                    ui.label(
+                                        f"{role.capitalize()}: "
+                                        f"{provider or '(unknown)'}"
+                                    )
+                                    ui.label(display_short).classes("pl-4")
+                                tooltip_parts.append(
+                                    f"{role.capitalize()}: {tooltip_short}"
+                                )
+                            if tooltip_parts:
+                                ui.tooltip("\n".join(tooltip_parts)).classes(
+                                    "model-tooltip"
+                                )
+                    else:
+                        ui.label("Model information is loading...").classes(
+                            "text-xs text-grey-5"
+                        )
+                # Two-way binding keeps the open state across pane refreshes.
+                models.bind_value(ctx, "status_models_expanded")
 
                 if missing_models:
                     ui.label(
@@ -176,63 +190,66 @@ def attach_status_pane(ctx: PageContext) -> None:
                     ).classes("text-sm text-grey-5 mt-2")
                     return
 
-            token_usage = current_chat.get("token_usage", {})
-            has_token_usage = any(token_usage.values())
-            if has_token_usage:
-                usage_display = (
-                    f"{token_usage.get('input_tokens', 0)} in / "
-                    f"{token_usage.get('output_tokens', 0)} out"
-                )
-                ui.label(usage_display).classes("text-xs text-grey-5 mb-0")
-            sections = current_chat.get("state_sections", {})
-            has_content = bool(model_info) or bool(sections) or has_token_usage
-            if not has_content:
-                ui.label("State updates will appear here").classes(
-                    "text-sm text-grey-5"
-                )
-                return
-            if sections:
+                token_usage = current_chat.get("token_usage", {})
+                if any(token_usage.values()):
+                    ui.label(
+                        f"{token_usage.get('input_tokens', 0):,} in / "
+                        f"{token_usage.get('output_tokens', 0):,} out"
+                    ).classes("text-xs mb-0")
                 ui.separator().classes("my-0.5")
-            for node_label, section in sections.items():
-                with (
-                    ui.element("details")
-                    .props("open")
-                    .classes("status-entry mb-2 w-full")
-                ):
+
+            # The state sections scroll under the sticky header.
+            with ui.column().classes("w-full gap-0 px-2 pb-2"):
+                sections = current_chat.get("state_sections", {})
+                if not sections:
+                    ui.label("State updates will appear here").classes(
+                        "text-sm text-grey-5"
+                    )
+                    return
+                for node_label, section in sections.items():
                     with (
-                        ui.element("summary").classes(
-                            "text-xs font-bold cursor-pointer w-full"
-                        ),
-                        ui.row().classes("w-full flex-nowrap items-center"),
+                        ui.element("details")
+                        .props("open")
+                        .classes("status-entry mb-2 w-full")
                     ):
-                        ui.label(section.get("heading", node_label))
-                    display = section.get("display", "")
-                    if display:
-                        if section.get("preformatted"):
-                            # Aligned/literal content (e.g. the plan): a plain
-                            # code block, so columns line up and ``_``/``*`` in
-                            # tool names are not parsed as markdown.  No
-                            # language is passed (no syntax highlighting), and
-                            # ``nicegui-code-noformat`` strips the code-box
-                            # styling.
-                            ui.code(display, language=None).classes(
-                                "text-xs w-full nicegui-code-noformat"
-                            )
-                        else:
-                            ui.markdown(linkify_md(display)).classes("text-xs w-full")
-                    summary = section.get("summary", "")
-                    if summary and not display:
-                        ui.label(summary).classes("text-xs text-grey-6 mb-1 w-full")
-                    details = section.get("details", {})
-                    if details:
-                        with ui.element("details").classes(
-                            "status-details text-xs text-grey-5 cursor-pointer w-full"
+                        with (
+                            ui.element("summary").classes(
+                                "text-xs font-bold cursor-pointer w-full"
+                            ),
+                            ui.row().classes("w-full flex-nowrap items-center"),
                         ):
-                            with ui.element("summary").classes("text-xs w-full"):
-                                ui.label("View details")
-                            ui.code(
-                                json.dumps(details, indent=2), language="json"
-                            ).classes("text-xs")
+                            ui.label(section.get("heading", node_label))
+                        display = section.get("display", "")
+                        if display:
+                            if section.get("preformatted"):
+                                # Aligned/literal content (e.g. the plan): a
+                                # plain code block, so columns line up and
+                                # ``_``/``*`` in tool names are not parsed as
+                                # markdown.  No language is passed (no syntax
+                                # highlighting), and
+                                # ``nicegui-code-noformat`` strips the code-box
+                                # styling.
+                                ui.code(display, language=None).classes(
+                                    "text-xs w-full nicegui-code-noformat"
+                                )
+                            else:
+                                ui.markdown(linkify_md(display)).classes(
+                                    "text-xs w-full"
+                                )
+                        summary = section.get("summary", "")
+                        if summary and not display:
+                            ui.label(summary).classes("text-xs text-grey-6 mb-1 w-full")
+                        details = section.get("details", {})
+                        if details:
+                            with ui.element("details").classes(
+                                "status-details text-xs text-grey-5 "
+                                "cursor-pointer w-full"
+                            ):
+                                with ui.element("summary").classes("text-xs w-full"):
+                                    ui.label("View details")
+                                ui.code(
+                                    json.dumps(details, indent=2), language="json"
+                                ).classes("text-xs")
 
         _status_pane()
         ctx.refresh_status_pane = _status_pane.refresh
