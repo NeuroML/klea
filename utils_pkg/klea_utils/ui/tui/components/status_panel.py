@@ -83,6 +83,20 @@ class StatusPanel(VerticalScroll):
     on every :meth:`set_state`.
     """
 
+    # Both sections size to their content rather than splitting the panel
+    # 50/50 (the Textual ``Vertical`` default is ``height: 1fr``).  Otherwise
+    # the app slots take half the pane and the state body is clipped to the
+    # other half, so it never contributes its real height to the scroll region
+    # and the panel cannot scroll.
+    DEFAULT_CSS = """
+    StatusPanel #status-extras {
+        height: auto;
+    }
+    StatusPanel #status-body {
+        height: auto;
+    }
+    """
+
     def __init__(self, *, ctx: TuiContext | None = None, id: str | None = None) -> None:
         """Build the panel for *ctx*.
 

@@ -557,6 +557,26 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         assert any("3 in / 1 out" in text for text in statics)
 
 
+async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_app):
+    """The status panel scrolls (and auto-scrolls to the end) on overflow."""
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        chat = _chat()
+        chat["state_sections"] = {
+            f"k{i}": {
+                "heading": f"Section {i}",
+                "display": "\n".join(f"line {j}" for j in range(4)),
+            }
+            for i in range(10)
+        }
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+        panel = app.screen.query_one("#status")
+        assert panel.max_scroll_y > 0
+        assert panel.scroll_y == panel.max_scroll_y
+
+
 async def test_status_extras_render_in_panel(fake_backend, make_app):
     """App-registered status extras render at the top of the panel."""
     app = make_app(status_extras=[lambda ctx: Static(f"Mode: {ctx.title}")])
