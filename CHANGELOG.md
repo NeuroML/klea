@@ -94,6 +94,9 @@
 - Terminal UI: the transcript/inspector toggle now reads **Chat** / **Inspect** and is centred; the status panel's mode and access rows are combined into one line (for example `General | Full access`, with full access in the error colour); the status pane lists one model per role, spaces its groups, and no longer draws streamed state sections on a separate background.
 - Terminal UI: `Ctrl+Q` now asks to confirm before quitting; the `/exit` command quits immediately (typing it is deliberate), matching the web UI.
 - The TUI and web status panes list the chat's models as a bulleted per-role list (`- Chat: gpt-4o`), so the two frontends match.
+- The TUI and web status panes match further: the models list is a collapsible group (collapsed by default) showing each role's provider with its model beneath; everything down to the token totals stays fixed while only the state sections scroll; and the token totals are unmuted and thousands-separated.
+- The web status pane's project-root row is styled like the operating-mode and tool-access rows (same bold label, muted value).
+- Terminal UI: user messages render as a tinted block, every transcript block has vertical padding, and the query input uses the same tint (one row of padding, growing with the text).
 - The plan-review / approval dialog now shows only the **pending** steps the approval unblocks (the whole plan for a whole-plan approval, or the remaining steps for a mid-plan checkpoint); completed work and the step findings stay in the transcript and the inspection pane. A `review` step must gate pending work -- the Planner rejects a trailing review, and the router resolves one defensively instead of pausing on a gate that gates nothing.
 
 ### Fixed
