@@ -27,7 +27,6 @@ from klea_utils.ui.tui.components.inspector import (
     group_sections,
 )
 from klea_utils.ui.tui.components.status_panel import (
-    _context_widget,
     _section_widget,
     _usage_line,
 )
@@ -135,9 +134,6 @@ class TestStatusPanelHelpers:
         assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == (
             "tokens: 10 in / 5 out"
         )
-
-    def test_context_widget_title(self):
-        assert _context_widget({"mode": "general"}).title == "context"
 
     def test_section_widget_uses_heading(self):
         widget = _section_widget("Planner", {"heading": "Plan", "display": "a\nb"})

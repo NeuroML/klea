@@ -3,11 +3,10 @@
 Status panel for the Klea TUI.
 
 The full-height right panel: the chat's streamed state (``devdocs/system/tui.md``)
-- the graph-level session ``context`` (ADR-0032), the per-node ``state``
-sections keyed by section key, and the accumulated token usage.  Each state
-section renders like the web status pane: a collapsible heading with the
-node's ``display`` (Markdown, or a literal block when ``preformatted``), its
-``summary`` and its ``details`` via
+- the per-node ``state`` sections keyed by section key and the accumulated
+token usage.  Each state section renders like the web status pane: a
+collapsible heading with the node's ``display`` (Markdown, or a literal block
+when ``preformatted``), its ``summary`` and its ``details`` via
 :func:`klea_utils.ui.inspect_format.format_details`.
 
 File: klea_utils/ui/tui/components/status_panel.py
@@ -47,16 +46,6 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     )
 
 
-def _context_widget(context: Mapping[str, Any]) -> Collapsible:
-    """Build the collapsible widget for the graph-level session context.
-
-    :param context: The chat's ``context`` dict.
-    :returns: A collapsed :class:`~textual.widgets.Collapsible`.
-    """
-    lines = [Static(f"{key}: {value}", markup=False) for key, value in context.items()]
-    return Collapsible(*lines, title="context", collapsed=True)
-
-
 def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     """Build the collapsible widget for one ``state`` section.
 
@@ -86,7 +75,7 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
 
 
 class StatusPanel(VerticalScroll):
-    """The right panel: app slots, session context, state sections, usage.
+    """The right panel: app slots, state sections, usage.
 
     The top holds the app-defined controls registered on
     :attr:`TuiContext.status_extras` (e.g. the agent's operating-mode and
@@ -147,9 +136,6 @@ class StatusPanel(VerticalScroll):
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 widgets.append(Static(_usage_line(usage), id="status-usage"))
-            context = chat.get("context") or {}
-            if context:
-                widgets.append(_context_widget(context))
             for key, section in (chat.get("state_sections") or {}).items():
                 widgets.append(_section_widget(key, section))
         if not widgets:

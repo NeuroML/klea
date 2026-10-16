@@ -527,8 +527,8 @@ async def test_toggle_inspector_view(fake_backend, make_app):
         assert list(inspector.query(Collapsible))
 
 
-async def test_status_panel_shows_context_state_and_usage(fake_backend, make_app):
-    """The status panel renders context, state sections and token usage."""
+async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
+    """The status panel renders state sections and token usage."""
     fake_backend.scripts = [
         [
             {"type": "context", "data": {"mode": "general"}},
@@ -552,7 +552,8 @@ async def test_status_panel_shows_context_state_and_usage(fake_backend, make_app
         panel = app.screen.query_one("#status")
         titles = [str(collapsible.title) for collapsible in panel.query(Collapsible)]
         statics = [str(static.render()) for static in panel.query(Static)]
-        assert "context" in titles and "Plan" in titles
+        assert "Plan" in titles
+        assert "context" not in titles
         assert any("3 in / 1 out" in text for text in statics)
 
 

@@ -85,6 +85,7 @@
 - Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
 - Graph diagrams (`*-lang-graph.png` and their `.mmd` source) are written only when debug logging is enabled (`--debug` / `KLEA_LOG_LEVEL=debug`), instead of on every graph build.
 - Path permission is now a single client-side gate before dispatch instead of a per-tool check: file tools no longer enforce the project-directory boundary themselves, and a tool that declares no path metadata is still gated (declared `checkpaths`, paths the tools picker declares, and heuristics such as shell-command tokens).
+- Terminal UI: the status panel no longer shows a `context` section (the web UI does not either); the graph context still drives the mode / access / project-root rows.
 
 ### Fixed
 
