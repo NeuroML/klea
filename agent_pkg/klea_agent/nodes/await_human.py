@@ -84,28 +84,18 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                 for question in step.needs_input
             ]
             return {"kind": "input", "questions": questions}
-        # A review step before any work is a plan approval; once work has run
-        # it is a progress checkpoint (ADR-0051), so carry the progress too.
-        # The rendered plan is always included so the form is
-        # self-contained (the same payload is re-presented on reload via
-        # checkpoint hydration).  ``progress_text`` (not ``observations_text``)
-        # keeps the checkpoint concise for the user: tool names and outcomes
-        # only, no result bodies (those are in the inspection pane).
-        done = any(step.status in ("done", "skipped") for step in state.plan.step_list)
-        if done:
-            return {
-                "kind": "review",
-                "question": (
-                    "Review the progress: approve to continue, request changes "
-                    "to revise the plan, or cancel."
-                ),
-                "plan": state.plan.render(markdown=True),
-                "progress": state.progress_text(),
-            }
+        # A review is either a whole-plan approval (before any work) or a
+        # progress checkpoint (after work); ``review_sections`` adapts the
+        # headline and content to the review's position (ADR-0051) and excludes
+        # the review gate steps themselves.  The full plan lives in the status
+        # pane, so the checkpoint shows only recent work plus what approval
+        # unblocks.
+        headline, sections = state.review_sections()
         return {
             "kind": "review",
-            "question": "Review the plan: approve it, request changes, or cancel.",
-            "plan": state.plan.render(markdown=True),
+            "headline": headline,
+            "question": "Approve, request changes, or cancel.",
+            "sections": sections,
         }
 
     @override

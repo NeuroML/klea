@@ -29,9 +29,9 @@ class _HitlState(BaseModel):
     messages: list[AnyMessage] = Field(default_factory=list)
     plan: PlanSchema = Field(default_factory=PlanSchema)
 
-    def progress_text(self) -> str:
-        """Minimal stand-in for ``KleaAgentState.progress_text``."""
-        return "(progress)"
+    def review_sections(self) -> tuple[str, list[dict[str, str]]]:
+        """Minimal stand-in for ``KleaAgentState.review_sections``."""
+        return "(headline)", [{"title": "Plan", "body": "(plan)"}]
 
 
 def _compile(kind: Literal["review", "input"]):
@@ -96,8 +96,11 @@ async def test_review_approve_runs_the_plan():
 
     intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
     assert intr.value["kind"] == "review"
-    assert "plan" in intr.value  # the form carries the rendered plan
-    assert "progress" not in intr.value  # a plan approval, no work done yet
+    # The form carries the adaptive headline + sections, not the raw plan.
+    assert intr.value["headline"] == "(headline)"
+    assert intr.value["sections"] == [{"title": "Plan", "body": "(plan)"}]
+    assert "plan" not in intr.value
+    assert "progress" not in intr.value
     assert intr.response_schema is not None  # typed review form
 
     result = await graph.ainvoke(
@@ -110,8 +113,8 @@ async def test_review_approve_runs_the_plan():
     assert result["human_feedback"] == ""
 
 
-async def test_review_checkpoint_carries_progress():
-    """A review step after completed work is a checkpoint carrying progress."""
+async def test_review_checkpoint_carries_sections():
+    """A review step after completed work is a checkpoint carrying sections."""
     graph = _compile("review")
     config = {"configurable": {"thread_id": "checkpoint"}}
     plan = PlanSchema(
@@ -130,8 +133,9 @@ async def test_review_checkpoint_carries_progress():
     await graph.ainvoke(_HitlState(plan=plan), config=config)
     intr = (await graph.aget_state(config)).tasks[0].interrupts[0]
     assert intr.value["kind"] == "review"
-    # The concise progress summary is carried (not the full observations).
-    assert intr.value["progress"] == "(progress)"
+    # The adaptive headline + sections are carried (not the full plan).
+    assert intr.value["headline"] == "(headline)"
+    assert intr.value["sections"] == [{"title": "Plan", "body": "(plan)"}]
 
 
 async def test_review_revise_returns_feedback():

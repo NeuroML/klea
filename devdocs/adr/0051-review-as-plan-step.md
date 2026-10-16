@@ -78,9 +78,15 @@ requested capability unimplemented.
   pending and writes `human_feedback` (always non-empty, so the router has a
   reliable revision signal); the Planner re-authors.
 * **Cancel is terminal** (`user_cancelled`), as in ADR-0046.
-* **The ask adapts.**  A review step before any work presents the plan
-  (plan approval); once work has run it presents the completed steps and
-  observations (a progress checkpoint).
+* **The ask adapts.**  The interrupt carries a `headline` and `sections`
+  (`{title, body}`) built by `KleaAgentState.review_sections`.  A review step
+  before any work presents the plan under approval (`Approve this plan (N
+  steps)`).  Once work has run it is a progress checkpoint: it shows only the
+  steps completed *since the previous review* (each followed by its concise
+  output summaries) plus the remaining steps the approval unblocks.  The
+  review gate steps are excluded from the listed work, and the full plan stays
+  in the status pane.  (2026-10-16 update: the payload was `plan` + `progress`;
+  both were replaced by `headline` + `sections`, with no pre-release shim.)
 * **`needs_input` is for facts only.**  It supplies information the Planner
   cannot obtain; it is never used for approval or confirmation.  Answers
   re-enter the Planner, which re-authors.  There is deliberately no bound on

@@ -721,35 +721,6 @@ class KleaAgentState(BaseGraphSchema):
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"
 
-    def progress_text(self) -> str:
-        """Render the completed steps as a concise, human-facing summary.
-
-        Used for the ``progress`` field of an ``AwaitHuman`` review
-        checkpoint.  Unlike :meth:`observations_text` (the full, LLM-facing
-        render with result bodies and the ``displayed_to_user`` flag), each
-        recorded output becomes one line via :meth:`StepOutput.summary` -- the
-        tool name and whether it succeeded, or a reasoning step's conclusion
-        first line -- so the review modal stays readable; full results live in
-        the inspection pane.
-
-        Steps appear in plan order, and only those with a recorded output (the
-        review modal already shows the plan's step list with status markers).
-        Outputs keyed to a step missing from the plan are appended last.
-
-        :returns: The summary block, or ``"(no observations)"`` when no step
-            has an output.
-        """
-        ordered = [step.step_number for step in self.plan.step_list]
-        extras = [key for key in self.step_outputs if key not in set(ordered)]
-        parts: list[str] = []
-        for step_key in [*ordered, *extras]:
-            entries = self.step_outputs.get(step_key)
-            if not entries:
-                continue
-            bullets = "\n".join(f"- {entry.summary()}" for entry in entries)
-            parts.append(f"Step {step_key}:\n{bullets}")
-        return "\n\n".join(parts) if parts else "(no observations)"
-
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:
         """Return the headline and content sections for a plan-review interrupt.
 

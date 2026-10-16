@@ -213,38 +213,6 @@ class TestStepOutputRender:
         assert summary.endswith("...")
         assert len(summary) == len("reasoning: ") + 80
 
-    def test_progress_text_summarises_in_plan_order(self):
-        """Outputs render as concise bullets, ordered by the plan."""
-        state = KleaAgentState(
-            plan=PlanSchema(
-                step_list=[
-                    StepSchema(step_number=1, description="a"),
-                    StepSchema(step_number=2, description="b"),
-                ]
-            ),
-            step_outputs={
-                2: [StepOutput(result=self._result(), tool="run_command")],
-                1: [StepOutput(result=self._result(), tool="edit_file")],
-            },
-        )
-        assert state.progress_text() == (
-            "Step 1:\n- edit_file: ok\n\nStep 2:\n- run_command: ok"
-        )
-
-    def test_progress_text_reasoning_line(self):
-        state = KleaAgentState(
-            plan=PlanSchema(
-                step_list=[
-                    StepSchema(step_number=1, kind="reasoning", description="r"),
-                ]
-            ),
-            step_outputs={1: [StepOutput(result="H1", tool="")]},
-        )
-        assert state.progress_text() == "Step 1:\n- reasoning: H1"
-
-    def test_progress_text_empty(self):
-        assert KleaAgentState().progress_text() == "(no observations)"
-
     def test_artefacts_text_empty(self):
         assert KleaAgentState().artefacts_text() == "(no artefacts)"
 
