@@ -706,9 +706,13 @@ async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_ap
         }
         await app.screen.refresh_status(chat)
         await pilot.pause()
-        panel = app.screen.query_one("#status")
-        assert panel.max_scroll_y > 0
-        assert panel.scroll_y == panel.max_scroll_y
+        # Only the state-section body scrolls; the top (extras/models/usage) is
+        # fixed.
+        scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+        assert scroll.max_scroll_y > 0
+        assert scroll.scroll_y == scroll.max_scroll_y
+        extras = app.screen.query_one("#status-extras")
+        assert extras.region.y < scroll.region.y  # fixed above the scroll body
 
 
 async def test_status_panel_shows_models(fake_backend, make_app):

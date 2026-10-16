@@ -134,27 +134,26 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     return Collapsible(*body, title=heading, collapsed=False)
 
 
-class StatusPanel(VerticalScroll):
-    """The right panel: app slots, state sections, usage.
+class StatusPanel(Vertical):
+    """The right panel: fixed app slots/info above a scrolling state body.
 
-    The top holds the app-defined controls registered on
-    :attr:`TuiContext.status_extras` (e.g. the agent's operating-mode and
-    tool-access selectors); below them sits the chat's streamed state, rebuilt
-    on every :meth:`set_state`.
+    The top is fixed so it is always visible: the app-defined controls
+    registered on :attr:`TuiContext.status_extras` (e.g. the agent's operating
+    mode and tool-access rows), then the selected models and the token usage.
+    Only the streamed state sections below (the plan etc.) scroll, rebuilt on
+    every :meth:`set_state`.
     """
 
-    # Both sections size to their content rather than splitting the panel
-    # 50/50 (the Textual ``Vertical`` default is ``height: 1fr``).  Otherwise
-    # the app slots take half the pane and the state body is clipped to the
-    # other half, so it never contributes its real height to the scroll region
-    # and the panel cannot scroll.
     DEFAULT_CSS = """
     StatusPanel #status-extras {
         height: auto;
         margin-bottom: 1;
     }
-    StatusPanel #status-body {
+    StatusPanel #status-fixed {
         height: auto;
+    }
+    StatusPanel #status-scroll {
+        height: 1fr;
     }
     StatusPanel #status-models {
         height: auto;
@@ -186,10 +185,11 @@ class StatusPanel(VerticalScroll):
         self._ctx = ctx
 
     def compose(self) -> ComposeResult:
-        """Compose the app slots and the (initially empty) state body."""
+        """Compose the app slots, the fixed info, and the scrolling sections."""
         with Vertical(id="status-extras"):
             yield from self._extra_widgets()
-        yield Vertical(id="status-body")
+        yield Vertical(id="status-fixed")
+        yield VerticalScroll(id="status-scroll")
 
     def _extra_widgets(self) -> list[Any]:
         """Build the app-slot widgets from the context's renderers."""
@@ -209,7 +209,7 @@ class StatusPanel(VerticalScroll):
     async def set_state(
         self, chat: Mapping[str, Any] | None, *, refresh_extras: bool = False
     ) -> None:
-        """Rebuild the streamed state below the app slots.
+        """Rebuild the fixed info and the scrolling state body.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
         :param refresh_extras: Also rebuild the app slots (a ``context``
@@ -221,19 +221,24 @@ class StatusPanel(VerticalScroll):
             widgets = self._extra_widgets()
             if widgets:
                 await extras.mount_all(widgets)
-        body = self.query_one("#status-body", Vertical)
-        await body.remove_children()
-        widgets: list[Any] = []
+        fixed = self.query_one("#status-fixed", Vertical)
+        await fixed.remove_children()
+        scroll = self.query_one("#status-scroll", VerticalScroll)
+        await scroll.remove_children()
+        fixed_widgets: list[Any] = []
+        sections: list[Any] = []
         if chat:
             model_info = chat.get("model_info") or {}
             if model_info:
-                widgets.append(_models_widgets(model_info))
+                fixed_widgets.append(_models_widgets(model_info))
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
-                widgets.append(Static(_usage_line(usage), id="status-usage"))
+                fixed_widgets.append(Static(_usage_line(usage), id="status-usage"))
             for key, section in (chat.get("state_sections") or {}).items():
-                widgets.append(_section_widget(key, section))
-        if not widgets:
-            widgets.append(Static("State updates will appear here."))
-        await body.mount_all(widgets)
-        self.scroll_end(animate=False)
+                sections.append(_section_widget(key, section))
+        if fixed_widgets:
+            await fixed.mount_all(fixed_widgets)
+        if not sections:
+            sections.append(Static("State updates will appear here."))
+        await scroll.mount_all(sections)
+        scroll.scroll_end(animate=False)
