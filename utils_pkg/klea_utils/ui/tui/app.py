@@ -55,7 +55,7 @@ from klea_utils.ui.tui.components.hitl import (
     HitlModal,
     PermissionModal,
 )
-from klea_utils.ui.tui.components.input import QueryTextArea
+from klea_utils.ui.tui.components.input import QueryInput, QueryTextArea
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.model_dialog import ModelDialog, ModelResult
 from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
@@ -110,9 +110,6 @@ _CSS = """
 }
 #status {
     height: 1fr;
-}
-#query-input {
-    margin-bottom: 1;
 }
 """
 
@@ -173,7 +170,7 @@ class KleaTuiScreen(Screen):
                 yield Inspector(id="inspector")
                 yield TurnStatus(id="turn-status")
                 yield CommandSuggestions(id="command-suggestions")
-                yield QueryTextArea(id="query-input")
+                yield QueryInput(id="query-input-frame")
                 yield Static(
                     "Enter send | Ctrl+J newline | / commands | "
                     "Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "

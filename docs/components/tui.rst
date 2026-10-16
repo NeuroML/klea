@@ -19,9 +19,9 @@ Chat panel
 The left panel holds the title and server line, a transcript/inspector
 toggle, the transcript, the live turn-status line, and the input.  Answers
 stream in as they are generated.  The input soft-wraps and grows with the
-text (up to a cap, then it scrolls); :kbd:`Enter` sends and :kbd:`Ctrl+J`
-inserts a newline (:kbd:`Shift+Enter` also works on terminals that report the
-shifted key).
+text (up to a cap, then it scrolls); the cursor sits on the bottom line and
+the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
+(:kbd:`Shift+Enter` also works on terminals that report the shifted key).
 
 The transcript renders each message MIME-aware, mirroring the web: Markdown
 for the agent's replies, syntax-highlighted diffs and code blocks for file

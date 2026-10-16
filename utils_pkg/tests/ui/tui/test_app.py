@@ -23,6 +23,7 @@ from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
+from klea_utils.ui.tui.components.input import QueryInput
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import (
     SessionDelete,
@@ -1056,16 +1057,19 @@ async def test_query_input_grows_then_caps(fake_backend, make_app):
     app = make_app()
     async with app.run_test(size=(80, 24)) as pilot:
         await _settle(pilot, app)
+        frame = app.screen.query_one(QueryInput)
         field = app.screen.query_one("#query-input", TextArea)
         field.text = "one line"
         await pilot.pause()
-        short = field.size.height
+        short = frame.size.height
+        # The entry is bottom-aligned, so the cursor starts on the bottom line.
+        assert field.region.bottom == frame.region.bottom
         field.text = "\n".join(f"line {i}" for i in range(30))
         await pilot.pause()
-        tall = field.size.height
+        tall = frame.size.height
         assert short >= 3  # minimum height of a few rows
         assert short < tall
-        assert tall < 30  # capped (stops growing), so it scrolls instead
+        assert tall <= 8  # capped (stops growing), so it scrolls instead
 
 
 async def test_query_input_ctrl_j_inserts_newline(fake_backend, make_app):
