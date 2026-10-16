@@ -6,15 +6,15 @@ talks to the backend API.  It is started with ``klea-rag web`` (RAG) or
 ``klea web`` (agent), and is the interface used by the hosted prototypes
 linked from the :doc:`home page <../index>`.
 
-The layout has three parts: a left drawer listing chat sessions, a centre
-panel with two tabs (**chat** and **inspect**), and a right drawer with
+The layout has three parts: a left pane listing chat sessions, a centre
+pane with two tabs (**chat** and **inspect**), and a right pane with
 per-chat state (the *status pane*).  A single footer line carries the
 disclaimer and the "Powered by" note.
 
 Chat pane
 ---------
 
-The chat tab is where questions are asked.  Each answer appears when the
+The chat pane is where questions are asked.  Each answer appears when the
 turn completes (there is no live token typing) and is grounded in the
 retrieved sources rather than the model's memory alone.  Messages render as
 full-width blocks: the user's prompt is tinted and shown **verbatim** (no
@@ -28,7 +28,7 @@ block's title is shown in red.  Long lines wrap, and the input box sits at
 the bottom and grows upward with its content.  Use the status pane to choose
 the model for the chat.
 
-Send stays disabled until the models a run needs (and any required API
+Send is blocked until the models a run needs (and any required API
 keys) are configured; the first run opens a **Choose models** prompt to set
 them.  If a run fails with a recoverable error, an inline **Retry** action
 resumes it from its checkpoint -- re-running only the failed step -- instead
@@ -45,7 +45,7 @@ of starting the query over.
 Status pane
 -----------
 
-The right drawer summarises the current chat: its name, the model used
+The right pane summarises the current chat: its name, the model used
 for each role (with a settings button to change them), running token
 totals, and the per-step state sections that stream while the graph runs.
 Tool calls appear here as they run, marked ``running`` and replaced by
@@ -55,7 +55,7 @@ tool access level selectors appear here as well.
 Inspection pane
 ---------------
 
-The inspect tab is the transparency view.  It updates live as the graph
+The inspection pane is the transparency view.  It updates live as the graph
 runs: each pipeline step appends an entry as it finishes -- for example
 classification, retrieval, answering and evaluation -- with the step's
 heading, how long it took, a short summary, and a collapsible **View
@@ -78,7 +78,7 @@ pipeline arrived at its response.
 Sessions
 --------
 
-Use the left drawer to start a new chat or switch between existing ones.
+Use the left pane to start a new chat or switch between existing ones.
 ``klea web`` opens the interface in your default browser on launch (pass
 ``--no-open`` on a headless or remote host), and accepts ``--continue`` or
 ``--resume <chat_id>`` to open the most recently updated or a specific session
@@ -100,7 +100,7 @@ Models and API keys
 -------------------
 
 The settings button opens the model dialog.  Each role's model is chosen
-with three fields -- a **provider** dropdown, a **model** dropdown, and an
+with three fields -- a **provider** field, a **model** field, and an
 optional **custom URL** -- filled from the `models.dev <https://models.dev>`_
 catalogue.  Free text is still accepted for models that are not in the
 catalogue (for example ``ollama:`` models or a self-hosted endpoint), and a
@@ -124,8 +124,8 @@ Human-in-the-loop
 -----------------
 
 In the agent, a run can pause for your input.  The ask appears in a per-turn
-region under the transcript (the *turn status* region, distinct from the
-right-drawer status pane): a plan awaiting review shows the plan with
+region under the transcript (the *turn status* line, distinct from the
+status pane): a plan awaiting review shows the plan with
 **Approve** / **Request changes** / **Cancel** controls, a plan blocked on a
 missing fact shows one field per question, and a tool call that would touch a
 path outside the project directory (or a sensitive file inside it, such as

@@ -12,14 +12,14 @@ extra (``pip install klea-utils[tui]`` or the ``full`` extra).  Without it,
 to the frontend name (for example ``klea-agent-tui``) so it is identifiable in
 ``ps``/``top`` instead of ``python``.
 
-The layout is a horizontal split: a chat panel on the left and a full-height
-status panel on the right.  The title and server line, and the active chat's
-name and id, sit at the top of the status panel.
+The layout is a horizontal split: a chat pane on the left and a full-height
+status pane on the right.  The title and server line, and the active chat's
+name and id, sit at the top of the status pane.
 
 Chat pane
 ---------
 
-The left panel holds a transcript/inspector toggle, the transcript, the live
+The chat pane holds a transcript/inspector toggle, the transcript, the live
 turn-status line, and the input.  The answer appears when the turn completes
 (there is no live token typing).  The input soft-wraps and
 grows with the
@@ -28,13 +28,13 @@ the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
 (:kbd:`Shift+Enter` also works on terminals that report the shifted key).
 
 The transcript renders each message MIME-aware, mirroring the web: Markdown
-for the agent's replies, syntax-highlighted diffs and code blocks for file
+for the agent's reply, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
 expand or collapse.
 
-A failed run that can be recovered shows a **Retry** hint; :kbd:`Ctrl+R`
+A failed run that can be recovered shows a **Retry** action; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
 agent pauses for your input, a review / input / permission dialog opens (see
 below) and the input is held until you answer or cancel.
@@ -49,7 +49,7 @@ below) and the input is held until you answer or cancel.
 Status pane
 -----------
 
-The right panel summarises the current chat: its title and server line, its
+The right pane summarises the current chat: its title and server line, its
 **name and id**, and, in the agent, a read-only **mode** and tool **access**
 line (change them with ``/mode`` or ``/access``; there are no in-panel
 selectors) plus a read-only **project root**.  Below that are the chat's
@@ -65,7 +65,7 @@ Inspection pane
 
 Press :kbd:`Ctrl+I`
 (or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
-panel to the **inspector** view: the per-step trace behind
+pane to the **inspection** view: the per-step trace behind
 the latest answer (each pipeline step's heading, timing, summary and raw
 structured details), grouped per query.
 
@@ -116,7 +116,7 @@ updated chat and ``--resume <chat_id>`` opens a specific one.
 Commands
 --------
 
-Type ``/`` in the input for a completion list.  ``/help`` lists the available
+Type ``/`` in the input for a command menu.  ``/help`` lists the available
 commands: the TUI merges the server's command catalogue with the commands it
 handles itself.  A client-side command (``/help``, ``/sessions``, ``/model``,
 ``/exit``) runs locally; a server-side command (such as ``/mode`` or
@@ -141,7 +141,7 @@ overrides (and its session defaults); **Reset** clears a role's override and
 
 **Manage API keys** opens the provider-scoped credentials editor: keys are
 stored per provider on the server, returned only in masked form, and expire
-after a period unused.  A query is blocked with a warning until the models a
+after a period unused.  A query is blocked until the models a
 run needs (and any required API keys) are configured; client commands such as
 ``/help`` still work.
 
