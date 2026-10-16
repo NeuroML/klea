@@ -28,6 +28,16 @@ KLEA_LOG_NAMESPACES = (
     "neuroml_mcp",
 )
 
+#: Noisy third-party loggers that ``setup_root_logger`` quiets to WARNING by
+#: default.  ``httpx`` logs every request at INFO and ``httpcore`` every
+#: connection at DEBUG, which floods the console for little signal.  A
+#: ``--debug`` run (``KLEA_LOG_LEVEL=debug``) restores them, and a level set
+#: explicitly by the embedding process always wins.
+NOISY_LOGGERS = (
+    "httpx",
+    "httpcore",
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -117,6 +127,7 @@ def setup_root_logger(
     app_name: str,
     stderr_level: int = logging.INFO,
     log_dir: str | Path | None = None,
+    console: bool = True,
 ) -> logging.Logger:
     """Configure the root logger once per process.
 
@@ -138,21 +149,30 @@ def setup_root_logger(
     application entry point routes all Klea logs (library modules, graph
     nodes, API routers) through the same console and file handlers.
     Third-party libraries inherit the root's INFO level, so their DEBUG
-    output is filtered at the source without enumerating them.
+    output is filtered at the source without enumerating them.  The noisy
+    library loggers in :data:`NOISY_LOGGERS` are additionally quieted to
+    WARNING (or restored to DEBUG when :func:`resolve_log_level` reports
+    debug), unless the embedding process set an explicit level.
 
     The console default is ``INFO`` (progress on stdout, warnings and
     errors on stderr) -- end users see no debug noise.  Pass
     ``stderr_level=logging.DEBUG`` (e.g. from :func:`resolve_log_level`
     when ``--debug`` / ``KLEA_LOG_LEVEL`` request it) to surface full
-    detail on the console.  The rotating log file always captures
-    ``DEBUG`` regardless, so verbose logs remain available for
-    diagnostics.
+    detail on the console.  Pass ``console=False`` for a full-screen
+    frontend (the Textual TUI): no stream handlers are added, so nothing is
+    written to the terminal that the app is drawing; the rotating log file
+    still captures everything when ``log_dir`` is given, otherwise logging
+    is discarded (a ``NullHandler`` keeps warnings off the terminal too).
+    The rotating log file always captures ``DEBUG`` regardless, so verbose
+    logs remain available for diagnostics.
 
     :param app_name: Application name, used as the log file name to keep
         per-app logs separate (e.g. ``"klea-rag"``).
     :param stderr_level: Level for the stderr handler (default ``INFO``)
     :param log_dir: Directory for the log file.  ``None`` disables file
         logging.
+    :param console: When ``False``, do not add the stdout/stderr handlers
+        (for frontends that own the terminal); file logging is unaffected.
     :returns: The configured root logger
     """
     root = logging.getLogger()
@@ -161,17 +181,18 @@ def setup_root_logger(
 
     root.setLevel(logging.INFO)
 
-    stdout_handler = logging.StreamHandler(sys.stdout)
-    stdout_handler.setLevel(logging.INFO)
-    stdout_handler.addFilter(LoggerInfoFilter())
-    stdout_handler.setFormatter(logger_formatter_info)
-    root.addHandler(stdout_handler)
+    if console:
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(logging.INFO)
+        stdout_handler.addFilter(LoggerInfoFilter())
+        stdout_handler.setFormatter(logger_formatter_info)
+        root.addHandler(stdout_handler)
 
-    stderr_handler = logging.StreamHandler(sys.stderr)
-    stderr_handler.setLevel(stderr_level)
-    stderr_handler.addFilter(LoggerNotInfoFilter())
-    stderr_handler.setFormatter(logger_formatter_other)
-    root.addHandler(stderr_handler)
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(stderr_level)
+        stderr_handler.addFilter(LoggerNotInfoFilter())
+        stderr_handler.setFormatter(logger_formatter_other)
+        root.addHandler(stderr_handler)
 
     if log_dir:
         log_path = Path(log_dir)
@@ -184,6 +205,11 @@ def setup_root_logger(
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(logger_formatter_file)
         root.addHandler(file_handler)
+    elif not console:
+        # No console and no file: discard everything.  Without a handler the
+        # logging module's last-resort handler would still write warnings to
+        # stderr and corrupt a full-screen frontend.
+        root.addHandler(logging.NullHandler())
 
     # Turn up verbosity for our own namespaces only.  Third-party libraries
     # inherit root's INFO level, so their DEBUG is filtered without listing
@@ -193,6 +219,15 @@ def setup_root_logger(
         klea_logger = logging.getLogger(name)
         if klea_logger.level == logging.NOTSET:
             klea_logger.setLevel(logging.DEBUG)
+
+    # Quiet the noisy library loggers (unless a debug run wants them).
+    noisy_level = (
+        logging.DEBUG if resolve_log_level() == logging.DEBUG else logging.WARNING
+    )
+    for name in NOISY_LOGGERS:
+        noisy_logger = logging.getLogger(name)
+        if noisy_logger.level == logging.NOTSET:
+            noisy_logger.setLevel(noisy_level)
 
     return root
 

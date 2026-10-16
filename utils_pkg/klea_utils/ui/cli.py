@@ -63,6 +63,7 @@ def _maybe_spawn_server(
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
+    quiet: bool = False,
 ):
     """Context manager spawning a local server when none is running.
 
@@ -88,6 +89,9 @@ def _maybe_spawn_server(
     :param config_dir: Config directory used for profile validation
     :param template_writer: Callable that writes a config template for
         ``--profile template``
+    :param quiet: When ``True``, discard the spawned server's stdout/stderr
+        (used by the full-screen TUI so server logs do not corrupt it); see
+        :func:`klea_utils.api.server.spawn_server`.
     """
     # Lazy: spawn_server pulls in the klea_utils.api machinery.
     from klea_utils.api.server import (
@@ -108,8 +112,10 @@ def _maybe_spawn_server(
             )
         return nullcontext()
     if profile:
-        return spawn_server(app_module, host=host, port=port, profile=profile)
-    return spawn_server(app_module, host=host, port=port)
+        return spawn_server(
+            app_module, host=host, port=port, profile=profile, quiet=quiet
+        )
+    return spawn_server(app_module, host=host, port=port, quiet=quiet)
 
 
 def _run_cli(
@@ -203,6 +209,7 @@ def _run_tui(
         config_env_var=config_env_var,
         config_dir=config_dir,
         template_writer=template_writer,
+        quiet=True,
     ):
         # Lazy: the app's Textual entry (and its heavy imports) is only needed
         # on launch; resolve it from ``tui_entry`` so this module imports no

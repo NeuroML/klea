@@ -119,6 +119,7 @@
 - Web UI: the model dialog updates a role's API-key status live while a model is typed, lets "Manage API keys" configure a provider that is not saved yet, saves all changed roles at once, and keeps the dialog open when resetting a role.
 - HuggingFace credentials are read from `HF_TOKEN` instead of the non-existent `HUGGINGFACE_API_KEY`, and a local HuggingFace backend is reported as needing no key.
 - Web UI: long tooltips wrap instead of being clipped on the right.
+- Terminal UI: library request/connection logging (`httpx`, `httpcore`) is quieted to warnings by default (`--debug` / `KLEA_LOG_LEVEL=debug` restores it), and the TUI now logs to its rotating file only while discarding the auto-spawned server's output, so log lines no longer overwrite the full-screen interface.
 
 ### Dependencies
 

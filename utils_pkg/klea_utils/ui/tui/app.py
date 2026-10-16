@@ -1013,7 +1013,19 @@ def run_tui(
     # Lazy: coolname mints the interim chat id; identity resolves the user id.
     import coolname
 
+    # The Textual app owns the whole screen, so console logging would corrupt
+    # it: log to the rotating file only (no stdout/stderr handlers).  Lazy:
+    # platformdirs/plogging are only needed on launch, keeping --help light.
+    from platformdirs import PlatformDirs
+
+    from klea_utils.plogging import setup_root_logger
     from klea_utils.ui.identity import resolve_user_id
+
+    setup_root_logger(
+        app_name,
+        log_dir=PlatformDirs(app_name).user_data_dir,
+        console=False,
+    )
 
     resolved_user_id = resolve_user_id(
         explicit=user_id,

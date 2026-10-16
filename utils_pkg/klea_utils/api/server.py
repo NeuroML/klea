@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from subprocess import Popen
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
@@ -201,6 +202,7 @@ def spawn_server(
     port: int = 8005,
     timeout: float = 180.0,
     profile: str | None = None,
+    quiet: bool = False,
 ) -> Iterator[Popen | None]:
     """Context manager that runs an API server in a subprocess.
 
@@ -223,6 +225,10 @@ def spawn_server(
     :param timeout: Total seconds to wait for readiness after spawning
     :param profile: Config profile the caller requested (used only to warn
         when the requested profile cannot apply)
+    :param quiet: When ``True``, discard the subprocess's stdout/stderr
+        (``DEVNULL``) instead of inheriting them.  Used by a full-screen
+        frontend (the Textual TUI) whose terminal must not be written to;
+        server logs remain in its rotating log file.
     :returns: The spawned :class:`subprocess.Popen` (or ``None`` if an
         existing server was reused)
     """
@@ -258,6 +264,10 @@ def spawn_server(
         yield None
         return
 
+    popen_kwargs: dict[str, Any] = {"start_new_session": True}
+    if quiet:
+        popen_kwargs["stdout"] = subprocess.DEVNULL
+        popen_kwargs["stderr"] = subprocess.DEVNULL
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -270,7 +280,7 @@ def spawn_server(
             str(port),
             "--no-access-log",
         ],
-        start_new_session=True,
+        **popen_kwargs,
     )
     logger.debug("Spawned server for %s (pid=%s)", app_module, proc.pid)
 

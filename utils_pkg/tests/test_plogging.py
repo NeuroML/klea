@@ -17,6 +17,7 @@ from logging.handlers import RotatingFileHandler
 from klea_utils.plogging import (
     KLEA_LOG_LEVEL_ENV,
     KLEA_LOG_NAMESPACES,
+    NOISY_LOGGERS,
     LoggerInfoFilter,
     LoggerNotInfoFilter,
     enable_debug_logging,
@@ -44,6 +45,7 @@ class TestSetupRootLogger(unittest.TestCase):
             "testapp",
             "urllib3",
             "httpx",
+            "httpcore",
             "mcp",
             "aiosqlite",
         ):
@@ -118,6 +120,30 @@ class TestSetupRootLogger(unittest.TestCase):
         file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
         self.assertEqual(len(file_handlers), 0)
 
+    def test_console_false_adds_only_the_file_handler(self):
+        """console=False suppresses the stream handlers but keeps the file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            setup_root_logger("testapp", log_dir=tmpdir, console=False)
+            root = logging.getLogger()
+            stream_handlers = [
+                h
+                for h in root.handlers
+                if isinstance(h, logging.StreamHandler)
+                and not isinstance(h, logging.FileHandler)
+            ]
+            self.assertEqual(stream_handlers, [])
+            self.assertEqual(
+                len([h for h in root.handlers if isinstance(h, RotatingFileHandler)]),
+                1,
+            )
+
+    def test_console_false_without_log_dir_discards_output(self):
+        """console=False with no log_dir installs a NullHandler (no lastResort)."""
+        setup_root_logger("testapp", console=False)
+        root = logging.getLogger()
+        self.assertEqual(len(root.handlers), 1)
+        self.assertIsInstance(root.handlers[0], logging.NullHandler)
+
     def test_idempotent(self):
         """A second call returns the root logger without adding handlers."""
         root = logging.getLogger()
@@ -135,10 +161,25 @@ class TestSetupRootLogger(unittest.TestCase):
             self.assertEqual(logging.getLogger(name).getEffectiveLevel(), logging.DEBUG)
 
     def test_third_party_inherits_info(self):
-        """Third-party loggers inherit the root INFO level, not DEBUG."""
+        """Non-noisy third-party loggers inherit the root INFO level."""
         setup_root_logger("testapp")
-        for name in ("urllib3", "httpx", "mcp", "aiosqlite"):
+        for name in ("urllib3", "mcp", "aiosqlite"):
             self.assertEqual(logging.getLogger(name).getEffectiveLevel(), logging.INFO)
+
+    def test_noisy_loggers_quieted_to_warning(self):
+        """Request-level library loggers default to WARNING."""
+        setup_root_logger("testapp")
+        for name in NOISY_LOGGERS:
+            self.assertEqual(
+                logging.getLogger(name).getEffectiveLevel(), logging.WARNING
+            )
+
+    def test_noisy_loggers_debug_when_debug_requested(self):
+        """A debug run restores the noisy library loggers."""
+        os.environ[KLEA_LOG_LEVEL_ENV] = "debug"
+        setup_root_logger("testapp")
+        for name in NOISY_LOGGERS:
+            self.assertEqual(logging.getLogger(name).getEffectiveLevel(), logging.DEBUG)
 
     def test_third_party_explicit_level_not_overridden(self):
         """An explicitly configured third-party level is left alone."""
