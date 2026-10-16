@@ -743,6 +743,23 @@ async def test_long_message_collapses_and_expands(fake_backend, make_app):
         assert scroll.size.height > 4  # expanded shows the full text
 
 
+async def test_expanded_message_body_does_not_scroll(fake_backend, make_app):
+    """An expanded long message scrolls with the transcript, not on its own."""
+    long_text = "\n\n".join(f"para {i}" for i in range(60))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        block.action_toggle_expand()
+        await pilot.pause()
+        scroll = block.query_one(".message-scroll", VerticalScroll)
+        # Only the transcript scrolls when a message is expanded.
+        assert scroll.styles.overflow_y == "hidden"
+        assert not scroll.show_vertical_scrollbar
+
+
 async def test_short_message_is_not_collapsed(fake_backend, make_app):
     """A short message gets no clip and no expand hint."""
     app = make_app()

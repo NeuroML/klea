@@ -125,8 +125,8 @@ class MessageBlock(Vertical):
         overflow-y: hidden;
     }
     MessageBlock .message-scroll.-expanded {
-        max-height: 999;
-        overflow-y: auto;
+        max-height: 10000;
+        overflow-y: hidden;
     }
     MessageBlock .message-more {
         height: 1;
