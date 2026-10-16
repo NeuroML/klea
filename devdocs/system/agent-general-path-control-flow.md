@@ -181,9 +181,14 @@ the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
   evaluation of the plan or the progress so far, symmetric to the Evaluator's
   judgement of steps, with **no LLM call**.  It captures an explicit decision
   (``ReviewResponse``: approve / revise / cancel).  A ``review`` step with no
-  ``depends_on`` is a whole-plan approval (the ask carries the plan); one after
-  step N (``depends_on: [N]``) is a checkpoint (the ask also carries the
-  observations).  **Approve** deterministically marks the review step(s) at the
+  ``depends_on`` is a whole-plan approval; one after step N (``depends_on: [N]``)
+  is a checkpoint.  A review only approves **pending** work, so its ask carries
+  the pending steps it unblocks -- the whole plan (approval) or the remaining
+  steps (checkpoint).  Completed steps and the review gates are not shown (the
+  findings are in the transcript and the inspection pane).  A review step must
+  gate at least one pending step after it; a *trailing* review (none after it)
+  is rejected by the Planner's validator and resolved defensively by the router.
+  **Approve** deterministically marks the review step(s) at the
   frontier ``done`` and the router sends the run straight on (no Planner call);
   **revise** returns the feedback to the Planner, which owns the revised plan;
   **cancel** ends the run (``user_cancelled``).

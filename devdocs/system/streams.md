@@ -53,16 +53,17 @@ plan approval or a progress checkpoint) / `input` (a blocked step's questions)
 from the agent's `AwaitHuman` nodes, or `permission` (the shared
 `ToolsCallerNode`, pausing before a call that would touch a path outside the
 permitted roots; ADR-0007 update 2026-10-08).  A `review` ask carries a
-`headline` and a list of `sections` (`{title, body}`) that adapt to the
-review's position (ADR-0051): a review before any work presents the plan under
-approval; a checkpoint shows only the steps completed since the previous
-review (with their concise output summaries) plus the remaining steps the
-approval unblocks -- the review gate steps are excluded and the full plan
-lives in the status pane.  Both frontends render the sections the same way.  A
-permission ask shows the tool call (`tool: argument = raw (confidence)`) and
-its per-path decisions are `once`/`session`/`deny`, plus `not_a_path` (a
-per-dispatch dismissal for a guessed value; ADR-0007 update 2026-10-14).  See
-ADR-0051 for review steps.
+`headline` and a list of `sections` (`{title, body}`) for the **pending** steps
+the approval unblocks (ADR-0051): a review before any work presents the whole
+plan under approval; a checkpoint shows only the remaining steps.  Completed
+steps, the review gate steps, and the step findings are not included (the
+findings are in the transcript and the inspection pane).  Both frontends render
+the sections the same way.  A review step must gate pending work; a *trailing*
+review is rejected by the Planner's validator and resolved defensively by the
+router.  A permission ask shows the tool call
+(`tool: argument = raw (confidence)`) and its per-path decisions are
+`once`/`session`/`deny`, plus `not_a_path` (a per-dispatch dismissal for a
+guessed value; ADR-0007 update 2026-10-14).  See ADR-0051 for review steps.
 
 `context` carries the checkpointed session context (e.g. the agent operating
 mode / tool access, ADR-0030/0032).  The web frontend stores it on the chat and
