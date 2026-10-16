@@ -51,6 +51,7 @@
 - Web UI and TUI: reloading a chat now restores the full session, not only the user/assistant transcript -- the inspection and status panes and the chat's tool/diff blocks are persisted and replayed on load, and the session's cumulative token totals are restored from the checkpoint (ADR-0032 update).
 - Terminal UI: the query input is now a multi-line, soft-wrapping text area that grows with its content (then scrolls), with the cursor on the bottom line so the box grows upward; `Enter` sends and `Ctrl+J` (or `Shift+Enter` on supporting terminals) inserts a newline, so pasted multi-line text can be edited before sending.
 - Terminal UI: the status panel lists the chat's selected models (with a warning when a required model or API key is missing), matching the web status pane.
+- Terminal UI: the status panel header shows the active chat's name and id.
 
 ### Changed
 
@@ -130,6 +131,7 @@
 - Terminal UI: `Ctrl+I` (which a terminal sends as `Tab`) now toggles the transcript/inspector view; previously the `Screen` focus binding swallowed it, so the documented shortcut did nothing.
 - Terminal UI: the model dialog's per-role panels size to their content instead of ballooning (the per-role button row was a `1fr` container filling the panel), and the query input has a few-row minimum height.
 - Terminal UI: deleting a session from the picker now asks for confirmation before it is removed, matching the web UI.
+- Terminal UI: streamed `state`/`inspect` details containing `[` or `=` (for example a bracketed model repr) no longer crash the status/inspector panes with a Rich markup error; such text is now rendered literally.
 
 ### Dependencies
 

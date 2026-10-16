@@ -94,6 +94,11 @@ _CSS = """
     color: $text-muted;
     text-overflow: ellipsis;
 }
+#chat-name {
+    height: 1;
+    color: $text-muted;
+    text-overflow: ellipsis;
+}
 #transcript {
     height: 1fr;
 }
@@ -179,8 +184,11 @@ class KleaTuiScreen(Screen):
                 )
             with Vertical(id="status-panel"):
                 yield Static(
-                    f"{self.ctx.title} | {self.ctx.server_url}", id="chat-title"
+                    f"{self.ctx.title} | {self.ctx.server_url}",
+                    id="chat-title",
+                    markup=False,
                 )
+                yield Static("", id="chat-name", markup=False)
                 yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
@@ -244,8 +252,19 @@ class KleaTuiScreen(Screen):
         self._inspector_entries = entries
         await self.inspector.set_entries(entries)
         self._inspector_dirty = False
+        self.set_chat_header(chat)
         await self.status_panel.set_state(chat, refresh_extras=True)
         await self.show_view("transcript")
+
+    def set_chat_header(self, chat: Mapping[str, Any]) -> None:
+        """Show the active chat's name and id in the status-panel header.
+
+        :param chat: The chat's data dict.
+        """
+        name = str(chat.get("name") or "").strip()
+        chat_id = self.ctx.chat_id
+        label = f"{name} ({chat_id})" if name and name != chat_id else chat_id
+        self.query_one("#chat-name", Static).update(f"Chat: {label}")
 
     @property
     def turn_status(self) -> TurnStatus:
@@ -776,7 +795,10 @@ class KleaTuiApp(App[None]):
         await rename_chat_on_server(
             self.ctx.server_url, self.ctx.user_id, chat_id, title
         )
-        ensure_chat(self.ctx.user_id, chat_id)["name"] = title
+        chat = ensure_chat(self.ctx.user_id, chat_id)
+        chat["name"] = title
+        if chat_id == self.ctx.chat_id and self._screen is not None:
+            self._screen.set_chat_header(chat)
         await self.action_open_sessions()
 
     @work

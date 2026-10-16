@@ -127,7 +127,9 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     elif summary:
         body.append(Static(summary, markup=False))
     if details:
-        body.append(Static(format_details(details)))
+        # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
+        # so brackets are not parsed as Rich tags.
+        body.append(Static(format_details(details), markup=False))
     if not body:
         body.append(Static("(no content)", markup=False))
     return Collapsible(*body, title=heading, collapsed=False)
