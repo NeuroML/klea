@@ -39,7 +39,7 @@ of starting the query over.
    :width: 80%
    :align: center
 
-   The chat tab: ask a question and receive a streamed, source-backed
+   The chat pane: ask a question and receive a streamed, source-backed
    answer.
 
 Status pane
@@ -73,7 +73,7 @@ pipeline arrived at its response.
    :width: 80%
    :align: center
 
-   The inspect tab: the per-step trace behind the latest answer.
+   The inspection pane: the per-step trace behind the latest answer.
 
 Sessions
 --------
@@ -141,6 +141,8 @@ same run with its state intact.
 
 .. seealso::
 
+   * :doc:`tui` -- the terminal interface over the same backend
+   * :doc:`commands` -- the session-command catalogue
    * :doc:`../guides/create-and-use-rag` -- build a RAG system and
      query it through this interface
-   * :doc:`rag` -- the pipeline the inspect tab exposes
+   * :doc:`rag` -- the pipeline the inspection pane exposes

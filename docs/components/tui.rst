@@ -44,7 +44,7 @@ below) and the input is held until you answer or cancel.
    :width: 80%
    :align: center
 
-   The chat view: the transcript, the live turn-status line and the status panel.
+   The chat pane: the transcript, the live turn-status line and the status pane.
 
 Status pane
 -----------
@@ -74,7 +74,7 @@ structured details), grouped per query.
    :width: 80%
    :align: center
 
-   The inspector view: the per-step trace behind the latest answer.
+   The inspection pane: the per-step trace behind the latest answer.
 
 Keys
 ----
@@ -182,4 +182,6 @@ with a remote deployment.
 
    * :doc:`web-ui` -- the browser interface over the same backend
    * :doc:`commands` -- the session-command catalogue
-   * :doc:`../guides/create-and-use-rag` -- build a RAG system and query it
+   * :doc:`../guides/create-and-use-rag` -- build a RAG system and
+     query it through this interface
+   * :doc:`rag` -- the pipeline the inspection pane exposes
