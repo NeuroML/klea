@@ -30,7 +30,11 @@ from klea_utils.ui.tui.components.status_panel import (
     _section_widget,
     _usage_line,
 )
-from klea_utils.ui.tui.components.transcript import _render_body, render_message
+from klea_utils.ui.tui.components.transcript import (
+    MessageBlock,
+    _render_body,
+    render_message,
+)
 from rich.console import Group
 from rich.markdown import Markdown
 from rich.syntax import Syntax
@@ -108,6 +112,15 @@ class TestRenderMessage:
         header = group.renderables[0]
         assert isinstance(header, Text)
         assert "#ff0000" in str(header.style)
+
+
+class TestMessageBlock:
+    """The transcript message wrapper's role styling."""
+
+    def test_role_class_is_set(self):
+        assert MessageBlock({"role": "user", "text": "hi"}).has_class("message-user")
+        assert MessageBlock({"role": "agent", "text": "hi"}).has_class("message-agent")
+        assert MessageBlock({"role": "tool", "text": "hi"}).has_class("message-tool")
 
 
 class TestGroupSections:

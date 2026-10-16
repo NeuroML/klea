@@ -113,6 +113,11 @@ class MessageBlock(Vertical):
     MessageBlock {
         height: auto;
         width: 100%;
+        margin-bottom: 1;
+    }
+    MessageBlock.message-user {
+        background: $primary 15%;
+        padding: 0 1;
     }
     MessageBlock .message-scroll {
         height: auto;
@@ -141,6 +146,8 @@ class MessageBlock(Vertical):
         super().__init__()
         self._message = message
         self._error_style = error_style
+        # Role-specific styling (currently a tinted surface for user messages).
+        self.add_class(f"message-{message.get('role', 'agent')}")
 
     def compose(self) -> ComposeResult:
         """Compose the clipped body and the expand hint."""
