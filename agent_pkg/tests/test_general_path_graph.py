@@ -192,7 +192,23 @@ async def test_planner_router_dispatches_by_step_kind():
     agent = KleaAgent(checkpoint="inmemory")
     assert await agent._planner_router(_plan_with_step("tool")) == "tool"
     assert await agent._planner_router(_plan_with_step("reasoning")) == "reasoning"
-    assert await agent._planner_router(_plan_with_step("review")) == "review"
+    # A review that gates pending work dispatches to the review node.
+    review = KleaAgentState()
+    review.plan = PlanSchema(
+        step_list=[
+            StepSchema(step_number=1, description="Review the plan", kind="review"),
+            StepSchema(step_number=2, description="work", kind="tool"),
+        ],
+        status="in_progress",
+    )
+    assert await agent._planner_router(review) == "review"
+
+
+@pytest.mark.asyncio
+async def test_planner_router_resolves_a_trailing_review():
+    """A review with no pending work after it resolves to the answer."""
+    agent = KleaAgent(checkpoint="inmemory")
+    assert await agent._planner_router(_plan_with_step("review")) == "plan_done"
 
 
 @pytest.mark.asyncio

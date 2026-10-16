@@ -225,7 +225,7 @@ class KleaAgent(BaseLangGraph):
             return "plan_done"
         if state.plan.current_step() is None:
             return "failure"
-        return self._step_kind(state)
+        return self._next_dispatch(state)
 
     async def _await_human_router(self, state: KleaAgentState) -> str:
         """Route after a HITL fact request: back to the Planner, or cancel.
@@ -255,7 +255,7 @@ class KleaAgent(BaseLangGraph):
             return "planner"
         if state.plan.current_step() is None:
             return "plan_done"
-        return self._step_kind(state)
+        return self._next_dispatch(state)
 
     @staticmethod
     def _step_kind(state: KleaAgentState) -> str:
@@ -267,6 +267,34 @@ class KleaAgent(BaseLangGraph):
         """
         batch = state.plan.next_batch()
         return batch[0].kind if batch else "tool"
+
+    def _next_dispatch(self, state: KleaAgentState) -> str:
+        """Return the dispatch label for the next batch.
+
+        Like :meth:`_step_kind`, but a **trailing** review (a review step with
+        no pending non-review step after it) is resolved to ``plan_done``
+        instead of dispatching to the review node.  A review only approves work
+        that runs after it, so a trailing one gates nothing; the Planner's
+        validator rejects it, but a model can still emit one after the
+        validation retries are exhausted, and pausing on it would be pointless.
+        Resolving it matches what approving it would do.
+        """
+        batch = state.plan.next_batch()
+        if batch and batch[0].kind == "review":
+            gate = batch[0].step_number
+            if not any(
+                other.kind != "review"
+                and other.status == "pending"
+                and other.step_number > gate
+                for other in state.plan.step_list
+            ):
+                self.logger.warning(
+                    "Review step %d has no pending work after it; resolving it "
+                    "and proceeding to the answer",
+                    gate,
+                )
+                return "plan_done"
+        return self._step_kind(state)
 
     async def _evaluation_router(self, state: KleaAgentState) -> str:
         """Route on the Evaluator's plan updates (ADR-0041).
@@ -282,7 +310,7 @@ class KleaAgent(BaseLangGraph):
             return "abort"
         if state.replan_reason:
             return "need_replan"
-        return self._step_kind(state)
+        return self._next_dispatch(state)
 
     async def _picker_router(self, state: KleaAgentState) -> str:
         """Route after the tools picker (ADR-0035).
