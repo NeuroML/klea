@@ -8,7 +8,7 @@ linked from the :doc:`home page <../index>`.
 
 The layout has three parts: a left pane listing chat sessions, a centre
 pane with two tabs (**chat** and **inspect**), and a right pane with
-per-chat state (the *status pane*).  A single footer line carries the
+per-chat state (the **status pane**).  A single footer line carries the
 disclaimer and the "Powered by" note.
 
 Chat pane
@@ -124,7 +124,7 @@ Human-in-the-loop
 -----------------
 
 In the agent, a run can pause for your input.  The ask appears in a per-turn
-region under the transcript (the *turn status* line, distinct from the
+region under the transcript (the **turn status** line, distinct from the
 status pane): a plan awaiting review shows the plan with
 **Approve** / **Request changes** / **Cancel** controls, a plan blocked on a
 missing fact shows one field per question, and a tool call that would touch a
