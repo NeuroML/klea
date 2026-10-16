@@ -385,7 +385,7 @@ below) and the input is held until you answer or cancel.</p>
 <td><p>Open the model dialog</p></td>
 </tr>
 <tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd></p></td>
-<td><p>Quit</p></td>
+<td><p>Quit (asks to confirm first)</p></td>
 </tr>
 </tbody>
 </table>
@@ -408,7 +408,8 @@ handles itself.  A client-side command (<code class="docutils literal notranslat
 <code class="docutils literal notranslate"><span class="pre">/exit</span></code>) runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or
 <code class="docutils literal notranslate"><span class="pre">/access</span></code>, the agent’s operating mode and tool access level) is sent to the
 agent.  An unknown command is reported locally and never sent.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code>
-stops any active run and quits (the same as <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd>).  See
+stops any active run and quits immediately (typing it is deliberate, so – unlike
+<kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd> – it does not ask to confirm).  See
 <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>
 </section>
 <section id="models-and-api-keys">

@@ -66,7 +66,7 @@ Keys
    * - :kbd:`Ctrl+M`
      - Open the model dialog
    * - :kbd:`Ctrl+Q`
-     - Quit
+     - Quit (asks to confirm first)
 
 Sessions
 --------
@@ -87,7 +87,8 @@ handles itself.  A client-side command (``/help``, ``/sessions``, ``/model``,
 ``/exit``) runs locally; a server-side command (such as ``/mode`` or
 ``/access``, the agent's operating mode and tool access level) is sent to the
 agent.  An unknown command is reported locally and never sent.  ``/exit``
-stops any active run and quits (the same as :kbd:`Ctrl+Q`).  See
+stops any active run and quits immediately (typing it is deliberate, so -- unlike
+:kbd:`Ctrl+Q` -- it does not ask to confirm).  See
 :doc:`commands` for the list.
 
 Models and API keys

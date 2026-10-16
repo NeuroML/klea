@@ -399,6 +399,9 @@
     <span class="n">stream_tasks</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">retry_cbs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
     <span class="n">mini_state</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="c1">#: Whether the status pane's Models group is expanded; kept here so the</span>
+    <span class="c1">#: state survives the pane's refreshes (which rebuild the element).</span>
+    <span class="n">status_models_expanded</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="c1"># Extra request fields merged into the ``/query/stream`` POST body</span>
     <span class="c1"># (e.g. an app-specific operating ``mode`` request, ADR-0030).  The</span>

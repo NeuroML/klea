@@ -569,6 +569,19 @@
         <span class="s2">".status-details summary::before { content: '</span><span class="se">\\</span><span class="s2">25B6'; font-size: 0.6rem; margin-right: 0.35rem; }"</span>
     <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span><span class="s2">".status-details[open] summary::before { content: '</span><span class="se">\\</span><span class="s2">25BC'; }"</span><span class="p">)</span>
+    <span class="c1"># The Models group's collapsible header is the scope row (chat name +</span>
+    <span class="c1"># settings).  Quasar's ``q-item`` pads the header, which would indent the</span>
+    <span class="c1"># title past the controls above it (e.g. the project root), so flush it</span>
+    <span class="c1"># left.  The list uses bullets (matching the TUI) with no extra indent.</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".models-group .q-item { padding: 0 !important; min-height: 0 !important; }"</span>
+    <span class="p">)</span>
+    <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
+        <span class="s2">".models-group .models-list { "</span>
+        <span class="s2">"list-style: disc outside; "</span>
+        <span class="s2">"margin: 0; "</span>
+        <span class="s2">"padding-inline-start: 1rem; }"</span>
+    <span class="p">)</span>
     <span class="n">ui</span><span class="o">.</span><span class="n">add_css</span><span class="p">(</span>
         <span class="s2">".status-details code { white-space: pre-wrap !important; word-break: break-all !important; }"</span>
     <span class="p">)</span>

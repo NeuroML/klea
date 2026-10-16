@@ -319,6 +319,7 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span><span class="p">,</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.exit_confirm</span><span class="w"> </span><span class="kn">import</span> <span class="n">EXIT_CONFIRM_MESSAGE</span><span class="p">,</span> <span class="n">EXIT_CONFIRM_TITLE</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.stream</span><span class="w"> </span><span class="kn">import</span> <span class="n">stop_all_streams</span>
 
@@ -379,11 +380,8 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"opening exit-confirmation dialog"</span><span class="p">)</span>
         <span class="n">dialog</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">dialog</span><span class="p">()</span>
         <span class="k">with</span> <span class="n">dialog</span><span class="p">,</span> <span class="n">ui</span><span class="o">.</span><span class="n">card</span><span class="p">():</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Exit Klea?"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                <span class="s2">"This stops the web interface and disconnects any open tabs. "</span>
-                <span class="s2">"The backend server is stopped only if this client started it."</span>
-            <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">EXIT_CONFIRM_TITLE</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-lg font-bold"</span><span class="p">)</span>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">EXIT_CONFIRM_MESSAGE</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full justify-end"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">button</span><span class="p">(</span><span class="s2">"Exit"</span><span class="p">,</span> <span class="n">on_click</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="p">(</span><span class="n">dialog</span><span class="o">.</span><span class="n">close</span><span class="p">(),</span> <span class="n">_exit_app</span><span class="p">()))</span><span class="o">.</span><span class="n">props</span><span class="p">(</span>
