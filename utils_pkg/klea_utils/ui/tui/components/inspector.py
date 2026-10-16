@@ -93,12 +93,14 @@ def _entry_widget(entry: Mapping[str, Any]) -> Collapsible:
     body: list[Static] = []
     summary = entry.get("summary", "")
     if summary:
-        body.append(Static(summary))
+        body.append(Static(summary, markup=False))
     details = entry.get("details", {})
     if details:
-        body.append(Static(format_details(details)))
+        # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
+        # so brackets are not parsed as Rich tags.
+        body.append(Static(format_details(details), markup=False))
     if not body:
-        body.append(Static("(no details)"))
+        body.append(Static("(no details)", markup=False))
     return Collapsible(*body, title=title or "(entry)", collapsed=True)
 
 

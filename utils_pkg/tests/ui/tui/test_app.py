@@ -637,6 +637,75 @@ async def test_status_panel_shows_models(fake_backend, make_app):
         assert any("Select a model to start" in text for text in texts)
 
 
+async def test_status_panel_shows_chat_name(fake_backend, make_app):
+    """The status panel header shows the chat name and id."""
+    app = make_app(chat_id="calm-river")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        text = str(app.screen.query_one("#chat-name", Static).render())
+        assert "Calm River" in text
+        assert "calm-river" in text
+
+
+async def test_status_details_with_brackets_render(fake_backend, make_app):
+    """JSON details with ``[]``/``=`` do not crash Rich markup parsing."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "state",
+                "node": "Planner",
+                "data": {
+                    "heading": "Plan",
+                    "details": {
+                        "steps": "[StepOutput(step='pwd', kind='tool', "
+                        "suggested_tools=['run_command'], depends_on=[])]"
+                    },
+                },
+            },
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        panel = app.screen.query_one("#status")
+        assert list(panel.query(Collapsible))
+
+
+async def test_inspector_details_with_brackets_render(fake_backend, make_app):
+    """An expanded inspector entry with bracketed details does not crash."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "inspect",
+                "node": "N",
+                "data": {
+                    "heading": "N",
+                    "summary": "s",
+                    "details": {
+                        "steps": "[StepOutput(step='pwd', kind='tool', "
+                        "depends_on=[], status='pending')]"
+                    },
+                },
+            },
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        app.screen.query_one("#query-input", TextArea).focus()
+        await pilot.press("tab")
+        await pilot.pause()
+        inspector = app.screen.query_one("#inspector")
+        for collapsible in inspector.query(Collapsible):
+            collapsible.collapsed = False
+        await pilot.pause()
+        assert list(inspector.query(Collapsible))
+
+
 async def test_status_extras_render_in_panel(fake_backend, make_app):
     """App-registered status extras render at the top of the panel."""
     app = make_app(status_extras=[lambda ctx: Static(f"Mode: {ctx.title}")])

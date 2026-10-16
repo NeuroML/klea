@@ -254,7 +254,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         url = Input(
             value=origin.url, placeholder="custom URL", id=self._dom_id("url", role)
         )
-        cred = Static("", id=self._dom_id("cred", role))
+        cred = Static("", id=self._dom_id("cred", role), markup=False)
         children: list[Any] = [provider, model, backend, inference, url, cred]
         if not modifiable:
             for widget in (provider, model, backend, inference, url):

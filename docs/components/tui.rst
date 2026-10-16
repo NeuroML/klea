@@ -123,11 +123,11 @@ intact; a pending ask is re-shown if the chat is reloaded.
 Status panel
 ------------
 
-The right panel summarises the current chat: in the agent, the operating
-**mode** and tool **access** selectors (choosing one sends ``/mode`` or
-``/access`` to the agent), the chat's selected **models** (with a warning when
-a required model or API key is still missing), the running token totals, and
-the per-step state sections that stream while the graph runs.
+The right panel summarises the current chat: its **name and id**, then, in the
+agent, the operating **mode** and tool **access** selectors (choosing one sends
+``/mode`` or ``/access`` to the agent), the chat's selected **models** (with a
+warning when a required model or API key is still missing), the running token
+totals, and the per-step state sections that stream while the graph runs.
 
 Identity
 --------

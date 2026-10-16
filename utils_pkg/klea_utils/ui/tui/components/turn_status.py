@@ -59,8 +59,8 @@ class TurnStatus(Widget):
 
     def compose(self) -> ComposeResult:
         """Compose the spinner cell and the label."""
-        yield Static("", id="turn-spinner")
-        yield Static("", id="turn-label")
+        yield Static("", id="turn-spinner", markup=False)
+        yield Static("", id="turn-label", markup=False)
 
     def _tick(self) -> None:
         """Advance the spinner by one frame."""
