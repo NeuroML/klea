@@ -114,8 +114,10 @@ Human-in-the-loop
 
 When the agent needs input, a modal opens over the screen:
 
-* a plan awaiting review shows the plan with **Approve** / **Request changes**
-  / **Cancel**;
+* a plan awaiting review shows a **headline** and either the plan (a whole-plan
+  approval) or, at a mid-plan checkpoint, the steps completed since the
+  previous review (with their output summaries) plus the remaining steps the
+  approval unblocks, with **Approve** / **Request changes** / **Cancel**;
 * a plan blocked on a missing fact shows one field per question;
 * a tool call that would touch a path outside the project directory (or a
   sensitive file inside it) shows one **Once** / **Session** / **Deny** choice

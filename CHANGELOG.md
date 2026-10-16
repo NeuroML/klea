@@ -93,6 +93,7 @@
 - Terminal UI: the status panel no longer shows a `context` section (the web UI does not either); the graph context still drives the mode / access / project-root rows.
 - Terminal UI: the transcript/inspector toggle now reads **Chat** / **Inspect** and is centred; the status panel's mode and access rows are combined into one line (for example `General | Full access`, with full access in the error colour); the status pane lists one model per role, spaces its groups, and no longer draws streamed state sections on a separate background.
 - The TUI and web status panes list the chat's models as a bulleted per-role list (`- Chat: gpt-4o`), so the two frontends match.
+- The plan-review / approval dialog now adapts to the review's position: a whole-plan approval shows the plan, while a mid-plan checkpoint shows only the steps completed since the previous review (with their output summaries) plus the remaining steps the approval unblocks. The review gate steps are excluded, and the full plan stays in the status pane.
 
 ### Fixed
 

@@ -204,6 +204,16 @@ Last updated: 2026-10-16.
 
 ## Frontends / TUI
 
+- Status-pane plan persistence: the streamed plan section is cleared at each
+  turn start (`state_sections = {}` -- web `stream.py`, TUI `app.py`), so it
+  disappears until the Planner re-emits it, and both panes auto-scroll to the
+  bottom (`scroll_end`), hiding the plan (the first section).  Keep it visible
+  "until changed": (a) clear all sections *except* the shared `plan` key at
+  turn start (or do not reset at all, letting nodes overwrite by key), and/or
+  (b) render the plan as a pinned element at the top of the status pane,
+  outside the scrolling state body.  Now that the review dialog leans on the
+  status pane for the full plan (the checkpoint shows only recent work), this
+  gap matters more.
 - Follow-theme styling: the TUI uses Textual theme variables throughout (panel
   backgrounds `$surface`/`$panel`, muted text `$text-muted`, the errored
   tool-header `$error`).  Two gaps remain, both deferred.  (a) Some Textual
