@@ -494,7 +494,7 @@ def attach_autocomplete(ctx: PageContext, text: Any, suggestions: Any) -> None:
 
     As the user types ``/prefix``, *suggestions* (a container above the input)
     is populated with the matching commands from the merged catalogue;
-    clicking one inserts ``/name `` into the input.
+    clicking one inserts ``/name`` followed by a space into the input.
 
     :param ctx: The page context (its ``command_catalogue`` backs the list).
     :param text: The chat ``ui.textarea`` element.

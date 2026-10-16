@@ -428,13 +428,13 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
      - Log file name
    * - ``klea-rag`` (RAG server / graph)
      - ``klea-rag/klea-rag.log``
-   * - ``klea-rag`` terminal client (REPL)
+   * - ``klea-rag`` terminal clients (``cli`` / ``tui``)
      - ``klea-rag-tui/klea-rag-tui.log``
    * - ``klea-rag`` web client
      - ``klea-rag-web/klea-rag-web.log``
    * - ``klea-agent`` (Agent server / graph)
      - ``klea-agent/klea-agent.log``
-   * - ``klea`` terminal client (REPL)
+   * - ``klea`` terminal clients (``cli`` / ``tui``)
      - ``klea-agent-tui/klea-agent-tui.log``
    * - ``klea`` web client
      - ``klea-agent-web/klea-agent-web.log``
@@ -442,9 +442,8 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
      - ``nml_mcp/nml_mcp.log``
 
 The ``cli`` subcommand's terminal client is a lightweight REPL for quick
-testing, not the TUI.  It currently uses the ``-tui`` process identity; the
-planned full Textual TUI will take that identity over and the REPL will be
-dropped.
+testing; the full terminal interface is ``tui`` (see :doc:`components/tui`).
+Both share the ``-tui`` process identity and log file.
 
 ``klea-stores-create`` logs to the console only.
 

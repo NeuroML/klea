@@ -20,8 +20,13 @@ menu); more are planned in both groups.
 
 .. note::
 
-   Session commands are available in the agent (``klea web`` / ``klea tui``
-   / ``klea cli``).  The RAG frontends do not expose any yet.
+   Client commands are shared by the web UI and the TUI.  The lightweight
+   ``klea cli`` REPL has no client-command handling, so only server commands
+   work there.  The TUI offers ``/help``, ``/sessions``, ``/model`` and
+   ``/exit``; the web UI also offers ``/new``, ``/rename``, ``/export`` and
+   the ``/sessions`` verbs.  Server commands depend on the app's graph: the
+   agent registers ``/mode``, ``/access``, ``/cwd``, ``/init`` and
+   ``/compact``, while the RAG graphs register none yet.
 
 UI commands (client)
 --------------------
@@ -33,32 +38,42 @@ These run in the frontend.
 
    * - Command
      - Usage
+     - Where
      - Description
    * - ``/help``
      - ``/help [command]``
+     - web, TUI
      - List the available commands, or show one command's usage.
    * - ``/new``
      - ``/new``
+     - web
      - Start a new session.
    * - ``/rename``
      - ``/rename <name>``
+     - web
      - Rename the current session.
    * - ``/model``
      - ``/model``
+     - web, TUI
      - Open the model and API-key configuration.
    * - ``/export``
      - ``/export``
+     - web
      - Download the session transcript as Markdown.
    * - ``/sessions``
-     - ``/sessions [list]`` / ``/sessions switch <n|id>`` / ``/sessions delete <n|id>``
+     - ``/sessions`` (TUI picker); ``/sessions [list]`` /
+       ``/sessions switch <n|id>`` / ``/sessions delete <n|id>`` (web)
+     - web, TUI
      - List the sessions (pinned first), switch the active session by number
-       or id, or delete a session (with confirmation).
+       or id, or delete a session (with confirmation).  The TUI opens a picker
+       that does all of this.
    * - ``/exit``
      - ``/exit``
+     - web, TUI
      - Stop the frontend.  In the web UI this stops the server it launched and
-       closes any active runs; in the TUI it stops the active run, then quits
-       (the command form of :kbd:`Ctrl+Q`).  The web header also has an exit
-       button that confirms first.
+       closes any active runs; in the TUI it stops any active run and quits.
+       The web header's exit button and the TUI's :kbd:`Ctrl+Q` ask to confirm
+       first; the ``/exit`` command does not.
 
 A command may define **subcommands** (verbs); ``/help <command>`` lists them,
 and the ``/`` menu autocompletes them.
@@ -97,9 +112,9 @@ These are sent to the graph and run there.
      - Generate project guidance (``AGENTS.md``) for the current project so
        future sessions pick up its conventions (Agent, full access).
 
-``/init`` writes ``AGENTS.md`` in the project directory, so it needs the
-``full`` tool access level; ``/compact`` is offered only when conversation
-memory is enabled (see :doc:`agent`).
+``/init`` writes ``AGENTS.md`` in the project directory, so its file-write
+needs the ``full`` tool access level; ``/compact`` is offered only when
+conversation memory is enabled (see :doc:`agent`).
 
 Disabling commands
 ------------------
