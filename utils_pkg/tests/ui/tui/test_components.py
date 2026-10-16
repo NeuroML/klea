@@ -160,7 +160,7 @@ class TestStatusPanelHelpers:
 
     def test_usage_line(self):
         assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == (
-            "tokens: 10 in / 5 out"
+            "10 in / 5 out"
         )
 
     def test_section_widget_uses_heading(self):

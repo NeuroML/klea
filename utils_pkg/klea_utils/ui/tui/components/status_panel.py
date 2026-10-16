@@ -41,12 +41,9 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     """Format the token usage totals.
 
     :param usage: The chat's ``token_usage`` dict.
-    :returns: ``"tokens: <in> in / <out> out"``.
+    :returns: ``"<in> in / <out> out"``.
     """
-    return (
-        f"tokens: {usage.get('input_tokens', 0)} in / "
-        f"{usage.get('output_tokens', 0)} out"
-    )
+    return f"{usage.get('input_tokens', 0)} in / {usage.get('output_tokens', 0)} out"
 
 
 def _model_name(raw: str) -> str:
