@@ -369,6 +369,7 @@
     <span class="n">config_env_var</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">config_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">template_writer</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Path</span><span class="p">],</span> <span class="n">Path</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">quiet</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">):</span>
 <span class="w">    </span><span class="sd">"""Context manager spawning a local server when none is running.</span>
 
@@ -394,6 +395,9 @@
 <span class="sd">    :param config_dir: Config directory used for profile validation</span>
 <span class="sd">    :param template_writer: Callable that writes a config template for</span>
 <span class="sd">        ``--profile template``</span>
+<span class="sd">    :param quiet: When ``True``, discard the spawned server's stdout/stderr</span>
+<span class="sd">        (used by the full-screen TUI so server logs do not corrupt it); see</span>
+<span class="sd">        :func:`klea_utils.api.server.spawn_server`.</span>
 <span class="sd">    """</span>
     <span class="c1"># Lazy: spawn_server pulls in the klea_utils.api machinery.</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.api.server</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -414,8 +418,10 @@
             <span class="p">)</span>
         <span class="k">return</span> <span class="n">nullcontext</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">profile</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">spawn_server</span><span class="p">(</span><span class="n">app_module</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">spawn_server</span><span class="p">(</span><span class="n">app_module</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">spawn_server</span><span class="p">(</span>
+            <span class="n">app_module</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span> <span class="n">profile</span><span class="o">=</span><span class="n">profile</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="n">quiet</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">spawn_server</span><span class="p">(</span><span class="n">app_module</span><span class="p">,</span> <span class="n">host</span><span class="o">=</span><span class="n">host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="n">port</span><span class="p">,</span> <span class="n">quiet</span><span class="o">=</span><span class="n">quiet</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_run_cli</span><span class="p">(</span>
@@ -509,6 +515,7 @@
         <span class="n">config_env_var</span><span class="o">=</span><span class="n">config_env_var</span><span class="p">,</span>
         <span class="n">config_dir</span><span class="o">=</span><span class="n">config_dir</span><span class="p">,</span>
         <span class="n">template_writer</span><span class="o">=</span><span class="n">template_writer</span><span class="p">,</span>
+        <span class="n">quiet</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
     <span class="p">):</span>
         <span class="c1"># Lazy: the app's Textual entry (and its heavy imports) is only needed</span>
         <span class="c1"># on launch; resolve it from ``tui_entry`` so this module imports no</span>
@@ -583,6 +590,11 @@
         <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.plogging</span><span class="w"> </span><span class="kn">import</span> <span class="n">enable_debug_logging</span>
 
         <span class="n">enable_debug_logging</span><span class="p">()</span>
+    <span class="c1"># This launcher process blocks on the NiceGUI subprocess, so title it too</span>
+    <span class="c1"># (the child titles itself in run_nicegui_server).</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.proctitle</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_process_title</span>
+
+    <span class="n">set_process_title</span><span class="p">(</span><span class="n">web_app_name</span><span class="p">)</span>
     <span class="k">with</span> <span class="n">_maybe_spawn_server</span><span class="p">(</span>
         <span class="n">server_url</span><span class="p">,</span>
         <span class="n">app_module</span><span class="p">,</span>

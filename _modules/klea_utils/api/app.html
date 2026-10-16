@@ -318,6 +318,7 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">contextlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">asynccontextmanager</span>
 
@@ -362,6 +363,14 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">lifespan</span><span class="p">(</span><span class="n">app</span><span class="p">:</span> <span class="n">FastAPI</span><span class="p">):</span>
         <span class="n">app</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">is_ready</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Klea API (</span><span class="si">%s</span><span class="s2">) starting lifespan"</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+
+        <span class="c1"># A spawned server passes its intended process title via the</span>
+        <span class="c1"># environment (see spawn_server); apply it for ps/top.</span>
+        <span class="n">proc_title</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"KLEA_PROC_TITLE"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">proc_title</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.proctitle</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_process_title</span>
+
+            <span class="n">set_process_title</span><span class="p">(</span><span class="n">proc_title</span><span class="p">)</span>
 
         <span class="n">graph</span> <span class="o">=</span> <span class="n">graph_factory</span><span class="p">()</span>
         <span class="k">await</span> <span class="n">graph</span><span class="o">.</span><span class="n">setup</span><span class="p">()</span>

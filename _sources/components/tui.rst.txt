@@ -8,7 +8,9 @@ sessions, models and graph state are shared.  It is started with
 
 The Textual dependency is an optional extra; install it with the ``tui``
 extra (``pip install klea-utils[tui]`` or the ``full`` extra).  Without it,
-``tui`` exits with a message pointing at the extra.
+``tui`` exits with a message pointing at the extra.  The process title is set
+to the frontend name (for example ``klea-agent-tui``) so it is identifiable in
+``ps``/``top`` instead of ``python``.
 
 The layout is a horizontal split: a chat panel on the left and a full-height
 status panel on the right.
@@ -18,13 +20,19 @@ Chat panel
 
 The left panel holds the title and server line, a transcript/inspector
 toggle, the transcript, the live turn-status line, and the input.  Answers
-stream in as they are generated.
+stream in as they are generated.  The input soft-wraps and grows with the
+text (up to a cap, then it scrolls); the cursor sits on the bottom line and
+the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
+(:kbd:`Shift+Enter` also works on terminals that report the shifted key).
 
 The transcript renders each message MIME-aware, mirroring the web: Markdown
 for the agent's replies, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
-be rendered (there is no inline media in a terminal).  Press :kbd:`Ctrl+I`
-to switch the same panel to the **inspector** view: the per-step trace behind
+be rendered (there is no inline media in a terminal).  A long message is
+collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
+expand or collapse.  Press :kbd:`Ctrl+I`
+(or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
+panel to the **inspector** view: the per-step trace behind
 the latest answer (each pipeline step's heading, timing, summary and raw
 structured details), grouped per query.
 
@@ -43,12 +51,16 @@ Keys
      - Action
    * - :kbd:`Enter`
      - Send the query or ``/command``
+   * - :kbd:`Ctrl+J`
+     - Insert a newline (the input grows, then scrolls, for a long entry)
+   * - :kbd:`Shift+Enter`
+     - Insert a newline too, on terminals that report the shifted key
    * - :kbd:`Ctrl+C`
      - Stop the running query
    * - :kbd:`Ctrl+R`
      - Retry the last failed run (when recoverable)
    * - :kbd:`Ctrl+I`
-     - Toggle the transcript / inspector view
+     - Toggle the transcript / inspector view (:kbd:`Tab` is equivalent, as a terminal sends Ctrl+I as Tab)
    * - :kbd:`Ctrl+S`
      - Open the session picker
    * - :kbd:`Ctrl+M`
@@ -61,7 +73,8 @@ Sessions
 
 The TUI shows one active session at a time.  :kbd:`Ctrl+S` (or ``/sessions``)
 opens a picker listing the server's chats; choosing one switches to it, and
-the picker can also **rename** or **delete** a chat.  Switching is refused
+the picker can also **rename** or **delete** a chat (deleting asks for
+confirmation first).  Switching is refused
 while a run is streaming.  On launch, ``--continue`` opens the most recently
 updated chat and ``--resume <chat_id>`` opens a specific one.
 
@@ -114,10 +127,13 @@ intact; a pending ask is re-shown if the chat is reloaded.
 Status panel
 ------------
 
-The right panel summarises the current chat: in the agent, the operating
-**mode** and tool **access** selectors (choosing one sends ``/mode`` or
-``/access`` to the agent), the running token totals, and the per-step state
-sections that stream while the graph runs.
+The right panel summarises the current chat: its **name and id**, then, in the
+agent, the operating **mode** and tool **access** selectors (choosing one sends
+``/mode`` or ``/access`` to the agent), the chat's selected **models** (a
+bulleted list, one role per line, with a warning when a required model or API
+key is still missing), the running token totals, and the per-step state
+sections that stream while the graph runs.  The groups are spaced apart, and
+the state sections sit on the pane's own background.
 
 Identity
 --------

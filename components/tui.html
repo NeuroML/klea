@@ -322,19 +322,27 @@ sessions, models and graph state are shared.  It is started with
 <code class="docutils literal notranslate"><span class="pre">klea-rag</span> <span class="pre">tui</span></code> (RAG) or <code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">tui</span></code> (agent).</p>
 <p>The Textual dependency is an optional extra; install it with the <code class="docutils literal notranslate"><span class="pre">tui</span></code>
 extra (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">klea-utils[tui]</span></code> or the <code class="docutils literal notranslate"><span class="pre">full</span></code> extra).  Without it,
-<code class="docutils literal notranslate"><span class="pre">tui</span></code> exits with a message pointing at the extra.</p>
+<code class="docutils literal notranslate"><span class="pre">tui</span></code> exits with a message pointing at the extra.  The process title is set
+to the frontend name (for example <code class="docutils literal notranslate"><span class="pre">klea-agent-tui</span></code>) so it is identifiable in
+<code class="docutils literal notranslate"><span class="pre">ps</span></code>/<code class="docutils literal notranslate"><span class="pre">top</span></code> instead of <code class="docutils literal notranslate"><span class="pre">python</span></code>.</p>
 <p>The layout is a horizontal split: a chat panel on the left and a full-height
 status panel on the right.</p>
 <section id="chat-panel">
 <h2>Chat panel<a class="headerlink" href="#chat-panel" title="Link to this heading">¶</a></h2>
 <p>The left panel holds the title and server line, a transcript/inspector
 toggle, the transcript, the live turn-status line, and the input.  Answers
-stream in as they are generated.</p>
+stream in as they are generated.  The input soft-wraps and grows with the
+text (up to a cap, then it scrolls); the cursor sits on the bottom line and
+the box grows upward.  <kbd class="kbd docutils literal notranslate">Enter</kbd> sends and <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">J</kbd> inserts a newline
+(<kbd class="kbd docutils literal notranslate">Shift</kbd>+<kbd class="kbd docutils literal notranslate">Enter</kbd> also works on terminals that report the shifted key).</p>
 <p>The transcript renders each message MIME-aware, mirroring the web: Markdown
 for the agent’s replies, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
-be rendered (there is no inline media in a terminal).  Press <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd>
-to switch the same panel to the <strong>inspector</strong> view: the per-step trace behind
+be rendered (there is no inline media in a terminal).  A long message is
+collapsed to a few lines; click it, or focus it and press <kbd class="kbd docutils literal notranslate">Enter</kbd>, to
+expand or collapse.  Press <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd>
+(or <kbd class="kbd docutils literal notranslate">Tab</kbd>, which is the byte a terminal sends for it) to switch the same
+panel to the <strong>inspector</strong> view: the per-step trace behind
 the latest answer (each pipeline step’s heading, timing, summary and raw
 structured details), grouped per query.</p>
 <p>A failed run that can be recovered shows a <strong>Retry</strong> hint; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
@@ -355,6 +363,12 @@ below) and the input is held until you answer or cancel.</p>
 <tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Enter</kbd></p></td>
 <td><p>Send the query or <code class="docutils literal notranslate"><span class="pre">/command</span></code></p></td>
 </tr>
+<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">J</kbd></p></td>
+<td><p>Insert a newline (the input grows, then scrolls, for a long entry)</p></td>
+</tr>
+<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Shift</kbd>+<kbd class="kbd docutils literal notranslate">Enter</kbd></p></td>
+<td><p>Insert a newline too, on terminals that report the shifted key</p></td>
+</tr>
 <tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">C</kbd></p></td>
 <td><p>Stop the running query</p></td>
 </tr>
@@ -362,7 +376,7 @@ below) and the input is held until you answer or cancel.</p>
 <td><p>Retry the last failed run (when recoverable)</p></td>
 </tr>
 <tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd></p></td>
-<td><p>Toggle the transcript / inspector view</p></td>
+<td><p>Toggle the transcript / inspector view (<kbd class="kbd docutils literal notranslate">Tab</kbd> is equivalent, as a terminal sends Ctrl+I as Tab)</p></td>
 </tr>
 <tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd></p></td>
 <td><p>Open the session picker</p></td>
@@ -381,7 +395,8 @@ below) and the input is held until you answer or cancel.</p>
 <h2>Sessions<a class="headerlink" href="#sessions" title="Link to this heading">¶</a></h2>
 <p>The TUI shows one active session at a time.  <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd> (or <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>)
 opens a picker listing the server’s chats; choosing one switches to it, and
-the picker can also <strong>rename</strong> or <strong>delete</strong> a chat.  Switching is refused
+the picker can also <strong>rename</strong> or <strong>delete</strong> a chat (deleting asks for
+confirmation first).  Switching is refused
 while a run is streaming.  On launch, <code class="docutils literal notranslate"><span class="pre">--continue</span></code> opens the most recently
 updated chat and <code class="docutils literal notranslate"><span class="pre">--resume</span> <span class="pre">&lt;chat_id&gt;</span></code> opens a specific one.</p>
 </section>
@@ -429,10 +444,13 @@ intact; a pending ask is re-shown if the chat is reloaded.</p>
 </section>
 <section id="status-panel">
 <h2>Status panel<a class="headerlink" href="#status-panel" title="Link to this heading">¶</a></h2>
-<p>The right panel summarises the current chat: in the agent, the operating
-<strong>mode</strong> and tool <strong>access</strong> selectors (choosing one sends <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or
-<code class="docutils literal notranslate"><span class="pre">/access</span></code> to the agent), the running token totals, and the per-step state
-sections that stream while the graph runs.</p>
+<p>The right panel summarises the current chat: its <strong>name and id</strong>, then, in the
+agent, the operating <strong>mode</strong> and tool <strong>access</strong> selectors (choosing one sends
+<code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code> to the agent), the chat’s selected <strong>models</strong> (a
+bulleted list, one role per line, with a warning when a required model or API
+key is still missing), the running token totals, and the per-step state
+sections that stream while the graph runs.  The groups are spaced apart, and
+the state sections sit on the pane’s own background.</p>
 </section>
 <section id="identity">
 <h2>Identity<a class="headerlink" href="#identity" title="Link to this heading">¶</a></h2>

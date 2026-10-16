@@ -511,6 +511,11 @@
     <span class="n">_configure_logging</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
     <span class="n">_configure_storage</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
 
+    <span class="c1"># Show the app name in ps/top instead of "python".</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.proctitle</span><span class="w"> </span><span class="kn">import</span> <span class="n">set_process_title</span>
+
+    <span class="n">set_process_title</span><span class="p">(</span><span class="n">app_name</span><span class="p">)</span>
+
     <span class="n">resolved_favicon</span> <span class="o">=</span> <span class="n">favicon</span> <span class="ow">or</span> <span class="n">default_favicon_path</span><span class="p">()</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">resolved_favicon</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
 

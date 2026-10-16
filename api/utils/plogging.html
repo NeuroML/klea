@@ -376,6 +376,16 @@ If deemed appropriate, the record may be modified in-place.</p>
 
 </dd></dl>
 
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.plogging.NOISY_LOGGERS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">NOISY_LOGGERS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('httpx',</span> <span class="pre">'httpcore')</span></span><a class="headerlink" href="#klea_utils.plogging.NOISY_LOGGERS" title="Link to this definition">¶</a></dt>
+<dd><p>Noisy third-party loggers that <code class="docutils literal notranslate"><span class="pre">setup_root_logger</span></code> quiets to WARNING by
+default.  <code class="docutils literal notranslate"><span class="pre">httpx</span></code> logs every request at INFO and <code class="docutils literal notranslate"><span class="pre">httpcore</span></code> every
+connection at DEBUG, which floods the console for little signal.  A
+<code class="docutils literal notranslate"><span class="pre">--debug</span></code> run (<code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL=debug</span></code>) restores them, and a level set
+explicitly by the embedding process always wins.</p>
+</dd></dl>
+
 <dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.plogging.enable_debug_logging">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">enable_debug_logging</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/plogging.html#enable_debug_logging"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.plogging.enable_debug_logging" title="Link to this definition">¶</a></dt>
@@ -443,7 +453,7 @@ falls back to <code class="docutils literal notranslate"><span class="pre">INFO<
 
 <dl class="py function">
 <dt class="sig sig-object py" id="klea_utils.plogging.setup_root_logger">
-<span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">setup_root_logger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stderr_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.15)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Logger" title="(in Python v3.15)"><span class="pre">Logger</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/plogging.html#setup_root_logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.plogging.setup_root_logger" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">klea_utils.plogging.</span></span><span class="sig-name descname"><span class="pre">setup_root_logger</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stderr_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">20</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.15)"><span class="pre">Path</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">console</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Logger" title="(in Python v3.15)"><span class="pre">Logger</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/plogging.html#setup_root_logger"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.plogging.setup_root_logger" title="Link to this definition">¶</a></dt>
 <dd><p>Configure the root logger once per process.</p>
 <p>Idempotent: if the root logger already has handlers, this is a no-op
 and the existing configuration is returned unchanged.</p>
@@ -462,14 +472,21 @@ loggers propagate to the root logger by default, a single call from each
 application entry point routes all Klea logs (library modules, graph
 nodes, API routers) through the same console and file handlers.
 Third-party libraries inherit the root’s INFO level, so their DEBUG
-output is filtered at the source without enumerating them.</p>
+output is filtered at the source without enumerating them.  The noisy
+library loggers in <a class="reference internal" href="#klea_utils.plogging.NOISY_LOGGERS" title="klea_utils.plogging.NOISY_LOGGERS"><code class="xref py py-data docutils literal notranslate"><span class="pre">NOISY_LOGGERS</span></code></a> are additionally quieted to
+WARNING (or restored to DEBUG when <a class="reference internal" href="#klea_utils.plogging.resolve_log_level" title="klea_utils.plogging.resolve_log_level"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_log_level()</span></code></a> reports
+debug), unless the embedding process set an explicit level.</p>
 <p>The console default is <code class="docutils literal notranslate"><span class="pre">INFO</span></code> (progress on stdout, warnings and
 errors on stderr) – end users see no debug noise.  Pass
 <code class="docutils literal notranslate"><span class="pre">stderr_level=logging.DEBUG</span></code> (e.g. from <a class="reference internal" href="#klea_utils.plogging.resolve_log_level" title="klea_utils.plogging.resolve_log_level"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_log_level()</span></code></a>
 when <code class="docutils literal notranslate"><span class="pre">--debug</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_LOG_LEVEL</span></code> request it) to surface full
-detail on the console.  The rotating log file always captures
-<code class="docutils literal notranslate"><span class="pre">DEBUG</span></code> regardless, so verbose logs remain available for
-diagnostics.</p>
+detail on the console.  Pass <code class="docutils literal notranslate"><span class="pre">console=False</span></code> for a full-screen
+frontend (the Textual TUI): no stream handlers are added, so nothing is
+written to the terminal that the app is drawing; the rotating log file
+still captures everything when <code class="docutils literal notranslate"><span class="pre">log_dir</span></code> is given, otherwise logging
+is discarded (a <code class="docutils literal notranslate"><span class="pre">NullHandler</span></code> keeps warnings off the terminal too).
+The rotating log file always captures <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code> regardless, so verbose
+logs remain available for diagnostics.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
@@ -478,6 +495,8 @@ per-app logs separate (e.g. <code class="docutils literal notranslate"><span cla
 <li><p><strong>stderr_level</strong> – Level for the stderr handler (default <code class="docutils literal notranslate"><span class="pre">INFO</span></code>)</p></li>
 <li><p><strong>log_dir</strong> – Directory for the log file.  <code class="docutils literal notranslate"><span class="pre">None</span></code> disables file
 logging.</p></li>
+<li><p><strong>console</strong> – When <code class="docutils literal notranslate"><span class="pre">False</span></code>, do not add the stdout/stderr handlers
+(for frontends that own the terminal); file logging is unaffected.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -554,6 +573,7 @@ logging.</p></li>
 <li><a class="reference internal" href="#klea_utils.plogging.LoggerNotInfoFilter.filter"><code class="docutils literal notranslate"><span class="pre">LoggerNotInfoFilter.filter()</span></code></a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#klea_utils.plogging.NOISY_LOGGERS"><code class="docutils literal notranslate"><span class="pre">NOISY_LOGGERS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.enable_debug_logging"><code class="docutils literal notranslate"><span class="pre">enable_debug_logging()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.logger_formatter_info"><code class="docutils literal notranslate"><span class="pre">logger_formatter_info</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.plogging.mask_sensitive"><code class="docutils literal notranslate"><span class="pre">mask_sensitive()</span></code></a></li>

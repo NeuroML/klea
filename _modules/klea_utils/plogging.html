@@ -334,6 +334,16 @@
     <span class="s2">"neuroml_mcp"</span><span class="p">,</span>
 <span class="p">)</span>
 
+<span class="c1">#: Noisy third-party loggers that ``setup_root_logger`` quiets to WARNING by</span>
+<span class="c1">#: default.  ``httpx`` logs every request at INFO and ``httpcore`` every</span>
+<span class="c1">#: connection at DEBUG, which floods the console for little signal.  A</span>
+<span class="c1">#: ``--debug`` run (``KLEA_LOG_LEVEL=debug``) restores them, and a level set</span>
+<span class="c1">#: explicitly by the embedding process always wins.</span>
+<span class="n">NOISY_LOGGERS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"httpx"</span><span class="p">,</span>
+    <span class="s2">"httpcore"</span><span class="p">,</span>
+<span class="p">)</span>
+
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
@@ -443,6 +453,7 @@
     <span class="n">app_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">stderr_level</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span>
     <span class="n">log_dir</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">console</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Configure the root logger once per process.</span>
 
@@ -464,21 +475,30 @@
 <span class="sd">    application entry point routes all Klea logs (library modules, graph</span>
 <span class="sd">    nodes, API routers) through the same console and file handlers.</span>
 <span class="sd">    Third-party libraries inherit the root's INFO level, so their DEBUG</span>
-<span class="sd">    output is filtered at the source without enumerating them.</span>
+<span class="sd">    output is filtered at the source without enumerating them.  The noisy</span>
+<span class="sd">    library loggers in :data:`NOISY_LOGGERS` are additionally quieted to</span>
+<span class="sd">    WARNING (or restored to DEBUG when :func:`resolve_log_level` reports</span>
+<span class="sd">    debug), unless the embedding process set an explicit level.</span>
 
 <span class="sd">    The console default is ``INFO`` (progress on stdout, warnings and</span>
 <span class="sd">    errors on stderr) -- end users see no debug noise.  Pass</span>
 <span class="sd">    ``stderr_level=logging.DEBUG`` (e.g. from :func:`resolve_log_level`</span>
 <span class="sd">    when ``--debug`` / ``KLEA_LOG_LEVEL`` request it) to surface full</span>
-<span class="sd">    detail on the console.  The rotating log file always captures</span>
-<span class="sd">    ``DEBUG`` regardless, so verbose logs remain available for</span>
-<span class="sd">    diagnostics.</span>
+<span class="sd">    detail on the console.  Pass ``console=False`` for a full-screen</span>
+<span class="sd">    frontend (the Textual TUI): no stream handlers are added, so nothing is</span>
+<span class="sd">    written to the terminal that the app is drawing; the rotating log file</span>
+<span class="sd">    still captures everything when ``log_dir`` is given, otherwise logging</span>
+<span class="sd">    is discarded (a ``NullHandler`` keeps warnings off the terminal too).</span>
+<span class="sd">    The rotating log file always captures ``DEBUG`` regardless, so verbose</span>
+<span class="sd">    logs remain available for diagnostics.</span>
 
 <span class="sd">    :param app_name: Application name, used as the log file name to keep</span>
 <span class="sd">        per-app logs separate (e.g. ``"klea-rag"``).</span>
 <span class="sd">    :param stderr_level: Level for the stderr handler (default ``INFO``)</span>
 <span class="sd">    :param log_dir: Directory for the log file.  ``None`` disables file</span>
 <span class="sd">        logging.</span>
+<span class="sd">    :param console: When ``False``, do not add the stdout/stderr handlers</span>
+<span class="sd">        (for frontends that own the terminal); file logging is unaffected.</span>
 <span class="sd">    :returns: The configured root logger</span>
 <span class="sd">    """</span>
     <span class="n">root</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">()</span>
@@ -487,17 +507,18 @@
 
     <span class="n">root</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
 
-    <span class="n">stdout_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
-    <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
-    <span class="n">stdout_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">LoggerInfoFilter</span><span class="p">())</span>
-    <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logger_formatter_info</span><span class="p">)</span>
-    <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">console</span><span class="p">:</span>
+        <span class="n">stdout_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">LoggerInfoFilter</span><span class="p">())</span>
+        <span class="n">stdout_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logger_formatter_info</span><span class="p">)</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stdout_handler</span><span class="p">)</span>
 
-    <span class="n">stderr_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
-    <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">stderr_level</span><span class="p">)</span>
-    <span class="n">stderr_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">LoggerNotInfoFilter</span><span class="p">())</span>
-    <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logger_formatter_other</span><span class="p">)</span>
-    <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
+        <span class="n">stderr_handler</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">stderr_level</span><span class="p">)</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">LoggerNotInfoFilter</span><span class="p">())</span>
+        <span class="n">stderr_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logger_formatter_other</span><span class="p">)</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">stderr_handler</span><span class="p">)</span>
 
     <span class="k">if</span> <span class="n">log_dir</span><span class="p">:</span>
         <span class="n">log_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">log_dir</span><span class="p">)</span>
@@ -510,6 +531,11 @@
         <span class="n">file_handler</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
         <span class="n">file_handler</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">logger_formatter_file</span><span class="p">)</span>
         <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">file_handler</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">console</span><span class="p">:</span>
+        <span class="c1"># No console and no file: discard everything.  Without a handler the</span>
+        <span class="c1"># logging module's last-resort handler would still write warnings to</span>
+        <span class="c1"># stderr and corrupt a full-screen frontend.</span>
+        <span class="n">root</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">NullHandler</span><span class="p">())</span>
 
     <span class="c1"># Turn up verbosity for our own namespaces only.  Third-party libraries</span>
     <span class="c1"># inherit root's INFO level, so their DEBUG is filtered without listing</span>
@@ -519,6 +545,15 @@
         <span class="n">klea_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">klea_logger</span><span class="o">.</span><span class="n">level</span> <span class="o">==</span> <span class="n">logging</span><span class="o">.</span><span class="n">NOTSET</span><span class="p">:</span>
             <span class="n">klea_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span><span class="p">)</span>
+
+    <span class="c1"># Quiet the noisy library loggers (unless a debug run wants them).</span>
+    <span class="n">noisy_level</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">if</span> <span class="n">resolve_log_level</span><span class="p">()</span> <span class="o">==</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="k">else</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">NOISY_LOGGERS</span><span class="p">:</span>
+        <span class="n">noisy_logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">noisy_logger</span><span class="o">.</span><span class="n">level</span> <span class="o">==</span> <span class="n">logging</span><span class="o">.</span><span class="n">NOTSET</span><span class="p">:</span>
+            <span class="n">noisy_logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">noisy_level</span><span class="p">)</span>
 
     <span class="k">return</span> <span class="n">root</span></div>
 
