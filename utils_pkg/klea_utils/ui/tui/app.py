@@ -145,12 +145,11 @@ class KleaTuiScreen(Screen):
     """The single screen: a chat panel and a status panel side by side."""
 
     #: A terminal sends Ctrl+I as a Tab character, and ``Screen``'s default
-    #: Tab binding (``focus_next``) would swallow it before the app's
-    #: ``ctrl+i`` binding fires, so the documented view toggle never worked.
-    #: Bind Tab here (priority) to an action that toggles the view when the
-    #: query input is focused and keeps focus traversal elsewhere.
+    #: Tab binding (``focus_next``) would otherwise swallow it.  Bind Tab here
+    #: (priority) to always toggle the transcript/inspector view, so Ctrl+I /
+    #: Tab works from anywhere on the screen rather than cycling focus.
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("tab", "toggle_view_or_focus", "Inspector", priority=True),
+        Binding("tab", "toggle_view", "Inspector", priority=True),
     ]
 
     def __init__(self, ctx: TuiContext) -> None:
@@ -325,18 +324,14 @@ class KleaTuiScreen(Screen):
             "inspector" if self._view == "transcript" else "transcript"
         )
 
-    async def action_toggle_view_or_focus(self) -> None:
-        """Toggle the view when the query input is focused, else move focus.
+    async def action_toggle_view(self) -> None:
+        """Toggle the transcript/inspector view.
 
         Backs the priority ``tab`` binding (see :attr:`BINDINGS`): a terminal
-        sends Ctrl+I as Tab, so Tab toggles the transcript/inspector view
-        while composing a query, but still traverses focus from any other
-        widget.
+        sends Ctrl+I as Tab, so Tab toggles the view from anywhere on the
+        screen (rather than cycling focus).
         """
-        if isinstance(self.focused, QueryTextArea):
-            await self.toggle_view()
-        else:
-            self.focus_next()
+        await self.toggle_view()
 
     async def show_view(self, view: str) -> None:
         """Show *view* in the chat panel, hiding the other.

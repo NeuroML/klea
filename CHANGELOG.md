@@ -132,7 +132,7 @@
 - Terminal UI: the status panel's top section (mode / access / project root) is sized to its content instead of taking half the pane, and the panel scrolls to the newest state update when its sections overflow.
 - Terminal UI: an errored tool-result header uses the active theme's error colour instead of a fixed red.
 - Terminal UI: the query input no longer draws a box; it uses the theme's raised surface (`$boost`) and sits a row clear of the key hints.
-- Terminal UI: `Ctrl+I` (which a terminal sends as `Tab`) now toggles the transcript/inspector view; previously the `Screen` focus binding swallowed it, so the documented shortcut did nothing.
+- Terminal UI: `Ctrl+I` (which a terminal sends as `Tab`) now toggles the transcript/inspector view from anywhere on the screen -- it no longer cycles focus when the query input is not focused. Previously the `Screen` focus binding swallowed it, so the documented shortcut did nothing.
 - Terminal UI: the model dialog's per-role panels size to their content instead of ballooning (the per-role button row was a `1fr` container filling the panel), and the query input has a few-row minimum height.
 - Terminal UI: deleting a session from the picker now asks for confirmation before it is removed, matching the web UI.
 - Terminal UI: streamed `state`/`inspect` details containing `[` or `=` (for example a bracketed model repr) no longer crash the status/inspector panes with a Rich markup error; such text is now rendered literally.

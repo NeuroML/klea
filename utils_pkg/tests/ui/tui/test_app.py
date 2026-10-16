@@ -649,6 +649,18 @@ async def test_toggle_inspector_view(fake_backend, make_app):
         assert inspector.display is False
 
 
+async def test_tab_toggles_view_from_anywhere(fake_backend, make_app):
+    """Tab (Ctrl+I) toggles the view even when the query input is not focused."""
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        app.screen.query_one("#query-input", TextArea).blur()
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        assert app.screen.query_one("#inspector").display is True
+
+
 async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
     """The status panel renders state sections and token usage."""
     fake_backend.scripts = [
