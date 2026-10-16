@@ -123,6 +123,7 @@
 - Web UI: long tooltips wrap instead of being clipped on the right.
 - Terminal UI: library request/connection logging (`httpx`, `httpcore`) is quieted to warnings by default (`--debug` / `KLEA_LOG_LEVEL=debug` restores it), and the TUI now logs to its rotating file only while discarding the auto-spawned server's output, so log lines no longer overwrite the full-screen interface.
 - Terminal UI: the status panel's top section (mode / access / project root) is sized to its content instead of taking half the pane, and the panel scrolls to the newest state update when its sections overflow.
+- Terminal UI: an errored tool-result header uses the active theme's error colour instead of a fixed red.
 
 ### Dependencies
 

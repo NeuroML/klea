@@ -61,14 +61,19 @@ def _render_body(mime: str, data: str, text: str) -> RenderableType:
     return Markdown(data or text)
 
 
-def render_message(message: Mapping[str, Any]) -> RenderableType:
+def render_message(
+    message: Mapping[str, Any], *, error_style: str = "bold"
+) -> RenderableType:
     """Build the Rich renderable for one transcript message.
 
     User lines render as a bold ``"> "`` prompt; agent and tool messages
     render MIME-aware (see :func:`_render_body`), with a bold header for tool
-    blocks (in the error colour when the tool result failed).
+    blocks (in the theme's error colour when the tool result failed).
 
     :param message: A message dict (see ``state.MessageData``).
+    :param error_style: Rich style for an errored tool block's header; the
+        caller passes the active theme's ``error`` colour so it follows a
+        theme change (defaults to plain bold for a themeless caller).
     :returns: A Rich renderable for the transcript.
     """
     role = message.get("role", "agent")
@@ -78,7 +83,7 @@ def render_message(message: Mapping[str, Any]) -> RenderableType:
         return Text(f"> {text}", style="bold")
     parts: list[RenderableType] = []
     if header:
-        style = "bold red" if message.get("is_error") else "bold"
+        style = error_style if message.get("is_error") else "bold"
         parts.append(Text(header, style=style))
     parts.append(_render_body(message.get("mime", ""), message.get("data", ""), text))
     return Group(*parts) if len(parts) > 1 else parts[0]
@@ -98,6 +103,18 @@ class Transcript(VerticalScroll):
         """Compose the empty placeholder (removed on the first message)."""
         yield Static("No messages yet.", id="transcript-empty")
 
+    def _error_style(self) -> str:
+        """Return a bold style in the active theme's error colour.
+
+        The TUI follows the Textual theme, so an errored tool block's header
+        uses ``$error`` rather than a literal colour.  Falls back to plain bold
+        when the theme exposes no error colour.
+
+        :returns: A Rich style string.
+        """
+        error = self.app.get_css_variables().get("error")
+        return f"bold {error}" if error else "bold"
+
     async def append(self, message: MessageData) -> None:
         """Append one message and scroll to the bottom.
 
@@ -105,7 +122,9 @@ class Transcript(VerticalScroll):
         """
         for placeholder in self.query("#transcript-empty"):
             placeholder.remove()
-        await self.mount(Static(render_message(message)))
+        await self.mount(
+            Static(render_message(message, error_style=self._error_style()))
+        )
         self.scroll_end(animate=False)
 
     async def set_messages(self, messages: Sequence[Mapping[str, Any]]) -> None:
@@ -117,8 +136,9 @@ class Transcript(VerticalScroll):
         if not messages:
             await self.mount(Static("No messages yet.", id="transcript-empty"))
             return
+        error_style = self._error_style()
         for message in messages:
-            await self.mount(Static(render_message(message)))
+            await self.mount(Static(render_message(message, error_style=error_style)))
         self.scroll_end(animate=False)
 
 

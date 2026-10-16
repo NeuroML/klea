@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-15.
+Last updated: 2026-10-16.
 
 ## Cancellation / concurrency
 
@@ -204,6 +204,17 @@ Last updated: 2026-10-15.
 
 ## Frontends / TUI
 
+- Follow-theme styling: the TUI uses Textual theme variables throughout (panel
+  backgrounds `$surface`/`$panel`, muted text `$text-muted`, the errored
+  tool-header `$error`).  Two gaps remain, both deferred.  (a) Some Textual
+  themes (for example `solarized-dark`/`solarized-light`) set
+  `$surface == $panel`, so the chat/status panel split is invisible; this is an
+  upstream theme-design choice, not something Klea can fix without overriding
+  the theme's own tokens.  (b) Content rendered through Rich (`Markdown`, and
+  `Syntax` for diffs/code) carries Rich's own palette (for example the pygments
+  syntax style) rather than the Textual theme, so code blocks do not follow a
+  theme change; making them follow needs Textual-native rendering (or a
+  re-render on theme change).
 - Client-side command output (`system` bubbles) is not persisted (the server
   never sees client commands), so it is lost on reload.  Decide whether to
   persist it.

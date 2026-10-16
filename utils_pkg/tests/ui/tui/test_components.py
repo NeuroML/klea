@@ -94,6 +94,21 @@ class TestRenderMessage:
         assert isinstance(group.renderables[0], Text)
         assert isinstance(group.renderables[-1], Syntax)
 
+    def test_error_header_uses_the_given_style(self):
+        """An errored tool header uses the caller-supplied (theme) style."""
+        message = {
+            "role": "tool",
+            "text": "d",
+            "stamp": "x",
+            "header": "edit foo.py",
+            "is_error": True,
+        }
+        rendered = render_message(message, error_style="bold #ff0000")
+        group = cast(Group, rendered)
+        header = group.renderables[0]
+        assert isinstance(header, Text)
+        assert "#ff0000" in str(header.style)
+
 
 class TestGroupSections:
     """Inspector per-query grouping."""
