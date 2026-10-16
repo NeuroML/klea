@@ -1029,6 +1029,414 @@ collapsed and an empty title falls back to <code class="docutils literal notrans
 </dl>
 </dd></dl>
 
+<p id="module-klea_utils.ui.identity">Frontend identity resolution (ADR-0050 invariant I5).</p>
+<p>Frontends (the Textual TUI and the NiceGUI web UI) resolve their <code class="docutils literal notranslate"><span class="pre">user_id</span></code>
+through one seam: an explicit <code class="docutils literal notranslate"><span class="pre">--user-id</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_USER_ID</span></code>, then a
+persisted (machine-local) UUID.  The persisted UUID is only sent to a loopback
+server, so it is never leaked to a remote deployment; a remote server without
+an explicit identity gets an empty <code class="docutils literal notranslate"><span class="pre">user_id</span></code> (the server treats <code class="docutils literal notranslate"><span class="pre">user_id</span></code>
+as an opaque token).</p>
+<p>File: klea_utils/ui/identity.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.ui.identity.USER_ID_ENV_VAR">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.identity.</span></span><span class="sig-name descname"><span class="pre">USER_ID_ENV_VAR</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'KLEA_USER_ID'</span></span><a class="headerlink" href="#klea_utils.ui.identity.USER_ID_ENV_VAR" title="Link to this definition">¶</a></dt>
+<dd><p>Env var carrying an explicit user id (mirrors the <code class="docutils literal notranslate"><span class="pre">--user-id</span></code> flag).</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.identity.is_loopback_url">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.identity.</span></span><span class="sig-name descname"><span class="pre">is_loopback_url</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/identity.html#is_loopback_url"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.identity.is_loopback_url" title="Link to this definition">¶</a></dt>
+<dd><p>Return whether <em>server_url</em> points at a loopback host.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>server_url</strong> – Base URL of the backend API server.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>True for <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code> / <code class="docutils literal notranslate"><span class="pre">localhost</span></code> / <code class="docutils literal notranslate"><span class="pre">::1</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.identity.persisted_user_id">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.identity.</span></span><span class="sig-name descname"><span class="pre">persisted_user_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">app_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/identity.html#persisted_user_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.identity.persisted_user_id" title="Link to this definition">¶</a></dt>
+<dd><p>Return the persisted frontend-local UUID for <em>app_name</em>, creating it once.</p>
+<p>Stored as plain text under the app’s platformdirs user data dir, so the
+same machine keeps one identity across restarts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>app_name</strong> – Identity key used to locate the persisted UUID (the
+server app, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;klea-agent&quot;</span></code>).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The persisted UUID.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.identity.resolve_user_id">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.identity.</span></span><span class="sig-name descname"><span class="pre">resolve_user_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">explicit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">server_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'klea'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/identity.html#resolve_user_id"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.identity.resolve_user_id" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve a frontend’s <code class="docutils literal notranslate"><span class="pre">user_id</span></code> through the ADR-0050 seam.</p>
+<p>Order: <em>explicit</em> (<code class="docutils literal notranslate"><span class="pre">--user-id</span></code>) &gt; <em>env</em> (<code class="docutils literal notranslate"><span class="pre">KLEA_USER_ID</span></code>) &gt; the
+persisted local UUID, the last only when <em>server_url</em> is loopback (I5).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>explicit</strong> – The <code class="docutils literal notranslate"><span class="pre">--user-id</span></code> value, or <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code>.</p></li>
+<li><p><strong>env</strong> – The env-var value; <code class="docutils literal notranslate"><span class="pre">None</span></code> reads <code class="docutils literal notranslate"><span class="pre">KLEA_USER_ID</span></code>.</p></li>
+<li><p><strong>server_url</strong> – Base URL of the backend API server.</p></li>
+<li><p><strong>app_name</strong> – Identity key used to locate the persisted UUID (the
+server app, e.g. <code class="docutils literal notranslate"><span class="pre">&quot;klea-agent&quot;</span></code>).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The resolved user id (<code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> when none applies).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-klea_utils.ui.model_config">Framework-agnostic model-configuration helpers (shared by web and TUI).</p>
+<p>The model-config dialog exists twice (a NiceGUI dialog and a Textual modal)
+but the logic behind it does not: parsing a role’s model string into editable
+fields and joining them back, deciding the credential scope and status of a
+(possibly unsaved) model, collecting the roles that changed, and persisting a
+role’s override.  This module holds that logic with no frontend imports, so
+both frontends share one source of truth.  The frontends keep only their own
+widgets and styling (a tone is mapped to a colour class per frontend).</p>
+<p>File: klea_utils/ui/model_config.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.CatalogueCache">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">CatalogueCache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#CatalogueCache"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.CatalogueCache" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Lazily fetch and cache the models.dev catalogue for a user.</p>
+<p>Providers are fetched once; each provider’s models are fetched the first
+time it is picked and cached for the life of the instance.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>server_url</strong> – Base URL of the backend API server.</p></li>
+<li><p><strong>user_id</strong> – Opaque persistent user identifier.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.CatalogueCache.load_models">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">load_models</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#CatalogueCache.load_models"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.CatalogueCache.load_models" title="Link to this definition">¶</a></dt>
+<dd><p>Return <em>provider</em>’s models, fetching and caching on first use.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>provider</strong> – Klea provider id.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The provider’s models, or <code class="docutils literal notranslate"><span class="pre">[]</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.CatalogueCache.models_for">
+<span class="sig-name descname"><span class="pre">models_for</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#CatalogueCache.models_for"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.CatalogueCache.models_for" title="Link to this definition">¶</a></dt>
+<dd><p>Return the already-loaded models for <em>provider</em> (no fetch).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>provider</strong> – Klea provider id.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The cached models, or <code class="docutils literal notranslate"><span class="pre">[]</span></code>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.CatalogueCache.providers">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">providers</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#CatalogueCache.providers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.CatalogueCache.providers" title="Link to this definition">¶</a></dt>
+<dd><p>Return the catalogue providers, fetching once.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Sorted provider ids.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.ModelOrigin">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">ModelOrigin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suffix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">backend</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference_provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#ModelOrigin"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.ModelOrigin" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Parsed components of a role’s saved model string.</p>
+<p>Holds both the originals (for the “unchanged” branch of
+<a class="reference internal" href="#klea_utils.ui.model_config.build_model_string" title="klea_utils.ui.model_config.build_model_string"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_model_string()</span></code></a>) and the initial field values a picker is
+prefilled with.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Original provider id.</p></li>
+<li><p><strong>model</strong> – Original model id.</p></li>
+<li><p><strong>suffix</strong> – Original non-URL suffix (put back while the model is
+unchanged); empty for a URL suffix.</p></li>
+<li><p><strong>url</strong> – Initial custom-URL field value.</p></li>
+<li><p><strong>backend</strong> – Initial HuggingFace backend field value.</p></li>
+<li><p><strong>inference_provider</strong> – Initial HuggingFace inference-provider value.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.SaveOutcome">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">SaveOutcome</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ok</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">saved</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">failed_role</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#SaveOutcome"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.SaveOutcome" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The result of persisting a dialog’s changed roles.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ok</strong> – Whether every changed role saved.</p></li>
+<li><p><strong>saved</strong> – The <code class="docutils literal notranslate"><span class="pre">(role,</span> <span class="pre">model)</span></code> pairs persisted before any failure.</p></li>
+<li><p><strong>failed_role</strong> – The role that failed, when <code class="docutils literal notranslate"><span class="pre">ok</span></code> is <code class="docutils literal notranslate"><span class="pre">False</span></code>.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.TONE_MUTED">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">TONE_MUTED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'muted'</span></span><a class="headerlink" href="#klea_utils.ui.model_config.TONE_MUTED" title="Link to this definition">¶</a></dt>
+<dd><p>Credential-status tones, mapped to a colour/class by each frontend.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.build_model_string">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">build_model_string</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backend</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'endpoint'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inference_provider</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">original</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.ui.model_config.ModelOrigin" title="klea_utils.ui.model_config.ModelOrigin"><span class="pre">ModelOrigin</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#build_model_string"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.build_model_string" title="Link to this definition">¶</a></dt>
+<dd><p>Join the picker’s field values back into a model string.</p>
+<p>HuggingFace joins from its backend + inference-provider fields; other
+providers use the custom URL when one is set, else restore the original
+suffix while the model is unchanged.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>provider</strong> – Provider field value.</p></li>
+<li><p><strong>model</strong> – Model field value.</p></li>
+<li><p><strong>url</strong> – Custom-URL field value.</p></li>
+<li><p><strong>backend</strong> – HuggingFace backend field value.</p></li>
+<li><p><strong>inference_provider</strong> – HuggingFace inference-provider field value.</p></li>
+<li><p><strong>original</strong> – The role’s original parsed model, if any.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The joined model string.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.changed_roles">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">changed_roles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_values</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#changed_roles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.changed_roles" title="Link to this definition">¶</a></dt>
+<dd><p>Return the <code class="docutils literal notranslate"><span class="pre">(role,</span> <span class="pre">new_model)</span></code> pairs whose value changed.</p>
+<p>Skips locked roles and unchanged values (so an inherited value is not
+pinned).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>info</strong> – The saved model config (<code class="docutils literal notranslate"><span class="pre">role</span> <span class="pre">-&gt;</span> <span class="pre">cfg</span></code>).</p></li>
+<li><p><strong>role_values</strong> – Current input values by role.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The changed roles, in iteration order.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.clear_role">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">clear_role</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">role</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#clear_role"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.clear_role" title="Link to this definition">¶</a></dt>
+<dd><p>Clear one role’s override (reverting it to the inherited model).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>server_url</strong> – Base URL of the backend API server.</p></li>
+<li><p><strong>user_id</strong> – Opaque persistent user identifier.</p></li>
+<li><p><strong>chat_id</strong> – Active chat id (ignored for a session-scope clear).</p></li>
+<li><p><strong>session_scope</strong> – Clear the per-session default instead of per-chat.</p></li>
+<li><p><strong>role</strong> – The role to reset.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Whether the reset succeeded.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.credential_display">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">credential_display</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">saved</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stored_by_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#credential_display"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.credential_display" title="Link to this definition">¶</a></dt>
+<dd><p>Return <code class="docutils literal notranslate"><span class="pre">(label,</span> <span class="pre">tone)</span></code> for a model’s credential status.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_name</strong> – The model string.</p></li>
+<li><p><strong>saved</strong> – The saved credential block, if any.</p></li>
+<li><p><strong>stored_by_scope</strong> – Stored credentials keyed <code class="docutils literal notranslate"><span class="pre">(provider,</span> <span class="pre">endpoint)</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The display label and a tone (<code class="docutils literal notranslate"><span class="pre">&quot;muted&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;error&quot;</span></code>).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.live_credential">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">live_credential</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">saved</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">stored_by_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#live_credential"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.live_credential" title="Link to this definition">¶</a></dt>
+<dd><p>Credential block for a (possibly unsaved) model string.</p>
+<p>Provider and key requirement are derived client-side so typed but
+unsaved models are recognised; the source/masked come from the stored
+credentials or, when the scope matches, the saved block.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model_name</strong> – The model string.</p></li>
+<li><p><strong>saved</strong> – The saved credential block, if any.</p></li>
+<li><p><strong>stored_by_scope</strong> – Stored credentials keyed <code class="docutils literal notranslate"><span class="pre">(provider,</span> <span class="pre">endpoint)</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A credential block (<code class="docutils literal notranslate"><span class="pre">provider</span></code>/<code class="docutils literal notranslate"><span class="pre">endpoint</span></code>/<code class="docutils literal notranslate"><span class="pre">requires_key</span></code>/
+<code class="docutils literal notranslate"><span class="pre">source</span></code>/<code class="docutils literal notranslate"><span class="pre">masked</span></code>).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.live_info">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">live_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_values</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stored_by_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#live_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.live_info" title="Link to this definition">¶</a></dt>
+<dd><p>Model config built from the dialog’s current input values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>info</strong> – The saved model config (<code class="docutils literal notranslate"><span class="pre">role</span> <span class="pre">-&gt;</span> <span class="pre">cfg</span></code>).</p></li>
+<li><p><strong>role_values</strong> – Current input values by role.</p></li>
+<li><p><strong>stored_by_scope</strong> – Stored credentials keyed <code class="docutils literal notranslate"><span class="pre">(provider,</span> <span class="pre">endpoint)</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A copy of <em>info</em> with each role’s model and credential block
+replaced by its live values.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.parse_model_origin">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">parse_model_origin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.ui.model_config.ModelOrigin" title="klea_utils.ui.model_config.ModelOrigin"><span class="pre">ModelOrigin</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#parse_model_origin"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.parse_model_origin" title="Link to this definition">¶</a></dt>
+<dd><p>Parse <em>model</em> into a <a class="reference internal" href="#klea_utils.ui.model_config.ModelOrigin" title="klea_utils.ui.model_config.ModelOrigin"><code class="xref py py-class docutils literal notranslate"><span class="pre">ModelOrigin</span></code></a> for prefilling a picker.</p>
+<p>A half-typed string (e.g. <code class="docutils literal notranslate"><span class="pre">openai:</span></code>) is kept whole in the model field
+so nothing the user typed is lost.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>model</strong> – The saved model string.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The parsed origin and initial field values.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.required_credential_scopes">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">required_credential_scopes</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#required_credential_scopes"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.required_credential_scopes" title="Link to this definition">¶</a></dt>
+<dd><p>Return the distinct provider(+endpoint) scopes the roles need a key for.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>info</strong> – The model config (<code class="docutils literal notranslate"><span class="pre">role</span> <span class="pre">-&gt;</span> <span class="pre">cfg</span></code>).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">{(provider,</span> <span class="pre">endpoint):</span> <span class="pre">credential}</span></code> for key-requiring roles.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.role_label">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">role_label</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">role</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#role_label"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.role_label" title="Link to this definition">¶</a></dt>
+<dd><p>Return the human-facing label for a model role key.</p>
+<p><code class="docutils literal notranslate"><span class="pre">tool_picker</span></code> -&gt; <code class="docutils literal notranslate"><span class="pre">&quot;Tool</span> <span class="pre">picker&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">str.capitalize()</span></code> alone would
+give <code class="docutils literal notranslate"><span class="pre">&quot;Tool_picker&quot;</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>role</strong> – Model role key (<code class="docutils literal notranslate"><span class="pre">chat</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_picker</span></code>, …).</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Display label.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.save_roles">
+<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">save_roles</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server_url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">chat_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">session_scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role_values</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.ui.model_config.SaveOutcome" title="klea_utils.ui.model_config.SaveOutcome"><span class="pre">SaveOutcome</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#save_roles"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.save_roles" title="Link to this definition">¶</a></dt>
+<dd><p>Persist every changed role, stopping at the first failure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>server_url</strong> – Base URL of the backend API server.</p></li>
+<li><p><strong>user_id</strong> – Opaque persistent user identifier.</p></li>
+<li><p><strong>chat_id</strong> – Active chat id (ignored for a session-scope save).</p></li>
+<li><p><strong>session_scope</strong> – Save per-session defaults instead of per-chat.</p></li>
+<li><p><strong>info</strong> – The saved model config (<code class="docutils literal notranslate"><span class="pre">role</span> <span class="pre">-&gt;</span> <span class="pre">cfg</span></code>).</p></li>
+<li><p><strong>role_values</strong> – Current input values by role.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <a class="reference internal" href="#klea_utils.ui.model_config.SaveOutcome" title="klea_utils.ui.model_config.SaveOutcome"><code class="xref py py-class docutils literal notranslate"><span class="pre">SaveOutcome</span></code></a>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.model_config.use_for_all_targets">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.model_config.</span></span><span class="sig-name descname"><span class="pre">use_for_all_targets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/collections.abc.html#collections.abc.Mapping" title="(in Python v3.15)"><span class="pre">Mapping</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">role</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/model_config.html#use_for_all_targets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.model_config.use_for_all_targets" title="Link to this definition">¶</a></dt>
+<dd><p>Return the roles of the same kind that <em>role</em>’s model applies to.</p>
+<p>Scoped by <code class="docutils literal notranslate"><span class="pre">model_type</span></code> so a chat model is never copied onto the
+embedding role.  Autofills only; the user still saves.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>info</strong> – The model config (<code class="docutils literal notranslate"><span class="pre">role</span> <span class="pre">-&gt;</span> <span class="pre">cfg</span></code>).</p></li>
+<li><p><strong>role</strong> – The source role.</p></li>
+<li><p><strong>value</strong> – The model string to apply.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">{target_role:</span> <span class="pre">value}</span></code> for the other modifiable same-kind roles.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<p id="module-klea_utils.ui.exit_confirm">Shared exit-confirmation text for the web and terminal frontends.</p>
+<p>Kept in one place so both frontends show identical wording (the web header’s
+exit button and the TUI’s <code class="docutils literal notranslate"><span class="pre">Ctrl+Q</span></code>).</p>
+<p>File: klea_utils/ui/exit_confirm.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.ui.exit_confirm.EXIT_CONFIRM_MESSAGE">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.exit_confirm.</span></span><span class="sig-name descname"><span class="pre">EXIT_CONFIRM_MESSAGE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'This</span> <span class="pre">stops</span> <span class="pre">any</span> <span class="pre">active</span> <span class="pre">run</span> <span class="pre">and</span> <span class="pre">closes</span> <span class="pre">this</span> <span class="pre">interface.</span> <span class="pre">The</span> <span class="pre">backend</span> <span class="pre">server</span> <span class="pre">is</span> <span class="pre">stopped</span> <span class="pre">only</span> <span class="pre">if</span> <span class="pre">this</span> <span class="pre">client</span> <span class="pre">started</span> <span class="pre">it.'</span></span><a class="headerlink" href="#klea_utils.ui.exit_confirm.EXIT_CONFIRM_MESSAGE" title="Link to this definition">¶</a></dt>
+<dd><p>Confirmation body (used verbatim by both frontends).</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.ui.exit_confirm.EXIT_CONFIRM_TITLE">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.exit_confirm.</span></span><span class="sig-name descname"><span class="pre">EXIT_CONFIRM_TITLE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Exit</span> <span class="pre">Klea?'</span></span><a class="headerlink" href="#klea_utils.ui.exit_confirm.EXIT_CONFIRM_TITLE" title="Link to this definition">¶</a></dt>
+<dd><p>Confirmation title.</p>
+</dd></dl>
+
 <p id="module-klea_utils.ui.web.nicegui.parser">Argparse parser for the Klea NiceGUI frontend entry point.</p>
 <p>Provides a standard <a class="reference external" href="https://docs.python.org/3/library/argparse.html#module-argparse" title="(in Python v3.15)"><code class="xref py py-mod docutils literal notranslate"><span class="pre">argparse</span></code></a> parser for the arguments passed by
 the Typer <code class="docutils literal notranslate"><span class="pre">web</span></code> command when it launches <code class="docutils literal notranslate"><span class="pre">app.py</span></code>.  The entry point
@@ -1713,6 +2121,92 @@ controls to align them.</p></li>
 </dl>
 </dd></dl>
 
+<p id="module-klea_utils.ui.web.nicegui.components.commands">Session-command handling for the web frontend (ADR-0047).</p>
+<p>The web frontend owns its client-side commands and merges them with the
+<strong>server catalogue</strong> fetched from <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/commands</span></code>.  An input beginning with
+<code class="docutils literal notranslate"><span class="pre">/</span></code> is validated against the merge: a client command runs locally and its
+output is rendered as a <code class="docutils literal notranslate"><span class="pre">system</span></code> chat bubble; a server command is forwarded
+as the query (the graph’s command node runs it); an unknown command is
+rejected locally and never sent.</p>
+<p>File: klea_utils/ui/web/nicegui/components/commands.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.ui.web.nicegui.components.commands.WEB_CAPABILITIES">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.web.nicegui.components.commands.</span></span><span class="sig-name descname"><span class="pre">WEB_CAPABILITIES</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#frozenset" title="(in Python v3.15)"><span class="pre">frozenset</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">frozenset({'file_picker'})</span></span><a class="headerlink" href="#klea_utils.ui.web.nicegui.components.commands.WEB_CAPABILITIES" title="Link to this definition">¶</a></dt>
+<dd><p>it cannot read the user’s
+filesystem or run a shell, but it can show a file picker / upload.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Capabilities the browser frontend has (ADR-0047)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.web.nicegui.components.commands.attach_autocomplete">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.web.nicegui.components.commands.</span></span><span class="sig-name descname"><span class="pre">attach_autocomplete</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.context.PageContext" title="klea_utils.ui.web.nicegui.components.context.PageContext"><span class="pre">PageContext</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">suggestions</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/web/nicegui/components/commands.html#attach_autocomplete"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.web.nicegui.components.commands.attach_autocomplete" title="Link to this definition">¶</a></dt>
+<dd><p>Attach a <code class="docutils literal notranslate"><span class="pre">/</span></code>-command autocomplete list to the chat input (ADR-0047).</p>
+<p>As the user types <code class="docutils literal notranslate"><span class="pre">/prefix</span></code>, <em>suggestions</em> (a container above the input)
+is populated with the matching commands from the merged catalogue;
+clicking one inserts <code class="docutils literal notranslate"><span class="pre">/name</span></code> followed by a space into the input.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ctx</strong> – The page context (its <code class="docutils literal notranslate"><span class="pre">command_catalogue</span></code> backs the list).</p></li>
+<li><p><strong>text</strong> – The chat <code class="docutils literal notranslate"><span class="pre">ui.textarea</span></code> element.</p></li>
+<li><p><strong>suggestions</strong> – The container element the suggestions render into.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.web.nicegui.components.commands.build_catalogue">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.web.nicegui.components.commands.</span></span><span class="sig-name descname"><span class="pre">build_catalogue</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">server_commands</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="commands.html#klea_utils.commands.common.CommandRegistry" title="klea_utils.commands.common.CommandRegistry"><span class="pre">CommandRegistry</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/web/nicegui/components/commands.html#build_catalogue"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.web.nicegui.components.commands.build_catalogue" title="Link to this definition">¶</a></dt>
+<dd><p>Merge the client commands with the server catalogue (ADR-0047).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>server_commands</strong> – Command metadata dicts from <code class="docutils literal notranslate"><span class="pre">GET</span> <span class="pre">/commands</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The merged registry (client + server).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.web.nicegui.components.commands.client_commands">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.web.nicegui.components.commands.</span></span><span class="sig-name descname"><span class="pre">client_commands</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="commands.html#klea_utils.commands.common.CommandRegistry" title="klea_utils.commands.common.CommandRegistry"><span class="pre">CommandRegistry</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/web/nicegui/components/commands.html#client_commands"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.web.nicegui.components.commands.client_commands" title="Link to this definition">¶</a></dt>
+<dd><p>Return the web frontend’s own client-side commands (ADR-0047).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A registry holding the commands the browser handles itself.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.web.nicegui.components.commands.handle_command">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.web.nicegui.components.commands.</span></span><span class="sig-name descname"><span class="pre">handle_command</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ctx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.context.PageContext" title="klea_utils.ui.web.nicegui.components.context.PageContext"><span class="pre">PageContext</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/web/nicegui/components/commands.html#handle_command"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.web.nicegui.components.commands.handle_command" title="Link to this definition">¶</a></dt>
+<dd><p>Handle <em>text</em> as a command if it is one; return <code class="docutils literal notranslate"><span class="pre">True</span></code> when consumed.</p>
+<p>A client command (or an unknown / parse-error command) is handled locally
+and rendered as a <code class="docutils literal notranslate"><span class="pre">system</span></code> bubble.  A <strong>server</strong> command returns <code class="docutils literal notranslate"><span class="pre">False</span></code>
+so the caller forwards it as the query; a non-command also returns
+<code class="docutils literal notranslate"><span class="pre">False</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ctx</strong> – The page context.</p></li>
+<li><p><strong>text</strong> – The raw input.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">True</span></code> when the input was consumed as a client command.</p>
+</dd>
+</dl>
+</dd></dl>
+
 <p id="module-klea_utils.ui.web.nicegui.components.chat_bubble">Chat message block widget.</p>
 <p>File: klea_utils/ui/web/nicegui/components/chat_bubble.py</p>
 <p>Copyright 2026 Ankur Sinha
@@ -2216,6 +2710,32 @@ which turns the wrapped URLs into clickable anchors.</p>
 <li><a class="reference internal" href="#klea_utils.ui.export.export_filename"><code class="docutils literal notranslate"><span class="pre">export_filename()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.export.export_timestamp"><code class="docutils literal notranslate"><span class="pre">export_timestamp()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.export.transcript_markdown"><code class="docutils literal notranslate"><span class="pre">transcript_markdown()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.identity.USER_ID_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">USER_ID_ENV_VAR</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.identity.is_loopback_url"><code class="docutils literal notranslate"><span class="pre">is_loopback_url()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.identity.persisted_user_id"><code class="docutils literal notranslate"><span class="pre">persisted_user_id()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.identity.resolve_user_id"><code class="docutils literal notranslate"><span class="pre">resolve_user_id()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.CatalogueCache"><code class="docutils literal notranslate"><span class="pre">CatalogueCache</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.CatalogueCache.load_models"><code class="docutils literal notranslate"><span class="pre">CatalogueCache.load_models()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.CatalogueCache.models_for"><code class="docutils literal notranslate"><span class="pre">CatalogueCache.models_for()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.CatalogueCache.providers"><code class="docutils literal notranslate"><span class="pre">CatalogueCache.providers()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.ModelOrigin"><code class="docutils literal notranslate"><span class="pre">ModelOrigin</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.SaveOutcome"><code class="docutils literal notranslate"><span class="pre">SaveOutcome</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.TONE_MUTED"><code class="docutils literal notranslate"><span class="pre">TONE_MUTED</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.build_model_string"><code class="docutils literal notranslate"><span class="pre">build_model_string()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.changed_roles"><code class="docutils literal notranslate"><span class="pre">changed_roles()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.clear_role"><code class="docutils literal notranslate"><span class="pre">clear_role()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.credential_display"><code class="docutils literal notranslate"><span class="pre">credential_display()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.live_credential"><code class="docutils literal notranslate"><span class="pre">live_credential()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.live_info"><code class="docutils literal notranslate"><span class="pre">live_info()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.parse_model_origin"><code class="docutils literal notranslate"><span class="pre">parse_model_origin()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.required_credential_scopes"><code class="docutils literal notranslate"><span class="pre">required_credential_scopes()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.role_label"><code class="docutils literal notranslate"><span class="pre">role_label()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.save_roles"><code class="docutils literal notranslate"><span class="pre">save_roles()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.model_config.use_for_all_targets"><code class="docutils literal notranslate"><span class="pre">use_for_all_targets()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.exit_confirm.EXIT_CONFIRM_MESSAGE"><code class="docutils literal notranslate"><span class="pre">EXIT_CONFIRM_MESSAGE</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.exit_confirm.EXIT_CONFIRM_TITLE"><code class="docutils literal notranslate"><span class="pre">EXIT_CONFIRM_TITLE</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.parser.make_parser"><code class="docutils literal notranslate"><span class="pre">make_parser()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.entry.app_name_from_argv"><code class="docutils literal notranslate"><span class="pre">app_name_from_argv()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.entry.default_storage_env"><code class="docutils literal notranslate"><span class="pre">default_storage_env()</span></code></a></li>
@@ -2270,6 +2790,11 @@ which turns the wrapped URLs into clickable anchors.</p>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.choice.DEFAULT_GROUP_WIDTH"><code class="docutils literal notranslate"><span class="pre">DEFAULT_GROUP_WIDTH</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.choice.DEFAULT_LABEL_WIDTH"><code class="docutils literal notranslate"><span class="pre">DEFAULT_LABEL_WIDTH</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.choice.choice_buttons"><code class="docutils literal notranslate"><span class="pre">choice_buttons()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.commands.WEB_CAPABILITIES"><code class="docutils literal notranslate"><span class="pre">WEB_CAPABILITIES</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.commands.attach_autocomplete"><code class="docutils literal notranslate"><span class="pre">attach_autocomplete()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.commands.build_catalogue"><code class="docutils literal notranslate"><span class="pre">build_catalogue()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.commands.client_commands"><code class="docutils literal notranslate"><span class="pre">client_commands()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.commands.handle_command"><code class="docutils literal notranslate"><span class="pre">handle_command()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.chat_bubble.ChatBubble"><code class="docutils literal notranslate"><span class="pre">ChatBubble</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.chat_area.attach_chat_area"><code class="docutils literal notranslate"><span class="pre">attach_chat_area()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.web.nicegui.components.chat_area.render_turn_status"><code class="docutils literal notranslate"><span class="pre">render_turn_status()</span></code></a></li>

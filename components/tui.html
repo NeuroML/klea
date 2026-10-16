@@ -326,12 +326,14 @@ extra (<code class="docutils literal notranslate"><span class="pre">pip</span> <
 to the frontend name (for example <code class="docutils literal notranslate"><span class="pre">klea-agent-tui</span></code>) so it is identifiable in
 <code class="docutils literal notranslate"><span class="pre">ps</span></code>/<code class="docutils literal notranslate"><span class="pre">top</span></code> instead of <code class="docutils literal notranslate"><span class="pre">python</span></code>.</p>
 <p>The layout is a horizontal split: a chat panel on the left and a full-height
-status panel on the right.</p>
+status panel on the right.  The title and server line, and the active chat’s
+name and id, sit at the top of the status panel.</p>
 <section id="chat-panel">
 <h2>Chat panel<a class="headerlink" href="#chat-panel" title="Link to this heading">¶</a></h2>
-<p>The left panel holds the title and server line, a transcript/inspector
-toggle, the transcript, the live turn-status line, and the input.  Answers
-stream in as they are generated.  The input soft-wraps and grows with the
+<p>The left panel holds a transcript/inspector toggle, the transcript, the live
+turn-status line, and the input.  The answer appears when the turn completes
+(there is no live token typing; see <a class="reference internal" href="#limitations">Limitations</a>).  The input soft-wraps and
+grows with the
 text (up to a cap, then it scrolls); the cursor sits on the bottom line and
 the box grows upward.  <kbd class="kbd docutils literal notranslate">Enter</kbd> sends and <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">J</kbd> inserts a newline
 (<kbd class="kbd docutils literal notranslate">Shift</kbd>+<kbd class="kbd docutils literal notranslate">Enter</kbd> also works on terminals that report the shifted key).</p>
@@ -345,10 +347,24 @@ expand or collapse.  Press <kbd class="kbd docutils literal notranslate">Ctrl</k
 panel to the <strong>inspector</strong> view: the per-step trace behind
 the latest answer (each pipeline step’s heading, timing, summary and raw
 structured details), grouped per query.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="../_images/klea-tui-inspect.png"><img alt="Klea terminal interface inspector view showing the per-step pipeline trace" src="../_images/klea-tui-inspect.png" style="width: 80%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The inspector view: the per-step trace behind the latest answer.</span><a class="headerlink" href="#id1" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
 <p>A failed run that can be recovered shows a <strong>Retry</strong> hint; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
 resumes it from its checkpoint, re-running only the failed step.  If the
 agent pauses for your input, a review / input / permission dialog opens (see
 below) and the input is held until you answer or cancel.</p>
+<figure class="align-center" id="id2">
+<a class="reference internal image-reference" href="../_images/klea-tui-chat.png"><img alt="Klea terminal interface chat view showing the transcript and the status panel" src="../_images/klea-tui-chat.png" style="width: 80%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">The chat view: the transcript, the live turn-status line and the status panel.</span><a class="headerlink" href="#id2" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
 </section>
 <section id="keys">
 <h2>Keys<a class="headerlink" href="#keys" title="Link to this heading">¶</a></h2>
@@ -440,7 +456,8 @@ approval unblocks, with <strong>Approve</strong> / <strong>Request changes</stro
 <li><p>a plan blocked on a missing fact shows one field per question;</p></li>
 <li><p>a tool call that would touch a path outside the project directory (or a
 sensitive file inside it) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice
-per path.</p></li>
+per path (plus <strong>Not a path</strong> when the value was only guessed by a heuristic,
+so the gate may have mistaken a non-path value for a path).</p></li>
 </ul>
 <p>The dialog scrolls when its content (a long plan or many paths) is taller than
 the box, so the action buttons stay reachable.  Answering or requesting a
@@ -449,13 +466,16 @@ if the chat is reloaded.</p>
 </section>
 <section id="status-panel">
 <h2>Status panel<a class="headerlink" href="#status-panel" title="Link to this heading">¶</a></h2>
-<p>The right panel summarises the current chat: its <strong>name and id</strong>, then, in the
-agent, the operating <strong>mode</strong> and tool <strong>access</strong> selectors (choosing one sends
-<code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code> to the agent), the chat’s selected <strong>models</strong> (a
-bulleted list, one role per line, with a warning when a required model or API
-key is still missing), the running token totals, and the per-step state
-sections that stream while the graph runs.  The groups are spaced apart, and
-the state sections sit on the pane’s own background.</p>
+<p>The right panel summarises the current chat: its title and server line, its
+<strong>name and id</strong>, and, in the agent, a read-only <strong>mode</strong> and tool <strong>access</strong>
+line (change them with <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or <code class="docutils literal notranslate"><span class="pre">/access</span></code>; there are no in-panel
+selectors) plus a read-only <strong>project root</strong>.  Below that are the chat’s
+selected <strong>models</strong> – a collapsible group (collapsed by default) listing one
+role per line with its provider, and a warning when a required model or API key
+is still missing – the running token totals (thousands-separated), and the
+per-step state sections that stream while the graph runs.  Everything down to
+the token totals stays fixed while only the state sections scroll.  The groups
+are spaced apart, and the state sections sit on the pane’s own background.</p>
 </section>
 <section id="identity">
 <h2>Identity<a class="headerlink" href="#identity" title="Link to this heading">¶</a></h2>
@@ -472,6 +492,11 @@ fallback.</p></li>
 <li><p>No live token typing (answers appear on completion of the turn).</p></li>
 <li><p>No always-visible session sidebar; use the picker (<kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd>).</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The screenshots on this page are captured from a local deployment and
+may lag the latest interface.</p>
+</div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
 <ul class="simple">

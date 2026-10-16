@@ -332,8 +332,13 @@ the chat.</p>
 menu); more are planned in both groups.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Session commands are available in the agent (<code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">web</span></code> / <code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">tui</span></code>
-/ <code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">cli</span></code>).  The RAG frontends do not expose any yet.</p>
+<p>Client commands are shared by the web UI and the TUI.  The lightweight
+<code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">cli</span></code> REPL has no client-command handling, so only server commands
+work there.  The TUI offers <code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/exit</span></code>; the web UI also offers <code class="docutils literal notranslate"><span class="pre">/new</span></code>, <code class="docutils literal notranslate"><span class="pre">/rename</span></code>, <code class="docutils literal notranslate"><span class="pre">/export</span></code> and
+the <code class="docutils literal notranslate"><span class="pre">/sessions</span></code> verbs.  Server commands depend on the app’s graph: the
+agent registers <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, <code class="docutils literal notranslate"><span class="pre">/access</span></code>, <code class="docutils literal notranslate"><span class="pre">/cwd</span></code>, <code class="docutils literal notranslate"><span class="pre">/init</span></code> and
+<code class="docutils literal notranslate"><span class="pre">/compact</span></code>, while the RAG graphs register none yet.</p>
 </div>
 <section id="ui-commands-client">
 <h2>UI commands (client)<a class="headerlink" href="#ui-commands-client" title="Link to this heading">¶</a></h2>
@@ -343,41 +348,51 @@ menu); more are planned in both groups.</p>
 <thead>
 <tr class="row-odd"><th class="head"><p>Command</p></th>
 <th class="head"><p>Usage</p></th>
+<th class="head"><p>Where</p></th>
 <th class="head"><p>Description</p></th>
 </tr>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/help</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/help</span> <span class="pre">[command]</span></code></p></td>
+<td><p>web, TUI</p></td>
 <td><p>List the available commands, or show one command’s usage.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/new</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/new</span></code></p></td>
+<td><p>web</p></td>
 <td><p>Start a new session.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/rename</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/rename</span> <span class="pre">&lt;name&gt;</span></code></p></td>
+<td><p>web</p></td>
 <td><p>Rename the current session.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/model</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/model</span></code></p></td>
+<td><p>web, TUI</p></td>
 <td><p>Open the model and API-key configuration.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/export</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/export</span></code></p></td>
+<td><p>web</p></td>
 <td><p>Download the session transcript as Markdown.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/sessions</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">[list]</span></code> / <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">switch</span> <span class="pre">&lt;n|id&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">delete</span> <span class="pre">&lt;n|id&gt;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/sessions</span></code> (TUI picker); <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">[list]</span></code> /
+<code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">switch</span> <span class="pre">&lt;n|id&gt;</span></code> / <code class="docutils literal notranslate"><span class="pre">/sessions</span> <span class="pre">delete</span> <span class="pre">&lt;n|id&gt;</span></code> (web)</p></td>
+<td><p>web, TUI</p></td>
 <td><p>List the sessions (pinned first), switch the active session by number
-or id, or delete a session (with confirmation).</p></td>
+or id, or delete a session (with confirmation).  The TUI opens a picker
+that does all of this.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/exit</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/exit</span></code></p></td>
+<td><p>web, TUI</p></td>
 <td><p>Stop the frontend.  In the web UI this stops the server it launched and
-closes any active runs; in the TUI it stops the active run, then quits
-(the command form of <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd>).  The web header also has an exit
-button that confirms first.</p></td>
+closes any active runs; in the TUI it stops any active run and quits.
+The web header’s exit button and the TUI’s <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd> ask to confirm
+first; the <code class="docutils literal notranslate"><span class="pre">/exit</span></code> command does not.</p></td>
 </tr>
 </tbody>
 </table>
@@ -427,9 +442,9 @@ future sessions pick up its conventions (Agent, full access).</p></td>
 </tbody>
 </table>
 </div>
-<p><code class="docutils literal notranslate"><span class="pre">/init</span></code> writes <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> in the project directory, so it needs the
-<code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level; <code class="docutils literal notranslate"><span class="pre">/compact</span></code> is offered only when conversation
-memory is enabled (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">/init</span></code> writes <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> in the project directory, so its file-write
+needs the <code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level; <code class="docutils literal notranslate"><span class="pre">/compact</span></code> is offered only when
+conversation memory is enabled (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>).</p>
 </section>
 <section id="disabling-commands">
 <h2>Disabling commands<a class="headerlink" href="#disabling-commands" title="Link to this heading">¶</a></h2>

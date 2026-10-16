@@ -29,6 +29,18 @@ stream-event reducer, and transcript export.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.ui.identity
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.model_config
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.exit_confirm
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.ui.web.nicegui.parser
    :members:
    :show-inheritance:
@@ -65,6 +77,10 @@ Shared components
    :show-inheritance:
 
 .. automodule:: klea_utils.ui.web.nicegui.components.choice
+   :members:
+   :show-inheritance:
+
+.. automodule:: klea_utils.ui.web.nicegui.components.commands
    :members:
    :show-inheritance:
 

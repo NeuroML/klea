@@ -785,7 +785,7 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> (RAG server / graph)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-rag/klea-rag.log</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> terminal client (REPL)</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> terminal clients (<code class="docutils literal notranslate"><span class="pre">cli</span></code> / <code class="docutils literal notranslate"><span class="pre">tui</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-rag-tui/klea-rag-tui.log</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> web client</p></td>
@@ -794,7 +794,7 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea-agent</span></code> (Agent server / graph)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-agent/klea-agent.log</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> terminal client (REPL)</p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> terminal clients (<code class="docutils literal notranslate"><span class="pre">cli</span></code> / <code class="docutils literal notranslate"><span class="pre">tui</span></code>)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">klea-agent-tui/klea-agent-tui.log</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">klea</span></code> web client</p></td>
@@ -807,9 +807,8 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
 </table>
 </div>
 <p>The <code class="docutils literal notranslate"><span class="pre">cli</span></code> subcommand’s terminal client is a lightweight REPL for quick
-testing, not the TUI.  It currently uses the <code class="docutils literal notranslate"><span class="pre">-tui</span></code> process identity; the
-planned full Textual TUI will take that identity over and the REPL will be
-dropped.</p>
+testing; the full terminal interface is <code class="docutils literal notranslate"><span class="pre">tui</span></code> (see <a class="reference internal" href="components/tui.html"><span class="doc">Terminal interface</span></a>).
+Both share the <code class="docutils literal notranslate"><span class="pre">-tui</span></code> process identity and log file.</p>
 <p><code class="docutils literal notranslate"><span class="pre">klea-stores-create</span></code> logs to the console only.</p>
 <p>See <a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting</span></a> for the full diagnostic checklist (name/path
 mismatches, embedding dimension, <code class="docutils literal notranslate"><span class="pre">chroma.sqlite3</span></code> location, OCR, metadata

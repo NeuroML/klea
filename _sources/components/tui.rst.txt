@@ -13,14 +13,16 @@ to the frontend name (for example ``klea-agent-tui``) so it is identifiable in
 ``ps``/``top`` instead of ``python``.
 
 The layout is a horizontal split: a chat panel on the left and a full-height
-status panel on the right.
+status panel on the right.  The title and server line, and the active chat's
+name and id, sit at the top of the status panel.
 
 Chat panel
 ----------
 
-The left panel holds the title and server line, a transcript/inspector
-toggle, the transcript, the live turn-status line, and the input.  Answers
-stream in as they are generated.  The input soft-wraps and grows with the
+The left panel holds a transcript/inspector toggle, the transcript, the live
+turn-status line, and the input.  The answer appears when the turn completes
+(there is no live token typing; see `Limitations`_).  The input soft-wraps and
+grows with the
 text (up to a cap, then it scrolls); the cursor sits on the bottom line and
 the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
 (:kbd:`Shift+Enter` also works on terminals that report the shifted key).
@@ -36,10 +38,24 @@ panel to the **inspector** view: the per-step trace behind
 the latest answer (each pipeline step's heading, timing, summary and raw
 structured details), grouped per query.
 
+.. figure:: /_static/images/klea-tui-inspect.png
+   :alt: Klea terminal interface inspector view showing the per-step pipeline trace
+   :width: 80%
+   :align: center
+
+   The inspector view: the per-step trace behind the latest answer.
+
 A failed run that can be recovered shows a **Retry** hint; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
 agent pauses for your input, a review / input / permission dialog opens (see
 below) and the input is held until you answer or cancel.
+
+.. figure:: /_static/images/klea-tui-chat.png
+   :alt: Klea terminal interface chat view showing the transcript and the status panel
+   :width: 80%
+   :align: center
+
+   The chat view: the transcript, the live turn-status line and the status panel.
 
 Keys
 ----
@@ -122,7 +138,8 @@ When the agent needs input, a modal opens over the screen:
 * a plan blocked on a missing fact shows one field per question;
 * a tool call that would touch a path outside the project directory (or a
   sensitive file inside it) shows one **Once** / **Session** / **Deny** choice
-  per path.
+  per path (plus **Not a path** when the value was only guessed by a heuristic,
+  so the gate may have mistaken a non-path value for a path).
 
 The dialog scrolls when its content (a long plan or many paths) is taller than
 the box, so the action buttons stay reachable.  Answering or requesting a
@@ -132,13 +149,16 @@ if the chat is reloaded.
 Status panel
 ------------
 
-The right panel summarises the current chat: its **name and id**, then, in the
-agent, the operating **mode** and tool **access** selectors (choosing one sends
-``/mode`` or ``/access`` to the agent), the chat's selected **models** (a
-bulleted list, one role per line, with a warning when a required model or API
-key is still missing), the running token totals, and the per-step state
-sections that stream while the graph runs.  The groups are spaced apart, and
-the state sections sit on the pane's own background.
+The right panel summarises the current chat: its title and server line, its
+**name and id**, and, in the agent, a read-only **mode** and tool **access**
+line (change them with ``/mode`` or ``/access``; there are no in-panel
+selectors) plus a read-only **project root**.  Below that are the chat's
+selected **models** -- a collapsible group (collapsed by default) listing one
+role per line with its provider, and a warning when a required model or API key
+is still missing -- the running token totals (thousands-separated), and the
+per-step state sections that stream while the graph runs.  Everything down to
+the token totals stays fixed while only the state sections scroll.  The groups
+are spaced apart, and the state sections sit on the pane's own background.
 
 Identity
 --------
@@ -155,6 +175,11 @@ Limitations
   fallback.
 * No live token typing (answers appear on completion of the turn).
 * No always-visible session sidebar; use the picker (:kbd:`Ctrl+S`).
+
+.. note::
+
+   The screenshots on this page are captured from a local deployment and
+   may lag the latest interface.
 
 .. seealso::
 
