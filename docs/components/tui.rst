@@ -69,7 +69,8 @@ Sessions
 
 The TUI shows one active session at a time.  :kbd:`Ctrl+S` (or ``/sessions``)
 opens a picker listing the server's chats; choosing one switches to it, and
-the picker can also **rename** or **delete** a chat.  Switching is refused
+the picker can also **rename** or **delete** a chat (deleting asks for
+confirmation first).  Switching is refused
 while a run is streaming.  On launch, ``--continue`` opens the most recently
 updated chat and ``--resume <chat_id>`` opens a specific one.
 

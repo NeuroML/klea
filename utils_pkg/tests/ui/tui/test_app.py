@@ -24,7 +24,11 @@ from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
-from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
+from klea_utils.ui.tui.components.sessions import (
+    SessionDelete,
+    SessionPicker,
+    SessionRename,
+)
 from textual.containers import Horizontal
 from textual.widgets import (
     Button,
@@ -412,10 +416,39 @@ async def test_session_picker_delete_inactive(fake_backend, make_app):
         await pilot.pause()
         assert isinstance(app.screen, SessionPicker)
         app.screen.query_one("#sessions-delete", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, SessionDelete)
+        app.screen.query_one("#delete-confirm", Button).press()
         await _settle(pilot, app)
 
     assert fake_backend.deletes == ["c2"]
     assert ":c2" not in chats
+    assert app.ctx.chat_id == "c1"
+
+
+async def test_session_delete_cancelled_keeps_chat(fake_backend, make_app):
+    """Cancelling the delete confirmation keeps the session."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        app.screen.query_one("#sessions-delete", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, SessionDelete)
+        app.screen.query_one("#delete-cancel", Button).press()
+        await pilot.pause()
+        # Cancelling returns to the picker; nothing was deleted.
+        assert isinstance(app.screen, SessionPicker)
+
+    assert fake_backend.deletes == []
     assert app.ctx.chat_id == "c1"
 
 
@@ -435,6 +468,9 @@ async def test_session_delete_active_switches(fake_backend, make_app):
         await pilot.pause()
         assert isinstance(app.screen, SessionPicker)
         app.screen.query_one("#sessions-delete", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, SessionDelete)
+        app.screen.query_one("#delete-confirm", Button).press()
         await _settle(pilot, app)
 
     assert fake_backend.deletes == ["c2"]

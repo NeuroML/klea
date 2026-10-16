@@ -33,8 +33,9 @@ logger = logging.getLogger(__name__)
 class SessionAction:
     """The picker's outcome.
 
-    :param kind: ``"switch"``, ``"rename"`` or ``"cancel"``.
-    :param chat_id: The chosen chat id (for ``"switch"``/``"rename"``).
+    :param kind: ``"switch"``, ``"rename"``, ``"delete"`` or ``"cancel"``.
+    :param chat_id: The chosen chat id (for ``"switch"``/``"rename"``/
+        ``"delete"``).
     :param title: The new title (for ``"rename"``).
     """
 
@@ -173,14 +174,103 @@ class SessionPicker(ModalScreen[SessionAction]):
             self.dismiss(SessionAction("rename", chat_id=chat_id, title=new_title))
 
     def _delete_highlighted(self) -> None:
-        """Dismiss with a delete action for the highlighted session."""
+        """Confirm, then dismiss with a delete action for the session.
+
+        Deleting is irreversible, so it is gated behind a confirmation modal
+        (mirroring the web UI); only a confirmed delete dismisses the picker.
+        """
         chat_id = self._highlighted_id()
-        if chat_id is not None:
-            self.dismiss(SessionAction("delete", chat_id=chat_id))
+        if chat_id is None:
+            return
+        title = next(
+            (
+                str(session.get("title") or session.get("chat_id") or "Untitled")
+                for session in self._sessions
+                if str(session.get("chat_id")) == chat_id
+            ),
+            "this session",
+        )
+        self.app.push_screen(
+            SessionDelete(title),
+            callback=lambda confirmed: (
+                self._finish_delete(chat_id) if confirmed else None
+            ),
+        )
+
+    def _finish_delete(self, chat_id: str) -> None:
+        """Dismiss with a delete action once the user confirms."""
+        self.dismiss(SessionAction("delete", chat_id=chat_id))
 
     def action_cancel(self) -> None:
         """Dismiss without switching (Escape or Cancel)."""
         self.dismiss(SessionAction("cancel"))
+
+
+class SessionDelete(ModalScreen[bool]):
+    """A confirmation modal for deleting a session (``True`` to delete)."""
+
+    BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
+
+    DEFAULT_CSS = """
+    SessionDelete {
+        align: center middle;
+    }
+    #delete-dialog {
+        width: 60%;
+        height: auto;
+        border: round $error;
+        padding: 1 2;
+        background: $surface;
+    }
+    #delete-title {
+        text-style: bold;
+        height: 1;
+    }
+    #delete-body {
+        height: auto;
+        padding-bottom: 1;
+    }
+    """
+
+    def __init__(self, title: str) -> None:
+        """Build the confirmation for the session *title*.
+
+        :param title: The session's display title.
+        """
+        super().__init__()
+        self._title = title
+
+    def compose(self) -> ComposeResult:
+        """Compose the warning and Cancel / Delete."""
+        with Vertical(id="delete-dialog"):
+            yield Static("Delete session?", id="delete-title")
+            yield Static(
+                f"This will permanently delete the session {self._title!r} "
+                "and its messages. This cannot be undone.",
+                id="delete-body",
+                markup=False,
+            )
+            with Horizontal():
+                yield Button("Cancel", id="delete-cancel")
+                yield Button("Delete", id="delete-confirm", variant="error")
+
+    def on_mount(self) -> None:
+        """Focus Cancel, so a stray Enter does not delete."""
+        self.query_one("#delete-cancel", Button).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Confirm or cancel the deletion.
+
+        :param event: The ``Button.Pressed`` event.
+        """
+        if event.button.id == "delete-confirm":
+            self.dismiss(True)
+        elif event.button.id == "delete-cancel":
+            self.action_cancel()
+
+    def action_cancel(self) -> None:
+        """Dismiss without deleting (Escape or Cancel)."""
+        self.dismiss(False)
 
 
 class SessionRename(ModalScreen[str | None]):

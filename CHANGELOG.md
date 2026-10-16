@@ -128,6 +128,7 @@
 - Terminal UI: the query input no longer draws a box; it uses the theme's raised surface (`$boost`) and sits a row clear of the key hints.
 - Terminal UI: `Ctrl+I` (which a terminal sends as `Tab`) now toggles the transcript/inspector view; previously the `Screen` focus binding swallowed it, so the documented shortcut did nothing.
 - Terminal UI: the model dialog's per-role panels size to their content instead of ballooning (the per-role button row was a `1fr` container filling the panel), and the query input has a few-row minimum height.
+- Terminal UI: deleting a session from the picker now asks for confirmation before it is removed, matching the web UI.
 
 ### Dependencies
 
