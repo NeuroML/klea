@@ -37,8 +37,9 @@ class QueryInput(Vertical):
     The frame keeps a minimum of three rows and grows with the text; because
     the entry is aligned to the bottom, the cursor starts on the bottom line
     and the box grows upward (the web composer's behaviour).  The background
-    lives on the frame (``$boost``, theme-aware) rather than as a border, so
-    the whole padded area reads as the input surface.
+    lives on the frame (``$primary 15%``, theme-aware, matching the user
+    transcript blocks) rather than as a border, so the whole padded area reads
+    as the input surface.
     """
 
     DEFAULT_CSS = """
@@ -46,7 +47,7 @@ class QueryInput(Vertical):
         height: auto;
         min-height: 3;
         max-height: 8;
-        background: $boost;
+        background: $primary 15%;
         align: left bottom;
         margin-bottom: 1;
     }
