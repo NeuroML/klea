@@ -16,12 +16,12 @@ The layout is a horizontal split: a chat panel on the left and a full-height
 status panel on the right.  The title and server line, and the active chat's
 name and id, sit at the top of the status panel.
 
-Chat panel
-----------
+Chat pane
+---------
 
 The left panel holds a transcript/inspector toggle, the transcript, the live
 turn-status line, and the input.  The answer appears when the turn completes
-(there is no live token typing; see `Limitations`_).  The input soft-wraps and
+(there is no live token typing).  The input soft-wraps and
 grows with the
 text (up to a cap, then it scrolls); the cursor sits on the bottom line and
 the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
@@ -32,18 +32,7 @@ for the agent's replies, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
-expand or collapse.  Press :kbd:`Ctrl+I`
-(or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
-panel to the **inspector** view: the per-step trace behind
-the latest answer (each pipeline step's heading, timing, summary and raw
-structured details), grouped per query.
-
-.. figure:: /_static/images/klea-tui-inspect.png
-   :alt: Klea terminal interface inspector view showing the per-step pipeline trace
-   :width: 80%
-   :align: center
-
-   The inspector view: the per-step trace behind the latest answer.
+expand or collapse.
 
 A failed run that can be recovered shows a **Retry** hint; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
@@ -56,6 +45,36 @@ below) and the input is held until you answer or cancel.
    :align: center
 
    The chat view: the transcript, the live turn-status line and the status panel.
+
+Status pane
+-----------
+
+The right panel summarises the current chat: its title and server line, its
+**name and id**, and, in the agent, a read-only **mode** and tool **access**
+line (change them with ``/mode`` or ``/access``; there are no in-panel
+selectors) plus a read-only **project root**.  Below that are the chat's
+selected **models** -- a collapsible group (collapsed by default) listing one
+role per line with its provider, and a warning when a required model or API key
+is still missing -- the running token totals (thousands-separated), and the
+per-step state sections that stream while the graph runs.  Everything down to
+the token totals stays fixed while only the state sections scroll.  The groups
+are spaced apart, and the state sections sit on the pane's own background.
+
+Inspection pane
+---------------
+
+Press :kbd:`Ctrl+I`
+(or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
+panel to the **inspector** view: the per-step trace behind
+the latest answer (each pipeline step's heading, timing, summary and raw
+structured details), grouped per query.
+
+.. figure:: /_static/images/klea-tui-inspect.png
+   :alt: Klea terminal interface inspector view showing the per-step pipeline trace
+   :width: 80%
+   :align: center
+
+   The inspector view: the per-step trace behind the latest answer.
 
 Keys
 ----
@@ -146,20 +165,6 @@ the box, so the action buttons stay reachable.  Answering or requesting a
 revision resumes the same run with its state intact; a pending ask is re-shown
 if the chat is reloaded.
 
-Status panel
-------------
-
-The right panel summarises the current chat: its title and server line, its
-**name and id**, and, in the agent, a read-only **mode** and tool **access**
-line (change them with ``/mode`` or ``/access``; there are no in-panel
-selectors) plus a read-only **project root**.  Below that are the chat's
-selected **models** -- a collapsible group (collapsed by default) listing one
-role per line with its provider, and a warning when a required model or API key
-is still missing -- the running token totals (thousands-separated), and the
-per-step state sections that stream while the graph runs.  Everything down to
-the token totals stays fixed while only the state sections scroll.  The groups
-are spaced apart, and the state sections sit on the pane's own background.
-
 Identity
 --------
 
@@ -167,14 +172,6 @@ The user id resolves in one place: ``--user-id``, else ``KLEA_USER_ID``, else
 a persisted TUI-local UUID.  The local UUID is sent to the server only when it
 is a loopback address, so a local TUI does not accidentally share an identity
 with a remote deployment.
-
-Limitations
------------
-
-* No inline media: images and other rich MIME types degrade to a text
-  fallback.
-* No live token typing (answers appear on completion of the turn).
-* No always-visible session sidebar; use the picker (:kbd:`Ctrl+S`).
 
 .. note::
 

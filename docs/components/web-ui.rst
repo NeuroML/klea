@@ -11,8 +11,8 @@ panel with two tabs (**chat** and **inspect**), and a right drawer with
 per-chat state (the *status pane*).  A single footer line carries the
 disclaimer and the "Powered by" note.
 
-Chat
-----
+Chat pane
+---------
 
 The chat tab is where questions are asked.  Each answer appears when the
 turn completes (there is no live token typing) and is grounded in the
@@ -25,8 +25,7 @@ agent makes appear as their own diff blocks before the reply.  Tool
 results (file-edit diffs, command output) render as compact blocks
 collapsed to a one-line preview that expands on click; an errored tool
 block's title is shown in red.  Long lines wrap, and the input box sits at
-the bottom and grows upward with its content.  Use the left drawer to start a
-new chat or switch between existing ones, and the status pane to choose
+the bottom and grows upward with its content.  Use the status pane to choose
 the model for the chat.
 
 Send stays disabled until the models a run needs (and any required API
@@ -34,31 +33,6 @@ keys) are configured; the first run opens a **Choose models** prompt to set
 them.  If a run fails with a recoverable error, an inline **Retry** action
 resumes it from its checkpoint -- re-running only the failed step -- instead
 of starting the query over.
-
-In the agent, a run can pause for your input.  The ask appears in a per-turn
-region under the transcript (the *turn status* region, distinct from the
-right-drawer status pane): a plan awaiting review shows the plan with
-**Approve** / **Request changes** / **Cancel** controls, a plan blocked on a
-missing fact shows one field per question, and a tool call that would touch a
-path outside the project directory (or a sensitive file inside it, such as
-``.env``) shows one **Once** / **Session** / **Deny** choice per path.  The
-main input box is disabled until you answer or cancel, and reloading the page
-re-shows a pending ask.  Answering (or requesting a revision) resumes the
-same run with its state intact.
-
-Type ``/`` in the input for a command menu.  ``/help`` lists the available
-commands: the browser fetches the server's command catalogue and merges it
-with the commands it handles itself.  A client-side command (such as
-``/help``) runs in the browser; a server-side command (such as ``/mode``, the
-agent's operating mode) is sent to the agent.  An unknown command is reported
-locally and never sent.  See :doc:`commands` for the list.
-
-``klea web`` opens the interface in your default browser on launch (pass
-``--no-open`` on a headless or remote host), and accepts ``--continue`` or
-``--resume <chat_id>`` to open the most recently updated or a specific session
-on load.  ``/exit`` -- or the header's power button, which confirms first --
-stops the server this client launched, closes any active runs, and closes the
-browser tab on a best-effort basis.
 
 .. figure:: /_static/images/20260916-klea-rag-chat.png
    :alt: Klea RAG web interface chat tab showing a question and a cited answer
@@ -68,8 +42,18 @@ browser tab on a best-effort basis.
    The chat tab: ask a question and receive a streamed, source-backed
    answer.
 
-Inspect
--------
+Status pane
+-----------
+
+The right drawer summarises the current chat: its name, the model used
+for each role (with a settings button to change them), running token
+totals, and the per-step state sections that stream while the graph runs.
+Tool calls appear here as they run, marked ``running`` and replaced by
+``ok``/``error`` when the round ends.  In the agent, the operating mode and
+tool access level selectors appear here as well.
+
+Inspection pane
+---------------
 
 The inspect tab is the transparency view.  It updates live as the graph
 runs: each pipeline step appends an entry as it finishes -- for example
@@ -91,15 +75,29 @@ pipeline arrived at its response.
 
    The inspect tab: the per-step trace behind the latest answer.
 
-Status pane
------------
+Sessions
+--------
 
-The right drawer summarises the current chat: its name, the model used
-for each role (with a settings button to change them), running token
-totals, and the per-step state sections that stream while the graph runs.
-Tool calls appear here as they run, marked ``running`` and replaced by
-``ok``/``error`` when the round ends.  In the agent, the operating mode and
-tool access level selectors appear here as well.
+Use the left drawer to start a new chat or switch between existing ones.
+``klea web`` opens the interface in your default browser on launch (pass
+``--no-open`` on a headless or remote host), and accepts ``--continue`` or
+``--resume <chat_id>`` to open the most recently updated or a specific session
+on load.  ``/exit`` -- or the header's power button, which confirms first --
+stops the server this client launched, closes any active runs, and closes the
+browser tab on a best-effort basis.
+
+Commands
+--------
+
+Type ``/`` in the input for a command menu.  ``/help`` lists the available
+commands: the browser fetches the server's command catalogue and merges it
+with the commands it handles itself.  A client-side command (such as
+``/help``) runs in the browser; a server-side command (such as ``/mode``, the
+agent's operating mode) is sent to the agent.  An unknown command is reported
+locally and never sent.  See :doc:`commands` for the list.
+
+Models and API keys
+-------------------
 
 The settings button opens the model dialog.  Each role's model is chosen
 with three fields -- a **provider** dropdown, a **model** dropdown, and an
@@ -121,6 +119,20 @@ For a ``huggingface`` role the dialog also shows a **Run** choice
 **inference provider** field (``auto``, ``cheapest``, ``fastest``,
 ``preferred``, or a specific provider).  A hosted model is therefore never
 silently downloaded; ``Run: Local`` is the explicit opt-in.
+
+Human-in-the-loop
+-----------------
+
+In the agent, a run can pause for your input.  The ask appears in a per-turn
+region under the transcript (the *turn status* region, distinct from the
+right-drawer status pane): a plan awaiting review shows the plan with
+**Approve** / **Request changes** / **Cancel** controls, a plan blocked on a
+missing fact shows one field per question, and a tool call that would touch a
+path outside the project directory (or a sensitive file inside it, such as
+``.env``) shows one **Once** / **Session** / **Deny** choice per path.  The
+main input box is disabled until you answer or cancel, and reloading the page
+re-shows a pending ask.  Answering (or requesting a revision) resumes the
+same run with its state intact.
 
 .. note::
 
