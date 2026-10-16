@@ -115,22 +115,24 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
         ui.label(heading).classes("text-sm font-bold")
         if kind == "review":
+            # ``headline`` + ``sections`` adapt to the review's position
+            # (ADR-0051): a plan approval, or a checkpoint showing the work
+            # done since the last review plus what approval unblocks.  The
+            # sections are rendered monospace so tool names/paths stay literal
+            # (full results are in the inspection pane).
+            if headline := ask.get("headline"):
+                ui.label(headline).classes("text-sm font-bold")
             if question := ask.get("question"):
                 ui.label(question).classes("text-sm")
-            if plan := ask.get("plan"):
-                ui.code(plan, language=None).classes(
-                    "text-xs w-full nicegui-code-noformat"
-                )
-            # A mid-plan checkpoint (ADR-0051) carries the progress made so
-            # far, so the user reviews the work and not only the plan.  It is a
-            # concise summary (tool names + outcomes) rendered monospace like
-            # the plan, so tool names and paths stay literal; the full results
-            # are in the inspection pane.
-            if progress := ask.get("progress"):
-                ui.label("Progress").classes("text-xs font-bold")
-                ui.code(progress, language=None).classes(
-                    "text-xs w-full nicegui-code-noformat"
-                )
+            for section in ask.get("sections") or []:
+                if not isinstance(section, dict):
+                    continue
+                if title := section.get("title"):
+                    ui.label(title).classes("text-xs font-bold")
+                if body := section.get("body"):
+                    ui.code(body, language=None).classes(
+                        "text-xs w-full nicegui-code-noformat"
+                    )
             feedback = (
                 ui.textarea(placeholder="Feedback (required to request changes)")
                 .props("outlined autogrow")

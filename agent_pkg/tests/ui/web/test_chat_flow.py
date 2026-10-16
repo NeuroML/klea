@@ -127,19 +127,23 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
 
 
-async def test_review_interrupt_renders_plan_and_concise_progress(
-    fake_backend, agent_user
-):
-    """A review checkpoint renders the plan and the concise progress summary."""
+async def test_review_interrupt_renders_headline_and_sections(fake_backend, agent_user):
+    """A review checkpoint renders the adaptive headline and sections."""
     fake_backend.stream_events = [
         {
             "type": "interrupt",
             "node": "Awaiting review",
             "data": {
                 "kind": "review",
-                "question": "Review the progress: approve to continue.",
-                "plan": "[x] Step 1: copy the file (depends on: (none))",
-                "progress": "Step 1:\n- run_command: ok",
+                "headline": "Review the work done and approve the remaining 1 step",
+                "question": "Approve, request changes, or cancel.",
+                "sections": [
+                    {
+                        "title": "Completed since the last review (step 1)",
+                        "body": "[x] Step 1: copy the file\n    - run_command: ok",
+                    },
+                    {"title": "Remaining (1 step)", "body": "[ ] Step 3: write"},
+                ],
                 "interrupt_id": "r1",
             },
         }
@@ -148,8 +152,10 @@ async def test_review_interrupt_renders_plan_and_concise_progress(
     await agent_user.should_not_see("Backend is starting")
     _send(agent_user, "Hello")
     await agent_user.should_see("Plan review", retries=50)
+    await agent_user.should_see("Review the work done", retries=50)
     await agent_user.should_see("Step 1: copy the file", retries=50)
     await agent_user.should_see("run_command: ok", retries=50)
+    await agent_user.should_see("Remaining (1 step)", retries=50)
     # The prompt-facing detail must not reach the user.
     await agent_user.should_not_see("displayed_to_user")
 
