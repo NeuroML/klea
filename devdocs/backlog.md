@@ -381,6 +381,6 @@ Last updated: 2026-10-16.
 - `/inspect` command (deferred): a command that switches the chat panel to the
   inspector view (the transcript/inspector toggle).  It must be added to both
   frontends -- the TUI and the web UI -- as neither exposes it as a command
-  today.  The `Ctrl+I` keybinding currently does not work (possibly because
-  there is nothing to show when no inspect entries have been emitted); confirm
-  the toggle and wire the command once the inspector view has content.
+  today.  (The TUI's :kbd:`Ctrl+I` / :kbd:`Tab` toggle now works: a terminal
+  sends Ctrl+I as Tab, which `Screen`'s default `focus_next` binding had been
+  swallowing, so the toggle is bound at the screen level instead.)

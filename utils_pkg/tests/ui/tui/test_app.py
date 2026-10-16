@@ -25,6 +25,7 @@ from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import SessionPicker, SessionRename
+from textual.containers import Horizontal
 from textual.widgets import (
     Button,
     Collapsible,
@@ -506,7 +507,7 @@ async def test_exit_command_stops_run_then_quits(fake_backend, make_app, monkeyp
 
 
 async def test_toggle_inspector_view(fake_backend, make_app):
-    """Ctrl+I toggles the chat panel to the inspector with query sections."""
+    """Tab (what a terminal sends for Ctrl+I) toggles the inspector view."""
     fake_backend.scripts = [
         [
             {
@@ -521,11 +522,16 @@ async def test_toggle_inspector_view(fake_backend, make_app):
     async with app.run_test() as pilot:
         await _submit(pilot, app, "hi")
         await _settle(pilot, app)
-        await pilot.press("ctrl+i")
+        app.screen.query_one("#query-input", TextArea).focus()
+        await pilot.press("tab")
         await pilot.pause()
         inspector = app.screen.query_one("#inspector")
         assert inspector.display is True
         assert list(inspector.query(Collapsible))
+        # Toggling back returns to the transcript.
+        await pilot.press("tab")
+        await pilot.pause()
+        assert inspector.display is False
 
 
 async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
@@ -576,6 +582,22 @@ async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_ap
         panel = app.screen.query_one("#status")
         assert panel.max_scroll_y > 0
         assert panel.scroll_y == panel.max_scroll_y
+
+
+async def test_status_panel_shows_models(fake_backend, make_app):
+    """The status panel lists the selected models and flags a missing one."""
+    fake_backend.model_info = {
+        "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+        "plan": {"model": "", "required": True, "credential": {}},
+    }
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        panel = app.screen.query_one("#status")
+        texts = [str(static.render()) for static in panel.query(Static)]
+        assert any("gpt-4o" in text for text in texts)
+        assert any("Not set" in text for text in texts)
+        assert any("Select a model to start" in text for text in texts)
 
 
 async def test_status_extras_render_in_panel(fake_backend, make_app):
@@ -727,6 +749,21 @@ async def test_ctrl_m_opens_dialog(fake_backend, make_app):
         await pilot.press("ctrl+m")
         await _settle(pilot, app)
         assert isinstance(app.screen, ModelDialog)
+
+
+async def test_model_dialog_roles_are_compact(fake_backend, make_app):
+    """Each role's editor sizes to its content (the button row is not 1fr)."""
+    fake_backend.model_info = _model_info()
+    app = make_app(chat_id="c1")
+    async with app.run_test(size=(100, 40)) as pilot:
+        await _settle(pilot, app)
+        await pilot.press("ctrl+m")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, ModelDialog)
+        # The per-role button row (a Horizontal) must not balloon the panel;
+        # it is one button row, not a 1fr filler.
+        for row in app.screen.query(Horizontal):
+            assert row.size.height <= 3
 
 
 async def test_model_dialog_save_promotes(fake_backend, make_app):
@@ -990,6 +1027,7 @@ async def test_query_input_grows_then_caps(fake_backend, make_app):
         field.text = "\n".join(f"line {i}" for i in range(30))
         await pilot.pause()
         tall = field.size.height
+        assert short >= 3  # minimum height of a few rows
         assert short < tall
         assert tall < 30  # capped (stops growing), so it scrolls instead
 

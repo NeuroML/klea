@@ -50,6 +50,7 @@
 - The tool path-permission ask now shows the tool call (`tool: argument = value (confidence)`) and, for a heuristically guessed value, offers a **Not a path** dismissal that lets the call proceed without approving it (ADR-0007 update 2026-10-14).
 - Web UI and TUI: reloading a chat now restores the full session, not only the user/assistant transcript -- the inspection and status panes and the chat's tool/diff blocks are persisted and replayed on load, and the session's cumulative token totals are restored from the checkpoint (ADR-0032 update).
 - Terminal UI: the query input is now a multi-line, soft-wrapping text area that grows with its content (then scrolls); `Enter` sends and `Ctrl+J` (or `Shift+Enter` on supporting terminals) inserts a newline, so pasted multi-line text can be edited before sending.
+- Terminal UI: the status panel lists the chat's selected models (with a warning when a required model or API key is missing), matching the web status pane.
 
 ### Changed
 
@@ -124,6 +125,9 @@
 - Terminal UI: library request/connection logging (`httpx`, `httpcore`) is quieted to warnings by default (`--debug` / `KLEA_LOG_LEVEL=debug` restores it), and the TUI now logs to its rotating file only while discarding the auto-spawned server's output, so log lines no longer overwrite the full-screen interface.
 - Terminal UI: the status panel's top section (mode / access / project root) is sized to its content instead of taking half the pane, and the panel scrolls to the newest state update when its sections overflow.
 - Terminal UI: an errored tool-result header uses the active theme's error colour instead of a fixed red.
+- Terminal UI: the query input no longer draws a box; it uses the theme's raised surface (`$boost`) and sits a row clear of the key hints.
+- Terminal UI: `Ctrl+I` (which a terminal sends as `Tab`) now toggles the transcript/inspector view; previously the `Screen` focus binding swallowed it, so the documented shortcut did nothing.
+- Terminal UI: the model dialog's per-role panels size to their content instead of ballooning (the per-role button row was a `1fr` container filling the panel), and the query input has a few-row minimum height.
 
 ### Dependencies
 
