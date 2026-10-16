@@ -28,12 +28,12 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from rich.text import Text
-from textual import work
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Input, Static
+from textual.widgets import Static, TextArea
 from textual.worker import Worker
 
 from klea_utils.commands.common import (
@@ -55,6 +55,7 @@ from klea_utils.ui.tui.components.hitl import (
     HitlModal,
     PermissionModal,
 )
+from klea_utils.ui.tui.components.input import QueryTextArea
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.model_dialog import ModelDialog, ModelResult
 from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
@@ -157,13 +158,10 @@ class KleaTuiScreen(Screen):
                 yield Inspector(id="inspector")
                 yield TurnStatus(id="turn-status")
                 yield CommandSuggestions(id="command-suggestions")
-                yield Input(
-                    placeholder="Type a query or /command, then Enter...",
-                    id="query-input",
-                )
+                yield QueryTextArea(id="query-input")
                 yield Static(
-                    "Enter send | / commands | Ctrl+C stop | Ctrl+R retry "
-                    "| Ctrl+I view | Ctrl+Q quit",
+                    "Enter send | Ctrl+J newline | / commands | "
+                    "Ctrl+C stop | Ctrl+R retry | Ctrl+I view | Ctrl+Q quit",
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
@@ -174,29 +172,31 @@ class KleaTuiScreen(Screen):
 
     async def on_mount(self) -> None:
         """Focus the query input, show the transcript, hydrate the chat."""
-        self.query_one("#query-input", Input).focus()
+        self.query_one("#query-input", QueryTextArea).focus()
         await self.show_view("transcript")
         cast("KleaTuiApp", self.app).hydrate_active_chat()
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
+    @on(QueryTextArea.Submitted)
+    async def on_query_submitted(self, event: QueryTextArea.Submitted) -> None:
         """Hand the submitted input to the app (command or query).
 
-        :param event: The ``Input.Submitted`` event.
+        :param event: The :class:`QueryTextArea.Submitted` event.
         """
         query = event.value.strip()
         if not query:
             return
-        event.input.value = ""
+        self.query_one("#query-input", QueryTextArea).text = ""
         await cast("KleaTuiApp", self.app).submit(query)
 
-    async def on_input_changed(self, event: Input.Changed) -> None:
+    @on(TextArea.Changed)
+    def on_query_changed(self, event: TextArea.Changed) -> None:
         """Refresh the command suggestions for the current input.
 
-        :param event: The ``Input.Changed`` event.
+        :param event: The ``TextArea.Changed`` event.
         """
         app = cast("KleaTuiApp", self.app)
         suggestions = self.query_one("#command-suggestions", CommandSuggestions)
-        suggestions.update_for(event.value, app.catalogue, TUI_CAPABILITIES)
+        suggestions.update_for(event.text_area.text, app.catalogue, TUI_CAPABILITIES)
 
     def on_option_list_option_selected(
         self, event: CommandSuggestions.OptionSelected
@@ -205,8 +205,8 @@ class KleaTuiScreen(Screen):
 
         :param event: The ``OptionSelected`` event.
         """
-        input_widget = self.query_one("#query-input", Input)
-        input_widget.value = f"/{event.option.id} "
+        input_widget = self.query_one("#query-input", QueryTextArea)
+        input_widget.text = f"/{event.option.id} "
         input_widget.focus()
 
     @property

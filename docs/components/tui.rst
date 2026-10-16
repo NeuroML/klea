@@ -18,7 +18,10 @@ Chat panel
 
 The left panel holds the title and server line, a transcript/inspector
 toggle, the transcript, the live turn-status line, and the input.  Answers
-stream in as they are generated.
+stream in as they are generated.  The input soft-wraps and grows with the
+text (up to a cap, then it scrolls); :kbd:`Enter` sends and :kbd:`Ctrl+J`
+inserts a newline (:kbd:`Shift+Enter` also works on terminals that report the
+shifted key).
 
 The transcript renders each message MIME-aware, mirroring the web: Markdown
 for the agent's replies, syntax-highlighted diffs and code blocks for file
@@ -43,6 +46,10 @@ Keys
      - Action
    * - :kbd:`Enter`
      - Send the query or ``/command``
+   * - :kbd:`Ctrl+J`
+     - Insert a newline (the input grows, then scrolls, for a long entry)
+   * - :kbd:`Shift+Enter`
+     - Insert a newline too, on terminals that report the shifted key
    * - :kbd:`Ctrl+C`
      - Stop the running query
    * - :kbd:`Ctrl+R`

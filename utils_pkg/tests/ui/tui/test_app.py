@@ -32,6 +32,7 @@ from textual.widgets import (
     ListView,
     RadioButton,
     Static,
+    TextArea,
 )
 
 
@@ -58,9 +59,9 @@ def _chat() -> Any:
 
 async def _submit(pilot, app, text: str) -> None:
     """Type *text* into the input and press Enter."""
-    field = app.screen.query_one("#query-input", Input)
+    field = app.screen.query_one("#query-input", TextArea)
     field.focus()
-    field.value = text
+    field.text = text
     await pilot.press("enter")
 
 
@@ -965,16 +966,46 @@ async def test_autocomplete_lists_and_hides(fake_backend, make_app):
     async with app.run_test() as pilot:
         await pilot.pause()
         await app.workers.wait_for_complete()
-        field = app.screen.query_one("#query-input", Input)
-        field.value = "/m"
+        field = app.screen.query_one("#query-input", TextArea)
+        field.text = "/m"
         await pilot.pause()
         suggestions = app.screen.query_one("#command-suggestions", CommandSuggestions)
         assert suggestions.display is True
         assert [option.id for option in suggestions.options] == ["mode", "model"]
 
-        field.value = "hi"
+        field.text = "hi"
         await pilot.pause()
         assert suggestions.display is False
+
+
+async def test_query_input_grows_then_caps(fake_backend, make_app):
+    """The query input grows with its lines up to a capped height."""
+    app = make_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _settle(pilot, app)
+        field = app.screen.query_one("#query-input", TextArea)
+        field.text = "one line"
+        await pilot.pause()
+        short = field.size.height
+        field.text = "\n".join(f"line {i}" for i in range(30))
+        await pilot.pause()
+        tall = field.size.height
+        assert short < tall
+        assert tall < 30  # capped (stops growing), so it scrolls instead
+
+
+async def test_query_input_ctrl_j_inserts_newline(fake_backend, make_app):
+    """Ctrl+J inserts a newline instead of submitting the query."""
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _settle(pilot, app)
+        field = app.screen.query_one("#query-input", TextArea)
+        field.focus()
+        field.text = "a"
+        await pilot.press("ctrl+j")
+        await pilot.pause()
+        assert field.text.count("\n") == 1
+        assert fake_backend.calls == []
 
 
 if __name__ == "__main__":

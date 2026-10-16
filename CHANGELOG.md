@@ -49,6 +49,7 @@
 - `/exit` session command in the web UI and TUI: it stops any active run and then exits (the TUI equivalent of `Ctrl+Q`; the web frontend also stops the server it launched and closes the tab on a best-effort basis). The web header also gains an exit button, which confirms before exiting.
 - The tool path-permission ask now shows the tool call (`tool: argument = value (confidence)`) and, for a heuristically guessed value, offers a **Not a path** dismissal that lets the call proceed without approving it (ADR-0007 update 2026-10-14).
 - Web UI and TUI: reloading a chat now restores the full session, not only the user/assistant transcript -- the inspection and status panes and the chat's tool/diff blocks are persisted and replayed on load, and the session's cumulative token totals are restored from the checkpoint (ADR-0032 update).
+- Terminal UI: the query input is now a multi-line, soft-wrapping text area that grows with its content (then scrolls); `Enter` sends and `Ctrl+J` (or `Shift+Enter` on supporting terminals) inserts a newline, so pasted multi-line text can be edited before sending.
 
 ### Changed
 
