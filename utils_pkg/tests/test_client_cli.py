@@ -243,13 +243,13 @@ class TestMaybeSpawnServer(unittest.TestCase):
             cm = _maybe_spawn_server("http://127.0.0.1:8005", "klea_rag.api.main:app")
             self.assertEqual(cm, "SPAWNED")
             spawn.assert_called_once_with(
-                "klea_rag.api.main:app", host="127.0.0.1", port=8005
+                "klea_rag.api.main:app", host="127.0.0.1", port=8005, quiet=False
             )
             # A portless loopback URL must fall back to the default port.
             cm = _maybe_spawn_server("http://localhost", "klea_rag.api.main:app")
             self.assertEqual(cm, "SPAWNED")
             spawn.assert_called_with(
-                "klea_rag.api.main:app", host="localhost", port=8005
+                "klea_rag.api.main:app", host="localhost", port=8005, quiet=False
             )
             logger.debug("loopback URLs routed to spawn_server (incl. default port)")
 
@@ -447,7 +447,7 @@ class TestRunTui(unittest.TestCase):
             mock.patch(
                 "klea_utils.ui.cli._maybe_spawn_server",
                 return_value=contextlib.nullcontext(),
-            ),
+            ) as spawn,
             mock.patch("klea_utils.ui.tui.app.run_tui") as run_tui,
         ):
             _run_tui(
@@ -459,6 +459,8 @@ class TestRunTui(unittest.TestCase):
                 tui_entry="klea_utils.ui.tui.app:run_tui",
                 identity_app_name="klea-rag",
             )
+        # The TUI is full-screen: the spawned server output must be discarded.
+        self.assertIs(spawn.call_args.kwargs["quiet"], True)
         run_tui.assert_called_once_with(
             url="http://127.0.0.1:8005",
             title="T",
