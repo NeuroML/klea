@@ -100,25 +100,11 @@ Models and API keys
 -------------------
 
 The settings button opens the model dialog.  Each role's model is chosen
-with three fields -- a **provider** field, a **model** field, and an
-optional **custom URL** -- filled from the `models.dev <https://models.dev>`_
-catalogue.  Free text is still accepted for models that are not in the
-catalogue (for example ``ollama:`` models or a self-hosted endpoint), and a
-custom URL overrides the provider's default endpoint.  The catalogue is a
-convenience subset, not an exhaustive list: enter any other model -- a
-local/on-device server (Ollama, LM Studio), a self-hosted endpoint, or a
-regional provider -- as free text.  The dialog edits the
-current chat's models when a chat is open and the per-session defaults
-otherwise; saving in a chat also updates the session defaults ("last used"),
-so new chats start from the same models.  **Manage API keys** opens the
-provider-scoped credentials editor: keys are stored per provider on the
+with a **provider** field, a **model** field, and an optional **custom
+URL**, filled from the `models.dev <https://models.dev>`_ catalogue; free
+text is accepted for models not in the catalogue.  **Manage API keys** opens
+the provider-scoped credentials editor: keys are stored per provider on the
 server, returned only in masked form, and expire after a period unused.
-
-For a ``huggingface`` role the dialog also shows a **Run** choice
-(hosted inference providers, or local) and, for the hosted backend, an
-**inference provider** field (``auto``, ``cheapest``, ``fastest``,
-``preferred``, or a specific provider).  A hosted model is therefore never
-silently downloaded; ``Run: Local`` is the explicit opt-in.
 
 Human-in-the-loop
 -----------------
@@ -129,10 +115,9 @@ status pane): a plan awaiting review shows the plan with
 **Approve** / **Request changes** / **Cancel** controls, a plan blocked on a
 missing fact shows one field per question, and a tool call that would touch a
 path outside the project directory (or a sensitive file inside it, such as
-``.env``) shows one **Once** / **Session** / **Deny** choice per path.  The
-main input box is disabled until you answer or cancel, and reloading the page
-re-shows a pending ask.  Answering (or requesting a revision) resumes the
-same run with its state intact.
+``.env``) shows one **Once** / **Session** / **Deny** choice per path.
+Answering (or requesting a revision) resumes the same run with its state
+intact.
 
 .. note::
 

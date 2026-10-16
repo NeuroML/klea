@@ -132,38 +132,20 @@ Models and API keys
 :kbd:`Ctrl+M` (or ``/model``) opens the model dialog.  Each role's model is
 chosen with a **provider** field, a **model** field, and an optional **custom
 URL**, filled from the `models.dev <https://models.dev>`_ catalogue; free text
-is accepted for models not in the catalogue (for example ``ollama:`` models or
-a self-hosted endpoint).  For a ``huggingface`` role the dialog also offers a
-**Run** choice (hosted inference providers, or local) and, for the hosted
-backend, an **inference provider** field.  Saving updates the current chat's
-overrides (and its session defaults); **Reset** clears a role's override and
-**Use for all roles** copies a model onto the other roles of the same kind.
-
-**Manage API keys** opens the provider-scoped credentials editor: keys are
-stored per provider on the server, returned only in masked form, and expire
-after a period unused.  A query is blocked until the models a
-run needs (and any required API keys) are configured; client commands such as
-``/help`` still work.
+is accepted for models not in the catalogue.  **Manage API keys** opens the
+provider-scoped credentials editor: keys are stored per provider on the
+server, returned only in masked form, and expire after a period unused.
 
 Human-in-the-loop
 -----------------
 
-When the agent needs input, a modal opens over the screen:
-
-* a plan awaiting review shows a **headline** and either the plan (a whole-plan
-  approval) or, at a mid-plan checkpoint, the steps completed since the
-  previous review (with their output summaries) plus the remaining steps the
-  approval unblocks, with **Approve** / **Request changes** / **Cancel**;
-* a plan blocked on a missing fact shows one field per question;
-* a tool call that would touch a path outside the project directory (or a
-  sensitive file inside it) shows one **Once** / **Session** / **Deny** choice
-  per path (plus **Not a path** when the value was only guessed by a heuristic,
-  so the gate may have mistaken a non-path value for a path).
-
-The dialog scrolls when its content (a long plan or many paths) is taller than
-the box, so the action buttons stay reachable.  Answering or requesting a
-revision resumes the same run with its state intact; a pending ask is re-shown
-if the chat is reloaded.
+When the agent needs input, a modal opens over the screen: a plan awaiting
+review shows the plan with **Approve** / **Request changes** / **Cancel**
+controls, a plan blocked on a missing fact shows one field per question, and a
+tool call that would touch a path outside the project directory (or a
+sensitive file inside it, such as ``.env``) shows one **Once** / **Session** /
+**Deny** choice per path.  Answering (or requesting a revision) resumes the
+same run with its state intact.
 
 Identity
 --------
