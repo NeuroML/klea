@@ -432,15 +432,19 @@ run needs (and any required API keys) are configured; client commands such as
 <h2>Human-in-the-loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading">¶</a></h2>
 <p>When the agent needs input, a modal opens over the screen:</p>
 <ul class="simple">
-<li><p>a plan awaiting review shows the plan with <strong>Approve</strong> / <strong>Request changes</strong>
-/ <strong>Cancel</strong>;</p></li>
+<li><p>a plan awaiting review shows a <strong>headline</strong> and either the plan (a whole-plan
+approval) or, at a mid-plan checkpoint, the steps completed since the
+previous review (with their output summaries) plus the remaining steps the
+approval unblocks, with <strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong>;</p></li>
 <li><p>a plan blocked on a missing fact shows one field per question;</p></li>
 <li><p>a tool call that would touch a path outside the project directory (or a
 sensitive file inside it) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice
 per path.</p></li>
 </ul>
-<p>Answering or requesting a revision resumes the same run with its state
-intact; a pending ask is re-shown if the chat is reloaded.</p>
+<p>The dialog scrolls when its content (a long plan or many paths) is taller than
+the box, so the action buttons stay reachable.  Answering or requesting a
+revision resumes the same run with its state intact; a pending ask is re-shown
+if the chat is reloaded.</p>
 </section>
 <section id="status-panel">
 <h2>Status panel<a class="headerlink" href="#status-panel" title="Link to this heading">¶</a></h2>

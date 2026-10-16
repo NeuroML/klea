@@ -424,22 +424,24 @@
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-2 p-3 border border-primary rounded"</span><span class="p">):</span>
         <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">heading</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span><span class="p">:</span>
+            <span class="c1"># ``headline`` + ``sections`` adapt to the review's position</span>
+            <span class="c1"># (ADR-0051): a plan approval, or a checkpoint showing the work</span>
+            <span class="c1"># done since the last review plus what approval unblocks.  The</span>
+            <span class="c1"># sections are rendered monospace so tool names/paths stay literal</span>
+            <span class="c1"># (full results are in the inspection pane).</span>
+            <span class="k">if</span> <span class="n">headline</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"headline"</span><span class="p">):</span>
+                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">headline</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm font-bold"</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">question</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">):</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">question</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-sm"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">plan</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"plan"</span><span class="p">):</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">plan</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                    <span class="s2">"text-xs w-full nicegui-code-noformat"</span>
-                <span class="p">)</span>
-            <span class="c1"># A mid-plan checkpoint (ADR-0051) carries the progress made so</span>
-            <span class="c1"># far, so the user reviews the work and not only the plan.  It is a</span>
-            <span class="c1"># concise summary (tool names + outcomes) rendered monospace like</span>
-            <span class="c1"># the plan, so tool names and paths stay literal; the full results</span>
-            <span class="c1"># are in the inspection pane.</span>
-            <span class="k">if</span> <span class="n">progress</span> <span class="o">:=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"progress"</span><span class="p">):</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Progress"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold"</span><span class="p">)</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">progress</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
-                    <span class="s2">"text-xs w-full nicegui-code-noformat"</span>
-                <span class="p">)</span>
+            <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sections"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">title</span> <span class="o">:=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">):</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">title</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs font-bold"</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">body</span> <span class="o">:=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"body"</span><span class="p">):</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">code</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">language</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span>
+                        <span class="s2">"text-xs w-full nicegui-code-noformat"</span>
+                    <span class="p">)</span>
             <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">textarea</span><span class="p">(</span><span class="n">placeholder</span><span class="o">=</span><span class="s2">"Feedback (required to request changes)"</span><span class="p">)</span>
                 <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outlined autogrow"</span><span class="p">)</span>
