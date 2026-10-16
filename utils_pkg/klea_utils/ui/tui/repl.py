@@ -165,12 +165,15 @@ async def run_repl(
     from platformdirs import PlatformDirs
 
     from klea_utils.plogging import resolve_log_level, setup_root_logger
+    from klea_utils.proctitle import set_process_title
 
     setup_root_logger(
         app_name,
         stderr_level=resolve_log_level(),
         log_dir=PlatformDirs(app_name).user_data_dir,
     )
+    # Show the app name in ps/top instead of "python".
+    set_process_title(app_name)
 
     # Lazy: avoids importing yaspin (and its deps) at module level; httpx is
     # only needed to catch a dropped/timed-out or rejected stream below.

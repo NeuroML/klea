@@ -1071,6 +1071,7 @@ def run_tui(
     from platformdirs import PlatformDirs
 
     from klea_utils.plogging import setup_root_logger
+    from klea_utils.proctitle import set_process_title
     from klea_utils.ui.identity import resolve_user_id
 
     setup_root_logger(
@@ -1078,6 +1079,8 @@ def run_tui(
         log_dir=PlatformDirs(app_name).user_data_dir,
         console=False,
     )
+    # Show the app name in ps/top instead of "python".
+    set_process_title(app_name)
 
     resolved_user_id = resolve_user_id(
         explicit=user_id,

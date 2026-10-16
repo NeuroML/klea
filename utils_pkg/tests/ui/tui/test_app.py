@@ -635,7 +635,8 @@ async def test_status_panel_shows_models(fake_backend, make_app):
         texts = [str(static.render()) for static in panel.query(Static)]
         assert any("gpt-4o" in text for text in texts)
         assert any("Not set" in text for text in texts)
-        assert any("Select a model" in text for text in texts)
+        assert any(text.startswith("- Chat:") for text in texts)
+        assert any("Select a model to start" in text for text in texts)
 
 
 async def test_status_panel_shows_chat_name(fake_backend, make_app):

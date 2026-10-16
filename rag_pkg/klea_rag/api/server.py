@@ -20,4 +20,5 @@ serve_app = make_serve_app(
     config_env_var="KLEA_RAG_APP_CONFIG_FILE",
     config_dir=get_config_dir(PlatformDirs("klea-rag")),
     template_writer=write_config_template,
+    app_name="klea-rag-serve",
 )

@@ -94,6 +94,7 @@ def make_serve_app(
     config_env_var: str | None = None,
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
+    app_name: str = "klea-serve",
 ) -> typer.Typer:
     """Create a Typer app that runs uvicorn on the given *app_module*.
 
@@ -116,6 +117,8 @@ def make_serve_app(
         directory when validating ``--profile``
     :param template_writer: Callable that writes a config template into
         the working directory for ``--profile template``
+    :param app_name: Process title to set (e.g. ``"klea-agent-serve"``), so
+        the server is identifiable in ``ps``/``top``.
     :returns: A :class:`typer.Typer` app for use as a CLI entry point
     """
     serve_app = typer.Typer()
@@ -144,6 +147,11 @@ def make_serve_app(
     ):
         """Run the API server."""
         configure_profile(profile, config_env_var, config_dir, template_writer)
+
+        # Show the app name in ps/top instead of "python".
+        from klea_utils.proctitle import set_process_title
+
+        set_process_title(app_name)
 
         # --debug must be visible to the app process, whose logger level is
         # resolved from KLEA_LOG_LEVEL (set here) before setup() loads the
@@ -264,7 +272,14 @@ def spawn_server(
         yield None
         return
 
-    popen_kwargs: dict[str, Any] = {"start_new_session": True}
+    # Pass a process title into the child so the server shows as klea-*
+    # rather than "python" in ps/top; make_app applies it at startup.
+    env = os.environ.copy()
+    env.setdefault(
+        "KLEA_PROC_TITLE",
+        f"{app_module.split('.')[0].replace('_', '-')}-serve",
+    )
+    popen_kwargs: dict[str, Any] = {"start_new_session": True, "env": env}
     if quiet:
         popen_kwargs["stdout"] = subprocess.DEVNULL
         popen_kwargs["stderr"] = subprocess.DEVNULL

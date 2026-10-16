@@ -284,6 +284,11 @@ def _run_web(
         from klea_utils.plogging import enable_debug_logging
 
         enable_debug_logging()
+    # This launcher process blocks on the NiceGUI subprocess, so title it too
+    # (the child titles itself in run_nicegui_server).
+    from klea_utils.proctitle import set_process_title
+
+    set_process_title(web_app_name)
     with _maybe_spawn_server(
         server_url,
         app_module,

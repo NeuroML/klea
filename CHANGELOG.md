@@ -53,6 +53,7 @@
 - Terminal UI: the status panel lists the chat's selected models (with a warning when a required model or API key is missing), matching the web status pane.
 - Terminal UI: the status panel header shows the active chat's name and id.
 - Terminal UI: a long transcript message is collapsed to a few lines and expands/collapses on click or `Enter`, matching the web UI.
+- Klea's processes set their OS process title to their role (`klea-agent-tui` / `klea-rag-tui`, `klea-agent-web` / `klea-rag-web`, `klea-agent-serve` / `klea-rag-serve`) instead of `python`, so they are identifiable in `ps`/`top`; an auto-spawned server gets it via the `KLEA_PROC_TITLE` environment variable.
 
 ### Changed
 
@@ -91,6 +92,7 @@
 - Path permission is now a single client-side gate before dispatch instead of a per-tool check: file tools no longer enforce the project-directory boundary themselves, and a tool that declares no path metadata is still gated (declared `checkpaths`, paths the tools picker declares, and heuristics such as shell-command tokens).
 - Terminal UI: the status panel no longer shows a `context` section (the web UI does not either); the graph context still drives the mode / access / project-root rows.
 - Terminal UI: the transcript/inspector toggle now reads **Chat** / **Inspect** and is centred; the status panel's mode and access rows are combined into one line (for example `General | Full access`, with full access in the error colour); the status pane lists one model per role, spaces its groups, and no longer draws streamed state sections on a separate background.
+- The TUI and web status panes list the chat's models as a bulleted per-role list (`- Chat: gpt-4o`), so the two frontends match.
 
 ### Fixed
 
@@ -137,6 +139,7 @@
 ### Dependencies
 
 - `klea_utils[tui]` (`textual`) provides the terminal UI; it is included in the `full` extra.
+- `setproctitle` (a new `klea_utils` dependency) sets a friendly process title for the CLIs.
 - `klea_rag` depends on `klea_utils[rerank]` (`sentence-transformers`) for cross-encoder reranking.
 
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)

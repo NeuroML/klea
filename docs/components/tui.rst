@@ -8,7 +8,9 @@ sessions, models and graph state are shared.  It is started with
 
 The Textual dependency is an optional extra; install it with the ``tui``
 extra (``pip install klea-utils[tui]`` or the ``full`` extra).  Without it,
-``tui`` exits with a message pointing at the extra.
+``tui`` exits with a message pointing at the extra.  The process title is set
+to the frontend name (for example ``klea-agent-tui``) so it is identifiable in
+``ps``/``top`` instead of ``python``.
 
 The layout is a horizontal split: a chat panel on the left and a full-height
 status panel on the right.
@@ -127,11 +129,11 @@ Status panel
 
 The right panel summarises the current chat: its **name and id**, then, in the
 agent, the operating **mode** and tool **access** selectors (choosing one sends
-``/mode`` or ``/access`` to the agent), the chat's selected **models** (one
-role per line, with a warning when a required model or API key is still
-missing), the running token totals, and the per-step state sections that
-stream while the graph runs.  The groups are spaced apart, and the state
-sections sit on the pane's own background.
+``/mode`` or ``/access`` to the agent), the chat's selected **models** (a
+bulleted list, one role per line, with a warning when a required model or API
+key is still missing), the running token totals, and the per-step state
+sections that stream while the graph runs.  The groups are spaced apart, and
+the state sections sit on the pane's own background.
 
 Identity
 --------

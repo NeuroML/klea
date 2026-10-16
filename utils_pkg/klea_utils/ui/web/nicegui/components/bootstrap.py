@@ -197,6 +197,11 @@ def run_nicegui_server(
     _configure_logging(app_name)
     _configure_storage(app_name)
 
+    # Show the app name in ps/top instead of "python".
+    from klea_utils.proctitle import set_process_title
+
+    set_process_title(app_name)
+
     resolved_favicon = favicon or default_favicon_path()
     logger.debug(f"{resolved_favicon = }")
 

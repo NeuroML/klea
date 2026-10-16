@@ -12,6 +12,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+import os
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
@@ -54,6 +55,14 @@ def make_app(
     async def lifespan(app: FastAPI):
         app.state.is_ready = False
         logger.info("Klea API (%s) starting lifespan", title)
+
+        # A spawned server passes its intended process title via the
+        # environment (see spawn_server); apply it for ps/top.
+        proc_title = os.environ.get("KLEA_PROC_TITLE")
+        if proc_title:
+            from klea_utils.proctitle import set_process_title
+
+            set_process_title(proc_title)
 
         graph = graph_factory()
         await graph.setup()

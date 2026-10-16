@@ -280,6 +280,7 @@ class TestRunWeb(unittest.TestCase):
                 "klea_utils.ui.cli._maybe_spawn_server",
                 return_value=contextlib.nullcontext(),
             ),
+            mock.patch("klea_utils.proctitle.set_process_title") as set_title,
         ):
             _run_web(
                 server_url="http://127.0.0.1:8005",
@@ -300,6 +301,9 @@ class TestRunWeb(unittest.TestCase):
                 continue_session=True,
                 open_browser=False,
             )
+
+        # The launcher process titles itself too (the child titles itself).
+        set_title.assert_called_once_with("klea-rag-web")
 
         # The command is already shlex-split, so quotes are gone.
         subprocess_run.assert_called_once()

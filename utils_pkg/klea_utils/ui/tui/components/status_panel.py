@@ -72,7 +72,7 @@ def _models_widgets(model_info: Mapping[str, Any]) -> Vertical:
     """
     widgets = [
         Static(
-            f"{role_label(role)}: "
+            f"- {role_label(role)}: "
             f"{_model_name(str((cfg or {}).get('model', '') or ''))}",
             markup=False,
         )
@@ -82,7 +82,8 @@ def _models_widgets(model_info: Mapping[str, Any]) -> Vertical:
     if missing:
         widgets.append(
             Static(
-                "Select a model: " + ", ".join(role_label(role) for role in missing),
+                "Select a model to start: "
+                + ", ".join(role_label(role) for role in missing),
                 markup=False,
                 classes="status-missing",
             )

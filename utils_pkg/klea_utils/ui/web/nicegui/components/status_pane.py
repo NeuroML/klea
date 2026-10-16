@@ -111,40 +111,46 @@ def attach_status_pane(ctx: PageContext) -> None:
 
                 if model_info:
                     tooltip_parts: list[str] = []
-                    display_parts: list[str] = []
-                    for role, cfg in model_info.items():
-                        raw = cfg.get("model", "")
-                        provider = cfg.get("provider", "")
-                        required = cfg.get("required", True)
-                        if not raw:
-                            # No model set for this role -- show a clear
-                            # placeholder so the user knows it is missing.
-                            display_short = "Not set"
-                            required_mark = " (required)" if required else ""
-                            tooltip_short = f"Not set{required_mark}"
-                        else:
-                            display_short = parse_model_name(raw).model_name or raw
-                            if provider:
-                                tooltip_short = f"{display_short} ({provider})"
+                    # One bullet per role, matching the TUI status panel.
+                    models_list = ui.element("ul").classes(
+                        "text-xs text-grey-5 pl-4 m-0"
+                    )
+                    with models_list:
+                        for role, cfg in model_info.items():
+                            raw = cfg.get("model", "")
+                            provider = cfg.get("provider", "")
+                            required = cfg.get("required", True)
+                            if not raw:
+                                # No model set for this role -- show a clear
+                                # placeholder so the user knows it is missing.
+                                display_short = "Not set"
+                                required_mark = " (required)" if required else ""
+                                tooltip_short = f"Not set{required_mark}"
                             else:
-                                tooltip_short = display_short
-                            credential = cfg.get("credential") or {}
-                            if credential.get("requires_key"):
-                                if credential.get("source") == "none":
-                                    tooltip_short += " [no API key]"
-                                elif credential.get("source") == "user":
-                                    tooltip_short += (
-                                        f" [key {credential.get('masked', '')}]"
-                                    )
-                        if cfg.get("overridden"):
-                            tooltip_short += " [Chat]" if chat_scope else " [Default]"
-                        if chat_scope and cfg.get("session_overridden"):
-                            tooltip_short += " [Default]"
-                        tooltip_parts.append(f"{role.capitalize()}: {tooltip_short}")
-                        display_parts.append(display_short)
-                    with ui.label(" | ".join(display_parts)).classes(
-                        "text-xs text-grey-5"
-                    ):
+                                display_short = parse_model_name(raw).model_name or raw
+                                if provider:
+                                    tooltip_short = f"{display_short} ({provider})"
+                                else:
+                                    tooltip_short = display_short
+                                credential = cfg.get("credential") or {}
+                                if credential.get("requires_key"):
+                                    if credential.get("source") == "none":
+                                        tooltip_short += " [no API key]"
+                                    elif credential.get("source") == "user":
+                                        tooltip_short += (
+                                            f" [key {credential.get('masked', '')}]"
+                                        )
+                            if cfg.get("overridden"):
+                                tooltip_short += (
+                                    " [Chat]" if chat_scope else " [Default]"
+                                )
+                            if chat_scope and cfg.get("session_overridden"):
+                                tooltip_short += " [Default]"
+                            with ui.element("li"):
+                                ui.label(f"{role.capitalize()}: {display_short}")
+                            tooltip_parts.append(
+                                f"{role.capitalize()}: {tooltip_short}"
+                            )
                         if tooltip_parts:
                             ui.tooltip("\n".join(tooltip_parts)).classes(
                                 "model-tooltip"
