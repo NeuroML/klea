@@ -42,11 +42,21 @@ class QueryTextArea(TextArea):
     _NEWLINE_KEYS = frozenset({"ctrl+j", "newline", "shift+enter"})
 
     #: Grow with the content (``height: auto``) up to a cap, after which the
-    #: widget scrolls instead of pushing the rest of the panel off-screen.
+    #: widget scrolls instead of pushing the rest of the panel off-screen.  A
+    #: few rows minimum keeps the entry comfortably sized when empty.  No
+    #: border (Textual's ``TextArea`` draws a box that reads as heavy in a
+    #: chat panel); a theme-aware raised surface (``$boost``) distinguishes it
+    #: from the panel instead, so it follows a theme change.
     DEFAULT_CSS = """
     QueryTextArea {
         height: auto;
+        min-height: 3;
         max-height: 8;
+        border: none;
+        background: $boost;
+    }
+    QueryTextArea:focus {
+        border: none;
     }
     """
 
