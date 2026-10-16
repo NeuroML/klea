@@ -2,9 +2,10 @@ Web interface
 =============
 
 Klea's web interface is a `NiceGUI <https://nicegui.io/>`_ frontend that
-talks to the backend API.  It is started with ``klea-rag web`` (RAG) or
-``klea web`` (agent), and is the interface used by the hosted prototypes
-linked from the :doc:`home page <../index>`.
+talks to the backend API.  It talks to the same backend as the :doc:`tui`,
+so the sessions, models and graph state are shared.  It is started with
+``klea-rag web`` (RAG) or ``klea web`` (agent), and is the interface used
+by the hosted prototypes linked from the :doc:`home page <../index>`.
 
 The layout has three parts: a left pane listing chat sessions, a centre
 pane with two tabs (**chat** and **inspect**), and a right pane with
@@ -14,19 +15,21 @@ disclaimer and the "Powered by" note.
 Chat pane
 ---------
 
-The chat pane is where questions are asked.  Each answer appears when the
+The chat pane is where you ask questions.  Each answer appears when the
 turn completes (there is no live token typing) and is grounded in the
-retrieved sources rather than the model's memory alone.  Messages render as
-full-width blocks: the user's prompt is tinted and shown **verbatim** (no
-Markdown decoration, so underscores, ``#`` and line breaks in URLs, paths or
-pasted code are preserved; bare URLs stay clickable), the agent's reply is
-rendered as Markdown (code blocks, lists, tables), and file changes the
-agent makes appear as their own diff blocks before the reply.  Tool
-results (file-edit diffs, command output) render as compact blocks
+retrieved sources rather than the model's memory alone.
+
+Messages render as full-width blocks: the user's prompt is tinted and shown
+**verbatim** (no Markdown decoration, so underscores, ``#`` and line breaks
+in URLs, paths or pasted code are preserved; bare URLs stay clickable), the
+agent's reply is rendered as Markdown (code blocks, lists, tables), and file
+changes the agent makes appear as their own diff blocks before the reply.
+Tool results (file-edit diffs, command output) render as compact blocks
 collapsed to a one-line preview that expands on click; an errored tool
-block's title is shown in red.  Long lines wrap, and the input box sits at
-the bottom and grows upward with its content.  Use the status pane to choose
-the model for the chat.
+block's title appears in red.
+
+Long lines wrap, and the input box sits at the bottom and grows upward with
+its content.  Use the status pane to choose the model for the chat.
 
 Send is blocked until the models a run needs (and any required API
 keys) are configured; the first run opens a **Choose models** prompt to set

@@ -21,8 +21,7 @@ Chat pane
 
 The chat pane holds a transcript/inspector toggle, the transcript, the live
 turn-status line, and the input.  The answer appears when the turn completes
-(there is no live token typing).  The input soft-wraps and
-grows with the
+(there is no live token typing).  The input soft-wraps and grows with the
 text (up to a cap, then it scrolls); the cursor sits on the bottom line and
 the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
 (:kbd:`Shift+Enter` also works on terminals that report the shifted key).
@@ -63,11 +62,10 @@ are spaced apart, and the state sections sit on the pane's own background.
 Inspection pane
 ---------------
 
-Press :kbd:`Ctrl+I`
-(or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
-pane to the **inspection** view: the per-step trace behind
-the latest answer (each pipeline step's heading, timing, summary and raw
-structured details), grouped per query.
+Press :kbd:`Ctrl+I` (or :kbd:`Tab`, which is the byte a terminal sends for
+it) to switch the same pane to the **inspection** view: the per-step trace
+behind the latest answer (each pipeline step's heading, timing, summary and
+raw structured details), grouped per query.
 
 .. figure:: /_static/images/klea-tui-inspect.png
    :alt: Klea terminal interface inspector view showing the per-step pipeline trace
