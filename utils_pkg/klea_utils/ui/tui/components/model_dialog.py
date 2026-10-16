@@ -125,6 +125,14 @@ class ModelDialog(ModalScreen[ModelResult | None]):
     ModelDialog Input {
         width: 100%;
     }
+    /* The per-role button row is a Horizontal, which otherwise defaults to
+     * height: 1fr and balloons each role panel open. */
+    ModelDialog Collapsible Horizontal {
+        height: auto;
+    }
+    ModelDialog Collapsible > Contents {
+        padding: 0 0 0 1;
+    }
     ModelDialog #model-actions {
         height: auto;
         align-horizontal: right;
