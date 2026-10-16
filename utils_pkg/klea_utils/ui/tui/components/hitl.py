@@ -26,7 +26,7 @@ from typing import Any, ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
@@ -80,11 +80,9 @@ class HitlModal(ModalScreen[HitlDecision]):
     }
     #hitl-plan {
         height: auto;
-        max-height: 12;
     }
     #hitl-progress {
         height: auto;
-        max-height: 10;
     }
     """
 
@@ -101,7 +99,7 @@ class HitlModal(ModalScreen[HitlDecision]):
     def compose(self) -> ComposeResult:
         """Compose the review or input form."""
         kind = self.ask.get("kind", "input")
-        with Vertical(id="hitl-dialog"):
+        with VerticalScroll(id="hitl-dialog"):
             yield Static(
                 "Plan review" if kind == "review" else "User input", id="hitl-title"
             )
@@ -271,7 +269,7 @@ class PermissionModal(ModalScreen[HitlDecision]):
 
     def compose(self) -> ComposeResult:
         """Compose one radio group per requested path, plus Submit / Cancel."""
-        with Vertical(id="perm-dialog"):
+        with VerticalScroll(id="perm-dialog"):
             yield Static("Permission required", id="perm-title")
             question = self.ask.get("question")
             if question:

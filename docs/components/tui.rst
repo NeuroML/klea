@@ -121,8 +121,10 @@ When the agent needs input, a modal opens over the screen:
   sensitive file inside it) shows one **Once** / **Session** / **Deny** choice
   per path.
 
-Answering or requesting a revision resumes the same run with its state
-intact; a pending ask is re-shown if the chat is reloaded.
+The dialog scrolls when its content (a long plan or many paths) is taller than
+the box, so the action buttons stay reachable.  Answering or requesting a
+revision resumes the same run with its state intact; a pending ask is re-shown
+if the chat is reloaded.
 
 Status panel
 ------------

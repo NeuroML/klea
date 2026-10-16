@@ -135,6 +135,7 @@
 - Terminal UI: the model dialog's per-role panels size to their content instead of ballooning (the per-role button row was a `1fr` container filling the panel), and the query input has a few-row minimum height.
 - Terminal UI: deleting a session from the picker now asks for confirmation before it is removed, matching the web UI.
 - Terminal UI: streamed `state`/`inspect` details containing `[` or `=` (for example a bracketed model repr) no longer crash the status/inspector panes with a Rich markup error; such text is now rendered literally.
+- Terminal UI: the review/input (HITL) and path-permission dialogs now scroll, so their action buttons stay reachable when the plan/progress or the list of paths is long (previously the dialog was clipped at 80% height and the buttons fell off-screen).
 
 ### Dependencies
 

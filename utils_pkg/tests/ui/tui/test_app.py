@@ -202,6 +202,37 @@ async def test_review_interrupt_modal_shows_plan_and_progress(fake_backend, make
         await _settle(pilot, app)
 
 
+async def test_review_modal_with_long_plan_scrolls(fake_backend, make_app):
+    """A long plan-review modal scrolls so Approve/Decline stay reachable."""
+    long_plan = "\n".join(f"step {i}: do the thing" for i in range(60))
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "review",
+                    "question": "Approve?",
+                    "plan": long_plan,
+                    "progress": "step 0: ok",
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, HitlModal)
+        dialog = app.screen.query_one("#hitl-dialog", VerticalScroll)
+        assert dialog.max_scroll_y > 0
+        app.screen.query_one("#hitl-approve", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {"decision": "approve"}
+
+
 async def test_permission_interrupt_modal(fake_backend, make_app):
     """A permission ask opens the permission modal; Submit sends decisions."""
     fake_backend.scripts = [
@@ -243,6 +274,43 @@ async def test_permission_interrupt_modal(fake_backend, make_app):
             {"key": "/home/u/.ssh/id_rsa", "decision": "deny"},
         ]
     }
+
+
+async def test_permission_modal_with_many_requests_scrolls(fake_backend, make_app):
+    """A permission ask with many paths scrolls so Submit stays reachable."""
+    requests = [
+        {
+            "kind": "outside",
+            "directory": f"/tmp/{i}",
+            "tool": "read_file",
+            "confidence": "high",
+        }
+        for i in range(20)
+    ]
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "permission",
+                    "requests": requests,
+                    "interrupt_id": "p1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert isinstance(app.screen, PermissionModal)
+        dialog = app.screen.query_one("#perm-dialog", VerticalScroll)
+        assert dialog.max_scroll_y > 0
+        app.screen.query_one("#perm-submit", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_id"] == "p1"
 
 
 async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
