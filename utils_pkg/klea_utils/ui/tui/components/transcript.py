@@ -113,11 +113,10 @@ class MessageBlock(Vertical):
     MessageBlock {
         height: auto;
         width: 100%;
-        margin-bottom: 1;
+        padding: 1 0;
     }
     MessageBlock.message-user {
         background: $primary 15%;
-        padding: 0 1;
     }
     MessageBlock .message-scroll {
         height: auto;

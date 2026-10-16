@@ -772,6 +772,17 @@ async def test_expanded_message_body_does_not_scroll(fake_backend, make_app):
         assert not scroll.show_vertical_scrollbar
 
 
+async def test_message_blocks_have_padding(fake_backend, make_app):
+    """Transcript message blocks have vertical padding so they read as blocks."""
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).first()
+        assert block.styles.padding.top >= 1
+        assert block.styles.padding.bottom >= 1
+
+
 async def test_short_message_is_not_collapsed(fake_backend, make_app):
     """A short message gets no clip and no expand hint."""
     app = make_app()
