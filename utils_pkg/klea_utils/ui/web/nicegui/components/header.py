@@ -13,6 +13,7 @@ import logging
 
 from nicegui import app, background_tasks, ui
 
+from klea_utils.ui.exit_confirm import EXIT_CONFIRM_MESSAGE, EXIT_CONFIRM_TITLE
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.stream import stop_all_streams
 
@@ -71,11 +72,8 @@ def attach_header(ctx: PageContext) -> None:
         logger.debug("opening exit-confirmation dialog")
         dialog = ui.dialog()
         with dialog, ui.card():
-            ui.label("Exit Klea?").classes("text-lg font-bold")
-            ui.label(
-                "This stops the web interface and disconnects any open tabs. "
-                "The backend server is stopped only if this client started it."
-            ).classes("text-sm")
+            ui.label(EXIT_CONFIRM_TITLE).classes("text-lg font-bold")
+            ui.label(EXIT_CONFIRM_MESSAGE).classes("text-sm")
             with ui.row().classes("w-full justify-end"):
                 ui.button("Cancel", on_click=dialog.close)
                 ui.button("Exit", on_click=lambda: (dialog.close(), _exit_app())).props(

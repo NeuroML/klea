@@ -50,6 +50,7 @@ from klea_utils.ui.tui.components.commands import (
     build_catalogue,
     handle_command,
 )
+from klea_utils.ui.tui.components.confirm import ExitConfirm
 from klea_utils.ui.tui.components.hitl import (
     HitlDecision,
     HitlModal,
@@ -377,7 +378,7 @@ class KleaTuiApp(App[None]):
         Binding("ctrl+i", "toggle_view", "Inspector"),
         Binding("ctrl+s", "open_sessions", "Sessions"),
         Binding("ctrl+m", "open_models", "Models"),
-        Binding("ctrl+q", "quit", "Quit"),
+        Binding("ctrl+q", "confirm_exit", "Quit"),
     ]
 
     def __init__(self, ctx: TuiContext) -> None:
@@ -587,8 +588,23 @@ class KleaTuiApp(App[None]):
         self.run_worker(self.action_open_models())
 
     def _exit_hook(self) -> None:
-        """Command-service hook for ``/exit`` (stop the run, then quit)."""
+        """Command-service hook for ``/exit`` (stop the run, then quit).
+
+        ``/exit`` is deliberate, so it quits without a confirmation.
+        """
         self.run_worker(self._exit_after_stop())
+
+    def action_confirm_exit(self) -> None:
+        """Open the exit confirmation (``Ctrl+Q``)."""
+        self.push_screen(ExitConfirm(), callback=self._on_exit_confirm)
+
+    def _on_exit_confirm(self, confirmed: bool | None) -> None:
+        """Quit when the exit confirmation is accepted.
+
+        :param confirmed: ``True`` when the user chose Exit.
+        """
+        if confirmed:
+            self.run_worker(self._exit_after_stop())
 
     async def _exit_after_stop(self) -> None:
         """Stop the active run (if any), then quit the application."""

@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
+from klea_utils.ui.tui.components.confirm import ExitConfirm
 from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
 from klea_utils.ui.tui.components.input import QueryInput
@@ -591,6 +592,37 @@ async def test_exit_command_quits(fake_backend, make_app, monkeypatch):
         await _submit(pilot, app, "/exit")
         await _settle(pilot, app)
     assert exited == [True]
+
+
+async def test_ctrl_q_confirms_before_quitting(fake_backend, make_app, monkeypatch):
+    """Ctrl+Q opens the exit confirmation; confirming quits."""
+    exited: list[bool] = []
+    app = make_app(chat_id="c1")
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+q")
+        await pilot.pause()
+        assert isinstance(app.screen, ExitConfirm)
+        assert exited == []  # not until confirmed
+        app.screen.query_one("#exit-confirm", Button).press()
+        await _settle(pilot, app)
+    assert exited == [True]
+
+
+async def test_ctrl_q_cancel_does_not_quit(fake_backend, make_app, monkeypatch):
+    """Cancelling the exit confirmation keeps the app running."""
+    exited: list[bool] = []
+    app = make_app(chat_id="c1")
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+q")
+        await pilot.pause()
+        assert isinstance(app.screen, ExitConfirm)
+        app.screen.query_one("#exit-cancel", Button).press()
+        await pilot.pause()
+    assert exited == []
 
 
 async def test_exit_command_stops_run_then_quits(fake_backend, make_app, monkeypatch):
