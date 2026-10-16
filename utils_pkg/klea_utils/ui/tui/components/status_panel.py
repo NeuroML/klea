@@ -26,7 +26,10 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Collapsible, Static
 
+from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.model_config import role_label
+from klea_utils.ui.state import missing_credentials
 
 if TYPE_CHECKING:
     from klea_utils.ui.tui.context import TuiContext
@@ -44,6 +47,62 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
         f"tokens: {usage.get('input_tokens', 0)} in / "
         f"{usage.get('output_tokens', 0)} out"
     )
+
+
+def _model_name(raw: str) -> str:
+    """Return a role's short model name, or ``"Not set"`` when unset.
+
+    :param raw: The role's model string.
+    :returns: The parsed model name (mirrors the web status pane).
+    """
+    if not raw:
+        return "Not set"
+    return parse_model_name(raw).model_name or raw
+
+
+def _models_widgets(model_info: Mapping[str, Any]) -> list[Static]:
+    """Build the selected-models line and any missing-config warning.
+
+    Mirrors the web status pane: one line naming each role's resolved model,
+    then a warning when a required model or API key is still missing.
+
+    :param model_info: The chat's ``model_info`` (role -> config).
+    :returns: The widgets to render, in order.
+    """
+    parts = [
+        f"{role_label(role)} {_model_name(str((cfg or {}).get('model', '') or ''))}"
+        for role, cfg in model_info.items()
+    ]
+    widgets = [
+        Static("Models: " + " | ".join(parts), markup=False, classes="status-models")
+    ]
+    missing = missing_required_roles(model_info)
+    if missing:
+        widgets.append(
+            Static(
+                "Select a model to start: "
+                + ", ".join(role_label(role) for role in missing),
+                markup=False,
+                classes="status-missing",
+            )
+        )
+        return widgets
+    missing_providers = sorted(
+        {
+            str((model_info[role].get("credential") or {}).get("provider", ""))
+            for role in missing_credentials(dict(model_info))
+        }
+        - {""}
+    )
+    if missing_providers:
+        widgets.append(
+            Static(
+                "Add an API key for: " + ", ".join(missing_providers),
+                markup=False,
+                classes="status-missing",
+            )
+        )
+    return widgets
 
 
 def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
@@ -94,6 +153,12 @@ class StatusPanel(VerticalScroll):
     }
     StatusPanel #status-body {
         height: auto;
+    }
+    StatusPanel .status-models {
+        color: $text-muted;
+    }
+    StatusPanel .status-missing {
+        color: $error;
     }
     """
 
@@ -147,6 +212,9 @@ class StatusPanel(VerticalScroll):
         await body.remove_children()
         widgets: list[Any] = []
         if chat:
+            model_info = chat.get("model_info") or {}
+            if model_info:
+                widgets.extend(_models_widgets(model_info))
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 widgets.append(Static(_usage_line(usage), id="status-usage"))
