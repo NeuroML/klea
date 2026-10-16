@@ -1279,14 +1279,15 @@ async def test_query_input_grows_then_caps(fake_backend, make_app):
         field.text = "one line"
         await pilot.pause()
         short = frame.size.height
-        # The entry is bottom-aligned, so the cursor starts on the bottom line.
-        assert field.region.bottom == frame.region.bottom
+        # One row of vertical padding around the single-row entry.
+        assert frame.styles.padding.top >= 1
+        assert frame.styles.padding.bottom >= 1
         field.text = "\n".join(f"line {i}" for i in range(30))
         await pilot.pause()
         tall = frame.size.height
-        assert short >= 3  # minimum height of a few rows
         assert short < tall
-        assert tall <= 8  # capped (stops growing), so it scrolls instead
+        assert field.size.height <= 8  # the entry caps...
+        assert field.max_scroll_y > 0  # ...and scrolls past the cap
 
 
 async def test_query_input_ctrl_j_inserts_newline(fake_backend, make_app):

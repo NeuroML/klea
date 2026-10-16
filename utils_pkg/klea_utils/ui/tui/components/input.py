@@ -32,27 +32,26 @@ logger = logging.getLogger(__name__)
 
 
 class QueryInput(Vertical):
-    """The query composer: a themed frame with the entry bottom-aligned.
+    """The query composer: a themed, padded frame around the entry.
 
-    The frame keeps a minimum of three rows and grows with the text; because
-    the entry is aligned to the bottom, the cursor starts on the bottom line
-    and the box grows upward (the web composer's behaviour).  The background
-    lives on the frame (``$primary 15%``, theme-aware, matching the user
-    transcript blocks) rather than as a border, so the whole padded area reads
-    as the input surface.
+    The frame has one row of vertical padding and the entry starts at a single
+    row, growing with the text (then scrolling at ``max-height``); this makes a
+    compact box that expands as needed.  The background lives on the frame
+    (``$primary 15%``, theme-aware, matching the user transcript blocks) rather
+    than as a border, so the whole padded area reads as the input surface.
     """
 
     DEFAULT_CSS = """
     QueryInput {
         height: auto;
-        min-height: 3;
-        max-height: 8;
+        padding: 1 0;
         background: $primary 15%;
-        align: left bottom;
         margin-bottom: 1;
     }
     QueryInput QueryTextArea {
         height: auto;
+        /* The entry grows with the text and starts scrolling past this many
+         * rows; the frame (auto height) just wraps it plus the padding. */
         max-height: 8;
         border: none;
         background: transparent;
