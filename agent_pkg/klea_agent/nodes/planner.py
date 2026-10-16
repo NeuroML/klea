@@ -44,9 +44,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         "temperature": 0.01,
     }
     #: Re-invoke the model with the validation error when it returns a
-    #: structurally inconsistent plan (dangling dependencies, out-of-range
-    #: current index, duplicate numbers).  Bounded so the node always returns.
-    max_validation_retries: ClassVar[int] = 2
+    #: structurally inconsistent plan (dangling dependencies, a trailing
+    #: review, duplicate numbers).  Bounded so the node always returns; 3
+    #: gives smaller models a few tries while staying bounded.
+    max_validation_retries: ClassVar[int] = 3
 
     def __init__(
         self,
@@ -177,6 +178,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
           a ``reasoning`` step names none -- unless the step is **blocked** (it
           has ``needs_input`` questions), since a blocked step is a draft that
           is not executed and need not yet be runnable;
+        * a ``review`` step must gate pending work: it must have at least one
+          pending non-review step after it (a trailing review gates nothing);
         * ``needs_input`` status must be accompanied by at least one blocked
           step (a question to ask).
 
@@ -225,6 +228,22 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     if step.suggested_tools:
                         errors.append(
                             f"step {step.step_number} is a review step but names tools"
+                        )
+                    # A review only approves work that runs *after* it.  A
+                    # review with no pending non-review step after it gates
+                    # nothing -- it would just pause before the answer -- so it
+                    # is rejected (the run resumes to the next pending step).
+                    if not any(
+                        other.kind != "review"
+                        and other.status == "pending"
+                        and other.step_number > step.step_number
+                        for other in plan.step_list
+                    ):
+                        errors.append(
+                            f"step {step.step_number} is a review step with no "
+                            "pending work after it; a review only approves the "
+                            "steps that run after it - remove it, or add the "
+                            "work it should gate"
                         )
                     continue
                 if step.kind == "tool" and not step.suggested_tools:

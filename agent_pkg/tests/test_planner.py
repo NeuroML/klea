@@ -276,6 +276,62 @@ class TestPlannerState(unittest.TestCase):
         self.assertIsNotNone(errors)
         self.assertIn("review step", errors or "")
 
+    def test_review_step_must_gate_pending_work(self):
+        """A trailing review (no pending work after it) is rejected."""
+        errors = self._planner()._validate_result(
+            PlannerOutput(
+                goal=GoalSchema(goal="g"),
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(
+                            step_number=1,
+                            description="fetch",
+                            suggested_tools=["read_file"],
+                            status="done",
+                        ),
+                        StepSchema(
+                            step_number=2,
+                            description="Review the plan",
+                            kind="review",
+                            depends_on=[1],
+                        ),
+                    ],
+                    status="in_progress",
+                ),
+            ),
+            KleaAgentState(),
+            LLMNodeContext(),
+        )
+        self.assertIsNotNone(errors)
+        self.assertIn("no pending work after it", errors or "")
+
+    def test_review_step_with_work_after_is_accepted(self):
+        """A review that gates a pending step is valid."""
+        error = self._planner()._validate_result(
+            PlannerOutput(
+                goal=GoalSchema(goal="g"),
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(
+                            step_number=1,
+                            description="Review the plan",
+                            kind="review",
+                        ),
+                        StepSchema(
+                            step_number=2,
+                            description="s",
+                            suggested_tools=["read_file"],
+                            depends_on=[1],
+                        ),
+                    ],
+                    status="in_progress",
+                ),
+            ),
+            KleaAgentState(),
+            LLMNodeContext(),
+        )
+        self.assertIsNone(error)
+
     def test_human_feedback_is_consumed(self):
         """Review feedback is cleared once the Planner has read it."""
         state = KleaAgentState(
