@@ -207,11 +207,13 @@ builder.  The registered controls are `Callable[[TuiContext], Widget | list]`
 renderers in `TuiContext.status_extras`; `StatusPanel` mounts them above the
 streamed state, so a state refresh never disturbs them, and rebuilds them on a
 `context` change (so a control follows the checkpointed state).  The agent's
-`mode_ui.ModeSelector`, `access_ui.AccessSelector` and
-`project_root_ui.project_root_status_extra` are compact one-line displays of
-the active mode / access level / project root, with no buttons.  A control that
-must run a query posts a shared `SubmitQuery` message (`ui/tui/events.py`),
-which the app routes through
+`status_ui.mode_access_status_extra` (a compact one-line ``mode | access``
+display, with full access in the theme's error colour) and
+`project_root_ui.project_root_status_extra` (the project root) are read-only
+displays with no buttons; `mode_ui` / `access_ui` hold the mode/access
+vocabulary and the helper that resolves the chat's effective value.  A control
+that must run a query posts a shared `SubmitQuery` message
+(`ui/tui/events.py`), which the app routes through
 `submit` (commands and the setup gating still apply).
 
 ## Rendering and non-goals

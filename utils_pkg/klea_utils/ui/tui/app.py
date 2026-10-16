@@ -99,6 +99,7 @@ _CSS = """
 }
 #view-toggle {
     height: 1;
+    text-align: center;
 }
 #inspector {
     height: 1fr;
@@ -128,10 +129,12 @@ def _view_toggle_text(view: str) -> Text:
     :returns: A Rich ``Text`` renderable for the toggle.
     """
     text = Text()
-    for index, name in enumerate(("transcript", "inspector")):
+    for index, (key, label) in enumerate(
+        (("transcript", "Chat"), ("inspector", "Inspect"))
+    ):
         if index:
             text.append("  |  ")
-        text.append(name, style="bold" if view == name else "dim")
+        text.append(label, style="bold" if view == key else "dim")
     return text
 
 

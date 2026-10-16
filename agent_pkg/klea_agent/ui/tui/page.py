@@ -47,9 +47,8 @@ def run_agent_tui(
     # launch, so importing the CLI (e.g. for --help) stays light.
     from klea_utils.ui.tui.app import run_tui
 
-    from klea_agent.ui.tui.access_ui import access_status_extra
-    from klea_agent.ui.tui.mode_ui import mode_status_extra
     from klea_agent.ui.tui.project_root_ui import project_root_status_extra
+    from klea_agent.ui.tui.status_ui import mode_access_status_extra
 
     run_tui(
         url=url,
@@ -61,8 +60,7 @@ def run_agent_tui(
         continue_session=continue_session,
         identity_app_name=identity_app_name,
         status_extras=[
-            mode_status_extra,
-            access_status_extra,
+            mode_access_status_extra,
             project_root_status_extra,
         ],
     )

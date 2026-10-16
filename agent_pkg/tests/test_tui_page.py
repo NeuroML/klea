@@ -12,13 +12,12 @@ from __future__ import annotations
 
 import pytest
 from klea_agent.ui.tui import page
-from klea_agent.ui.tui.access_ui import access_status_extra
-from klea_agent.ui.tui.mode_ui import mode_status_extra
 from klea_agent.ui.tui.project_root_ui import project_root_status_extra
+from klea_agent.ui.tui.status_ui import mode_access_status_extra
 
 
 def test_run_agent_tui_registers_selectors(monkeypatch):
-    """The agent entry passes its mode + access + project-root status slots."""
+    """The agent entry passes its mode/access + project-root status slots."""
     captured: dict = {}
 
     def _fake_run_tui(**kwargs) -> None:
@@ -28,8 +27,7 @@ def test_run_agent_tui_registers_selectors(monkeypatch):
     page.run_agent_tui(url="http://x", title="Klea")
 
     assert captured["status_extras"] == [
-        mode_status_extra,
-        access_status_extra,
+        mode_access_status_extra,
         project_root_status_extra,
     ]
     assert captured["url"] == "http://x"

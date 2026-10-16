@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tests for the agent TUI operating-mode selector.
+Tests for the agent TUI operating-mode vocabulary.
 
 File: tests/test_tui_mode_ui.py
 
@@ -11,23 +11,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import pytest
-from klea_agent.ui.tui.mode_ui import MODES, ModeSelector, current_mode
+from klea_agent.ui.tui.mode_ui import MODES, current_mode
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.tui.context import TuiContext
-from textual.app import App, ComposeResult
-
-
-class _Host(App):
-    """A minimal host that mounts the mode selector."""
-
-    def __init__(self, ctx: TuiContext) -> None:
-        """Store the context."""
-        super().__init__()
-        self.ctx = ctx
-
-    def compose(self) -> ComposeResult:
-        """Mount the mode selector."""
-        yield ModeSelector(self.ctx)
 
 
 @pytest.fixture(autouse=True)
@@ -53,16 +39,6 @@ def test_current_mode_prefers_context_then_preference():
 def test_modes_has_general_and_scientific():
     """The mode vocabulary matches the graph's."""
     assert set(MODES) == {"general", "scientific"}
-
-
-async def test_mode_selector_renders_compact_line():
-    """The selector renders the active mode as a compact one-line Static."""
-    ctx = TuiContext(server_url="http://x", user_id="u", chat_id="c")
-    app = _Host(ctx)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        selector = app.query_one(ModeSelector)
-        assert str(selector.render()) == "Mode: General"
 
 
 if __name__ == "__main__":
