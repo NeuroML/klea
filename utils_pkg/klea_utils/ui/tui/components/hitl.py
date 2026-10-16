@@ -78,10 +78,16 @@ class HitlModal(ModalScreen[HitlDecision]):
         text-style: bold;
         height: 1;
     }
-    #hitl-plan {
+    #hitl-headline {
+        text-style: bold;
         height: auto;
     }
-    #hitl-progress {
+    .hitl-section-title {
+        text-style: bold;
+        color: $text-muted;
+        height: auto;
+    }
+    .hitl-section-body {
         height: auto;
     }
     """
@@ -109,19 +115,35 @@ class HitlModal(ModalScreen[HitlDecision]):
                 yield from self._compose_input()
 
     def _compose_review(self) -> ComposeResult:
-        """Compose the review form (plan, question, progress, feedback, buttons)."""
-        plan = self.ask.get("plan")
-        if plan:
-            yield Static(plan, id="hitl-plan", markup=False)
+        """Compose the review form (headline, sections, feedback, buttons).
+
+        The payload's ``headline`` and ``sections`` adapt to the review's
+        position (a plan approval or a progress checkpoint; ADR-0051); both
+        frontends render the same sections.
+        """
+        headline = self.ask.get("headline")
+        if headline:
+            yield Static(str(headline), id="hitl-headline", markup=False)
         question = self.ask.get("question")
         if question:
-            yield Static(str(question), id="hitl-question")
-        # A mid-plan checkpoint (ADR-0051) carries a concise summary of the work
-        # so far (tool names + outcomes), rendered monospace like the plan so
-        # tool names and paths stay literal; full results are in the inspector.
-        progress = self.ask.get("progress")
-        if progress:
-            yield Static(str(progress), id="hitl-progress", markup=False)
+            yield Static(str(question), id="hitl-question", markup=False)
+        for index, section in enumerate(self.ask.get("sections") or []):
+            if not isinstance(section, Mapping):
+                continue
+            title = str(section.get("title", ""))
+            if title:
+                yield Static(
+                    title,
+                    id=f"hitl-section-{index}-title",
+                    classes="hitl-section-title",
+                    markup=False,
+                )
+            yield Static(
+                str(section.get("body", "")),
+                id=f"hitl-section-{index}-body",
+                classes="hitl-section-body",
+                markup=False,
+            )
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )

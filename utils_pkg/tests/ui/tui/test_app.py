@@ -172,17 +172,24 @@ async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
     assert any("Plan approved" in text for text in texts)
 
 
-async def test_review_interrupt_modal_shows_plan_and_progress(fake_backend, make_app):
-    """The review modal renders the plan and the concise progress summary."""
+async def test_review_interrupt_modal_shows_headline_and_sections(
+    fake_backend, make_app
+):
+    """The review modal renders the adaptive headline and sections."""
     fake_backend.scripts = [
         [
             {
                 "type": "interrupt",
                 "data": {
                     "kind": "review",
-                    "question": "Approve?",
-                    "plan": "[x] Step 1: copy the file (depends on: (none))",
-                    "progress": "Step 1:\n- run_command: ok",
+                    "headline": "Approve this plan (2 steps)",
+                    "question": "Approve, request changes, or cancel.",
+                    "sections": [
+                        {
+                            "title": "Plan",
+                            "body": "[ ] Step 1: fetch\n[ ] Step 2: write",
+                        }
+                    ],
                     "interrupt_id": "i1",
                 },
             }
@@ -194,16 +201,18 @@ async def test_review_interrupt_modal_shows_plan_and_progress(fake_backend, make
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
         assert isinstance(app.screen, HitlModal)
-        plan = app.screen.query_one("#hitl-plan", Static)
-        assert "copy the file" in str(plan.render())
-        progress = app.screen.query_one("#hitl-progress", Static)
-        assert "run_command: ok" in str(progress.render())
+        headline = app.screen.query_one("#hitl-headline", Static)
+        assert "Approve this plan" in str(headline.render())
+        title = app.screen.query_one("#hitl-section-0-title", Static)
+        assert str(title.render()) == "Plan"
+        body = app.screen.query_one("#hitl-section-0-body", Static)
+        assert "Step 1: fetch" in str(body.render())
         app.screen.query_one("#hitl-approve", Button).press()
         await _settle(pilot, app)
 
 
-async def test_review_modal_with_long_plan_scrolls(fake_backend, make_app):
-    """A long plan-review modal scrolls so Approve/Decline stay reachable."""
+async def test_review_modal_with_long_section_scrolls(fake_backend, make_app):
+    """A long review section scrolls so Approve/Decline stay reachable."""
     long_plan = "\n".join(f"step {i}: do the thing" for i in range(60))
     fake_backend.scripts = [
         [
@@ -211,9 +220,9 @@ async def test_review_modal_with_long_plan_scrolls(fake_backend, make_app):
                 "type": "interrupt",
                 "data": {
                     "kind": "review",
-                    "question": "Approve?",
-                    "plan": long_plan,
-                    "progress": "step 0: ok",
+                    "headline": "Approve this plan (60 steps)",
+                    "question": "Approve, request changes, or cancel.",
+                    "sections": [{"title": "Plan", "body": long_plan}],
                     "interrupt_id": "i1",
                 },
             }
