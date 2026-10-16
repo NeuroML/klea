@@ -267,6 +267,100 @@ class TestStepOutputRender:
         assert "goal=generate a hypothesis" in text
 
 
+class TestReviewSections:
+    """The review interrupt's headline/sections adapt to the review position."""
+
+    @staticmethod
+    def _result() -> CallToolResult:
+        return CallToolResult(
+            content=[TextContent(type="text", text="ok")],
+            structured_content={"ok": True},
+            meta=None,
+        )
+
+    def test_whole_plan_approval_lists_the_work_steps(self):
+        """A review before any work presents the plan under approval."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, kind="review", description="Approve"),
+                    StepSchema(step_number=2, description="fetch"),
+                    StepSchema(step_number=3, description="write"),
+                ]
+            )
+        )
+        headline, sections = state.review_sections()
+        assert headline == "Approve this plan (2 steps)"
+        assert [section["title"] for section in sections] == ["Plan"]
+        body = sections[0]["body"]
+        assert "Step 2: fetch" in body and "Step 3: write" in body
+        assert "Approve" not in body  # the review gate is not work
+
+    def test_checkpoint_lists_recent_work_and_remaining(self):
+        """A checkpoint after work shows the done step (+summary) and remainder."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(
+                        step_number=2,
+                        kind="review",
+                        description="Review progress",
+                        depends_on=[1],
+                    ),
+                    StepSchema(step_number=3, description="write"),
+                ]
+            ),
+            step_outputs={1: [StepOutput(result=self._result(), tool="run_command")]},
+        )
+        headline, sections = state.review_sections()
+        assert headline == "Review the work done and approve the remaining 1 step"
+        assert [section["title"] for section in sections] == [
+            "Completed since the last review (step 1)",
+            "Remaining (1 step)",
+        ]
+        assert "Step 1: fetch" in sections[0]["body"]
+        assert "- run_command: ok" in sections[0]["body"]
+        assert "Step 3: write" in sections[1]["body"]
+
+    def test_completed_is_only_since_the_last_review(self):
+        """Only work after the previous approved review is listed."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(
+                        step_number=1, kind="review", description="Plan", status="done"
+                    ),
+                    StepSchema(step_number=2, description="first", status="done"),
+                    StepSchema(
+                        step_number=3,
+                        kind="review",
+                        description="Midpoint",
+                        depends_on=[2],
+                        status="done",
+                    ),
+                    StepSchema(step_number=4, description="second", status="done"),
+                    StepSchema(
+                        step_number=5,
+                        kind="review",
+                        description="Review progress",
+                        depends_on=[4],
+                    ),
+                    StepSchema(step_number=6, description="third"),
+                ]
+            ),
+            step_outputs={
+                2: [StepOutput(result=self._result(), tool="edit_file")],
+                4: [StepOutput(result=self._result(), tool="run_command")],
+            },
+        )
+        _, sections = state.review_sections()
+        completed = sections[0]
+        assert completed["title"] == "Completed since the last review (step 4)"
+        assert "- run_command: ok" in completed["body"]
+        assert "- edit_file: ok" not in completed["body"]  # ran before review 3
+
+
 class TestPlannerPlanSchema:
     """The Planner sees only the statuses it may set (ADR-0035 2026-09-19)."""
 
