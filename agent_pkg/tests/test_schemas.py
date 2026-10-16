@@ -236,7 +236,7 @@ class TestStepOutputRender:
 
 
 class TestReviewSections:
-    """The review interrupt's headline/sections adapt to the review position."""
+    """The review interrupt carries only the pending work it approves."""
 
     @staticmethod
     def _result() -> CallToolResult:
@@ -246,7 +246,7 @@ class TestReviewSections:
             meta=None,
         )
 
-    def test_whole_plan_approval_lists_the_work_steps(self):
+    def test_whole_plan_approval_lists_the_pending_steps(self):
         """A review before any work presents the plan under approval."""
         state = KleaAgentState(
             plan=PlanSchema(
@@ -264,8 +264,8 @@ class TestReviewSections:
         assert "Step 2: fetch" in body and "Step 3: write" in body
         assert "Approve" not in body  # the review gate is not work
 
-    def test_checkpoint_lists_recent_work_and_remaining(self):
-        """A checkpoint after work shows the done step (+summary) and remainder."""
+    def test_checkpoint_lists_only_the_remaining_steps(self):
+        """A checkpoint shows only the pending steps it unblocks."""
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
@@ -282,51 +282,27 @@ class TestReviewSections:
             step_outputs={1: [StepOutput(result=self._result(), tool="run_command")]},
         )
         headline, sections = state.review_sections()
-        assert headline == "Review the work done and approve the remaining 1 step"
-        assert [section["title"] for section in sections] == [
-            "Completed since the last review (step 1)",
-            "Remaining (1 step)",
-        ]
-        assert "Step 1: fetch" in sections[0]["body"]
-        assert "- run_command: ok" in sections[0]["body"]
-        assert "Step 3: write" in sections[1]["body"]
+        assert headline == "Approve the remaining 1 step"
+        assert [section["title"] for section in sections] == ["Remaining"]
+        body = sections[0]["body"]
+        assert "Step 3: write" in body
+        # Completed work and its findings are not re-shown.
+        assert "Step 1" not in body
+        assert "run_command" not in body
 
-    def test_completed_is_only_since_the_last_review(self):
-        """Only work after the previous approved review is listed."""
+    def test_skipped_steps_mark_a_checkpoint(self):
+        """A skipped step counts as work done, so the ask is a checkpoint."""
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(
-                        step_number=1, kind="review", description="Plan", status="done"
-                    ),
-                    StepSchema(step_number=2, description="first", status="done"),
-                    StepSchema(
-                        step_number=3,
-                        kind="review",
-                        description="Midpoint",
-                        depends_on=[2],
-                        status="done",
-                    ),
-                    StepSchema(step_number=4, description="second", status="done"),
-                    StepSchema(
-                        step_number=5,
-                        kind="review",
-                        description="Review progress",
-                        depends_on=[4],
-                    ),
-                    StepSchema(step_number=6, description="third"),
+                    StepSchema(step_number=1, description="optional", status="skipped"),
+                    StepSchema(step_number=2, kind="review", description="Review"),
+                    StepSchema(step_number=3, description="write"),
                 ]
-            ),
-            step_outputs={
-                2: [StepOutput(result=self._result(), tool="edit_file")],
-                4: [StepOutput(result=self._result(), tool="run_command")],
-            },
+            )
         )
-        _, sections = state.review_sections()
-        completed = sections[0]
-        assert completed["title"] == "Completed since the last review (step 4)"
-        assert "- run_command: ok" in completed["body"]
-        assert "- edit_file: ok" not in completed["body"]  # ran before review 3
+        headline, _ = state.review_sections()
+        assert headline == "Approve the remaining 1 step"
 
 
 class TestPlannerPlanSchema:

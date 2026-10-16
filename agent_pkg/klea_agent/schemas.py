@@ -724,78 +724,29 @@ class KleaAgentState(BaseGraphSchema):
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:
         """Return the headline and content sections for a plan-review interrupt.
 
-        The ask adapts to the review's position (ADR-0051).  A review before
-        any work presents the plan under approval.  A review after work
-        presents only the steps completed *since the previous review* (the full
-        plan lives in the status pane) plus the remaining steps the approval
-        unblocks.  ``review`` steps are human gates, not work, so they are not
-        listed in either section.
+        The review only approves **pending** work (ADR-0051): the ask carries
+        the steps that will run after the gate -- the whole plan for a
+        whole-plan approval, or the remaining steps for a mid-plan checkpoint.
+        Completed steps are not shown (their findings are in the transcript and
+        the inspection pane) and ``review`` gates are not shown (they are not
+        work).
 
         :returns: ``(headline, sections)``; each section is a
             ``{"title": ..., "body": ...}`` dict whose body is the
-            status-pane-style render of the steps, with each completed step
-            followed by its concise output summaries.
+            status-pane-style render of the pending steps.
         """
-        steps = self.plan.step_list
-        work = [step for step in steps if step.kind != "review"]
-        completed = [step for step in work if step.status in ("done", "skipped")]
-        remaining = [step for step in work if step.status == "pending"]
-
-        if not completed:
-            headline = f"Approve this plan ({_count(len(remaining), 'step')})"
-            body = self._render_review_steps(remaining, summaries=False)
-            sections = [{"title": "Plan", "body": body}] if body else []
-            if not sections:
-                sections = [{"title": "Plan", "body": "(no steps)"}]
-            return headline, sections
-
-        last_review = max(
-            (
-                step.step_number
-                for step in steps
-                if step.kind == "review" and step.status == "done"
-            ),
-            default=0,
+        work = [step for step in self.plan.step_list if step.kind != "review"]
+        pending = [step for step in work if step.status == "pending"]
+        body = "\n".join(step.render(markdown=True) for step in pending) or (
+            "(no pending steps)"
         )
-        recent = [step for step in completed if step.step_number > last_review]
-        sections: list[dict[str, str]] = []
-        if recent:
-            first, last = recent[0].step_number, recent[-1].step_number
-            span = f"step {first}" if first == last else f"steps {first}-{last}"
-            sections.append(
-                {
-                    "title": f"Completed since the last review ({span})",
-                    "body": self._render_review_steps(recent, summaries=True),
-                }
-            )
-        if remaining:
-            sections.append(
-                {
-                    "title": f"Remaining ({_count(len(remaining), 'step')})",
-                    "body": self._render_review_steps(remaining, summaries=False),
-                }
-            )
-        headline = (
-            "Review the work done and approve the remaining "
-            f"{_count(len(remaining), 'step')}"
-        )
-        return headline, sections
-
-    def _render_review_steps(self, steps: list[StepSchema], *, summaries: bool) -> str:
-        """Render *steps* as status-pane lines, optionally with output summaries.
-
-        :param steps: The steps to render (in order).
-        :param summaries: Append each step's recorded output summaries as
-            indented bullets.
-        :returns: The rendered block.
-        """
-        lines: list[str] = []
-        for step in steps:
-            lines.append(step.render(markdown=True))
-            if summaries:
-                for entry in self.step_outputs.get(step.step_number, []):
-                    lines.append(f"    - {entry.summary()}")
-        return "\n".join(lines)
+        if any(step.status in ("done", "skipped") for step in work):
+            return f"Approve the remaining {_count(len(pending), 'step')}", [
+                {"title": "Remaining", "body": body}
+            ]
+        return f"Approve this plan ({_count(len(pending), 'step')})", [
+            {"title": "Plan", "body": body}
+        ]
 
     def artefacts_text(self) -> str:
         """Render the session-scoped artefacts as one text block.
