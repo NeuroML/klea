@@ -110,6 +110,9 @@ _CSS = """
 #status {
     height: 1fr;
 }
+#query-input {
+    margin-bottom: 1;
+}
 """
 
 
@@ -134,6 +137,15 @@ def _view_toggle_text(view: str) -> Text:
 
 class KleaTuiScreen(Screen):
     """The single screen: a chat panel and a status panel side by side."""
+
+    #: A terminal sends Ctrl+I as a Tab character, and ``Screen``'s default
+    #: Tab binding (``focus_next``) would swallow it before the app's
+    #: ``ctrl+i`` binding fires, so the documented view toggle never worked.
+    #: Bind Tab here (priority) to an action that toggles the view when the
+    #: query input is focused and keeps focus traversal elsewhere.
+    BINDINGS: ClassVar[list[Binding]] = [
+        Binding("tab", "toggle_view_or_focus", "Inspector", priority=True),
+    ]
 
     def __init__(self, ctx: TuiContext) -> None:
         """Build the screen for *ctx*.
@@ -161,7 +173,8 @@ class KleaTuiScreen(Screen):
                 yield QueryTextArea(id="query-input")
                 yield Static(
                     "Enter send | Ctrl+J newline | / commands | "
-                    "Ctrl+C stop | Ctrl+R retry | Ctrl+I view | Ctrl+Q quit",
+                    "Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "
+                    "Ctrl+Q quit",
                     id="key-hints",
                 )
             with Vertical(id="status-panel"):
@@ -292,6 +305,19 @@ class KleaTuiScreen(Screen):
             "inspector" if self._view == "transcript" else "transcript"
         )
 
+    async def action_toggle_view_or_focus(self) -> None:
+        """Toggle the view when the query input is focused, else move focus.
+
+        Backs the priority ``tab`` binding (see :attr:`BINDINGS`): a terminal
+        sends Ctrl+I as Tab, so Tab toggles the transcript/inspector view
+        while composing a query, but still traverses focus from any other
+        widget.
+        """
+        if isinstance(self.focused, QueryTextArea):
+            await self.toggle_view()
+        else:
+            self.focus_next()
+
     async def show_view(self, view: str) -> None:
         """Show *view* in the chat panel, hiding the other.
 
@@ -333,7 +359,7 @@ class KleaTuiApp(App[None]):
     BINDINGS: ClassVar[list[Binding]] = [
         Binding("ctrl+c", "stop", "Stop"),
         Binding("ctrl+r", "retry", "Retry"),
-        Binding("ctrl+i", "toggle_view", "Transcript/Inspector"),
+        Binding("ctrl+i", "toggle_view", "Inspector"),
         Binding("ctrl+s", "open_sessions", "Sessions"),
         Binding("ctrl+m", "open_models", "Models"),
         Binding("ctrl+q", "quit", "Quit"),
@@ -712,7 +738,10 @@ class KleaTuiApp(App[None]):
         info = await fetch_active_models(
             self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
         )
-        ensure_chat(self.ctx.user_id, self.ctx.chat_id)["model_info"] = info
+        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        chat["model_info"] = info
+        if self._screen is not None:
+            await self._screen.refresh_status(chat)
 
     def _on_session_choice(self, action: SessionAction | None) -> None:
         """Handle the picker's choice (switch, rename or delete).
