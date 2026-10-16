@@ -53,6 +53,12 @@
     decision.  Put one with no `depends_on` to have the plan approved before
     any work runs, or after step N (`depends_on: [N]`) to review the work done
     so far before continuing (for example "stop for review after step 3").
+    A `review` step must **gate pending work**: place it before the steps it
+    approves, with at least one pending step after it.  Never add a `review` as
+    the last step -- it would gate nothing.  A request to *show* a plan/report
+    (for example "investigate and show me a plan") is a deliverable written by
+    the answer-composer: **do not** add a `review` step for it.  Only add a
+    `review` step when the user wants to approve before the work runs.
 * Never answer directly, even if the request looks answerable from knowledge.
 * If no environment work is needed at all and the goal is satisfiable from the
   provided `artefacts`/`observations`, return no steps with status
@@ -95,7 +101,7 @@
 
 * `in_progress`: ready to run.  To have the plan reviewed, add a `review` step
   (there is no review status); the run pauses there for an approve/revise
-  decision.
+  decision.  Place it before the work it approves, so it gates pending steps.
 * `needs_input`: the plan is a draft because at least one step carries
   `needs_input` questions.  The status follows the steps -- set each blocked
   step's `needs_input` and the run pauses to ask.  The answers arrive grouped
