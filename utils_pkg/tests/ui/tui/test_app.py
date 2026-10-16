@@ -30,7 +30,8 @@ from klea_utils.ui.tui.components.sessions import (
     SessionPicker,
     SessionRename,
 )
-from textual.containers import Horizontal
+from klea_utils.ui.tui.components.transcript import MessageBlock
+from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import (
     Button,
     Collapsible,
@@ -634,7 +635,7 @@ async def test_status_panel_shows_models(fake_backend, make_app):
         texts = [str(static.render()) for static in panel.query(Static)]
         assert any("gpt-4o" in text for text in texts)
         assert any("Not set" in text for text in texts)
-        assert any("Select a model to start" in text for text in texts)
+        assert any("Select a model" in text for text in texts)
 
 
 async def test_status_panel_shows_chat_name(fake_backend, make_app):
@@ -645,6 +646,35 @@ async def test_status_panel_shows_chat_name(fake_backend, make_app):
         text = str(app.screen.query_one("#chat-name", Static).render())
         assert "Calm River" in text
         assert "calm-river" in text
+
+
+async def test_long_message_collapses_and_expands(fake_backend, make_app):
+    """A long message is clipped to a few lines and can be expanded."""
+    long_text = "\n\n".join(f"paragraph {i}" for i in range(20))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        scroll = block.query_one(".message-scroll", VerticalScroll)
+        assert scroll.virtual_size.height > 4
+        assert scroll.size.height == 4  # clipped to the collapsed height
+        block.action_toggle_expand()
+        await pilot.pause()
+        assert scroll.size.height > 4  # expanded shows the full text
+
+
+async def test_short_message_is_not_collapsed(fake_backend, make_app):
+    """A short message gets no clip and no expand hint."""
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        scroll = block.query_one(".message-scroll", VerticalScroll)
+        assert scroll.virtual_size.height <= 4
+        assert not block.can_focus
 
 
 async def test_status_details_with_brackets_render(fake_backend, make_app):

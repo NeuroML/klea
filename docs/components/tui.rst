@@ -26,7 +26,9 @@ the box grows upward.  :kbd:`Enter` sends and :kbd:`Ctrl+J` inserts a newline
 The transcript renders each message MIME-aware, mirroring the web: Markdown
 for the agent's replies, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
-be rendered (there is no inline media in a terminal).  Press :kbd:`Ctrl+I`
+be rendered (there is no inline media in a terminal).  A long message is
+collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
+expand or collapse.  Press :kbd:`Ctrl+I`
 (or :kbd:`Tab`, which is the byte a terminal sends for it) to switch the same
 panel to the **inspector** view: the per-step trace behind
 the latest answer (each pipeline step's heading, timing, summary and raw
@@ -125,9 +127,11 @@ Status panel
 
 The right panel summarises the current chat: its **name and id**, then, in the
 agent, the operating **mode** and tool **access** selectors (choosing one sends
-``/mode`` or ``/access`` to the agent), the chat's selected **models** (with a
-warning when a required model or API key is still missing), the running token
-totals, and the per-step state sections that stream while the graph runs.
+``/mode`` or ``/access`` to the agent), the chat's selected **models** (one
+role per line, with a warning when a required model or API key is still
+missing), the running token totals, and the per-step state sections that
+stream while the graph runs.  The groups are spaced apart, and the state
+sections sit on the pane's own background.
 
 Identity
 --------

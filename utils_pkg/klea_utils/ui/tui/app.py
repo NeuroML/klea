@@ -98,6 +98,7 @@ _CSS = """
     height: 1;
     color: $text-muted;
     text-overflow: ellipsis;
+    margin-bottom: 1;
 }
 #transcript {
     height: 1fr;

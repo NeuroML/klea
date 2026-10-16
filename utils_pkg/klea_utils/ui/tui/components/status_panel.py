@@ -60,49 +60,50 @@ def _model_name(raw: str) -> str:
     return parse_model_name(raw).model_name or raw
 
 
-def _models_widgets(model_info: Mapping[str, Any]) -> list[Static]:
-    """Build the selected-models line and any missing-config warning.
+def _models_widgets(model_info: Mapping[str, Any]) -> Vertical:
+    """Build the selected-models group and any missing-config warning.
 
-    Mirrors the web status pane: one line naming each role's resolved model,
-    then a warning when a required model or API key is still missing.
+    Mirrors the web status pane: one line per role naming its resolved model
+    (a role per line reads more neatly than a wrapped ``|``-joined line in the
+    narrow pane), then a warning when a required model or API key is missing.
 
     :param model_info: The chat's ``model_info`` (role -> config).
-    :returns: The widgets to render, in order.
+    :returns: The models group widget.
     """
-    parts = [
-        f"{role_label(role)} {_model_name(str((cfg or {}).get('model', '') or ''))}"
-        for role, cfg in model_info.items()
-    ]
     widgets = [
-        Static("Models: " + " | ".join(parts), markup=False, classes="status-models")
+        Static(
+            f"{role_label(role)}: "
+            f"{_model_name(str((cfg or {}).get('model', '') or ''))}",
+            markup=False,
+        )
+        for role, cfg in model_info.items()
     ]
     missing = missing_required_roles(model_info)
     if missing:
         widgets.append(
             Static(
-                "Select a model to start: "
-                + ", ".join(role_label(role) for role in missing),
+                "Select a model: " + ", ".join(role_label(role) for role in missing),
                 markup=False,
                 classes="status-missing",
             )
         )
-        return widgets
-    missing_providers = sorted(
-        {
-            str((model_info[role].get("credential") or {}).get("provider", ""))
-            for role in missing_credentials(dict(model_info))
-        }
-        - {""}
-    )
-    if missing_providers:
-        widgets.append(
-            Static(
-                "Add an API key for: " + ", ".join(missing_providers),
-                markup=False,
-                classes="status-missing",
-            )
+    else:
+        missing_providers = sorted(
+            {
+                str((model_info[role].get("credential") or {}).get("provider", ""))
+                for role in missing_credentials(dict(model_info))
+            }
+            - {""}
         )
-    return widgets
+        if missing_providers:
+            widgets.append(
+                Static(
+                    "Add an API key for: " + ", ".join(missing_providers),
+                    markup=False,
+                    classes="status-missing",
+                )
+            )
+    return Vertical(*widgets, id="status-models")
 
 
 def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
@@ -152,15 +153,27 @@ class StatusPanel(VerticalScroll):
     DEFAULT_CSS = """
     StatusPanel #status-extras {
         height: auto;
+        margin-bottom: 1;
     }
     StatusPanel #status-body {
         height: auto;
     }
-    StatusPanel .status-models {
+    StatusPanel #status-models {
+        height: auto;
+        margin-bottom: 1;
         color: $text-muted;
+    }
+    StatusPanel #status-usage {
+        margin-bottom: 1;
     }
     StatusPanel .status-missing {
         color: $error;
+    }
+    /* State sections sit on the status pane's own surface, not a distinct
+     * Collapsible ``$surface`` box. */
+    StatusPanel Collapsible,
+    StatusPanel CollapsibleTitle {
+        background: transparent;
     }
     """
 
@@ -216,7 +229,7 @@ class StatusPanel(VerticalScroll):
         if chat:
             model_info = chat.get("model_info") or {}
             if model_info:
-                widgets.extend(_models_widgets(model_info))
+                widgets.append(_models_widgets(model_info))
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 widgets.append(Static(_usage_line(usage), id="status-usage"))
