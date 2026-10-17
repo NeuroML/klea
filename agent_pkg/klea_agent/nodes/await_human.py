@@ -86,10 +86,10 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             return {"kind": "input", "questions": questions}
         # A review is either a whole-plan approval (before any work) or a
         # progress checkpoint (after work); ``review_sections`` adapts the
-        # headline and content to the review's position (ADR-0051) and excludes
-        # the review gate steps themselves.  The full plan lives in the status
-        # pane, so the checkpoint shows only recent work plus what approval
-        # unblocks.
+        # headline and content to the review's position (ADR-0051).  Every
+        # pending step is listed, including the review gates (marked as human
+        # checkpoints), so the plan is shown complete; completed steps live in
+        # the transcript and inspection pane.
         headline, sections = state.review_sections()
         return {
             "kind": "review",

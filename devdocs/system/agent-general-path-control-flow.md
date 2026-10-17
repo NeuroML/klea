@@ -184,8 +184,11 @@ the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
   ``depends_on`` is a whole-plan approval; one after step N (``depends_on: [N]``)
   is a checkpoint.  A review only approves **pending** work, so its ask carries
   the pending steps it unblocks -- the whole plan (approval) or the remaining
-  steps (checkpoint).  Completed steps and the review gates are not shown (the
-  findings are in the transcript and the inspection pane).  A review step must
+  steps (checkpoint).  Every pending step is listed, including the review gates
+  (marked as human review), so the plan is shown complete; the headline counts
+  the pending work steps only, because the gate is the approval action itself.
+  Completed steps and their findings are not shown (the findings are in the
+  transcript and the inspection pane).  A review step must
   gate at least one pending step after it; a *trailing* review (none after it)
   is rejected by the Planner's validator and resolved defensively by the router.
   **Approve** deterministically marks the review step(s) at the

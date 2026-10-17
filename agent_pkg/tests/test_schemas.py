@@ -236,7 +236,7 @@ class TestStepOutputRender:
 
 
 class TestReviewSections:
-    """The review interrupt carries only the pending work it approves."""
+    """The review interrupt carries all pending steps, including review gates."""
 
     @staticmethod
     def _result() -> CallToolResult:
@@ -258,14 +258,15 @@ class TestReviewSections:
             )
         )
         headline, sections = state.review_sections()
+        # The gate is the approval action, so only work steps are counted.
         assert headline == "Approve this plan (2 steps)"
         assert [section["title"] for section in sections] == ["Plan"]
         body = sections[0]["body"]
+        assert "Step 1: Approve" in body and "human review" in body
         assert "Step 2: fetch" in body and "Step 3: write" in body
-        assert "Approve" not in body  # the review gate is not work
 
-    def test_checkpoint_lists_only_the_remaining_steps(self):
-        """A checkpoint shows only the pending steps it unblocks."""
+    def test_checkpoint_lists_the_remaining_steps_including_the_gate(self):
+        """A checkpoint shows every pending step it unblocks, gates included."""
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
@@ -285,6 +286,7 @@ class TestReviewSections:
         assert headline == "Approve the remaining 1 step"
         assert [section["title"] for section in sections] == ["Remaining"]
         body = sections[0]["body"]
+        assert "Step 2: Review progress" in body and "human review" in body
         assert "Step 3: write" in body
         # Completed work and its findings are not re-shown.
         assert "Step 1" not in body

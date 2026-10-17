@@ -81,15 +81,19 @@ requested capability unimplemented.
 * **The ask adapts.**  A review only approves **pending** work.  The interrupt
   carries a `headline` and `sections` (`{title, body}`) built by
   `KleaAgentState.review_sections`: a review before any work presents the whole
-  plan under approval (`Approve this plan (N steps)`); a checkpoint shows only
-  the remaining steps (`Approve the remaining N steps`).  Completed steps and
-  their findings are not shown (they live in the transcript and the inspection
-  pane), and the review gate steps are not work.  A review step must gate
+  plan under approval (`Approve this plan (N steps)`); a checkpoint shows the
+  remaining steps (`Approve the remaining N steps`; N counts the pending work
+  steps -- the gate is the approval action itself).  Every pending step is
+  listed, including the `review` gate steps themselves (marked as human
+  review), so the plan is not shown incomplete.  Completed steps and their
+  findings are not shown (they live in the transcript and the inspection
+  pane).  A review step must gate
   pending work -- a *trailing* review (nothing after it) is rejected by the
   Planner's validator and resolved defensively by the router.  (2026-10-16
   update: the payload was `plan` + `progress`, then `headline` + `sections`
-  with completed + remaining; it is now `headline` + pending-only `sections`,
-  with no pre-release shim.)
+  with completed + remaining; it became `headline` + pending-only `sections`,
+  with no pre-release shim.  2026-10-17 update: that pending-only filter also
+  dropped the review gates; the sections now include all pending steps.)
 * **`needs_input` is for facts only.**  It supplies information the Planner
   cannot obtain; it is never used for approval or confirmation.  Answers
   re-enter the Planner, which re-authors.  There is deliberately no bound on

@@ -55,9 +55,12 @@ from the agent's `AwaitHuman` nodes, or `permission` (the shared
 permitted roots; ADR-0007 update 2026-10-08).  A `review` ask carries a
 `headline` and a list of `sections` (`{title, body}`) for the **pending** steps
 the approval unblocks (ADR-0051): a review before any work presents the whole
-plan under approval; a checkpoint shows only the remaining steps.  Completed
-steps, the review gate steps, and the step findings are not included (the
-findings are in the transcript and the inspection pane).  Both frontends render
+plan under approval; a checkpoint shows the remaining steps.  Every pending
+step is listed, including the `review` gate steps themselves (marked as human
+review), so the plan is not shown incomplete.  The headline counts the pending
+work steps only: the gate is the approval action, not work it unblocks.
+Completed steps and the step findings are not included (the findings are in the
+transcript and the inspection pane).  Both frontends render
 the sections the same way.  A review step must gate pending work; a *trailing*
 review is rejected by the Planner's validator and resolved defensively by the
 router.  A permission ask shows the tool call

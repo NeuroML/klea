@@ -724,29 +724,35 @@ class KleaAgentState(BaseGraphSchema):
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:
         """Return the headline and content sections for a plan-review interrupt.
 
-        The review only approves **pending** work (ADR-0051): the ask carries
-        the steps that will run after the gate -- the whole plan for a
-        whole-plan approval, or the remaining steps for a mid-plan checkpoint.
-        Completed steps are not shown (their findings are in the transcript and
-        the inspection pane) and ``review`` gates are not shown (they are not
-        work).
+        The review approves **all pending** work (ADR-0051): the ask carries
+        every pending step -- the whole plan for a whole-plan approval, or the
+        remaining steps for a mid-plan checkpoint.  ``review`` gate steps are
+        included and marked as human checkpoints, so the plan is shown complete
+        rather than with its gates silently omitted.  Completed steps are not
+        shown (their findings are in the transcript and the inspection pane).
+
+        The headline counts the pending **work** steps only: the review gate is
+        the approval action itself, not work the approval unblocks.
 
         :returns: ``(headline, sections)``; each section is a
             ``{"title": ..., "body": ...}`` dict whose body is the
             status-pane-style render of the pending steps.
         """
-        work = [step for step in self.plan.step_list if step.kind != "review"]
-        pending = [step for step in work if step.status == "pending"]
-        body = "\n".join(step.render(markdown=True) for step in pending) or (
-            "(no pending steps)"
-        )
-        if any(step.status in ("done", "skipped") for step in work):
-            return f"Approve the remaining {_count(len(pending), 'step')}", [
+        pending = [step for step in self.plan.step_list if step.status == "pending"]
+        work_pending = [step for step in pending if step.kind != "review"]
+        lines: list[str] = []
+        for step in pending:
+            line = step.render(markdown=True)
+            if step.kind == "review":
+                line += "  (human review)"
+            lines.append(line)
+        body = "\n".join(lines) or "(no pending steps)"
+        count = _count(len(work_pending), "step")
+        if any(step.status in ("done", "skipped") for step in self.plan.step_list):
+            return f"Approve the remaining {count}", [
                 {"title": "Remaining", "body": body}
             ]
-        return f"Approve this plan ({_count(len(pending), 'step')})", [
-            {"title": "Plan", "body": body}
-        ]
+        return f"Approve this plan ({count})", [{"title": "Plan", "body": body}]
 
     def artefacts_text(self) -> str:
         """Render the session-scoped artefacts as one text block.
