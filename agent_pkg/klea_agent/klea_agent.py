@@ -42,6 +42,7 @@ from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.reasoning import ReasoningNode
+from klea_agent.nodes.review_progress import ReviewProgress
 from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.nodes.triage_router import (
     TriageRouter,
@@ -683,6 +684,14 @@ class KleaAgent(BaseLangGraph):
         self._answer_user_node = AnswerUser(
             logger=self.logger, label="Preparing response"
         )
+        # The review progress digest (ADR-0051): a pure synthesis node that runs
+        # immediately before each review gate.  It reads the work recorded since
+        # the last review and calls no tools; the gate presents the digest.
+        self._review_progress_node = ReviewProgress(
+            logger=self.logger,
+            label="Preparing review",
+            llm_models=self.llm_models,
+        )
         # Human-in-the-loop (ADR-0046): pause the run for human input and
         # resume the same execution.  The review instance captures plan
         # review; the input instance answers a Planner ``needs_input``
@@ -718,6 +727,9 @@ class KleaAgent(BaseLangGraph):
         self.workflow.add_node(self._reasoning_node.label, self._reasoning_node.execute)
         self.workflow.add_node(
             self._op_evaluator_node.label, self._op_evaluator_node.execute
+        )
+        self.workflow.add_node(
+            self._review_progress_node.label, self._review_progress_node.execute
         )
         self.workflow.add_node(
             self._answer_from_results_node.label,
@@ -828,12 +840,19 @@ class KleaAgent(BaseLangGraph):
             self._planner_router,
             {
                 "failure": self._answer_from_results_node.label,
-                "review": self._await_review_node.label,
+                "review": self._review_progress_node.label,
                 "needs_input": self._await_input_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
             },
+        )
+        # The digest feeds the review gate (ADR-0051).  Both the Planner and
+        # the Evaluator route a review through it, and a further gate reached
+        # after an approval goes through it too, so every gate sees a digest of
+        # the work since the previous review.
+        self.workflow.add_edge(
+            self._review_progress_node.label, self._await_review_node.label
         )
         # HITL (ADR-0046).  Review: an approval dispatches straight into the
         # execution loop (no Planner call), a revision returns to the Planner
@@ -846,7 +865,7 @@ class KleaAgent(BaseLangGraph):
                 "planner": self._planner_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
-                "review": self._await_review_node.label,
+                "review": self._review_progress_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "cancelled": self._cancelled_answer_node.label,
             },
@@ -892,7 +911,7 @@ class KleaAgent(BaseLangGraph):
             {
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
-                "review": self._await_review_node.label,
+                "review": self._review_progress_node.label,
                 "need_replan": self._planner_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "abort": self._answer_from_results_node.label,

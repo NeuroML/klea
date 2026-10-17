@@ -69,6 +69,7 @@ async def test_general_path_work_loop(monkeypatch):
     for expected in (
         "Deciding route",
         "Planning",
+        "Preparing review",
         "Awaiting review",
         "Awaiting input",
         "Cancelled",
@@ -90,15 +91,20 @@ async def test_general_path_work_loop(monkeypatch):
 
     # Planner routing on plan.status and step kind.
     assert ("Planning", "Composing answer") in edges  # unplannable -> failure
-    assert ("Planning", "Awaiting review") in edges  # review step at the frontier
+    assert ("Planning", "Preparing review") in edges  # review step at the frontier
     assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
     assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
 
     # Human-in-the-loop (ADR-0046/ADR-0051): both await nodes loop back to the
     # Planner; a review approval can reach a further review step; a cancel
-    # routes to the terminal "Cancelled" node.
+    # routes to the terminal "Cancelled" node.  Every review gate is reached
+    # through the progress-digest node, never directly.
+    assert ("Preparing review", "Awaiting review") in edges
     assert ("Awaiting review", "Planning") in edges
-    assert ("Awaiting review", "Awaiting review") in edges  # further review step
+    assert ("Awaiting review", "Preparing review") in edges  # further review step
+    assert ("Planning", "Awaiting review") not in edges
+    assert ("Evaluating", "Awaiting review") not in edges
+    assert ("Awaiting review", "Awaiting review") not in edges
     assert ("Planning", "Awaiting input") in edges  # needs_input
     assert ("Awaiting input", "Planning") in edges
     assert ("Awaiting review", "Cancelled") in edges
@@ -114,7 +120,7 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Reasoning", "Evaluating") in edges  # reasoning step judged
     assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done, tool
     assert ("Evaluating", "Reasoning") in edges  # step_incomplete/step_done, reasoning
-    assert ("Evaluating", "Awaiting review") in edges  # next frontier head is review
+    assert ("Evaluating", "Preparing review") in edges  # next frontier head is review
     assert ("Evaluating", "Planning") in edges  # need_replan
     assert ("Evaluating", "Composing answer") in edges  # plan_done/abort
     assert ("Composing answer", "Preparing response") in edges

@@ -300,6 +300,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "human_feedback": "",
             "human_input": {},
             "replan_reason": "",
+            "review_progress": "",
         }
 
         # --- Plan-history counters (durable run signal) -------------------

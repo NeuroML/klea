@@ -74,6 +74,7 @@ flowchart TD
         decline["Declining query<br/>FixedAnswer (shared)<br/>I cannot respond..."]
         route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat vs task (fail-closed)"]
         planner["Planning<br/>Planner (plan)<br/>sole author of goal + plan; ADR-0035"]
+        reviewProgress["Preparing review<br/>ReviewProgress (chat)<br/>synthesizes the since-last-review digest; ADR-0051"]
         review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>a review step: approve/revise; ADR-0046/0051"]
         awaitInput["Awaiting input<br/>AwaitHuman (non-LLM)<br/>answers a blocked step's questions; ADR-0046"]
         cancelled["Cancelled<br/>FixedAnswer (shared)<br/>terminal: run cancelled"]
@@ -108,15 +109,16 @@ flowchart TD
     guardR -. unsafe .-> decline
     route -. task .-> planner
     route -. chat .-> prepare
-    planner -. review .-> review
+    planner -. review .-> reviewProgress
     planner -. failure .-> compose
     planner -. needs_input .-> awaitInput
     planner -. tool .-> picker
     planner -. reasoning .-> reasoning
+    reviewProgress --> review
     review -. planner .-> planner
     review -. tool .-> picker
     review -. reasoning .-> reasoning
-    review -. review .-> review
+    review -. review .-> reviewProgress
     review -. plan_done .-> compose
     review -. cancelled .-> cancelled
     awaitInput -. planner .-> planner
@@ -132,7 +134,7 @@ flowchart TD
     reasoning --> evaluator
     evaluator -. tool .-> picker
     evaluator -. reasoning .-> reasoning
-    evaluator -. review .-> review
+    evaluator -. review .-> reviewProgress
     evaluator -. need_replan .-> planner
     evaluator -. plan_done .-> compose
     evaluator -. abort .-> compose
@@ -248,6 +250,7 @@ graph TD;
 	Running\20tools(Running tools)
 	Reasoning(Reasoning)
 	Evaluating(Evaluating)
+	Preparing\20review(Preparing review)
 	Composing\20answer(Composing answer)
 	Preparing\20response(Preparing response)
 	Awaiting\20review(Awaiting review)
@@ -269,18 +272,19 @@ graph TD;
 	Deciding\20route -. &nbsp;chat&nbsp; .-> Preparing\20response;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;review&nbsp; .-> Awaiting\20review;
+	Evaluating -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Evaluating -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Initializing --> Determining\20mode;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
-	Planning -. &nbsp;review&nbsp; .-> Awaiting\20review;
+	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
 	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Planning -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Preparing\20response --> Summarizing\20history;
+	Preparing\20review --> Awaiting\20review;
 	Reasoning --> Evaluating;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
 	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
@@ -292,7 +296,7 @@ graph TD;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
-	Awaiting\20review -. &nbsp;review&nbsp; .-> Awaiting\20review;
+	Awaiting\20review -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
@@ -315,7 +319,8 @@ graph TD;
 | Declining query | ``klea_utils/nodes/fixed_answer.py`` | ``FixedAnswer``: canned refusal | terminal; writes ``message_for_user`` |
 | Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow entry router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task``; no tool list (ADR-0035) |
 | Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035) |
-| Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
+| Preparing review | ``klea_agent/nodes/review_progress.py`` | ``ReviewProgress`` (``chat``): synthesizes the human-facing digest of work since the last review, immediately before each review gate | ``ReviewProgressSchema``; no tools; reads ``step_outputs`` since the last approved gate; skips with no new work (ADR-0051) |
+| Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; presents the digest + all pending steps; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
 | Selecting tools | ``klea_utils/nodes/tools_picker.py`` | ``ToolsPicker`` (shared, ``chat``): binds arguments for the step's ``suggested_tools`` | per-app prompt registry, full static ``tools_info``; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034) |
 | Running tools | ``klea_utils/nodes/tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
 | Triaging | ``klea_agent/nodes/triage_router.py`` | ``TriageRouter`` (deterministic router): mechanical tool-error triage | ``retry`` (re-pick same tool) / ``evaluate`` / ``replan``; ADaPT counter via ``update_tool_retry_counts`` (ADR-0035) |
@@ -339,9 +344,9 @@ graph TD;
   `agent-general-path-control-flow.md` and its topology decision in
   ADR-0035 (which supersedes the ADR-0025 proposal).
 * Every agent component that needs an LLM (guard, route, plan, picker,
-  reasoning, evaluate, compose, summarise, compact) is a ``BaseLLMNode``
-  (``klea_utils/nodes/base.py``, ADR-0019) and goes through the shared
-  retryer + token-window ladder (ADR-0017), the structured-output
+  reasoning, evaluate, review progress, compose, summarise, compact) is a
+  ``BaseLLMNode`` (``klea_utils/nodes/base.py``, ADR-0019) and goes through the
+  shared retryer + token-window ladder (ADR-0017), the structured-output
   fallback (``devdocs/system/structured-output-fallback.md``), and the
   ``BaseLangGraph`` per-request model switching (ADR-0014).
 * ``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the

@@ -17,6 +17,7 @@ graph TD;
 	Running\20tools(Running tools)
 	Reasoning(Reasoning)
 	Evaluating(Evaluating)
+	Preparing\20review(Preparing review)
 	Composing\20answer(Composing answer)
 	Preparing\20response(Preparing response)
 	Awaiting\20review(Awaiting review)
@@ -30,6 +31,7 @@ graph TD;
 	Awaiting\20review -. &nbsp;cancelled&nbsp; .-> Cancelled;
 	Awaiting\20review -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
 	Awaiting\20review -. &nbsp;planner&nbsp; .-> Planning;
+	Awaiting\20review -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Awaiting\20review -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Awaiting\20review -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
@@ -39,19 +41,20 @@ graph TD;
 	Deciding\20route -. &nbsp;chat&nbsp; .-> Preparing\20response;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
+	Evaluating -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Evaluating -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Initializing -. &nbsp;continue&nbsp; .-> Determining\20mode;
 	Initializing -. &nbsp;command&nbsp; .-> Running\20command;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
-	Planning -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
+	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Planning -. &nbsp;tool&nbsp; .-> Selecting\20tools;
 	Preparing\20response --> Summarizing\20history;
+	Preparing\20review --> Awaiting\20review;
 	Reasoning --> Evaluating;
 	Running\20command -. &nbsp;compact&nbsp; .-> Compacting\20memory;
 	Running\20command -. &nbsp;init&nbsp; .-> Determining\20mode;
@@ -67,7 +70,6 @@ graph TD;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
-	Awaiting\20review -. &nbsp;review&nbsp; .-> Awaiting\20review;
 	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0

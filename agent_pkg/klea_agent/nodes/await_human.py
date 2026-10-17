@@ -174,6 +174,9 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                 "plan": plan,
                 "human_feedback": "",
                 "replan_reason": "",
+                # The digest was for the gate just resolved; clear it so a
+                # following gate with no new work cannot show a stale digest.
+                "review_progress": "",
                 "messages": [
                     *state.messages,
                     AIMessage(content="User approved the plan."),
@@ -189,6 +192,8 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             # the revision signal (an approval clears it).
             "human_feedback": feedback or "Please revise the plan.",
             "replan_reason": "",
+            # The plan is re-authored, so the old gate's digest is stale.
+            "review_progress": "",
             "messages": [*state.messages, HumanMessage(content=note)],
         }
 

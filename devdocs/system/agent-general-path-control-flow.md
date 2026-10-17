@@ -86,6 +86,7 @@ persists) the result.
 | Guard | safety classification (ADR-0010) | yes (guard role) |
 | RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan (ADR-0035); never answers the user | yes (plan role) |
+| ReviewProgress | synthesise a human-facing digest of the work since the last review, immediately before a review gate; calls no tools (ADR-0051) | yes (chat role) |
 | AwaitHuman | HITL pause/resume (ADR-0046/ADR-0051): a review step (approve/revise) or a blocked step's questions; no LLM | no |
 | ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
 | ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
@@ -112,7 +113,7 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 | ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``no_plan_required`` | no execution needed; the goal is satisfiable from the available information (for example session ``artefacts``) | ``AnswerFromResults`` (success) |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``AwaitHuman`` (review) or batch entry |
+| ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
 
 ``Planner._update_state``: any step with ``needs_input`` questions forces
 ``needs_input`` (a draft; the status is derived from the steps); steps ->
@@ -175,7 +176,16 @@ Two related rules keep the Planner from inventing work:
 Human-in-the-loop is a single pause/resume mechanism (ADR-0046).  A reusable
 template node (``klea_utils/nodes/await_human.py``, ``AwaitHumanNode``) owns
 the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
-(``AwaitHuman``) is instantiated twice:
+(``AwaitHuman``) is instantiated twice.
+
+Both review entry points pass through ``ReviewProgress`` first: a small
+``chat`` node (no tools) that synthesizes the work completed since the last
+review into a human-facing digest, presented as the ask's ``Progress`` section.
+It is scoped by the highest approved gate (``PlanSchema.reviewed_through``) and
+skipped when there is no new work, so a whole-plan approval carries no digest.
+Any evidence the reviewer needs is planned by the Planner as ordinary tool
+steps before the gate; ``ReviewProgress`` only summarizes the recorded
+observations, so it covers arbitrary tools, not just file edits.
 
 * ``AwaitHuman`` **review** pauses at a ``review`` step (ADR-0051): human
   evaluation of the plan or the progress so far, symmetric to the Evaluator's
@@ -330,6 +340,9 @@ the run; not rendered into downstream prompts):
 * ``replan_reason: str`` -- the unified automated-replan trigger, set by the
   Evaluator on ``need_replan`` and by the tool-round recorder on a failed batch;
   read and cleared by the Planner.
+* ``review_progress: str`` -- the synthesized digest of work since the last
+  review, written by ``ReviewProgress`` and read by the review ask; cleared when
+  a review is resolved and on a new plan.
 
 ## Persistence (plan-scoped vs session-scoped)
 

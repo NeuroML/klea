@@ -84,6 +84,7 @@ class InitGraphState(
             "human_feedback": "",
             "human_input": {},
             "replan_reason": "",
+            "review_progress": "",
             "tool_calls": [],
             "tool_results": [],
             "step_outputs": {},
