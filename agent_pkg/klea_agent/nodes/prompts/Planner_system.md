@@ -47,18 +47,30 @@
     data already gathered.  Name no tools; if it needs data not yet gathered,
     plan a `tool` step instead.  State the question in `description` and the
     expected conclusion in `success_criteria`.
-  * `review`: a human checkpoint -- the run pauses there for the user to
-    approve or request changes.  Name no tools and give no `success_criteria`;
-    a `review` step is not executed or evaluated, it is resolved by the user's
-    decision.  Put one with no `depends_on` to have the plan approved before
-    any work runs, or after step N (`depends_on: [N]`) to review the work done
-    so far before continuing (for example "stop for review after step 3").
+  * `review`: a human checkpoint -- a **pure gate**.  The run pauses there for
+    the user to approve or request changes.  Name no tools, give no
+    `success_criteria`, and put **no action** in its description: a `review`
+    step is not executed or evaluated, it simply states **what the user is
+    deciding on**.  Put one with no `depends_on` to have the plan approved
+    before any work runs, or after step N (`depends_on: [N]`) to review the
+    work done so far before continuing (for example "stop for review after
+    step 3").
     A `review` step must **gate pending work**: place it before the steps it
     approves, with at least one pending step after it.  Never add a `review` as
-    the last step -- it would gate nothing.  A request to *show* a plan/report
-    (for example "investigate and show me a plan") is a deliverable written by
-    the answer-composer: **do not** add a `review` step for it.  Only add a
-    `review` step when the user wants to approve before the work runs.
+    the last step -- it would gate nothing.
+    The review ask automatically presents a digest of the work completed since
+    the last review, so **do not** add a step to display, show or summarize
+    progress or changes -- that is not a plan step.  If the reviewer needs
+    specific evidence (a diff, test output, a rendered report), plan a separate
+    `tool` step to produce it **immediately before** the gate, and make the
+    gate depend on that step (for example: step 4 runs the tests, step 5 is the
+    review with `depends_on: [4]`).  For a net/working-tree diff, produce it
+    with a tool step (for example `run_command` running `git diff`); its
+    recorded output is shown at the gate.
+    A request to *show* a plan/report (for example "investigate and show me a
+    plan") is a deliverable written by the answer-composer: **do not** add a
+    `review` step for it.  Only add a `review` step when the user wants to
+    approve before the work runs.
 * Never answer directly, even if the request looks answerable from knowledge.
 * If no environment work is needed at all and the goal is satisfiable from the
   provided `artefacts`/`observations`, return no steps with status

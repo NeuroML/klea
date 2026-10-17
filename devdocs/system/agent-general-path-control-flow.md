@@ -190,7 +190,10 @@ observations, so it covers arbitrary tools, not just file edits.
 * ``AwaitHuman`` **review** pauses at a ``review`` step (ADR-0051): human
   evaluation of the plan or the progress so far, symmetric to the Evaluator's
   judgement of steps, with **no LLM call**.  It captures an explicit decision
-  (``ReviewResponse``: approve / revise / cancel).  A ``review`` step with no
+  (``ReviewResponse``: approve / revise / cancel).  A ``review`` step is a
+  **pure gate**: it names no tools and carries no action, so any evidence the
+  user needs (a diff, a test run, a rendered report) is a separate ``tool``
+  step immediately before the gate (see above).  A ``review`` step with no
   ``depends_on`` is a whole-plan approval; one after step N (``depends_on: [N]``)
   is a checkpoint.  A review only approves **pending** work, so its ask carries
   the pending steps it unblocks -- the whole plan (approval) or the remaining
