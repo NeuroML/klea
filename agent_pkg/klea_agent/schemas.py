@@ -557,6 +557,14 @@ class EvaluationSchema(BaseModel):
     evaluations: list[StepEvaluation] = Field(default_factory=list)
     overall: Literal["", "plan_done", "abort"] = ""
     reason: str = ""
+    #: Review-readiness judgement, set only when the next pending step after
+    #: the judged batch is a ``review`` step (ADR-0051).  ``ready`` means the
+    #: plan already produces the evidence the reviewer needs; ``not_ready``
+    #: means a concrete evidence step is missing, named in :attr:`review_reason`,
+    #: so the plan is sent back to the Planner to add it.  ``""`` when no review
+    #: is next (or the model did not judge readiness).
+    review_readiness: Literal["", "ready", "not_ready"] = ""
+    review_reason: str = ""
 
 
 #: Cap the length of a progress-summary line: the review modal is compact and

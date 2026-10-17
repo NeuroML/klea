@@ -23,6 +23,7 @@ from klea_agent.schemas import (
 )
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.nodes.context import LLMNodeContext
+from langchain_core.prompts import ChatPromptTemplate
 
 
 def _verdict(
@@ -56,6 +57,24 @@ class TestOperationalEvaluator(unittest.TestCase):
                     StepSchema(step_number=2, description="step two"),
                 ],
             )
+        return state
+
+    def _state_with_review(self) -> KleaAgentState:
+        """Plan: work (judged) -> review gate -> work after the gate."""
+        state = KleaAgentState()
+        state.goal = GoalSchema(goal="do x", success_criteria="x is done")
+        state.plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, description="work"),
+                StepSchema(
+                    step_number=2,
+                    kind="review",
+                    description="Review the change",
+                    depends_on=[1],
+                ),
+                StepSchema(step_number=3, description="deploy", depends_on=[2]),
+            ]
+        )
         return state
 
     def test_step_done_advances_plan_without_answering(self):
@@ -337,6 +356,102 @@ class TestOperationalEvaluator(unittest.TestCase):
             variables["executed_tools"],
             "Step 1: list_files, read_file\nStep 2: write_file",
         )
+
+    def test_review_readiness_not_ready_replans(self):
+        """A missing evidence step before a gate sends the plan back."""
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            review_readiness="not_ready",
+            review_reason="add a step that produces the diff",
+        )
+        update = self._evaluator()._update_state(
+            result, self._state_with_review(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].status, "in_progress")
+        self.assertEqual(update["replan_reason"], "add a step that produces the diff")
+
+    def test_review_readiness_not_ready_without_reason_gets_default(self):
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            review_readiness="not_ready",
+        )
+        update = self._evaluator()._update_state(
+            result, self._state_with_review(), LLMNodeContext()
+        )
+        self.assertIn("review not ready", update["replan_reason"])
+
+    def test_review_readiness_ready_proceeds_to_the_gate(self):
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            review_readiness="ready",
+        )
+        update = self._evaluator()._update_state(
+            result, self._state_with_review(), LLMNodeContext()
+        )
+        self.assertEqual(update["plan"].status, "in_progress")
+        self.assertEqual(update["replan_reason"], "")
+
+    def test_review_readiness_ignored_when_review_is_not_next(self):
+        """The judgement only applies when the next runnable batch is a gate."""
+        state = KleaAgentState()
+        state.goal = GoalSchema(goal="do x")
+        state.plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, description="work"),
+                StepSchema(step_number=2, description="more work"),
+                StepSchema(
+                    step_number=3,
+                    kind="review",
+                    description="Review",
+                    depends_on=[2],
+                ),
+                StepSchema(step_number=4, description="deploy", depends_on=[3]),
+            ]
+        )
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            review_readiness="not_ready",
+            review_reason="missing",
+        )
+        update = self._evaluator()._update_state(result, state, LLMNodeContext())
+        self.assertEqual(update["replan_reason"], "")
+
+    def test_review_readiness_budget_exhausted_proceeds_to_the_gate(self):
+        """At the replan boundary the gate fires instead of failing the run."""
+        state = self._state_with_review()
+        state.plan.automated_plan_revisions = 4  # the evaluator's default cap
+        result = EvaluationSchema(
+            evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+            review_readiness="not_ready",
+            review_reason="add a diff step",
+        )
+        update = self._evaluator()._update_state(result, state, LLMNodeContext())
+        self.assertEqual(update["replan_reason"], "")
+        self.assertEqual(update["plan"].status, "in_progress")
+
+    def test_prompt_variables_include_pending_reviews(self):
+        variables = self._evaluator()._get_prompt_variables(
+            self._state_with_review(), LLMNodeContext()
+        )
+        self.assertIn("Review the change", variables["pending_reviews"])
+
+    def test_prompt_variables_pending_reviews_sentinel(self):
+        variables = self._evaluator()._get_prompt_variables(
+            self._state(), LLMNodeContext()
+        )
+        self.assertEqual(variables["pending_reviews"], "(none)")
+
+    def test_user_prompt_renders_pending_reviews_section(self):
+        evaluator = self._evaluator()
+        variables = evaluator._get_prompt_variables(
+            self._state_with_review(), LLMNodeContext()
+        )
+        template = ChatPromptTemplate(
+            [("human", evaluator._load_prompt_file("OperationalEvaluator_user"))]
+        )
+        text = template.format_messages(**variables)[0].content
+        self.assertIn("Pending review steps", text)
+        self.assertIn("Review the change", text)
 
     def test_status_refreshes_live_plan_section(self):
         """The Evaluator updates the Planner's plan section in place."""

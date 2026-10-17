@@ -21,7 +21,12 @@ from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from langchain_core.messages import AIMessage
 
-from klea_agent.schemas import EvaluationSchema, KleaAgentState, StepEvaluation
+from klea_agent.schemas import (
+    EvaluationSchema,
+    KleaAgentState,
+    PlanSchema,
+    StepEvaluation,
+)
 
 
 class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
@@ -57,6 +62,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         llm_models: dict[str, Any],
         memory: bool = False,
         max_step_attempts: int = 3,
+        max_automated_plan_revisions: int = 4,
     ):
         """Initialise the operational evaluator.
 
@@ -66,6 +72,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         :param memory: Whether to include recent conversation history
         :param max_step_attempts: Non-advancing (``step_incomplete``)
             evaluations allowed for one step before escalating to a replan
+        :param max_automated_plan_revisions: The Planner's automated-replan
+            budget (same value).  A review-readiness replan consumes it; at the
+            boundary the Evaluator stops replanning and lets the gate fire, so a
+            readiness issue can never exhaust the budget into a failed run.
         """
         super().__init__(
             logger=logger,
@@ -75,6 +85,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             memory=memory,
         )
         self.max_step_attempts = max_step_attempts
+        self.max_automated_plan_revisions = max_automated_plan_revisions
 
     def _observations_text(self, state: KleaAgentState) -> str:
         """Return the rendered per-step tool outputs (tool + displayed flag).
@@ -99,6 +110,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             "plan": plan.render(current_numbers=batch_numbers),
             "executed_tools": self._executed_tools_text(state),
             "observations": self._observations_text(state),
+            "pending_reviews": self._pending_reviews_text(state),
             "validation_feedback_block": self._optional_section(
                 "Validation feedback", ctx.validation_feedback
             ),
@@ -125,6 +137,36 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             )
             or "(none)"
         )
+
+    @staticmethod
+    def _pending_reviews_text(state: KleaAgentState) -> str:
+        """Render the plan's pending review gates for the readiness judgement.
+
+        Naming the upcoming gate(s) explicitly lets the model decide whether the
+        plan produces the evidence each one needs (ADR-0051); ``"(none)"`` when
+        the plan has no pending review step.
+        """
+        reviews = [
+            step
+            for step in state.plan.step_list
+            if step.kind == "review" and step.status == "pending"
+        ]
+        if not reviews:
+            return "(none)"
+        return "\n".join(
+            f"Step {step.step_number}: {step.description}" for step in reviews
+        )
+
+    @staticmethod
+    def _upcoming_review(plan: PlanSchema) -> bool:
+        """Return True when the next runnable batch is a review gate.
+
+        Read after the judged steps are resolved, so it answers "would the run
+        pause at a review next?" -- the condition under which the readiness
+        judgement applies.
+        """
+        batch = plan.next_batch(MAX_BATCH_STEPS)
+        return bool(batch) and batch[0].kind == "review"
 
     @override
     def _validate_result(
@@ -297,6 +339,36 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             # last writer before the next action, so a stale failure cannot
             # leak into a later replan.
             update["replan_reason"] = ""
+
+        # --- Review readiness (ADR-0051) ---------------------------------
+        # When the batch just judged is the last work before a review gate, the
+        # Evaluator checks that the evidence the reviewer needs is present.  If
+        # a concrete evidence step is missing, replan to add it rather than
+        # firing a gate the user cannot decide on.  The check consumes the
+        # Planner's automated-replan budget; at the boundary it stops replanning
+        # and lets the gate fire, so a readiness issue can never turn into a
+        # failed run.
+        if (
+            result.review_readiness == "not_ready"
+            and result.overall != "abort"
+            and plan.status not in ("completed", "aborted")
+            and self._upcoming_review(plan)
+        ):
+            if plan.automated_plan_revisions < self.max_automated_plan_revisions:
+                plan.status = "in_progress"
+                update["replan_reason"] = result.review_reason or (
+                    "review not ready: add the evidence step(s) the reviewer needs"
+                )
+                update["failure_reason"] = ""
+                self.logger.warning(
+                    "Review not ready; replanning to add evidence: %s",
+                    update["replan_reason"],
+                )
+            else:
+                self.logger.warning(
+                    "Review not ready but the replan budget is exhausted; "
+                    "proceeding to the review gate"
+                )
 
         update["plan"] = plan
         self.logger.debug(

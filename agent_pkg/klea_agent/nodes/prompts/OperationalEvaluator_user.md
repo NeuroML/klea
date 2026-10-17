@@ -22,6 +22,12 @@
 
 ---
 
+## Pending review steps
+
+{pending_reviews}
+
+---
+
 ## User query
 
 {query}
@@ -32,4 +38,5 @@
 
 Evaluate the step(s) marked `[CURRENT]` and return a verdict for each.  If the
 goal is already met, judge any remaining unneeded step `step_skipped` and set
-`overall` to `plan_done`; otherwise leave `overall` empty.
+`overall` to `plan_done`; otherwise leave `overall` empty.  If a `review` step
+is next, also set `review_readiness` (see Review readiness).

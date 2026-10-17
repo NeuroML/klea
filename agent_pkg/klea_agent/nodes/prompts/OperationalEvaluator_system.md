@@ -43,6 +43,24 @@ Return one entry per judged step, each carrying that step's `step_number`.
 
 ---
 
+## Review readiness (only when a review step is next)
+
+When the next pending step after the batch you judged is a `review` step, also
+set `review_readiness`:
+
+* `ready`: the plan already produces the evidence the reviewer needs -- the
+  completed or pending work steps cover what the review step's description and
+  the user's request call for.
+* `not_ready`: a concrete evidence step is missing (for example the user asked
+  to review a diff or test output but no step produces it).  Name the missing
+  step(s) in `review_reason` so the plan can be revised to add them.
+
+Leave `review_readiness` empty when no review step is next.  The review ask
+already summarizes progress, so never ask for a summary or display step; flag
+`not_ready` only for genuinely missing evidence.
+
+---
+
 ## Rules
 
 * Judge each step's **outcome** against its success criteria, not the tool

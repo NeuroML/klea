@@ -91,7 +91,7 @@ persists) the result.
 | ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
 | ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
 | TriageRouter | deterministic per-step tool-error triage: which steps errored? retries left? | no |
-| Evaluator | operational judge only: goal + each batch step's criterion; per-step verdict map plus an overall outcome | yes (chat role; separate node from Act) |
+| Evaluator | operational judge only: goal + each batch step's criterion; per-step verdict map plus an overall outcome; also checks review readiness when a gate is next (ADR-0051) | yes (chat role; separate node from Act) |
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
 | AnswerUser | deliver the final user-facing message | no |
 
@@ -185,7 +185,12 @@ It is scoped by the highest approved gate (``PlanSchema.reviewed_through``) and
 skipped when there is no new work, so a whole-plan approval carries no digest.
 Any evidence the reviewer needs is planned by the Planner as ordinary tool
 steps before the gate; ``ReviewProgress`` only summarizes the recorded
-observations, so it covers arbitrary tools, not just file edits.
+observations, so it covers arbitrary tools, not just file edits.  When the next
+runnable batch is a gate, the Evaluator also judges *review readiness*: if a
+concrete evidence step is missing it replans to add it (``not_ready``), rather
+than firing a gate the user cannot decide on.  That replan consumes the
+Planner's automated-replan budget; at the boundary the Evaluator stops
+replanning and lets the gate fire, so a readiness issue never fails the run.
 
 * ``AwaitHuman`` **review** pauses at a ``review`` step (ADR-0051): human
   evaluation of the plan or the progress so far, symmetric to the Evaluator's
