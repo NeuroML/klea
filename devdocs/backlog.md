@@ -211,9 +211,18 @@ Last updated: 2026-10-16.
   "until changed": (a) clear all sections *except* the shared `plan` key at
   turn start (or do not reset at all, letting nodes overwrite by key), and/or
   (b) render the plan as a pinned element at the top of the status pane,
-  outside the scrolling state body.  Now that the review dialog leans on the
-  status pane for the full plan (the checkpoint shows only recent work), this
-  gap matters more.
+  outside the scrolling state body.  The review ask no longer depends on the
+  status pane for the plan: it carries the synthesized progress digest and all
+  pending steps (ADR-0051 update), so this is now a general status-pane UX gap
+  rather than a HITL one.
+- TUI HITL modals block chat scrolling: the review/input (`HitlModal`) and
+  permission (`PermissionModal`) dialogs are Textual `ModalScreen`s, which
+  capture input and truncate the binding chain, so the transcript behind them
+  cannot be scrolled while a decision is pending -- even though the user often
+  needs to read the transcript before deciding.  Options: render the HITL ask
+  inline in the chat panel, use a non-modal overlay that forwards scroll to
+  `#transcript`, or add a key to page the transcript.  Deferred (secondary UI
+  issue; the review ask already carries the digest and all pending steps).
 - Follow-theme styling: the TUI uses Textual theme variables throughout (panel
   backgrounds `$surface`/`$panel`, muted text `$text-muted`, the errored
   tool-header `$error`).  Two gaps remain, both deferred.  (a) Some Textual
@@ -371,6 +380,9 @@ Last updated: 2026-10-16.
   (`AwaitHuman`), so the harness must answer (approve/revise) or cancel and
   assert the resumed run -- including a mid-plan checkpoint ("review after the
   README, before CONTRIBUTING") that exercises the review step's position.
+  Also cover the review workflow added for ADR-0051: the `Progress` digest
+  (`ReviewProgress`; skipped for a whole-plan approval) and the Evaluator's
+  review-readiness replan (`review_readiness=not_ready`).
 - Web UI (NiceGUI) tests: tier 1 (in-process user simulation + fake backend,
   `*/tests/ui/web/`; see `devdocs/system/web-ui-testing.md`) is implemented --
   page render, chat empty-state, hydration, mode/access controls, send flow,
