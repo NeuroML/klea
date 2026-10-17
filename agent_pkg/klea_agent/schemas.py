@@ -377,6 +377,27 @@ class PlanSchema(PlannerPlanSchema):
             f"{self.human_feedback_rounds} human review round(s)."
         )
 
+    def reviewed_through(self) -> int:
+        """Return the highest approved review step number (0 when none).
+
+        A ``review`` step's "execution" is the user's decision (ADR-0051), so a
+        ``done`` review step has been approved and the work it gated has been
+        reviewed.  The highest such step number scopes the review-progress
+        digest to work completed **since the last review**; no separate marker
+        is needed because the resolved gate already records the position.
+
+        :returns: The highest done review step number, or ``0`` when no review
+            has been completed yet.
+        """
+        return max(
+            (
+                step.step_number
+                for step in self.step_list
+                if step.kind == "review" and step.status == "done"
+            ),
+            default=0,
+        )
+
 
 class GoalSchema(BaseModel):
     goal: str = ""
@@ -693,6 +714,12 @@ class KleaAgentState(BaseGraphSchema):
     #: had a failed call; read and cleared by the Planner.  Empty on the first
     #: plan and after a human review (which supplies ``human_feedback``).
     replan_reason: str = ""
+    #: Synthesized, human-facing digest of the work completed since the last
+    #: review.  Written by the review-progress stage immediately before a review
+    #: interrupt and rendered as the ask's "Progress" section, so the user can
+    #: decide on the gate without reading the whole transcript.  Empty for a
+    #: whole-plan approval (no work yet) and cleared on a new plan.
+    review_progress: str = ""
     # global project discovery information
     # only to be updated if files change
     discovery_persistent: Discovery = Discovery()
@@ -721,6 +748,46 @@ class KleaAgentState(BaseGraphSchema):
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"
 
+    def work_since_review(self) -> list[tuple[StepSchema, list[StepOutput]]]:
+        """Return completed steps and their outputs since the last review.
+
+        Scoped by :meth:`PlanSchema.reviewed_through`: only steps numbered after
+        the last approved review gate are included, so a checkpoint digest
+        covers the work done since the previous gate rather than repeating all
+        earlier progress.  Steps are returned in step order; a step with no
+        recorded output is omitted.
+
+        :returns: ``(step, outputs)`` pairs in step order.
+        """
+        since = self.plan.reviewed_through()
+        result: list[tuple[StepSchema, list[StepOutput]]] = []
+        for step in sorted(self.plan.step_list, key=lambda item: item.step_number):
+            outputs = self.step_outputs.get(step.step_number)
+            if step.step_number > since and outputs:
+                result.append((step, outputs))
+        return result
+
+    def work_since_review_text(self) -> str:
+        """Render :meth:`work_since_review` as prompt-ready text.
+
+        Each step is headed by its description so the digest can attach the
+        observations to what the step was meant to do; the observations use the
+        same :meth:`StepOutput.render` body as the Evaluator and Planner see, so
+        the digest can draw on any tool result (including third-party MCP
+        tools), not just file edits.
+
+        :returns: The rendered work, or a placeholder when nothing ran since the
+            last review.
+        """
+        chunks: list[str] = []
+        for step, outputs in self.work_since_review():
+            rendered = "".join(
+                f"\n\nTool call {index}: {entry.render()}"
+                for index, entry in enumerate(outputs)
+            )
+            chunks.append(f"Step {step.step_number}: {step.description}{rendered}")
+        return "\n\n".join(chunks) if chunks else "(no work since the last review)"
+
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:
         """Return the headline and content sections for a plan-review interrupt.
 
@@ -731,12 +798,17 @@ class KleaAgentState(BaseGraphSchema):
         rather than with its gates silently omitted.  Completed steps are not
         shown (their findings are in the transcript and the inspection pane).
 
+        A checkpoint also carries a "Progress" section with the synthesized
+        digest of work since the last review (:attr:`review_progress`), so the
+        user can decide without reading the whole transcript.
+
         The headline counts the pending **work** steps only: the review gate is
         the approval action itself, not work the approval unblocks.
 
         :returns: ``(headline, sections)``; each section is a
-            ``{"title": ..., "body": ...}`` dict whose body is the
-            status-pane-style render of the pending steps.
+            ``{"title": ..., "body": ...}`` dict.  The progress body is the
+            synthesized digest; the pending body is the status-pane-style
+            render of the pending steps.
         """
         pending = [step for step in self.plan.step_list if step.status == "pending"]
         work_pending = [step for step in pending if step.kind != "review"]
@@ -748,11 +820,15 @@ class KleaAgentState(BaseGraphSchema):
             lines.append(line)
         body = "\n".join(lines) or "(no pending steps)"
         count = _count(len(work_pending), "step")
+        sections: list[dict[str, str]] = []
+        progress = self.review_progress.strip()
+        if progress:
+            sections.append({"title": "Progress", "body": progress})
         if any(step.status in ("done", "skipped") for step in self.plan.step_list):
-            return f"Approve the remaining {count}", [
-                {"title": "Remaining", "body": body}
-            ]
-        return f"Approve this plan ({count})", [{"title": "Plan", "body": body}]
+            sections.append({"title": "Remaining", "body": body})
+            return f"Approve the remaining {count}", sections
+        sections.append({"title": "Plan", "body": body})
+        return f"Approve this plan ({count})", sections
 
     def artefacts_text(self) -> str:
         """Render the session-scoped artefacts as one text block.

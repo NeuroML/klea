@@ -187,8 +187,11 @@ the LangGraph ``interrupt``/``Command(resume=...)`` mechanism; the agent policy
   steps (checkpoint).  Every pending step is listed, including the review gates
   (marked as human review), so the plan is shown complete; the headline counts
   the pending work steps only, because the gate is the approval action itself.
-  Completed steps and their findings are not shown (the findings are in the
-  transcript and the inspection pane).  A review step must
+  A checkpoint may also carry a `Progress` section: a synthesized digest of the
+  work completed since the last review (the highest approved gate scopes it), so
+  the user can decide without reading the whole transcript.  Completed steps and
+  their findings are not otherwise shown (the findings are in the transcript and
+  the inspection pane).  A review step must
   gate at least one pending step after it; a *trailing* review (none after it)
   is rejected by the Planner's validator and resolved defensively by the router.
   **Approve** deterministically marks the review step(s) at the

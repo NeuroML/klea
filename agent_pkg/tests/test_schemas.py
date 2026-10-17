@@ -306,6 +306,121 @@ class TestReviewSections:
         headline, _ = state.review_sections()
         assert headline == "Approve the remaining 1 step"
 
+    def test_checkpoint_carries_progress_before_the_pending_steps(self):
+        """A synthesized progress digest is shown before the pending steps."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(
+                        step_number=2,
+                        kind="review",
+                        description="Review progress",
+                        depends_on=[1],
+                    ),
+                    StepSchema(step_number=3, description="write"),
+                ]
+            ),
+            review_progress="Changed the config and reran the tests.",
+        )
+        _, sections = state.review_sections()
+        assert [section["title"] for section in sections] == [
+            "Progress",
+            "Remaining",
+        ]
+        assert sections[0]["body"] == "Changed the config and reran the tests."
+
+    def test_whole_plan_approval_has_no_progress_section(self):
+        """A whole-plan approval (no work yet) carries no progress digest."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, kind="review", description="Approve"),
+                    StepSchema(step_number=2, description="fetch"),
+                ]
+            )
+        )
+        _, sections = state.review_sections()
+        assert [section["title"] for section in sections] == ["Plan"]
+
+    def test_work_since_review_is_scoped_to_the_last_gate(self):
+        """Only work after the highest approved review gate is included."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(
+                        step_number=1,
+                        kind="review",
+                        description="Approve",
+                        status="done",
+                    ),
+                    StepSchema(step_number=2, description="first", status="done"),
+                    StepSchema(step_number=3, description="second", status="done"),
+                    StepSchema(
+                        step_number=4,
+                        kind="review",
+                        description="Review progress",
+                        depends_on=[3],
+                    ),
+                    StepSchema(step_number=5, description="next"),
+                ]
+            ),
+            step_outputs={
+                2: [StepOutput(result=self._result(), tool="read_file")],
+                3: [StepOutput(result=self._result(), tool="write_file")],
+            },
+        )
+        pairs = state.work_since_review()
+        assert [step.step_number for step, _ in pairs] == [2, 3]
+        text = state.work_since_review_text()
+        assert "Step 2: first" in text and "Step 3: second" in text
+        assert "read_file" in text and "write_file" in text
+
+    def test_work_since_review_is_empty_before_any_work(self):
+        """No work since the last review renders a placeholder."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[
+                    StepSchema(step_number=1, kind="review", description="Approve"),
+                    StepSchema(step_number=2, description="fetch"),
+                ]
+            )
+        )
+        assert state.work_since_review() == []
+        assert state.work_since_review_text() == "(no work since the last review)"
+
+
+class TestPlanReviewedThrough:
+    """``PlanSchema.reviewed_through`` scopes the progress digest."""
+
+    def test_zero_before_any_review(self):
+        plan = PlanSchema(
+            step_list=[StepSchema(step_number=1, description="work", status="done")]
+        )
+        assert plan.reviewed_through() == 0
+
+    def test_highest_approved_gate(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(
+                    step_number=1, kind="review", description="Approve", status="done"
+                ),
+                StepSchema(step_number=2, description="work", status="done"),
+                StepSchema(step_number=3, kind="review", description="Review"),
+                StepSchema(step_number=4, description="work"),
+            ]
+        )
+        assert plan.reviewed_through() == 1
+
+    def test_pending_gate_is_not_counted(self):
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, kind="review", description="Review"),
+                StepSchema(step_number=2, description="work"),
+            ]
+        )
+        assert plan.reviewed_through() == 0
+
 
 class TestPlannerPlanSchema:
     """The Planner sees only the statuses it may set (ADR-0035 2026-09-19)."""
