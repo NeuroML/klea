@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from pathlib import Path
 
 import pytest
 from klea_utils.mcp.errors import PermissionDeniedError
@@ -245,7 +246,7 @@ def test_detect_file_uri_without_authority(tmp_path):
         project_root=root,
     )
     assert len(requests) == 1
-    assert requests[0].directory == "/etc"
+    assert requests[0].directory == str(Path("/etc").resolve())
 
 
 def test_detect_http_url_still_skipped(tmp_path):
