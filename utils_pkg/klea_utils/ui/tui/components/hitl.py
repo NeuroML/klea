@@ -100,15 +100,8 @@ class HitlDecisionPanel(VerticalScroll):
         width: 1fr;
         margin-top: 1;
     }
-    HitlDecisionPanel Horizontal {
-        height: auto;
-        margin-top: 1;
-    }
     HitlDecisionPanel RadioSet {
         margin-top: 1;
-    }
-    HitlDecisionPanel Button {
-        margin-right: 2;
     }
     """
 
@@ -189,7 +182,7 @@ class HitlPanel(HitlDecisionPanel):
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )
-        with Horizontal():
+        with Horizontal(classes="actions"):
             yield Button("Approve", id="hitl-approve", variant="primary")
             yield Button("Request changes", id="hitl-revise")
             yield Button("Cancel", id="hitl-cancel", variant="error")
@@ -204,7 +197,7 @@ class HitlPanel(HitlDecisionPanel):
         for index, question in enumerate(self._questions):
             yield Static(str(question.get("question", "")))
             yield Input(id=f"hitl-answer-{index}")
-        with Horizontal():
+        with Horizontal(classes="actions"):
             yield Button("Answer", id="hitl-answer", variant="primary")
             yield Button("Cancel", id="hitl-cancel", variant="error")
 
@@ -327,7 +320,7 @@ class PermissionPanel(HitlDecisionPanel):
                         id=f"perm-{index}-{option}",
                         value=option == "deny",
                     )
-        with Horizontal():
+        with Horizontal(classes="actions"):
             yield Button("Submit", id="perm-submit", variant="primary")
             yield Button("Cancel", id="perm-cancel", variant="error")
 

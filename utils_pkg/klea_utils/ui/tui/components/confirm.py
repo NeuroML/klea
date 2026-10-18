@@ -63,7 +63,7 @@ class ExitConfirm(ModalScreen[bool]):
                 id="exit-body",
                 markup=False,
             )
-            with Horizontal():
+            with Horizontal(classes="actions"):
                 yield Button("Cancel", id="exit-cancel")
                 yield Button("Exit", id="exit-confirm", variant="error")
 

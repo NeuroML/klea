@@ -114,7 +114,7 @@ class SessionPicker(ModalScreen[SessionAction]):
                     ],
                     id="sessions-list",
                 )
-            with Horizontal():
+            with Horizontal(classes="actions"):
                 yield Button("Rename", id="sessions-rename")
                 yield Button("Delete", id="sessions-delete")
                 yield Button("Cancel", id="sessions-cancel", variant="error")
@@ -250,7 +250,7 @@ class SessionDelete(ModalScreen[bool]):
                 id="delete-body",
                 markup=False,
             )
-            with Horizontal():
+            with Horizontal(classes="actions"):
                 yield Button("Cancel", id="delete-cancel")
                 yield Button("Delete", id="delete-confirm", variant="error")
 
@@ -308,7 +308,7 @@ class SessionRename(ModalScreen[str | None]):
         with Vertical(id="rename-dialog"):
             yield Static("Rename session", id="rename-title")
             yield Input(value=self._title, id="rename-input")
-            with Horizontal():
+            with Horizontal(classes="actions"):
                 yield Button("Save", id="rename-save", variant="primary")
                 yield Button("Cancel", id="rename-cancel", variant="error")
 

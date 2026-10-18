@@ -182,7 +182,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             yield Static("Models for this chat", id="model-title")
             for role in self._roles:
                 yield self._role_collapsible(role)
-            with Horizontal(id="model-actions"):
+            with Horizontal(id="model-actions", classes="actions"):
                 yield Button("Manage API keys", id="model-keys")
                 yield Button("Close", id="model-close", variant="error")
                 yield Button("Save", id="model-save", variant="primary")
@@ -267,7 +267,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
                     Button("Use for all roles", id=self._dom_id("useall", role))
                 )
             buttons.append(Button("Reset", id=self._dom_id("reset", role)))
-            children.append(Horizontal(*buttons))
+            children.append(Horizontal(*buttons, classes="actions"))
         return Collapsible(*children, title=role_label(role), collapsed=False)
 
     @staticmethod

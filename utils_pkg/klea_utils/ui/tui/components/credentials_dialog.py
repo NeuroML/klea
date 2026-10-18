@@ -115,7 +115,7 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
                 markup=False,
             )
             yield Vertical(id="cred-list")
-            with Horizontal(id="cred-actions"):
+            with Horizontal(id="cred-actions", classes="actions"):
                 yield Button("Close", id="cred-close", variant="error")
 
     def on_mount(self) -> None:
@@ -168,7 +168,7 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
         if stored:
             buttons.append(Button("Clear", id=f"cred-clear-{index}"))
         buttons.append(Button("Save", id=f"cred-save-{index}", variant="primary"))
-        children.append(Horizontal(*buttons))
+        children.append(Horizontal(*buttons, classes="actions"))
         return Vertical(*children, classes="cred-scope")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

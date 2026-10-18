@@ -119,6 +119,13 @@ _CSS = """
 #status {
     height: 1fr;
 }
+.actions {
+    height: auto;
+    margin-top: 1;
+}
+.actions Button {
+    margin-right: 2;
+}
 """
 
 #: Default key-hints line, shown whenever no HITL ask is active.
