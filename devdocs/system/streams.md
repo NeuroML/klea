@@ -42,7 +42,7 @@ exception.
 | `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | transcript block (MIME-aware) |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
 | `context` | runner (values) | `{type, data}` | status pane (mode/access) | stored on the chat; status-panel mode/access slots refresh |
-| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, interrupt_id, hitl_response_schema}}` | chat ask form | HITL / permission modal |
+| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, interrupt_id, hitl_response_schema}}` | ask form replacing the composer | inline ask panel replacing the composer |
 | `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | transcript message |
 | `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | turn-status error (+ Retry) |
 
@@ -63,8 +63,9 @@ checkpoint may also carry a `Progress` section: a synthesized digest of the
 work completed since the last review, so the decision does not require reading
 the whole transcript.  Completed steps and the step findings are not otherwise
 included (the findings are in the transcript and the inspection pane).  Both
-frontends render
-the sections the same way.  A review step must gate pending work; a *trailing*
+frontends render the sections the same way, and both show the ask in place of
+the composer (the input is hidden while an ask is active, so the transcript
+stays scrollable).  A review step must gate pending work; a *trailing*
 review is rejected by the Planner's validator and resolved defensively by the
 router.  A permission ask shows the tool call
 (`tool: argument = raw (confidence)`) and its per-path decisions are

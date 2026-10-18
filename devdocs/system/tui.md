@@ -191,11 +191,16 @@ it is safe mid-stream.
 
 ## HITL and permissions
 
-HITL asks render as `ModalScreen`s (review: approve / request changes /
-cancel; input: one answer per question; permission: allow-once / allow-session
-/ deny per requested path, ADR-0007).  Decisions are shown in the transcript
-via `klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded
-text cannot drift.  A pending interrupt is re-presented on load/switch from
+HITL asks render inline as panels in the chat panel (`HitlPanel` for review /
+input, `PermissionPanel` for path permissions, ADR-0007), not as modal screens:
+the ask is mounted below the transcript and replaces the composer (the input
+row is hidden while it is active), so the transcript stays scrollable.  A
+review ask offers approve / request changes / cancel, an input ask one field
+per question, and a permission ask allow-once / allow-session / deny per
+requested path; the key-hints line shows the ask's actions.  Decisions are
+shown in the transcript via
+`klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded text
+cannot drift.  A pending interrupt is re-presented on load/switch from
 `GET /chat/{user_id}/{chat_id}/context` (`pending_interrupt`), matching the web
 (ADR-0046).
 

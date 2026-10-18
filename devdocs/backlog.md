@@ -215,14 +215,6 @@ Last updated: 2026-10-16.
   status pane for the plan: it carries the synthesized progress digest and all
   pending steps (ADR-0051 update), so this is now a general status-pane UX gap
   rather than a HITL one.
-- TUI HITL modals block chat scrolling: the review/input (`HitlModal`) and
-  permission (`PermissionModal`) dialogs are Textual `ModalScreen`s, which
-  capture input and truncate the binding chain, so the transcript behind them
-  cannot be scrolled while a decision is pending -- even though the user often
-  needs to read the transcript before deciding.  Options: render the HITL ask
-  inline in the chat panel, use a non-modal overlay that forwards scroll to
-  `#transcript`, or add a key to page the transcript.  Deferred (secondary UI
-  issue; the review ask already carries the digest and all pending steps).
 - Follow-theme styling: the TUI uses Textual theme variables throughout (panel
   backgrounds `$surface`/`$panel`, muted text `$text-muted`, the errored
   tool-header `$error`).  Two gaps remain, both deferred.  (a) Some Textual
