@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """
-HITL review/input modal for the Klea TUI (ADR-0046).
+HITL review/input/permission panels for the Klea TUI (ADR-0046).
 
-When a run pauses at an interrupt, the app opens this modal to collect the
-user's answer.  A ``review`` ask offers Approve / Request changes / Cancel; an
-``input`` ask offers one field per question plus Answer / Cancel.  The modal
-dismisses with a :class:`HitlDecision` (the resume mapping, or a cancel) that
-the app sends back through the same run.
+When a run pauses at an interrupt, the app mounts an inline panel in the chat
+panel rather than a modal, so the transcript stays scrollable while the user
+reads the ask and decides.  A ``review`` ask offers Approve / Request changes /
+Cancel; an ``input`` ask offers one field per question plus Answer / Cancel; a
+``permission`` ask offers once/session/not-a-path/deny per requested path
+(ADR-0007).
 
-The path-permission ask has its own modal (a later step); this one covers the
-review and input kinds.
+Each panel posts :class:`HitlDecisionPanel.Decided` (carrying a
+:class:`HitlDecision`) instead of dismissing; the app removes the panel and
+resumes the same run.
 
 File: klea_utils/ui/tui/components/hitl.py
 
 Copyright 2026 Ankur Sinha
-Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
+Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 from __future__ import annotations
@@ -27,14 +29,13 @@ from typing import Any, ClassVar
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
-from textual.screen import ModalScreen
+from textual.message import Message
 from textual.widgets import Button, Input, RadioButton, RadioSet, Static
 
 logger = logging.getLogger(__name__)
 
 #: Path-permission decision options and their labels.  "Not a path" is offered
-#: only for a ``guess``-tier request (see
-#: :meth:`PermissionModal._options`).
+#: only for a ``guess``-tier request (see :meth:`PermissionPanel._options`).
 _PERMISSION_OPTION_LABELS = {
     "once": "Once",
     "session": "Session",
@@ -57,46 +58,73 @@ class HitlDecision:
     cancel: bool = False
 
 
-class HitlModal(ModalScreen[HitlDecision]):
-    """A modal collecting the answer to a review / input interrupt."""
+class HitlDecisionPanel(VerticalScroll):
+    """Base for the inline HITL panels.
+
+    A panel owns its form and posts :class:`Decided` when the user answers; the
+    app removes it and resumes the run.  It is a sibling of the transcript (not
+    a modal), so the chat stays scrollable while the ask is open.  It is
+    bounded (``max-height``) and scrolls internally so a long plan/digest does
+    not push the transcript off screen.
+    """
 
     BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
 
     DEFAULT_CSS = """
-    HitlModal {
-        align: center middle;
-    }
-    #hitl-dialog {
-        width: 80%;
+    HitlDecisionPanel {
         height: auto;
-        max-height: 80%;
+        max-height: 60%;
         border: round $primary;
-        padding: 1 2;
+        padding: 0 2;
         background: $surface;
     }
-    #hitl-title {
+    HitlDecisionPanel #hitl-title,
+    HitlDecisionPanel #perm-title {
         text-style: bold;
         height: 1;
     }
-    #hitl-headline {
+    HitlDecisionPanel #hitl-headline {
         text-style: bold;
         height: auto;
     }
-    .hitl-section-title {
+    HitlDecisionPanel .hitl-section-title {
         text-style: bold;
         color: $text-muted;
         height: auto;
     }
-    .hitl-section-body {
+    HitlDecisionPanel .hitl-section-body {
         height: auto;
     }
     """
 
+    class Decided(Message):
+        """Posted when the user answers an ask.
+
+        :param decision: The user's :class:`HitlDecision`.
+        """
+
+        def __init__(self, decision: HitlDecision) -> None:
+            self.decision = decision
+            super().__init__()
+
+    def action_cancel(self) -> None:
+        """Cancel the ask (Escape or the Cancel button)."""
+        self.post_message(self.Decided(HitlDecision(None, cancel=True)))
+
+
+class HitlPanel(HitlDecisionPanel):
+    """An inline review / input ask.
+
+    A ``review`` ask renders the headline and sections (the plan/digest) with an
+    approve / request-changes / cancel row; an ``input`` ask renders one field
+    per question with an answer / cancel row.
+    """
+
     def __init__(self, ask: dict[str, Any]) -> None:
-        """Build the modal for the interrupt *ask*.
+        """Build the panel for the interrupt *ask*.
 
         :param ask: The interrupt ``data`` (``kind``, ``question``/
-            ``questions``, ``plan``).
+            ``questions``, ``headline``/``sections``).
         """
         super().__init__()
         self.ask = ask
@@ -105,14 +133,13 @@ class HitlModal(ModalScreen[HitlDecision]):
     def compose(self) -> ComposeResult:
         """Compose the review or input form."""
         kind = self.ask.get("kind", "input")
-        with VerticalScroll(id="hitl-dialog"):
-            yield Static(
-                "Plan review" if kind == "review" else "User input", id="hitl-title"
-            )
-            if kind == "review":
-                yield from self._compose_review()
-            else:
-                yield from self._compose_input()
+        yield Static(
+            "Plan review" if kind == "review" else "User input", id="hitl-title"
+        )
+        if kind == "review":
+            yield from self._compose_review()
+        else:
+            yield from self._compose_input()
 
     def _compose_review(self) -> ComposeResult:
         """Compose the review form (headline, sections, feedback, buttons).
@@ -173,35 +200,33 @@ class HitlModal(ModalScreen[HitlDecision]):
             fields[0].focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Dismiss with the decision for the pressed button.
+        """Post the decision for the pressed button.
 
         :param event: The ``Button.Pressed`` event.
         """
         button_id = event.button.id
         if button_id == "hitl-approve":
-            self.dismiss(HitlDecision({"decision": "approve"}))
+            self.post_message(self.Decided(HitlDecision({"decision": "approve"})))
         elif button_id == "hitl-revise":
             feedback = self.query_one("#hitl-feedback", Input).value or ""
-            self.dismiss(HitlDecision({"decision": "revise", "feedback": feedback}))
+            self.post_message(
+                self.Decided(HitlDecision({"decision": "revise", "feedback": feedback}))
+            )
         elif button_id == "hitl-answer":
             answers = [
                 self.query_one(f"#hitl-answer-{index}", Input).value or ""
                 for index in range(len(self._questions))
             ]
-            self.dismiss(HitlDecision({"answers": answers}))
+            self.post_message(self.Decided(HitlDecision({"answers": answers})))
         elif button_id == "hitl-cancel":
             self.action_cancel()
-
-    def action_cancel(self) -> None:
-        """Dismiss as a cancel (Escape or the Cancel button)."""
-        self.dismiss(HitlDecision(None, cancel=True))
 
 
 def _permission_key(request: Mapping[str, Any]) -> str:
     """Return the approval key for a path request (ADR-0007).
 
-    The resolved file for a ``sensitive`` request, the resolved directory for
-    an ``outside`` one.
+    The resolved file for a ``sensitive`` request, the resolved directory for an
+    ``outside`` one.
 
     :param request: A permission request dict.
     :returns: The key the decision is recorded against.
@@ -211,36 +236,16 @@ def _permission_key(request: Mapping[str, Any]) -> str:
     return str(request.get("directory", ""))
 
 
-class PermissionModal(ModalScreen[HitlDecision]):
-    """A modal collecting a once/session/deny decision per requested path.
+class PermissionPanel(HitlDecisionPanel):
+    """An inline ask collecting a once/session/deny decision per requested path.
 
     Each request (a sensitive file or an outside-project directory, ADR-0007)
     gets a :class:`~textual.widgets.RadioSet` defaulting to ``deny``; Submit
-    sends the per-key decisions, Cancel (or Escape) cancels the ask.
-    """
-
-    BINDINGS: ClassVar[list[Binding]] = [Binding("escape", "cancel", "Cancel")]
-
-    DEFAULT_CSS = """
-    PermissionModal {
-        align: center middle;
-    }
-    #perm-dialog {
-        width: 80%;
-        height: auto;
-        max-height: 80%;
-        border: round $primary;
-        padding: 1 2;
-        background: $surface;
-    }
-    #perm-title {
-        text-style: bold;
-        height: 1;
-    }
+    posts the per-key decisions, Cancel (or Escape) cancels the ask.
     """
 
     def __init__(self, ask: dict[str, Any]) -> None:
-        """Build the modal for the permission interrupt *ask*.
+        """Build the panel for the permission interrupt *ask*.
 
         :param ask: The interrupt ``data`` (``requests``, ``question``).
         """
@@ -291,26 +296,25 @@ class PermissionModal(ModalScreen[HitlDecision]):
 
     def compose(self) -> ComposeResult:
         """Compose one radio group per requested path, plus Submit / Cancel."""
-        with VerticalScroll(id="perm-dialog"):
-            yield Static("Permission required", id="perm-title")
-            question = self.ask.get("question")
-            if question:
-                yield Static(str(question), id="perm-question")
-            for index, request in enumerate(self._requests()):
-                yield Static(self._title(request))
-                hint = self._hint(request)
-                if hint:
-                    yield Static(hint)
-                with RadioSet(id=f"perm-{index}"):
-                    for option in self._options(request):
-                        yield RadioButton(
-                            _PERMISSION_OPTION_LABELS[option],
-                            id=f"perm-{index}-{option}",
-                            value=option == "deny",
-                        )
-            with Horizontal():
-                yield Button("Submit", id="perm-submit", variant="primary")
-                yield Button("Cancel", id="perm-cancel", variant="error")
+        yield Static("Permission required", id="perm-title")
+        question = self.ask.get("question")
+        if question:
+            yield Static(str(question), id="perm-question")
+        for index, request in enumerate(self._requests()):
+            yield Static(self._title(request))
+            hint = self._hint(request)
+            if hint:
+                yield Static(hint)
+            with RadioSet(id=f"perm-{index}"):
+                for option in self._options(request):
+                    yield RadioButton(
+                        _PERMISSION_OPTION_LABELS[option],
+                        id=f"perm-{index}-{option}",
+                        value=option == "deny",
+                    )
+        with Horizontal():
+            yield Button("Submit", id="perm-submit", variant="primary")
+            yield Button("Cancel", id="perm-cancel", variant="error")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Submit the decisions or cancel.
@@ -323,7 +327,7 @@ class PermissionModal(ModalScreen[HitlDecision]):
             self.action_cancel()
 
     def _submit(self) -> None:
-        """Dismiss with one decision per requested path."""
+        """Post one decision per requested path."""
         decisions: list[dict[str, str]] = []
         for index, request in enumerate(self._requests()):
             radio_set = self.query_one(f"#perm-{index}", RadioSet)
@@ -331,8 +335,4 @@ class PermissionModal(ModalScreen[HitlDecision]):
             pressed = radio_set.pressed_index
             decision = options[pressed] if 0 <= pressed < len(options) else "deny"
             decisions.append({"key": _permission_key(request), "decision": decision})
-        self.dismiss(HitlDecision({"decisions": decisions}))
-
-    def action_cancel(self) -> None:
-        """Dismiss as a cancel (Escape or the Cancel button)."""
-        self.dismiss(HitlDecision(None, cancel=True))
+        self.post_message(self.Decided(HitlDecision({"decisions": decisions})))

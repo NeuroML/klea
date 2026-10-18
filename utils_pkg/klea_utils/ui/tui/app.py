@@ -53,8 +53,9 @@ from klea_utils.ui.tui.components.commands import (
 from klea_utils.ui.tui.components.confirm import ExitConfirm
 from klea_utils.ui.tui.components.hitl import (
     HitlDecision,
-    HitlModal,
-    PermissionModal,
+    HitlDecisionPanel,
+    HitlPanel,
+    PermissionPanel,
 )
 from klea_utils.ui.tui.components.input import QueryInput, QueryTextArea
 from klea_utils.ui.tui.components.inspector import Inspector
@@ -393,8 +394,10 @@ class KleaTuiApp(App[None]):
         self._worker: Worker[None] | None = None
         self._last_query = ""
         self._retryable = False
-        #: The interrupt id the pending HITL modal is answering.
+        #: The interrupt id the pending HITL panel is answering.
         self._hitl_id: str | None = None
+        #: The inline panel mounted for a pending ask (``None`` when idle).
+        self._hitl_panel: HitlDecisionPanel | None = None
         #: Merged session-command catalogue (client + server); loaded on mount.
         self._catalogue: CommandRegistry | None = None
 
@@ -517,7 +520,7 @@ class KleaTuiApp(App[None]):
             chat["turn_status"] = {"kind": "awaiting_input"}
 
     def _present_pending(self, chat: Any) -> None:
-        """Open the HITL modal when *chat* has a pending interrupt."""
+        """Open the HITL panel when *chat* has a pending interrupt."""
         pending = chat.get("interrupt")
         if not pending:
             return
@@ -844,20 +847,40 @@ class KleaTuiApp(App[None]):
         await self.load_chat(coolname.generate_slug(2), hydrate=False)
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
-        """Open the HITL modal for *ask* (review / input / permission).
+        """Mount the inline HITL panel for *ask* (review / input / permission).
+
+        The panel is a sibling of the transcript in the chat panel, not a modal,
+        so the chat stays scrollable while the ask is open (ADR-0046).
 
         :param ask: The interrupt ``data``.
         """
         self._hitl_id = ask.get("interrupt_id")
-        if ask.get("kind") == "permission":
-            self.push_screen(PermissionModal(ask), callback=self._on_hitl_decision)
-        else:
-            self.push_screen(HitlModal(ask), callback=self._on_hitl_decision)
+        screen = self._screen
+        if screen is None:
+            return
+        if self._hitl_panel is not None:
+            self._hitl_panel.remove()
+        panel: HitlDecisionPanel = (
+            PermissionPanel(ask) if ask.get("kind") == "permission" else HitlPanel(ask)
+        )
+        self._hitl_panel = panel
+        screen.mount(panel, before=screen.query_one("#query-input-frame"))
+
+    @on(HitlDecisionPanel.Decided)
+    def _on_hitl_decided(self, event: HitlDecisionPanel.Decided) -> None:
+        """Remove the answered panel and continue the paused run.
+
+        :param event: The panel's ``Decided`` message.
+        """
+        if self._hitl_panel is not None:
+            self._hitl_panel.remove()
+            self._hitl_panel = None
+        self._on_hitl_decision(event.decision)
 
     def _on_hitl_decision(self, decision: HitlDecision | None) -> None:
-        """Continue the paused run with the modal's answer.
+        """Continue the paused run with the panel's answer.
 
-        :param decision: The modal's :class:`HitlDecision`, or ``None``.
+        :param decision: The :class:`HitlDecision`, or ``None``.
         """
         if decision is None:
             return
@@ -867,7 +890,7 @@ class KleaTuiApp(App[None]):
     async def _resume_from_hitl(self, decision: HitlDecision) -> None:
         """Record the answer and continue the paused run (ADR-0046).
 
-        :param decision: The modal's :class:`HitlDecision`.
+        :param decision: The :class:`HitlDecision`.
         """
         # Lazy: the state store is only needed when answering.
         from klea_utils.ui.state import ensure_chat, interrupt_display
@@ -1012,7 +1035,7 @@ class KleaTuiApp(App[None]):
                     break
                 if action == "interrupt":
                     # The run paused for HITL input (ADR-0046): stop streaming,
-                    # show the status, and open the answer modal.
+                    # show the status, and open the answer panel.
                     chat["turn_status"] = {"kind": "awaiting_input"}
                     screen.show_awaiting_input()
                     logger.debug("run paused for input: chat=%s", self.ctx.chat_id)

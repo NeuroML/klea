@@ -23,7 +23,7 @@ from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.confirm import ExitConfirm
 from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
-from klea_utils.ui.tui.components.hitl import HitlModal, PermissionModal
+from klea_utils.ui.tui.components.hitl import HitlPanel, PermissionPanel
 from klea_utils.ui.tui.components.input import QueryInput
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
 from klea_utils.ui.tui.components.sessions import (
@@ -144,8 +144,8 @@ async def test_retry_resumes_without_duplicating_the_turn(fake_backend, make_app
     assert "recovered" in texts
 
 
-async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
-    """A review interrupt opens the modal; the answer resumes the same run."""
+async def test_interrupt_opens_panel_and_resumes(fake_backend, make_app):
+    """A review interrupt opens the panel; the answer resumes the same run."""
     fake_backend.scripts = [
         [
             {
@@ -163,7 +163,7 @@ async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
     async with app.run_test() as pilot:
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
-        assert isinstance(app.screen, HitlModal)
+        assert app.screen.query_one(HitlPanel)
         app.screen.query_one("#hitl-approve", Button).press()
         await _settle(pilot, app)
 
@@ -173,10 +173,10 @@ async def test_interrupt_opens_modal_and_resumes(fake_backend, make_app):
     assert any("Plan approved" in text for text in texts)
 
 
-async def test_review_interrupt_modal_shows_headline_and_sections(
+async def test_review_interrupt_panel_shows_headline_and_sections(
     fake_backend, make_app
 ):
-    """The review modal renders the adaptive headline and sections."""
+    """The review panel renders the adaptive headline and sections."""
     fake_backend.scripts = [
         [
             {
@@ -201,7 +201,7 @@ async def test_review_interrupt_modal_shows_headline_and_sections(
     async with app.run_test() as pilot:
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
-        assert isinstance(app.screen, HitlModal)
+        assert app.screen.query_one(HitlPanel)
         headline = app.screen.query_one("#hitl-headline", Static)
         assert "Approve this plan" in str(headline.render())
         title = app.screen.query_one("#hitl-section-0-title", Static)
@@ -212,7 +212,7 @@ async def test_review_interrupt_modal_shows_headline_and_sections(
         await _settle(pilot, app)
 
 
-async def test_review_modal_with_long_section_scrolls(fake_backend, make_app):
+async def test_review_panel_with_long_section_scrolls(fake_backend, make_app):
     """A long review section scrolls so Approve/Decline stay reachable."""
     long_plan = "\n".join(f"step {i}: do the thing" for i in range(60))
     fake_backend.scripts = [
@@ -234,17 +234,17 @@ async def test_review_modal_with_long_section_scrolls(fake_backend, make_app):
     async with app.run_test(size=(80, 24)) as pilot:
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
-        assert isinstance(app.screen, HitlModal)
-        dialog = app.screen.query_one("#hitl-dialog", VerticalScroll)
-        assert dialog.max_scroll_y > 0
+        assert app.screen.query_one(HitlPanel)
+        panel = app.screen.query_one(HitlPanel)
+        assert panel.max_scroll_y > 0
         app.screen.query_one("#hitl-approve", Button).press()
         await _settle(pilot, app)
 
     assert fake_backend.calls[-1]["interrupt_response"] == {"decision": "approve"}
 
 
-async def test_permission_interrupt_modal(fake_backend, make_app):
-    """A permission ask opens the permission modal; Submit sends decisions."""
+async def test_permission_interrupt_panel(fake_backend, make_app):
+    """A permission ask opens the permission panel; Submit submits decisions."""
     fake_backend.scripts = [
         [
             {
@@ -270,7 +270,7 @@ async def test_permission_interrupt_modal(fake_backend, make_app):
     async with app.run_test() as pilot:
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
-        assert isinstance(app.screen, PermissionModal)
+        assert app.screen.query_one(PermissionPanel)
         # The first request defaults to deny; allow it once instead.
         app.screen.query_one("#perm-0-once", RadioButton).value = True
         app.screen.query_one("#perm-submit", Button).press()
@@ -286,7 +286,7 @@ async def test_permission_interrupt_modal(fake_backend, make_app):
     }
 
 
-async def test_permission_modal_with_many_requests_scrolls(fake_backend, make_app):
+async def test_permission_panel_with_many_requests_scrolls(fake_backend, make_app):
     """A permission ask with many paths scrolls so Submit stays reachable."""
     requests = [
         {
@@ -314,9 +314,9 @@ async def test_permission_modal_with_many_requests_scrolls(fake_backend, make_ap
     async with app.run_test(size=(80, 24)) as pilot:
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
-        assert isinstance(app.screen, PermissionModal)
-        dialog = app.screen.query_one("#perm-dialog", VerticalScroll)
-        assert dialog.max_scroll_y > 0
+        assert app.screen.query_one(PermissionPanel)
+        panel = app.screen.query_one(PermissionPanel)
+        assert panel.max_scroll_y > 0
         app.screen.query_one("#perm-submit", Button).press()
         await _settle(pilot, app)
 
@@ -338,7 +338,7 @@ async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
         await pilot.pause()
         await app.workers.wait_for_complete()
         await pilot.pause()
-        assert isinstance(app.screen, HitlModal)
+        assert app.screen.query_one(HitlPanel)
         assert _chat()["turn_status"]["kind"] == "awaiting_input"
         assert _chat()["context"]["mode"] == "general"
 
