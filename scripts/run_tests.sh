@@ -4,7 +4,8 @@
 # Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 # File : test.sh
 #
-# Scripts to run tests in all packages.
+# Scripts to run tests in all packages, or only in the packages given as
+# arguments (e.g. ``run_tests.sh utils_pkg rag_pkg``).
 
 
 set -e
@@ -22,7 +23,14 @@ export TERM=dumb
 unset FORCE_COLOR 2>/dev/null || true
 
 echo ">> Unit tests"
-for d in *_pkg
+if [ "$#" -gt 0 ]
+then
+    pkgs=("$@")
+else
+    pkgs=(*_pkg)
+fi
+
+for d in "${pkgs[@]}"
 do
     if [ -d "${d}/tests" ]
     then
