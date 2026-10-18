@@ -306,21 +306,23 @@
           <h1>Source code for klea_utils.ui.tui.components.hitl</h1><div class="highlight"><pre>
 <span></span><span class="ch">#!/usr/bin/env python3</span>
 <span class="sd">"""</span>
-<span class="sd">HITL review/input modal for the Klea TUI (ADR-0046).</span>
+<span class="sd">HITL review/input/permission panels for the Klea TUI (ADR-0046).</span>
 
-<span class="sd">When a run pauses at an interrupt, the app opens this modal to collect the</span>
-<span class="sd">user's answer.  A ``review`` ask offers Approve / Request changes / Cancel; an</span>
-<span class="sd">``input`` ask offers one field per question plus Answer / Cancel.  The modal</span>
-<span class="sd">dismisses with a :class:`HitlDecision` (the resume mapping, or a cancel) that</span>
-<span class="sd">the app sends back through the same run.</span>
+<span class="sd">When a run pauses at an interrupt, the app mounts an inline panel in the chat</span>
+<span class="sd">panel rather than a modal, so the transcript stays scrollable while the user</span>
+<span class="sd">reads the ask and decides.  A ``review`` ask offers Approve / Request changes /</span>
+<span class="sd">Cancel; an ``input`` ask offers one field per question plus Answer / Cancel; a</span>
+<span class="sd">``permission`` ask offers once/session/not-a-path/deny per requested path</span>
+<span class="sd">(ADR-0007).</span>
 
-<span class="sd">The path-permission ask has its own modal (a later step); this one covers the</span>
-<span class="sd">review and input kinds.</span>
+<span class="sd">Each panel posts :class:`HitlDecisionPanel.Decided` (carrying a</span>
+<span class="sd">:class:`HitlDecision`) instead of dismissing; the app removes the panel and</span>
+<span class="sd">resumes the same run.</span>
 
 <span class="sd">File: klea_utils/ui/tui/components/hitl.py</span>
 
 <span class="sd">Copyright 2026 Ankur Sinha</span>
-<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</span>
 <span class="sd">"""</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
@@ -333,14 +335,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComposeResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.binding</span><span class="w"> </span><span class="kn">import</span> <span class="n">Binding</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">VerticalScroll</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.screen</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalScreen</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.message</span><span class="w"> </span><span class="kn">import</span> <span class="n">Message</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">RadioButton</span><span class="p">,</span> <span class="n">RadioSet</span><span class="p">,</span> <span class="n">Static</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1">#: Path-permission decision options and their labels.  "Not a path" is offered</span>
-<span class="c1">#: only for a ``guess``-tier request (see</span>
-<span class="c1">#: :meth:`PermissionModal._options`).</span>
+<span class="c1">#: only for a ``guess``-tier request (see :meth:`PermissionPanel._options`).</span>
 <span class="n">_PERMISSION_OPTION_LABELS</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">"once"</span><span class="p">:</span> <span class="s2">"Once"</span><span class="p">,</span>
     <span class="s2">"session"</span><span class="p">:</span> <span class="s2">"Session"</span><span class="p">,</span>
@@ -366,66 +367,109 @@
 
 
 
-<div class="viewcode-block" id="HitlModal">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlModal">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">HitlModal</span><span class="p">(</span><span class="n">ModalScreen</span><span class="p">[</span><span class="n">HitlDecision</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">"""A modal collecting the answer to a review / input interrupt."""</span>
+<div class="viewcode-block" id="HitlDecisionPanel">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlDecisionPanel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HitlDecisionPanel</span><span class="p">(</span><span class="n">VerticalScroll</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Base for the inline HITL panels.</span>
+
+<span class="sd">    A panel owns its form and posts :class:`Decided` when the user answers; the</span>
+<span class="sd">    app removes it and resumes the run.  It is a sibling of the transcript (not</span>
+<span class="sd">    a modal), so the chat stays scrollable while the ask is open.  It is</span>
+<span class="sd">    bounded (``max-height``) and scrolls internally so a long plan/digest does</span>
+<span class="sd">    not push the transcript off screen.</span>
+<span class="sd">    """</span>
 
     <span class="n">BINDINGS</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Binding</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Binding</span><span class="p">(</span><span class="s2">"escape"</span><span class="p">,</span> <span class="s2">"cancel"</span><span class="p">,</span> <span class="s2">"Cancel"</span><span class="p">)]</span>
 
     <span class="n">DEFAULT_CSS</span> <span class="o">=</span> <span class="s2">"""</span>
-<span class="s2">    HitlModal {</span>
-<span class="s2">        align: center middle;</span>
-<span class="s2">    }</span>
-<span class="s2">    #hitl-dialog {</span>
-<span class="s2">        width: 80%;</span>
+<span class="s2">    HitlDecisionPanel {</span>
 <span class="s2">        height: auto;</span>
-<span class="s2">        max-height: 80%;</span>
+<span class="s2">        max-height: 60%;</span>
 <span class="s2">        border: round $primary;</span>
-<span class="s2">        padding: 1 2;</span>
+<span class="s2">        padding: 0 2;</span>
 <span class="s2">        background: $surface;</span>
 <span class="s2">    }</span>
-<span class="s2">    #hitl-title {</span>
+<span class="s2">    HitlDecisionPanel #hitl-title,</span>
+<span class="s2">    HitlDecisionPanel #perm-title {</span>
 <span class="s2">        text-style: bold;</span>
 <span class="s2">        height: 1;</span>
 <span class="s2">    }</span>
-<span class="s2">    #hitl-headline {</span>
+<span class="s2">    HitlDecisionPanel #hitl-headline {</span>
 <span class="s2">        text-style: bold;</span>
 <span class="s2">        height: auto;</span>
 <span class="s2">    }</span>
-<span class="s2">    .hitl-section-title {</span>
+<span class="s2">    HitlDecisionPanel .hitl-section-title {</span>
 <span class="s2">        text-style: bold;</span>
 <span class="s2">        color: $text-muted;</span>
 <span class="s2">        height: auto;</span>
+<span class="s2">        margin-top: 1;</span>
 <span class="s2">    }</span>
-<span class="s2">    .hitl-section-body {</span>
+<span class="s2">    HitlDecisionPanel .hitl-section-body {</span>
 <span class="s2">        height: auto;</span>
+<span class="s2">    }</span>
+<span class="s2">    HitlDecisionPanel Input {</span>
+<span class="s2">        width: 1fr;</span>
+<span class="s2">        margin-top: 1;</span>
+<span class="s2">    }</span>
+<span class="s2">    HitlDecisionPanel RadioSet {</span>
+<span class="s2">        margin-top: 1;</span>
 <span class="s2">    }</span>
 <span class="s2">    """</span>
 
+<div class="viewcode-block" id="HitlDecisionPanel.Decided">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlDecisionPanel.Decided">[docs]</a>
+    <span class="k">class</span><span class="w"> </span><span class="nc">Decided</span><span class="p">(</span><span class="n">Message</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Posted when the user answers an ask.</span>
+
+<span class="sd">        :param decision: The user's :class:`HitlDecision`.</span>
+<span class="sd">        """</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decision</span><span class="p">:</span> <span class="n">HitlDecision</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">decision</span> <span class="o">=</span> <span class="n">decision</span>
+            <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="HitlDecisionPanel.action_cancel">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlDecisionPanel.action_cancel">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">action_cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Cancel the ask (Escape or the Cancel button)."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">cancel</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="HitlPanel">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlPanel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">HitlPanel</span><span class="p">(</span><span class="n">HitlDecisionPanel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""An inline review / input ask.</span>
+
+<span class="sd">    A ``review`` ask renders the headline and sections (the plan/digest) with an</span>
+<span class="sd">    approve / request-changes / cancel row; an ``input`` ask renders one field</span>
+<span class="sd">    per question with an answer / cancel row.</span>
+<span class="sd">    """</span>
+
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Build the modal for the interrupt *ask*.</span>
+<span class="w">        </span><span class="sd">"""Build the panel for the interrupt *ask*.</span>
 
 <span class="sd">        :param ask: The interrupt ``data`` (``kind``, ``question``/</span>
-<span class="sd">            ``questions``, ``plan``).</span>
+<span class="sd">            ``questions``, ``headline``/``sections``).</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ask</span> <span class="o">=</span> <span class="n">ask</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_questions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
 
-<div class="viewcode-block" id="HitlModal.compose">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlModal.compose">[docs]</a>
+<div class="viewcode-block" id="HitlPanel.compose">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlPanel.compose">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the review or input form."""</span>
         <span class="n">kind</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">VerticalScroll</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
-                <span class="s2">"Plan review"</span> <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span> <span class="k">else</span> <span class="s2">"User input"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-title"</span>
-            <span class="p">)</span>
-            <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span><span class="p">:</span>
-                <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compose_review</span><span class="p">()</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compose_input</span><span class="p">()</span></div>
+        <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
+            <span class="s2">"Plan review"</span> <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span> <span class="k">else</span> <span class="s2">"User input"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-title"</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span><span class="p">:</span>
+            <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compose_review</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compose_input</span><span class="p">()</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_compose_review</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
@@ -461,7 +505,7 @@
         <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span>
             <span class="n">placeholder</span><span class="o">=</span><span class="s2">"Feedback (required to request changes)"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-feedback"</span>
         <span class="p">)</span>
-        <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
             <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Approve"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-approve"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Request changes"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-revise"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
@@ -476,12 +520,12 @@
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">question</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_questions</span><span class="p">):</span>
             <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)))</span>
             <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-answer-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-        <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
+        <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
             <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Answer"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-answer"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
 
-<div class="viewcode-block" id="HitlModal.on_mount">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlModal.on_mount">[docs]</a>
+<div class="viewcode-block" id="HitlPanel.on_mount">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlPanel.on_mount">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">on_mount</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Focus the first input field."""</span>
         <span class="n">fields</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">Input</span><span class="p">))</span>
@@ -489,34 +533,29 @@
             <span class="n">fields</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">focus</span><span class="p">()</span></div>
 
 
-<div class="viewcode-block" id="HitlModal.on_button_pressed">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlModal.on_button_pressed">[docs]</a>
+<div class="viewcode-block" id="HitlPanel.on_button_pressed">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlPanel.on_button_pressed">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">on_button_pressed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">Button</span><span class="o">.</span><span class="n">Pressed</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Dismiss with the decision for the pressed button.</span>
+<span class="w">        </span><span class="sd">"""Post the decision for the pressed button.</span>
 
 <span class="sd">        :param event: The ``Button.Pressed`` event.</span>
 <span class="sd">        """</span>
         <span class="n">button_id</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">button</span><span class="o">.</span><span class="n">id</span>
         <span class="k">if</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-approve"</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"approve"</span><span class="p">}))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"approve"</span><span class="p">})))</span>
         <span class="k">elif</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-revise"</span><span class="p">:</span>
             <span class="n">feedback</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#hitl-feedback"</span><span class="p">,</span> <span class="n">Input</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">:</span> <span class="n">feedback</span><span class="p">}))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">:</span> <span class="n">feedback</span><span class="p">}))</span>
+            <span class="p">)</span>
         <span class="k">elif</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-answer"</span><span class="p">:</span>
             <span class="n">answers</span> <span class="o">=</span> <span class="p">[</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="sa">f</span><span class="s2">"#hitl-answer-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">Input</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span>
                 <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_questions</span><span class="p">))</span>
             <span class="p">]</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"answers"</span><span class="p">:</span> <span class="n">answers</span><span class="p">}))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"answers"</span><span class="p">:</span> <span class="n">answers</span><span class="p">})))</span>
         <span class="k">elif</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-cancel"</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">action_cancel</span><span class="p">()</span></div>
-
-
-<div class="viewcode-block" id="HitlModal.action_cancel">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlModal.action_cancel">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">action_cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Dismiss as a cancel (Escape or the Cancel button)."""</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">cancel</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span></div>
 </div>
 
 
@@ -524,8 +563,8 @@
 <span class="k">def</span><span class="w"> </span><span class="nf">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return the approval key for a path request (ADR-0007).</span>
 
-<span class="sd">    The resolved file for a ``sensitive`` request, the resolved directory for</span>
-<span class="sd">    an ``outside`` one.</span>
+<span class="sd">    The resolved file for a ``sensitive`` request, the resolved directory for an</span>
+<span class="sd">    ``outside`` one.</span>
 
 <span class="sd">    :param request: A permission request dict.</span>
 <span class="sd">    :returns: The key the decision is recorded against.</span>
@@ -535,38 +574,18 @@
     <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"directory"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
 
 
-<div class="viewcode-block" id="PermissionModal">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionModal">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">PermissionModal</span><span class="p">(</span><span class="n">ModalScreen</span><span class="p">[</span><span class="n">HitlDecision</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">"""A modal collecting a once/session/deny decision per requested path.</span>
+<div class="viewcode-block" id="PermissionPanel">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionPanel">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">PermissionPanel</span><span class="p">(</span><span class="n">HitlDecisionPanel</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""An inline ask collecting a once/session/deny decision per requested path.</span>
 
 <span class="sd">    Each request (a sensitive file or an outside-project directory, ADR-0007)</span>
 <span class="sd">    gets a :class:`~textual.widgets.RadioSet` defaulting to ``deny``; Submit</span>
-<span class="sd">    sends the per-key decisions, Cancel (or Escape) cancels the ask.</span>
+<span class="sd">    posts the per-key decisions, Cancel (or Escape) cancels the ask.</span>
 <span class="sd">    """</span>
 
-    <span class="n">BINDINGS</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Binding</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="n">Binding</span><span class="p">(</span><span class="s2">"escape"</span><span class="p">,</span> <span class="s2">"cancel"</span><span class="p">,</span> <span class="s2">"Cancel"</span><span class="p">)]</span>
-
-    <span class="n">DEFAULT_CSS</span> <span class="o">=</span> <span class="s2">"""</span>
-<span class="s2">    PermissionModal {</span>
-<span class="s2">        align: center middle;</span>
-<span class="s2">    }</span>
-<span class="s2">    #perm-dialog {</span>
-<span class="s2">        width: 80%;</span>
-<span class="s2">        height: auto;</span>
-<span class="s2">        max-height: 80%;</span>
-<span class="s2">        border: round $primary;</span>
-<span class="s2">        padding: 1 2;</span>
-<span class="s2">        background: $surface;</span>
-<span class="s2">    }</span>
-<span class="s2">    #perm-title {</span>
-<span class="s2">        text-style: bold;</span>
-<span class="s2">        height: 1;</span>
-<span class="s2">    }</span>
-<span class="s2">    """</span>
-
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Build the modal for the permission interrupt *ask*.</span>
+<span class="w">        </span><span class="sd">"""Build the panel for the permission interrupt *ask*.</span>
 
 <span class="sd">        :param ask: The interrupt ``data`` (``requests``, ``question``).</span>
 <span class="sd">        """</span>
@@ -615,34 +634,33 @@
         <span class="n">options</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"deny"</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">options</span><span class="p">)</span>
 
-<div class="viewcode-block" id="PermissionModal.compose">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionModal.compose">[docs]</a>
+<div class="viewcode-block" id="PermissionPanel.compose">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionPanel.compose">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose one radio group per requested path, plus Submit / Cancel."""</span>
-        <span class="k">with</span> <span class="n">VerticalScroll</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"perm-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Permission required"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-title"</span><span class="p">)</span>
-            <span class="n">question</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">question</span><span class="p">:</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-question"</span><span class="p">)</span>
-            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">request</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_requests</span><span class="p">()):</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">(</span><span class="n">request</span><span class="p">))</span>
-                <span class="n">hint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hint</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
-                    <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span>
-                <span class="k">with</span> <span class="n">RadioSet</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
-                    <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_options</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-                        <span class="k">yield</span> <span class="n">RadioButton</span><span class="p">(</span>
-                            <span class="n">_PERMISSION_OPTION_LABELS</span><span class="p">[</span><span class="n">option</span><span class="p">],</span>
-                            <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-                            <span class="n">value</span><span class="o">=</span><span class="n">option</span> <span class="o">==</span> <span class="s2">"deny"</span><span class="p">,</span>
-                        <span class="p">)</span>
-            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Submit"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-submit"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
+        <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Permission required"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-title"</span><span class="p">)</span>
+        <span class="n">question</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">question</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-question"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">request</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_requests</span><span class="p">()):</span>
+            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">(</span><span class="n">request</span><span class="p">))</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hint</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">RadioSet</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_options</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="n">RadioButton</span><span class="p">(</span>
+                        <span class="n">_PERMISSION_OPTION_LABELS</span><span class="p">[</span><span class="n">option</span><span class="p">],</span>
+                        <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="n">value</span><span class="o">=</span><span class="n">option</span> <span class="o">==</span> <span class="s2">"deny"</span><span class="p">,</span>
+                    <span class="p">)</span>
+        <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Submit"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-submit"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
 
 
-<div class="viewcode-block" id="PermissionModal.on_button_pressed">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionModal.on_button_pressed">[docs]</a>
+<div class="viewcode-block" id="PermissionPanel.on_button_pressed">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionPanel.on_button_pressed">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">on_button_pressed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">Button</span><span class="o">.</span><span class="n">Pressed</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Submit the decisions or cancel.</span>
 
@@ -655,7 +673,7 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_submit</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Dismiss with one decision per requested path."""</span>
+<span class="w">        </span><span class="sd">"""Post one decision per requested path."""</span>
         <span class="n">decisions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">request</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_requests</span><span class="p">()):</span>
             <span class="n">radio_set</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="sa">f</span><span class="s2">"#perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">RadioSet</span><span class="p">)</span>
@@ -663,14 +681,7 @@
             <span class="n">pressed</span> <span class="o">=</span> <span class="n">radio_set</span><span class="o">.</span><span class="n">pressed_index</span>
             <span class="n">decision</span> <span class="o">=</span> <span class="n">options</span><span class="p">[</span><span class="n">pressed</span><span class="p">]</span> <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pressed</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">options</span><span class="p">)</span> <span class="k">else</span> <span class="s2">"deny"</span>
             <span class="n">decisions</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">"key"</span><span class="p">:</span> <span class="n">_permission_key</span><span class="p">(</span><span class="n">request</span><span class="p">),</span> <span class="s2">"decision"</span><span class="p">:</span> <span class="n">decision</span><span class="p">})</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decisions"</span><span class="p">:</span> <span class="n">decisions</span><span class="p">}))</span>
-
-<div class="viewcode-block" id="PermissionModal.action_cancel">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.PermissionModal.action_cancel">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">action_cancel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Dismiss as a cancel (Escape or the Cancel button)."""</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">dismiss</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">cancel</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span></div>
-</div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decisions"</span><span class="p">:</span> <span class="n">decisions</span><span class="p">})))</span></div>
 
 </pre></div>
         </article>

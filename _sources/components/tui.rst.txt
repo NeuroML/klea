@@ -35,8 +35,9 @@ expand or collapse.
 
 A failed run that can be recovered shows a **Retry** action; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
-agent pauses for your input, a review / input / permission dialog opens (see
-below) and the input is held until you answer or cancel.
+agent pauses for your input, the ask replaces the composer below the
+transcript (see below), so the chat stays scrollable until you answer or
+cancel.
 
 .. figure:: /_static/images/klea-tui-chat.png
    :alt: Klea terminal interface chat view showing the transcript and the status panel
@@ -137,13 +138,14 @@ server, returned only in masked form, and expire after a period unused.
 Human-in-the-loop
 -----------------
 
-When the agent needs input, a modal opens over the screen: a plan awaiting
-review shows the plan with **Approve** / **Request changes** / **Cancel**
-controls, a plan blocked on a missing fact shows one field per question, and a
-tool call that would touch a path outside the project directory (or a
-sensitive file inside it, such as ``.env``) shows one **Once** / **Session** /
-**Deny** choice per path.  Answering (or requesting a revision) resumes the
-same run with its state intact.
+When the agent needs input, the ask replaces the composer below the
+transcript (the input box is hidden while it is active, so the chat stays
+scrollable): a plan awaiting review shows the plan with **Approve** /
+**Request changes** / **Cancel** controls, a plan blocked on a missing fact
+shows one field per question, and a tool call that would touch a path outside
+the project directory (or a sensitive file inside it, such as ``.env``) shows
+one **Once** / **Session** / **Deny** choice per path.  Answering (or
+requesting a revision) resumes the same run with its state intact.
 
 Identity
 --------

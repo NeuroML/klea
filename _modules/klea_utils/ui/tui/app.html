@@ -359,8 +359,9 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.confirm</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExitConfirm</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.hitl</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">HitlDecision</span><span class="p">,</span>
-    <span class="n">HitlModal</span><span class="p">,</span>
-    <span class="n">PermissionModal</span><span class="p">,</span>
+    <span class="n">HitlDecisionPanel</span><span class="p">,</span>
+    <span class="n">HitlPanel</span><span class="p">,</span>
+    <span class="n">PermissionPanel</span><span class="p">,</span>
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.input</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryInput</span><span class="p">,</span> <span class="n">QueryTextArea</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.inspector</span><span class="w"> </span><span class="kn">import</span> <span class="n">Inspector</span>
@@ -424,7 +425,37 @@
 <span class="s2">#status {</span>
 <span class="s2">    height: 1fr;</span>
 <span class="s2">}</span>
+<span class="s2">.actions {</span>
+<span class="s2">    height: auto;</span>
+<span class="s2">    margin-top: 1;</span>
+<span class="s2">}</span>
+<span class="s2">.actions Button {</span>
+<span class="s2">    margin-right: 2;</span>
+<span class="s2">}</span>
 <span class="s2">"""</span>
+
+<span class="c1">#: Default key-hints line, shown whenever no HITL ask is active.</span>
+<span class="n">_KEY_HINTS_DEFAULT</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"Enter send | Ctrl+J newline | / commands | "</span>
+    <span class="s2">"Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "</span>
+    <span class="s2">"Ctrl+Q quit"</span>
+<span class="p">)</span>
+
+<span class="c1">#: Key-hints line per HITL ask kind, shown while its panel is active.</span>
+<span class="n">_ASK_KEY_HINTS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"review"</span><span class="p">:</span> <span class="s2">"Approve | Request changes | Cancel (Esc)"</span><span class="p">,</span>
+    <span class="s2">"input"</span><span class="p">:</span> <span class="s2">"Answer | Cancel (Esc)"</span><span class="p">,</span>
+    <span class="s2">"permission"</span><span class="p">:</span> <span class="s2">"Choose per path | Submit | Cancel (Esc)"</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_ask_key_hints</span><span class="p">(</span><span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the key-hints line for a pending ask.</span>
+
+<span class="sd">    :param ask: The interrupt ``data``.</span>
+<span class="sd">    :returns: The ask's hint line (the input hint as a fallback).</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">_ASK_KEY_HINTS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"input"</span><span class="p">)),</span> <span class="n">_ASK_KEY_HINTS</span><span class="p">[</span><span class="s2">"input"</span><span class="p">])</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_stamp</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -487,12 +518,7 @@
                 <span class="k">yield</span> <span class="n">TurnStatus</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"turn-status"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">CommandSuggestions</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"command-suggestions"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">QueryInput</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"query-input-frame"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
-                    <span class="s2">"Enter send | Ctrl+J newline | / commands | "</span>
-                    <span class="s2">"Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "</span>
-                    <span class="s2">"Ctrl+Q quit"</span><span class="p">,</span>
-                    <span class="nb">id</span><span class="o">=</span><span class="s2">"key-hints"</span><span class="p">,</span>
-                <span class="p">)</span>
+                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">_KEY_HINTS_DEFAULT</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"key-hints"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"status-panel"</span><span class="p">):</span>
                 <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
@@ -706,6 +732,33 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_inspector_dirty</span> <span class="o">=</span> <span class="kc">False</span></div>
 
 
+<div class="viewcode-block" id="KleaTuiScreen.show_composer">
+<a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiScreen.show_composer">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">show_composer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visible</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Show or hide the query composer (input + suggestions).</span>
+
+<span class="sd">        While a HITL ask is active the composer is replaced by the ask panel</span>
+<span class="sd">        (ADR-0046), so the two never compete for input.</span>
+
+<span class="sd">        :param visible: Whether the composer should be shown.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#query-input-frame"</span><span class="p">)</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="n">visible</span>
+        <span class="k">if</span> <span class="n">visible</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#query-input"</span><span class="p">,</span> <span class="n">QueryTextArea</span><span class="p">)</span><span class="o">.</span><span class="n">focus</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#command-suggestions"</span><span class="p">,</span> <span class="n">CommandSuggestions</span><span class="p">)</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="KleaTuiScreen.set_key_hints">
+<a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiScreen.set_key_hints">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_key_hints</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Replace the key-hints line.</span>
+
+<span class="sd">        :param text: The hint text to show.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#key-hints"</span><span class="p">,</span> <span class="n">Static</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">text</span><span class="p">)</span></div>
+
+
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">status_panel</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">StatusPanel</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Return the status-panel widget."""</span>
@@ -758,8 +811,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_worker</span><span class="p">:</span> <span class="n">Worker</span><span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_last_query</span> <span class="o">=</span> <span class="s2">""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_retryable</span> <span class="o">=</span> <span class="kc">False</span>
-        <span class="c1">#: The interrupt id the pending HITL modal is answering.</span>
+        <span class="c1">#: The interrupt id the pending HITL panel is answering.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1">#: The inline panel mounted for a pending ask (``None`` when idle).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1">#: Merged session-command catalogue (client + server); loaded on mount.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_catalogue</span><span class="p">:</span> <span class="n">CommandRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
@@ -891,7 +946,7 @@
             <span class="n">chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"awaiting_input"</span><span class="p">}</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_present_pending</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">chat</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Open the HITL modal when *chat* has a pending interrupt."""</span>
+<span class="w">        </span><span class="sd">"""Open the HITL panel when *chat* has a pending interrupt."""</span>
         <span class="n">pending</span> <span class="o">=</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt"</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">pending</span><span class="p">:</span>
             <span class="k">return</span>
@@ -1245,20 +1300,48 @@
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_chat</span><span class="p">(</span><span class="n">coolname</span><span class="o">.</span><span class="n">generate_slug</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">hydrate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_open_hitl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Open the HITL modal for *ask* (review / input / permission).</span>
+<span class="w">        </span><span class="sd">"""Mount the inline HITL panel for *ask* (review / input / permission).</span>
+
+<span class="sd">        The panel is a sibling of the transcript in the chat panel, not a modal,</span>
+<span class="sd">        so the chat stays scrollable while the ask is open (ADR-0046).</span>
 
 <span class="sd">        :param ask: The interrupt ``data``.</span>
 <span class="sd">        """</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_id</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt_id"</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"permission"</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">push_screen</span><span class="p">(</span><span class="n">PermissionModal</span><span class="p">(</span><span class="n">ask</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_on_hitl_decision</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">push_screen</span><span class="p">(</span><span class="n">HitlModal</span><span class="p">(</span><span class="n">ask</span><span class="p">),</span> <span class="n">callback</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_on_hitl_decision</span><span class="p">)</span>
+        <span class="n">screen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_screen</span>
+        <span class="k">if</span> <span class="n">screen</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+        <span class="n">panel</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">PermissionPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span> <span class="k">if</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"permission"</span> <span class="k">else</span> <span class="n">HitlPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="o">=</span> <span class="n">panel</span>
+        <span class="n">screen</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">panel</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="n">screen</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#query-input-frame"</span><span class="p">))</span>
+        <span class="c1"># The ask replaces the composer while it is active, so the two never</span>
+        <span class="c1"># compete for input (the paused thread would reject a new query).</span>
+        <span class="n">screen</span><span class="o">.</span><span class="n">show_composer</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">screen</span><span class="o">.</span><span class="n">set_key_hints</span><span class="p">(</span><span class="n">_ask_key_hints</span><span class="p">(</span><span class="n">ask</span><span class="p">))</span>
+
+    <span class="nd">@on</span><span class="p">(</span><span class="n">HitlDecisionPanel</span><span class="o">.</span><span class="n">Decided</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_on_hitl_decided</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span><span class="o">.</span><span class="n">Decided</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Remove the answered panel, restore the composer, and resume.</span>
+
+<span class="sd">        :param event: The panel's ``Decided`` message.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">screen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_screen</span>
+        <span class="k">if</span> <span class="n">screen</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">screen</span><span class="o">.</span><span class="n">show_composer</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">screen</span><span class="o">.</span><span class="n">set_key_hints</span><span class="p">(</span><span class="n">_KEY_HINTS_DEFAULT</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_on_hitl_decision</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">decision</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_on_hitl_decision</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decision</span><span class="p">:</span> <span class="n">HitlDecision</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Continue the paused run with the modal's answer.</span>
+<span class="w">        </span><span class="sd">"""Continue the paused run with the panel's answer.</span>
 
-<span class="sd">        :param decision: The modal's :class:`HitlDecision`, or ``None``.</span>
+<span class="sd">        :param decision: The :class:`HitlDecision`, or ``None``.</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="n">decision</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span>
@@ -1268,7 +1351,7 @@
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_resume_from_hitl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">decision</span><span class="p">:</span> <span class="n">HitlDecision</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Record the answer and continue the paused run (ADR-0046).</span>
 
-<span class="sd">        :param decision: The modal's :class:`HitlDecision`.</span>
+<span class="sd">        :param decision: The :class:`HitlDecision`.</span>
 <span class="sd">        """</span>
         <span class="c1"># Lazy: the state store is only needed when answering.</span>
         <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ensure_chat</span><span class="p">,</span> <span class="n">interrupt_display</span>
@@ -1413,7 +1496,7 @@
                     <span class="k">break</span>
                 <span class="k">if</span> <span class="n">action</span> <span class="o">==</span> <span class="s2">"interrupt"</span><span class="p">:</span>
                     <span class="c1"># The run paused for HITL input (ADR-0046): stop streaming,</span>
-                    <span class="c1"># show the status, and open the answer modal.</span>
+                    <span class="c1"># show the status, and open the answer panel.</span>
                     <span class="n">chat</span><span class="p">[</span><span class="s2">"turn_status"</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"awaiting_input"</span><span class="p">}</span>
                     <span class="n">screen</span><span class="o">.</span><span class="n">show_awaiting_input</span><span class="p">()</span>
                     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"run paused for input: chat=</span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">)</span>

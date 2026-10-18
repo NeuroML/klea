@@ -356,7 +356,15 @@
     <span class="n">kind</span> <span class="o">=</span> <span class="n">status</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"idle"</span><span class="p">)</span>
     <span class="n">container</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_container</span>
     <span class="n">container</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">interrupt_container</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"idle"</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"awaiting_input"</span><span class="p">:</span>
+        <span class="c1"># The ask replaces the composer: render it in the pinned container</span>
+        <span class="c1"># between the transcript and the input row (the input area hides its</span>
+        <span class="c1"># row while awaiting, mirroring the TUI).</span>
+        <span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">interrupt_container</span><span class="p">:</span>
+            <span class="n">_render_interrupt_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
         <span class="k">return</span>
     <span class="k">with</span> <span class="n">container</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"progress"</span><span class="p">:</span>
@@ -381,9 +389,7 @@
                         <span class="s2">"flat dense color=primary"</span>
                     <span class="p">)</span>
         <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"stopped"</span><span class="p">:</span>
-            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Stopped"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 italic p-2"</span><span class="p">)</span>
-        <span class="k">elif</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"awaiting_input"</span><span class="p">:</span>
-            <span class="n">_render_interrupt_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span></div>
+            <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="s2">"Stopped"</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-5 italic p-2"</span><span class="p">)</span></div>
 
 
 
@@ -748,6 +754,10 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">scroll_area</span> <span class="o">=</span> <span class="n">scroll_area</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">chat_area</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">turn_status_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
+    <span class="c1"># Pinned between the transcript and the composer: while a HITL ask is</span>
+    <span class="c1"># active it is rendered here and the input row is hidden, so the ask</span>
+    <span class="c1"># replaces the composer (mirroring the TUI; ADR-0046).</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">interrupt_container</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span>
 
     <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">_render_messages</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
     <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span> <span class="o">=</span> <span class="k">lambda</span><span class="p">:</span> <span class="n">render_turn_status</span><span class="p">(</span>

@@ -352,7 +352,9 @@
     <span class="c1"># the input row while a command is being typed.</span>
     <span class="n">suggestions</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full"</span><span class="p">)</span><span class="o">.</span><span class="n">style</span><span class="p">(</span><span class="s2">"gap: 0;"</span><span class="p">)</span>
     <span class="n">suggestions</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
-    <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full no-wrap items-end py-4"</span><span class="p">):</span>
+    <span class="n">row</span> <span class="o">=</span> <span class="n">ui</span><span class="o">.</span><span class="n">row</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full no-wrap items-end py-4"</span><span class="p">)</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">input_row</span> <span class="o">=</span> <span class="n">row</span>
+    <span class="k">with</span> <span class="n">row</span><span class="p">:</span>
         <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
             <span class="n">ui</span><span class="o">.</span><span class="n">textarea</span><span class="p">(</span><span class="n">placeholder</span><span class="o">=</span><span class="s2">"Start a conversation"</span><span class="p">)</span>
             <span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"outlined autogrow"</span><span class="p">)</span>
@@ -522,21 +524,30 @@
 
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_send_state</span> <span class="o">=</span> <span class="n">refresh_send_state</span>
 
+        <span class="k">def</span><span class="w"> </span><span class="nf">_set_composer_visible</span><span class="p">(</span><span class="n">visible</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">            </span><span class="sd">"""Show/hide the whole composer row (the ask replaces it)."""</span>
+            <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">input_row</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">input_row</span><span class="o">.</span><span class="n">set_visibility</span><span class="p">(</span><span class="n">visible</span><span class="p">)</span>
+
         <span class="k">def</span><span class="w"> </span><span class="nf">refresh_stream_button</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">            </span><span class="sd">"""Flip the send control to Stop, or disable it while awaiting input."""</span>
+<span class="w">            </span><span class="sd">"""Flip the send control to Stop, or swap the composer for the ask."""</span>
             <span class="k">try</span><span class="p">:</span>
                 <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">chat_is_streaming</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span><span class="p">):</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=stop"</span><span class="p">)</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
                     <span class="n">text</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+                    <span class="n">_set_composer_visible</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
                 <span class="k">elif</span> <span class="n">_awaiting_input</span><span class="p">():</span>
-                    <span class="c1"># The status-region form is the input; disable the main box.</span>
+                    <span class="c1"># The ask (rendered in the pinned interrupt container) is</span>
+                    <span class="c1"># the input while paused; hide the composer row entirely.</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=send"</span><span class="p">)</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
                     <span class="n">text</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+                    <span class="n">_set_composer_visible</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
                 <span class="k">else</span><span class="p">:</span>
                     <span class="n">send_button</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"icon=send"</span><span class="p">)</span>
                     <span class="n">text</span><span class="o">.</span><span class="n">enable</span><span class="p">()</span>
+                    <span class="n">_set_composer_visible</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
                     <span class="n">refresh_send_state</span><span class="p">()</span>
             <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>  <span class="c1"># noqa: BLE001</span>
                 <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"stream button state update failed: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span> <span class="n">e</span><span class="p">)</span>

@@ -364,6 +364,9 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="c1"># Re-render the status region too: a chat switched to while a HITL</span>
+        <span class="c1"># ask is pending must show the ask (the composer is hidden).</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">reset_center_tab</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>

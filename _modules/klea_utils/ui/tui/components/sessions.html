@@ -427,7 +427,7 @@
                     <span class="p">],</span>
                     <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-list"</span><span class="p">,</span>
                 <span class="p">)</span>
-            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Rename"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-rename"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-delete"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
@@ -581,7 +581,7 @@
                 <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-body"</span><span class="p">,</span>
                 <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="p">)</span>
-            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-cancel"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-confirm"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
 
@@ -654,7 +654,7 @@
         <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"rename-dialog"</span><span class="p">):</span>
             <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Rename session"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-title"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-input"</span><span class="p">)</span>
-            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">():</span>
+            <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Save"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-save"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
 

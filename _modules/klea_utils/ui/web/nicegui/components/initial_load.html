@@ -434,6 +434,10 @@
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_chat_list</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">render_chat_area</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_status_pane</span><span class="p">()</span>
+        <span class="c1"># Restore the turn status and the composer visibility: a reload while</span>
+        <span class="c1"># paused must show the pending ask (not the input row).</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_turn_status</span><span class="p">()</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_stream_button</span><span class="p">()</span>
         <span class="n">ctx</span><span class="o">.</span><span class="n">refresh_inspector</span><span class="p">()</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"initial load complete"</span><span class="p">)</span>
 

@@ -344,8 +344,9 @@ collapsed to a few lines; click it, or focus it and press <kbd class="kbd docuti
 expand or collapse.</p>
 <p>A failed run that can be recovered shows a <strong>Retry</strong> action; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
 resumes it from its checkpoint, re-running only the failed step.  If the
-agent pauses for your input, a review / input / permission dialog opens (see
-below) and the input is held until you answer or cancel.</p>
+agent pauses for your input, the ask replaces the composer below the
+transcript (see below), so the chat stays scrollable until you answer or
+cancel.</p>
 <figure class="align-center" id="id1">
 <a class="reference internal image-reference" href="../_images/klea-tui-chat.png"><img alt="Klea terminal interface chat view showing the transcript and the status panel" src="../_images/klea-tui-chat.png" style="width: 80%;" />
 </a>
@@ -454,13 +455,14 @@ server, returned only in masked form, and expire after a period unused.</p>
 </section>
 <section id="human-in-the-loop">
 <h2>Human-in-the-loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading">¶</a></h2>
-<p>When the agent needs input, a modal opens over the screen: a plan awaiting
-review shows the plan with <strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong>
-controls, a plan blocked on a missing fact shows one field per question, and a
-tool call that would touch a path outside the project directory (or a
-sensitive file inside it, such as <code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> /
-<strong>Deny</strong> choice per path.  Answering (or requesting a revision) resumes the
-same run with its state intact.</p>
+<p>When the agent needs input, the ask replaces the composer below the
+transcript (the input box is hidden while it is active, so the chat stays
+scrollable): a plan awaiting review shows the plan with <strong>Approve</strong> /
+<strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked on a missing fact
+shows one field per question, and a tool call that would touch a path outside
+the project directory (or a sensitive file inside it, such as <code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows
+one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.  Answering (or
+requesting a revision) resumes the same run with its state intact.</p>
 </section>
 <section id="identity">
 <h2>Identity<a class="headerlink" href="#identity" title="Link to this heading">¶</a></h2>

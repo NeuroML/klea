@@ -415,13 +415,13 @@ server, returned only in masked form, and expire after a period unused.</p>
 </section>
 <section id="human-in-the-loop">
 <h2>Human-in-the-loop<a class="headerlink" href="#human-in-the-loop" title="Link to this heading">¶</a></h2>
-<p>In the agent, a run can pause for your input.  The ask appears in a per-turn
-region under the transcript (the <strong>turn status</strong> line, distinct from the
-status pane): a plan awaiting review shows the plan with
-<strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked on a
-missing fact shows one field per question, and a tool call that would touch a
-path outside the project directory (or a sensitive file inside it, such as
-<code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.
+<p>In the agent, a run can pause for your input.  The ask replaces the composer:
+while it is active the input box is hidden and the ask is shown in its place,
+so you can still scroll the transcript: a plan awaiting review shows the plan
+with <strong>Approve</strong> / <strong>Request changes</strong> / <strong>Cancel</strong> controls, a plan blocked
+on a missing fact shows one field per question, and a tool call that would
+touch a path outside the project directory (or a sensitive file inside it,
+such as <code class="docutils literal notranslate"><span class="pre">.env</span></code>) shows one <strong>Once</strong> / <strong>Session</strong> / <strong>Deny</strong> choice per path.
 Answering (or requesting a revision) resumes the same run with its state
 intact.</p>
 <div class="admonition note">

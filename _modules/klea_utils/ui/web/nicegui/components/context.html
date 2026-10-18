@@ -421,6 +421,11 @@
     <span class="n">chat_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">scroll_area</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="n">turn_status_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: Pinned container for the HITL ask form, between the transcript and the</span>
+    <span class="c1">#: composer: while an ask is active it replaces the input row (ADR-0046).</span>
+    <span class="n">interrupt_container</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1">#: The composer row (input + send), hidden while a HITL ask is active.</span>
+    <span class="n">input_row</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="c1">#: Live progress label inside the turn status region, updated in place during</span>
     <span class="c1">#: a run (the region itself is re-rendered from per-chat state).</span>
     <span class="n">turn_status_label</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>
