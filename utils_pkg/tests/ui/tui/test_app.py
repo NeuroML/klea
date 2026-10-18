@@ -31,7 +31,7 @@ from klea_utils.ui.tui.components.sessions import (
     SessionPicker,
     SessionRename,
 )
-from klea_utils.ui.tui.components.transcript import MessageBlock
+from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
 from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import (
     Button,
@@ -339,8 +339,121 @@ async def test_pending_interrupt_represents_on_load(fake_backend, make_app):
         await app.workers.wait_for_complete()
         await pilot.pause()
         assert app.screen.query_one(HitlPanel)
+        assert app.screen.query_one("#query-input-frame").display is False
         assert _chat()["turn_status"]["kind"] == "awaiting_input"
         assert _chat()["context"]["mode"] == "general"
+
+
+async def test_pending_permission_represents_on_load(fake_backend, make_app):
+    """A pending permission interrupt is re-presented inline on load."""
+    fake_backend.chat_context = {
+        "context": {"mode": "general"},
+        "pending_interrupt": {
+            "kind": "permission",
+            "requests": [
+                {
+                    "kind": "outside",
+                    "directory": "/tmp/x",
+                    "tool": "read_file",
+                    "confidence": "high",
+                }
+            ],
+            "interrupt_id": "p9",
+        },
+    }
+    app = make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert app.screen.query_one(PermissionPanel)
+        assert app.screen.query_one("#query-input-frame").display is False
+
+
+async def test_input_ask_mounts_inline_panel(fake_backend, make_app):
+    """An input ask mounts the inline panel and answers positionally."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "input",
+                    "questions": [{"step_number": 1, "question": "Which file?"}],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one(HitlPanel)
+        app.screen.query_one("#hitl-answer-0", Input).value = "a.txt"
+        app.screen.query_one("#hitl-answer", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {"answers": ["a.txt"]}
+
+
+async def test_inline_panel_swaps_the_composer(fake_backend, make_app):
+    """The ask replaces the composer while active and restores it on a decision."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {"kind": "review", "headline": "Approve", "interrupt_id": "i1"},
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one("#query-input-frame").display is False
+        assert "Approve" in str(app.screen.query_one("#key-hints", Static).render())
+        app.screen.query_one("#hitl-approve", Button).press()
+        await _settle(pilot, app)
+        assert app.screen.query_one("#query-input-frame").display is True
+        assert "Enter send" in str(app.screen.query_one("#key-hints", Static).render())
+
+
+async def test_inline_panel_keeps_the_transcript_scrollable(fake_backend, make_app):
+    """The transcript stays mounted and scrollable while a panel is active."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {"kind": "review", "headline": "Approve", "interrupt_id": "i1"},
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one(HitlPanel)
+        transcript = app.screen.query_one("#transcript", Transcript)
+        assert transcript.display is True
+        for index in range(40):
+            await transcript.append(
+                {
+                    "text": f"line {index}",
+                    "stamp": "",
+                    "role": "assistant",
+                    "header": "",
+                }
+            )
+        await pilot.pause()
+        assert transcript.max_scroll_y > 0
+        transcript.scroll_home(animate=False)
+        await pilot.pause()
+        assert transcript.scroll_y == 0
+        app.screen.query_one("#hitl-approve", Button).press()
+        await _settle(pilot, app)
 
 
 async def test_hydration_rebuilds_panes_and_token_usage(fake_backend, make_app):
