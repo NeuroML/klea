@@ -56,6 +56,9 @@ def attach_chat_list(ctx: PageContext) -> None:
         ctx.render_chat_area()
         ctx.refresh_chat_list()
         ctx.refresh_status_pane()
+        # Re-render the status region too: a chat switched to while a HITL
+        # ask is pending must show the ask (the composer is hidden).
+        ctx.refresh_turn_status()
         ctx.refresh_stream_button()
         ctx.reset_center_tab()
         ctx.refresh_inspector()

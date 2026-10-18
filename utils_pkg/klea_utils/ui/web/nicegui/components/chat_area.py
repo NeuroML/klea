@@ -48,7 +48,15 @@ def render_turn_status(ctx: PageContext, retry_cb=None) -> None:
     kind = status.get("kind", "idle")
     container = ctx.turn_status_container
     container.clear()
+    ctx.interrupt_container.clear()
     if kind == "idle":
+        return
+    if kind == "awaiting_input":
+        # The ask replaces the composer: render it in the pinned container
+        # between the transcript and the input row (the input area hides its
+        # row while awaiting, mirroring the TUI).
+        with ctx.interrupt_container:
+            _render_interrupt_form(ctx)
         return
     with container:
         if kind == "progress":
@@ -74,8 +82,6 @@ def render_turn_status(ctx: PageContext, retry_cb=None) -> None:
                     )
         elif kind == "stopped":
             ui.label("Stopped").classes("text-xs text-grey-5 italic p-2")
-        elif kind == "awaiting_input":
-            _render_interrupt_form(ctx)
 
 
 def _current_turn_status(ctx: PageContext) -> TurnStatus:
@@ -437,6 +443,10 @@ def attach_chat_area(ctx: PageContext) -> None:
         ctx.scroll_area = scroll_area
         ctx.chat_area = ui.column().classes("w-full")
         ctx.turn_status_container = ui.column().classes("w-full")
+    # Pinned between the transcript and the composer: while a HITL ask is
+    # active it is rendered here and the input row is hidden, so the ask
+    # replaces the composer (mirroring the TUI; ADR-0046).
+    ctx.interrupt_container = ui.column().classes("w-full")
 
     ctx.render_chat_area = lambda: _render_messages(ctx)
     ctx.refresh_turn_status = lambda: render_turn_status(

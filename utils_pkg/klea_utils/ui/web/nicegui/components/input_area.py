@@ -44,7 +44,9 @@ def attach_input(ctx: PageContext) -> None:
     # the input row while a command is being typed.
     suggestions = ui.column().classes("w-full").style("gap: 0;")
     suggestions.set_visibility(False)
-    with ui.row().classes("w-full no-wrap items-end py-4"):
+    row = ui.row().classes("w-full no-wrap items-end py-4")
+    ctx.input_row = row
+    with row:
         text = (
             ui.textarea(placeholder="Start a conversation")
             .props("outlined autogrow")
@@ -214,21 +216,30 @@ def attach_input(ctx: PageContext) -> None:
 
         ctx.refresh_send_state = refresh_send_state
 
+        def _set_composer_visible(visible: bool) -> None:
+            """Show/hide the whole composer row (the ask replaces it)."""
+            if ctx.input_row is not None:
+                ctx.input_row.set_visibility(visible)
+
         def refresh_stream_button() -> None:
-            """Flip the send control to Stop, or disable it while awaiting input."""
+            """Flip the send control to Stop, or swap the composer for the ask."""
             try:
                 if ctx.chat_is_streaming(ctx.chat_id):
                     send_button.props("icon=stop")
                     send_button.enable()
                     text.enable()
+                    _set_composer_visible(True)
                 elif _awaiting_input():
-                    # The status-region form is the input; disable the main box.
+                    # The ask (rendered in the pinned interrupt container) is
+                    # the input while paused; hide the composer row entirely.
                     send_button.props("icon=send")
                     send_button.disable()
                     text.disable()
+                    _set_composer_visible(False)
                 else:
                     send_button.props("icon=send")
                     text.enable()
+                    _set_composer_visible(True)
                     refresh_send_state()
             except Exception as e:  # noqa: BLE001
                 logger.debug("stream button state update failed: %s", e)

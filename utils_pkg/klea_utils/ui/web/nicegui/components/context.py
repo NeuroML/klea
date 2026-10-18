@@ -113,6 +113,11 @@ class PageContext:
     chat_area: Any = None
     scroll_area: Any = None
     turn_status_container: Any = None
+    #: Pinned container for the HITL ask form, between the transcript and the
+    #: composer: while an ask is active it replaces the input row (ADR-0046).
+    interrupt_container: Any = None
+    #: The composer row (input + send), hidden while a HITL ask is active.
+    input_row: Any = None
     #: Live progress label inside the turn status region, updated in place during
     #: a run (the region itself is re-rendered from per-chat state).
     turn_status_label: Any = None

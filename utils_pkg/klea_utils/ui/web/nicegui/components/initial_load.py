@@ -126,6 +126,10 @@ def attach_initial_load(ctx: PageContext) -> None:
         ctx.refresh_chat_list()
         ctx.render_chat_area()
         ctx.refresh_status_pane()
+        # Restore the turn status and the composer visibility: a reload while
+        # paused must show the pending ask (not the input row).
+        ctx.refresh_turn_status()
+        ctx.refresh_stream_button()
         ctx.refresh_inspector()
         logger.debug("initial load complete")
 

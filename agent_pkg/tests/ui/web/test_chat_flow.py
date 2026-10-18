@@ -127,6 +127,32 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
 
 
+async def test_interrupt_replaces_the_composer(fake_backend, agent_user):
+    """While an ask is active the composer is hidden, and restored after."""
+    fake_backend.stream_events = [
+        {
+            "type": "interrupt",
+            "node": "Awaiting input",
+            "data": {
+                "kind": "input",
+                "questions": [{"step_number": 1, "question": "which file?"}],
+                "interrupt_id": "i1",
+            },
+        }
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("which file?", retries=50)
+    # The ask replaces the composer.
+    await agent_user.should_not_see(kind=ui.textarea)
+
+    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    agent_user.find("Answer").click()
+    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see(kind=ui.textarea)
+
+
 async def test_review_interrupt_renders_headline_and_sections(fake_backend, agent_user):
     """A review checkpoint renders the adaptive headline and sections."""
     fake_backend.stream_events = [
