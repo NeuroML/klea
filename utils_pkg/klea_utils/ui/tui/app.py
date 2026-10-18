@@ -121,6 +121,29 @@ _CSS = """
 }
 """
 
+#: Default key-hints line, shown whenever no HITL ask is active.
+_KEY_HINTS_DEFAULT = (
+    "Enter send | Ctrl+J newline | / commands | "
+    "Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "
+    "Ctrl+Q quit"
+)
+
+#: Key-hints line per HITL ask kind, shown while its panel is active.
+_ASK_KEY_HINTS = {
+    "review": "Approve | Request changes | Cancel (Esc)",
+    "input": "Answer | Cancel (Esc)",
+    "permission": "Choose per path | Submit | Cancel (Esc)",
+}
+
+
+def _ask_key_hints(ask: dict[str, Any]) -> str:
+    """Return the key-hints line for a pending ask.
+
+    :param ask: The interrupt ``data``.
+    :returns: The ask's hint line (the input hint as a fallback).
+    """
+    return _ASK_KEY_HINTS.get(str(ask.get("kind", "input")), _ASK_KEY_HINTS["input"])
+
 
 def _stamp() -> str:
     """Return the local wall-clock time, formatted like the web transcript."""
@@ -178,12 +201,7 @@ class KleaTuiScreen(Screen):
                 yield TurnStatus(id="turn-status")
                 yield CommandSuggestions(id="command-suggestions")
                 yield QueryInput(id="query-input-frame")
-                yield Static(
-                    "Enter send | Ctrl+J newline | / commands | "
-                    "Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "
-                    "Ctrl+Q quit",
-                    id="key-hints",
-                )
+                yield Static(_KEY_HINTS_DEFAULT, id="key-hints")
             with Vertical(id="status-panel"):
                 yield Static(
                     f"{self.ctx.title} | {self.ctx.server_url}",
@@ -347,6 +365,27 @@ class KleaTuiScreen(Screen):
         if view == "inspector" and self._inspector_dirty:
             await self.inspector.set_entries(self._inspector_entries)
             self._inspector_dirty = False
+
+    def show_composer(self, visible: bool) -> None:
+        """Show or hide the query composer (input + suggestions).
+
+        While a HITL ask is active the composer is replaced by the ask panel
+        (ADR-0046), so the two never compete for input.
+
+        :param visible: Whether the composer should be shown.
+        """
+        self.query_one("#query-input-frame").display = visible
+        if visible:
+            self.query_one("#query-input", QueryTextArea).focus()
+        else:
+            self.query_one("#command-suggestions", CommandSuggestions).display = False
+
+    def set_key_hints(self, text: str) -> None:
+        """Replace the key-hints line.
+
+        :param text: The hint text to show.
+        """
+        self.query_one("#key-hints", Static).update(text)
 
     @property
     def status_panel(self) -> StatusPanel:
@@ -865,16 +904,24 @@ class KleaTuiApp(App[None]):
         )
         self._hitl_panel = panel
         screen.mount(panel, before=screen.query_one("#query-input-frame"))
+        # The ask replaces the composer while it is active, so the two never
+        # compete for input (the paused thread would reject a new query).
+        screen.show_composer(False)
+        screen.set_key_hints(_ask_key_hints(ask))
 
     @on(HitlDecisionPanel.Decided)
     def _on_hitl_decided(self, event: HitlDecisionPanel.Decided) -> None:
-        """Remove the answered panel and continue the paused run.
+        """Remove the answered panel, restore the composer, and resume.
 
         :param event: The panel's ``Decided`` message.
         """
         if self._hitl_panel is not None:
             self._hitl_panel.remove()
             self._hitl_panel = None
+        screen = self._screen
+        if screen is not None:
+            screen.show_composer(True)
+            screen.set_key_hints(_KEY_HINTS_DEFAULT)
         self._on_hitl_decision(event.decision)
 
     def _on_hitl_decision(self, decision: HitlDecision | None) -> None:

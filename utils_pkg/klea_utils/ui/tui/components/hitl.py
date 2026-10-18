@@ -91,9 +91,24 @@ class HitlDecisionPanel(VerticalScroll):
         text-style: bold;
         color: $text-muted;
         height: auto;
+        margin-top: 1;
     }
     HitlDecisionPanel .hitl-section-body {
         height: auto;
+    }
+    HitlDecisionPanel Input {
+        width: 1fr;
+        margin-top: 1;
+    }
+    HitlDecisionPanel Horizontal {
+        height: auto;
+        margin-top: 1;
+    }
+    HitlDecisionPanel RadioSet {
+        margin-top: 1;
+    }
+    HitlDecisionPanel Button {
+        margin-right: 2;
     }
     """
 
