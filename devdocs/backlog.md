@@ -41,11 +41,6 @@ Last updated: 2026-10-16.
   catalogue-membership validation.
 - `add_artefact` tool; promote `_slug` / artefact-id derivation to a shared
   helper or `ArtefactSchema`.
-- Artefacts prompt bounding: `artefacts_text()` (rendered into the Planner and
-  the answer-composer prompts) is unbounded, so it grows with the session as
-  completed goals accumulate.  Bound it with an LRU policy (keep the most
-  recently written/used N, or cap total characters) applied inside
-  `artefacts_text` so every consumer shares the limit.
 - Session-as-invocation / "what next" ADR; cached project explorer.
 - Full session export (needs review): a `full` export of the whole
   session/graph state (the transcript plus `artefacts`, plan/observations,

@@ -234,6 +234,45 @@ class TestStepOutputRender:
         assert "H1: X causes Y" in text
         assert "goal=generate a hypothesis" in text
 
+    def test_artefacts_text_keeps_most_recent_up_to_count_cap(self):
+        """The prompt block keeps the newest N artefacts, oldest first."""
+        from klea_agent.schemas import MAX_ARTEFACTS_IN_PROMPT, ArtefactSchema
+
+        total = MAX_ARTEFACTS_IN_PROMPT + 3
+        artefacts = {
+            f"a{i}": ArtefactSchema(id_=f"a{i}", content=f"item-{i}-end")
+            for i in range(total)
+        }
+        state = KleaAgentState(artefacts=artefacts)
+
+        text = state.artefacts_text()
+
+        for i in range(3):
+            assert f"item-{i}-end" not in text
+        for i in range(3, total):
+            assert f"item-{i}-end" in text
+        assert "3 older artefacts omitted" in text
+        # Selected entries are emitted chronologically (oldest -> newest).
+        assert text.index("item-3-end") < text.index(f"item-{total - 1}-end")
+
+    def test_artefacts_text_char_cap_keeps_the_newest(self, monkeypatch):
+        """A large older artefact is dropped before the newest one."""
+        from klea_agent import schemas
+
+        monkeypatch.setattr(schemas, "MAX_ARTEFACTS_PROMPT_CHARS", 80)
+        state = KleaAgentState(
+            artefacts={
+                "old": schemas.ArtefactSchema(id_="old", content="o" * 100),
+                "new": schemas.ArtefactSchema(id_="new", content="n" * 100),
+            }
+        )
+
+        text = state.artefacts_text()
+
+        assert "n" * 100 in text
+        assert "o" * 100 not in text
+        assert "1 older artefact omitted" in text
+
 
 class TestReviewSections:
     """The review interrupt carries all pending steps, including review gates."""

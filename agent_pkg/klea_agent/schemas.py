@@ -445,6 +445,34 @@ class ArtefactSchema(BaseModel):
     metadata: dict[str, Any] = {}
 
 
+#: Prompt caps for :meth:`KleaAgentState.artefacts_text`.  Artefacts are
+#: session-scoped and accumulate across tasks; the rendered block must stay
+#: bounded or the answer-composer prompt grows without limit.
+#: The rendered text is selected newest-first (within these caps) and then
+#: emitted in chronological order.  The count cap bounds many small
+#: artefacts; the character cap bounds a few large ones.
+MAX_ARTEFACTS_IN_PROMPT = 20
+MAX_ARTEFACTS_PROMPT_CHARS = 12_000
+
+
+def _render_artefact(artefact_id: str, artefact: ArtefactSchema) -> str:
+    """Render one artefact for a prompt.
+
+    :param artefact_id: The dict key (used when the artefact carries no id).
+    :param artefact: The artefact to render.
+    :returns: The rendered block.
+    """
+    key = artefact.id_ or artefact_id
+    header = f"{key} (type: {artefact.type_ or 'unknown'})"
+    lines = [header, str(artefact.content)]
+    if artefact.metadata:
+        rendered_meta = "; ".join(
+            f"{name}={value}" for name, value in artefact.metadata.items()
+        )
+        lines.append(f"metadata: {rendered_meta}")
+    return "\n".join(lines)
+
+
 class DiscoveryItem(BaseModel):
     """One piece of project context gathered for the session.
 
@@ -849,25 +877,43 @@ class KleaAgentState(BaseGraphSchema):
         return f"Approve this plan ({count})", sections
 
     def artefacts_text(self) -> str:
-        """Render the session-scoped artefacts as one text block.
+        """Render the session-scoped artefacts as one bounded text block.
 
-        Used by the Planner so a later task can build on earlier tasks'
-        durable results.  Each artefact is rendered with its id, type and
+        Used by the Planner and answer-composer so a later task can build on earlier
+        tasks' durable results.  Each artefact is rendered with its id, type and
         metadata (provenance/references) so the model can cite them; content is
-        the concise result.  Returns ``"(no artefacts)"`` when the session has
-        none, so the prompt always has a value.
+        the concise result.
+
+        Artefacts accumulate across a session, so the block is bounded: the
+        most recently written artefacts are selected up to
+        :data:`MAX_ARTEFACTS_IN_PROMPT` and :data:`MAX_ARTEFACTS_PROMPT_CHARS`,
+        then emitted in chronological order (oldest selected first, newest
+        last).  The newest artefact is always included even when it alone
+        exceeds the character cap.  When older artefacts are dropped, a short
+        note tells the model the block is incomplete.  Dict insertion order is
+        write order (``AnswerFromResults`` moves a superseded id to the end).
+
+        :returns: The rendered artefacts, or ``"(no artefacts)"`` when the
+            session has none.
         """
         if not self.artefacts:
             return "(no artefacts)"
-        parts: list[str] = []
-        for artefact_id, artefact in self.artefacts.items():
-            key = artefact.id_ or artefact_id
-            header = f"{key} (type: {artefact.type_ or 'unknown'})"
-            lines = [header, str(artefact.content)]
-            if artefact.metadata:
-                rendered_meta = "; ".join(
-                    f"{name}={value}" for name, value in artefact.metadata.items()
-                )
-                lines.append(f"metadata: {rendered_meta}")
-            parts.append("\n".join(lines))
-        return "\n\n".join(parts)
+        items = list(self.artefacts.items())
+        selected: list[str] = []
+        used = 0
+        for artefact_id, artefact in reversed(items):
+            rendered = _render_artefact(artefact_id, artefact)
+            if selected and (
+                len(selected) >= MAX_ARTEFACTS_IN_PROMPT
+                or used + len(rendered) > MAX_ARTEFACTS_PROMPT_CHARS
+            ):
+                break
+            selected.append(rendered)
+            used += len(rendered)
+        selected.reverse()
+        text = "\n\n".join(selected)
+        omitted = len(items) - len(selected)
+        if omitted:
+            noun = "artefact" if omitted == 1 else "artefacts"
+            text += f"\n\n({omitted} older {noun} omitted from this prompt.)"
+        return text

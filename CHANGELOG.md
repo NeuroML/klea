@@ -174,6 +174,7 @@
 
 ### Changed
 
+- Session artefacts rendered into the Planner and answer-composer prompts are now bounded (the most recently written 20 entries and 12,000 characters, with a note when older entries are omitted), so a long session no longer grows those prompts without limit; the checkpoint still retains every artefact.
 - The tool picker runs on a dedicated `tool_picker` model role instead of borrowing the chat/plan model; there is no silent fallback, so the role must be configured.
 - Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
 - The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.

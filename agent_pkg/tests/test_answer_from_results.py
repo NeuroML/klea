@@ -170,6 +170,23 @@ class TestAnswerFromResults(unittest.TestCase):
         assert len(second["artefacts"]) == 1
         assert "b" in next(iter(second["artefacts"].values())).content
 
+    def test_superseded_artefact_moves_to_most_recent(self):
+        """A re-run counts as a fresh write for the bounded prompt block."""
+        node = self._node()
+        first = node._update_state(
+            AnswerSchema(answer="first"), self._state(), LLMNodeContext()
+        )
+        state = self._state()
+        state.artefacts = {
+            **first["artefacts"],
+            "other": ArtefactSchema(id_="other", content="other result"),
+        }
+        second = node._update_state(
+            AnswerSchema(answer="second"), state, LLMNodeContext()
+        )
+        # The re-authored goal artefact is now the last (newest) entry.
+        assert list(second["artefacts"]) == ["other", "list-files"]
+
     def test_failure_does_not_persist_artefact(self):
         update = self._node()._update_state(
             AnswerSchema(answer="failed"), self._failed_state(), LLMNodeContext()

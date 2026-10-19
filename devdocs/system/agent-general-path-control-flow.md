@@ -384,6 +384,9 @@ only curated results cross into later tasks:
   (``artefacts_text()``), so a later task can build on an earlier one and the
   final reply can draw on prior deliverables.  Intermediate tool/reasoning
   outputs never leak into artefacts.
+  The rendered block is bounded (the most recently written 20 entries and
+  12,000 characters, with a note when older entries are omitted); the
+  checkpoint still retains all artefacts.
 
 ## Failure signals (levels)
 

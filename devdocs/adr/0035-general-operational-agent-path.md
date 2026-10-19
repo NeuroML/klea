@@ -481,6 +481,14 @@ State lifetime is explicit; the aim is a bounded working set, not the
   the Planner prompt renders it (`artefacts_text()`) so a later task can
   build on it.  This extends the artefact model of ADR-0029 (evidence and
   provenance).
+* The rendered artefact block is **bounded** so a long session cannot grow
+  the Planner/answer prompts without limit: `artefacts_text()` selects the
+  most recently written entries up to `MAX_ARTEFACTS_IN_PROMPT` (20) and
+  `MAX_ARTEFACTS_PROMPT_CHARS` (12,000), then renders them in chronological
+  order and notes how many older entries were omitted.  A superseded id
+  (same goal) is re-inserted at the end, so a re-run counts as newly written.
+  The checkpoint still retains every artefact (session export can use them);
+  only the prompt block is bounded.
 * `messages` remains lossy continuity (summarised, ADR-0018), not a durable
   store.  The deliverable appearing in both is expected: one is the
   conversational trace, the other the durable, addressable result.

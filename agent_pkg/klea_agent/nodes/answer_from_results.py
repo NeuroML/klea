@@ -172,6 +172,11 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         if self._outcome(state) == "success":
             artefact = self._deliverable_artefact(state, answer)
             artefacts = dict(state.artefacts or {})
+            # Re-inserting moves the id to the end of the dict, so insertion
+            # order is write order: ``artefacts_text`` keeps the most recent
+            # entries when the prompt block is bounded.  A superseded id
+            # (same goal) therefore counts as newly written.
+            artefacts.pop(artefact.id_, None)
             artefacts[artefact.id_] = artefact
             update["artefacts"] = artefacts
         self.logger.debug(f"{answer = }\n{update.get('artefacts') = }")
