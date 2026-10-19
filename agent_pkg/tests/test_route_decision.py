@@ -12,6 +12,7 @@ import logging
 
 from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.schemas import KleaAgentState, PlanSchema, RouteSchema
+from klea_utils.llm import LLMModel
 from klea_utils.nodes.context import LLMNodeContext
 
 
@@ -126,3 +127,14 @@ class TestRouteDecisionState:
         ctx.validation_feedback = "the Planner classified this request as chat"
         variables = self._node()._get_prompt_variables(self._forced_state(), ctx)
         assert "Previous attempt was rejected" in variables["forced_chat_block"]
+
+    def test_system_prompt_reports_model_identity(self):
+        """The inline-chat router can answer which model is replying."""
+        node = RouteDecision(
+            logger=logging.getLogger("test"),
+            label="Deciding route",
+            llm_models={"chat": LLMModel(instance=None, model_name="openai:gpt-4o")},
+        )
+        prompt = node._get_system_prompt(KleaAgentState(query="hi"), LLMNodeContext())
+        assert isinstance(prompt, str)
+        assert "Model in use: openai:gpt-4o" in prompt

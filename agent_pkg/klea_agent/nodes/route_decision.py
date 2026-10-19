@@ -56,6 +56,9 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }
+    #: The router answers chat inline, so it reports the model producing the
+    #: reply when asked "which model are you running".
+    include_model_identity = True
     #: On a forced chat re-entry, reject a result that is not a chat route with
     #: a non-empty answer and re-invoke with the reason exposed as
     #: ``validation_feedback``, so the override cannot be silently ignored.

@@ -19,6 +19,7 @@ from klea_agent.schemas import (
     PlanSchema,
     StepSchema,
 )
+from klea_utils.llm import LLMModel
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -193,6 +194,17 @@ class TestAnswerFromResults(unittest.TestCase):
         assert "step_outputs" not in artefact.content
         # The reply itself is delivered via message_for_user (-> messages).
         assert update["message_for_user"] == "the concise result"
+
+    def test_system_prompt_reports_model_identity(self):
+        """The answer-composer can answer which model is replying."""
+        node = AnswerFromResults(
+            logger=logging.getLogger("test"),
+            label="Composing answer",
+            llm_models={"chat": LLMModel(instance=None, model_name="openai:gpt-4o")},
+        )
+        prompt = node._get_system_prompt(self._state(), LLMNodeContext())
+        assert isinstance(prompt, str)
+        assert "Model in use: openai:gpt-4o" in prompt
 
 
 if __name__ == "__main__":

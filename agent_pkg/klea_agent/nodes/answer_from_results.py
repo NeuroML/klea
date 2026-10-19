@@ -62,6 +62,9 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
     }
+    #: The answer-composer produces the user-facing reply, so it reports the
+    #: model that produced it when asked "which model are you running".
+    include_model_identity = True
 
     def __init__(
         self,
