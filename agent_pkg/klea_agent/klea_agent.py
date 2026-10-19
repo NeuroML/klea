@@ -200,7 +200,16 @@ class KleaAgent(BaseLangGraph):
         return self.graph
 
     async def _route_decision_router(self, state: KleaAgentState) -> str:
-        """Return the entry route (``chat`` or ``task``)."""
+        """Return the entry route (``chat`` or ``task``).
+
+        A Planner ``chat`` status is a forced re-entry: the router's first pass
+        called the request ``task`` but the Planner recognised it as
+        conversational.  In that case the route is always ``chat``, regardless
+        of the stale ``state.route`` from the first pass, so the forced
+        RouteDecision answers and the run cannot loop back to the Planner.
+        """
+        if state.plan.status == "chat":
+            return "chat"
         return state.route.route
 
     async def _planner_router(self, state: KleaAgentState) -> str:
@@ -208,16 +217,20 @@ class KleaAgent(BaseLangGraph):
 
         ``unplannable`` -> failure answer; ``no_plan_required`` -> answer
         (success: no execution needed, the answer-composer writes the reply);
-        ``needs_input`` -> the HITL input node asks the blocked steps'
-        questions (ADR-0046); ``completed`` (all steps already done) -> answer;
-        otherwise (``in_progress``) -> dispatch the next runnable step by
-        ``kind`` (ADR-0041): a ``review`` step pauses for human review
-        (ADR-0051), ``tool``/``reasoning`` execute.  An ``in_progress`` plan
-        with no runnable step is blocked and fails closed.
+        ``chat`` -> back to the entry router, which is forced to answer as chat
+        from conversation history (the request is not a task); ``needs_input``
+        -> the HITL input node asks the blocked steps' questions (ADR-0046);
+        ``completed`` (all steps already done) -> answer; otherwise
+        (``in_progress``) -> dispatch the next runnable step by ``kind``
+        (ADR-0041): a ``review`` step pauses for human review (ADR-0051),
+        ``tool``/``reasoning`` execute.  An ``in_progress`` plan with no
+        runnable step is blocked and fails closed.
         """
         status = state.plan.status
         if status == "unplannable":
             return "failure"
+        if status == "chat":
+            return "chat"
         if status == "no_plan_required":
             return "plan_done"
         if status == "needs_input":
@@ -834,7 +847,9 @@ class KleaAgent(BaseLangGraph):
         )
         # Planner routing (ADR-0035/ADR-0041): route on ``plan.status``; when
         # running, dispatch the next runnable step by its kind (tool -> picker,
-        # reasoning -> ReasoningNode).
+        # reasoning -> ReasoningNode).  A ``chat`` status returns to the entry
+        # router, which answers from conversation history (a misrouted
+        # conversational turn, not a task).
         self.workflow.add_conditional_edges(
             self._planner_node.label,
             self._planner_router,
@@ -843,6 +858,7 @@ class KleaAgent(BaseLangGraph):
                 "review": self._review_progress_node.label,
                 "needs_input": self._await_input_node.label,
                 "plan_done": self._answer_from_results_node.label,
+                "chat": self._route_decision_node.label,
                 "tool": self._tools_picker_node.label,
                 "reasoning": self._reasoning_node.label,
             },

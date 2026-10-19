@@ -109,6 +109,7 @@ flowchart TD
     guardR -. unsafe .-> decline
     route -. task .-> planner
     route -. chat .-> prepare
+    planner -. chat .-> route
     planner -. review .-> reviewProgress
     planner -. failure .-> compose
     planner -. needs_input .-> awaitInput

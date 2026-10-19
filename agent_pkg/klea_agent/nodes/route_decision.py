@@ -44,12 +44,22 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     This is the one place where a model could answer a world-fact from
     assumption, so the prompt is deliberately narrow and tool-free.  It reads
     conversation history (memory) for follow-ups and continuity.
+
+    The node is re-entered when the Planner returns ``plan.status == "chat"``:
+    the Planner recognised that the first ``task`` call was a misrouted
+    conversational turn.  In that forced pass the router must answer as chat
+    (the prompt carries an override) and the router always returns the
+    ``chat`` edge, so the run cannot bounce back to the Planner.
     """
 
     model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.0,
     }
+    #: On a forced chat re-entry, reject a result that is not a chat route with
+    #: a non-empty answer and re-invoke with the reason exposed as
+    #: ``validation_feedback``, so the override cannot be silently ignored.
+    max_validation_retries: ClassVar[int] = 3
 
     def __init__(
         self,
@@ -76,10 +86,58 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
-        """Format prompt with the user query."""
-        variables = {"query": state.query}
+        """Format prompt with the user query and any forced-chat override.
+
+        On a Planner ``chat`` re-entry, *forced_chat_block* instructs the router
+        that the request has already been classified as conversational, so it
+        answers instead of deciding ``task`` again.
+        """
+        override = ""
+        if state.plan.status == "chat":
+            parts = [
+                (
+                    "The Planner has already examined this request and classified "
+                    "it as `chat`: a conversational reply that needs the "
+                    "conversation history, not the task path. Answer it now. Set "
+                    "`route` to `chat` and put the reply in `answer`. Do not "
+                    "choose `task`."
+                )
+            ]
+            feedback = str(getattr(ctx, "validation_feedback", "")).strip()
+            if feedback:
+                parts.append(f"Previous attempt was rejected: {feedback}")
+            override = "\n\n".join(parts)
+        variables = {
+            "query": state.query,
+            "forced_chat_block": self._optional_section("Planner override", override),
+        }
         self.logger.debug(f"{variables = }")
         return variables
+
+    @override
+    def _validate_result(
+        self, result: Any, state: KleaAgentState, ctx: Any
+    ) -> str | None:
+        """Require a chat answer on a forced re-entry (deterministic check).
+
+        The Planner has already decided the request is conversational, so the
+        router must answer it.  If the model ignored the override (returned
+        ``task``) or produced no reply, return an error to trigger a bounded
+        re-invoke.  The normal entry pass is not validated: there the router may
+        legitimately choose ``task``.
+        """
+        if state.plan.status != "chat":
+            return None
+        if not isinstance(result, RouteSchema):
+            return "expected a route decision"
+        if result.route != "chat":
+            return (
+                "the Planner classified this request as chat; set route to "
+                "'chat' and put your conversational reply in 'answer'"
+            )
+        if not result.answer.strip():
+            return "a chat reply is required; put the conversational answer in 'answer'"
+        return None
 
     @override
     def _update_state(
@@ -90,8 +148,23 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         For ``chat`` the reply is written to ``message_for_user`` and the graph
         routes to ``AnswerUser``.  For ``task`` nothing else is written and the
         Planner takes over.
+
+        On a forced re-entry (``state.plan.status == "chat"``) the Planner has
+        already decided the request is conversational, so the route is forced to
+        ``chat`` even if the model ignored the override and emitted ``task``.
+        An empty answer is left for ``AnswerUser``'s fallback.
         """
-        state_update: dict[str, Any] = {"route": result}
+        if state.plan.status == "chat":
+            answer = result.answer.strip()
+            state_update: dict[str, Any] = {
+                "route": RouteSchema(route="chat", answer=answer),
+            }
+            if answer:
+                state_update["message_for_user"] = answer
+            self.logger.debug(f"forced chat: {state_update = }")
+            return state_update
+
+        state_update = {"route": result}
         if result.route == "chat" and result.answer.strip():
             state_update["message_for_user"] = result.answer.strip()
         self.logger.debug(f"{state_update = }")
@@ -108,8 +181,13 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         result = ctx.result
         details: dict[str, Any]
         if isinstance(result, RouteSchema):
+            forced = state.plan.status == "chat"
             summary = f"Route: {result.route}"
+            if forced:
+                summary = "Route: chat (forced by Planner)"
             details = {"route": result.route}
+            if forced:
+                details["forced_chat"] = True
             if result.route == "chat":
                 details["answer_chars"] = len(result.answer)
         else:

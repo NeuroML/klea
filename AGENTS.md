@@ -25,7 +25,7 @@ move to the next step after explicit approval.
 
 Verification in step 2 covers:
 - Lint + format: `ruff check . --fix` and `ruff format .` (in the affected package)
-- Type check: `ty` (from repo root)
+- Type check: `ty check` (from repo root; `ty` alone prints usage)
 - If a CLI entry point was modified: `<cli-name> --help` to confirm it starts
 - If tests exist for the changed code: `pytest -v <test-path>`
 
@@ -93,7 +93,7 @@ ruff format .
 ruff check . --select I --fix    # import sorting
 
 # Type check
-ty
+ty check
 
 # Docs build
 uv pip install -r requirements-docs.txt   # installs sphinx + furo + sphinxcontrib-typer

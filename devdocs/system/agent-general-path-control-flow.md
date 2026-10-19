@@ -33,6 +33,7 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
                  |-- status no_plan_required -> AnswerFromResults (success; no execution needed) -> AnswerUser -> END
+                 |-- status chat ---------> RouteDecision (forced chat) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
                  |-- status needs_input ---> AwaitHuman (input) --answer--> Planner
                  '-- status in_progress ---> next step by kind (ADR-0041):
@@ -75,7 +76,14 @@ defaulting to ``task`` (fail-closed) so a world-fact is never answered from
 assumption and a derivation is never answered inline from the conversation.
 Routing a derivation to ``task`` is cheap when no environment work is needed:
 the Planner returns ``no_plan_required`` and the answer-composer writes (and
-persists) the result.
+persists) the result.  If the Planner instead finds that the request was a
+conversational turn (no task at all), it returns ``chat`` and the run goes back
+to ``RouteDecision``, which is forced to answer as chat from conversation
+history; the answer-composer is deliberately bypassed because it has no memory.
+On that forced pass the router's result is validated (a ``chat`` route with a
+non-empty answer), so an ignored override triggers a bounded re-invoke; the
+graph routing itself is still forced to ``chat`` regardless of the model's
+route field.
 
 ## Nodes
 
@@ -112,6 +120,7 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 |--------|---------|------|
 | ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``no_plan_required`` | no execution needed; the goal is satisfiable from the available information (for example session ``artefacts``) | ``AnswerFromResults`` (success) |
+| ``chat`` | the entry router misclassified a conversational request as ``task``; return no steps and no goal | ``RouteDecision`` (forced chat) -> ``AnswerUser`` |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
 | ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
 
@@ -119,8 +128,10 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``needs_input`` (a draft; the status is derived from the steps); steps ->
 ``in_progress`` (a ``review`` step pauses when it reaches the frontier; there is
 no review status -- ADR-0051); ``no_plan_required`` is kept as a success (the
-goal is set, no steps run); ``unplannable`` (or any other status with no steps)
--> ``unplannable``.  It never answers the user.
+goal is set, no steps run); ``chat`` writes no goal and no steps and hands the
+run back to ``RouteDecision``, which is forced to answer as chat from
+conversation history (the request is not a task); ``unplannable`` (or any other
+status with no steps) -> ``unplannable``.  It never answers the user.
 ``PlannerPlanSchema`` exposes only
 these editable statuses to the model; the state ``PlanSchema`` also carries the
 runtime ones

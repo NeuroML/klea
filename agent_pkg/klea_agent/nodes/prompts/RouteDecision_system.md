@@ -18,6 +18,11 @@
 ## Inputs you will receive
 
 * `query`: the user's request
+* `forced_chat_block` (optional): a Planner override. When present, the
+  Planner has already examined the request and classified it as `chat`, so you
+  must answer it conversationally now: set `route` to `chat`, put the reply in
+  `answer`, and do not choose `task`. The block is absent on the normal entry
+  pass.
 
 ---
 

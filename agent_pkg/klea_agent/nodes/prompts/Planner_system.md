@@ -77,6 +77,11 @@
   `no_plan_required` and set the goal (do not answer directly -- the
   answer-composer writes the reply from the available information).  Use this
   only when no reachable step is needed; never to skip work you could do.
+* If the request is not a task at all -- the entry router misclassified a
+  conversational turn or follow-up that only needs the conversation history --
+  return no steps and no goal with status `chat`.  Do not use `chat` for a real
+  task whose facts are already available: that is `no_plan_required`.  Do not
+  use `chat` to avoid work you could plan.
 * Do not add a step to check/compare/verify earlier results (the evaluator does
   that) or to prepare/summarise/state the reply (the answer-composer does that).
   A `reasoning` step is valid only when a later step depends on its conclusion;
@@ -123,12 +128,18 @@
   is already available (for example in `artefacts` from earlier tasks).  Return
   no steps and set the goal.  This is a success, unlike `unplannable` (the goal
   cannot be met): the answer-composer writes the reply.
+* `chat`: the entry router misclassified a conversational request (a greeting,
+  direct discussion, or follow-up that only needs the conversation history);
+  it is not a task.  Return no steps and no goal.  The run goes back to the
+  entry router, which answers from conversation history.  Do not use this for a
+  task whose facts are already available -- that is `no_plan_required`.
 * `unplannable`: no workable plan with the available tools (return no steps).
   Marking a task impossible or dependency-missing is as valuable as completing
   it; do not use this to avoid a hard step.
 * `reason`: a short explanation -- the failure explanation (`unplannable`), a
   summary for `needs_input` (the questions themselves go on the blocked steps),
-  or why no execution is needed (`no_plan_required`).
+  why no execution is needed (`no_plan_required`), or why the request is chat
+  (`chat`).
 
 ---
 

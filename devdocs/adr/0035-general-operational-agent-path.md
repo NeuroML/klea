@@ -571,3 +571,30 @@ and requires a goal; ``_planner_router`` maps it to the answer edge.  The task
 type (report vs synthesis) is carried by the goal and its success criteria, not
 by the status -- so the answer-composer needs no separate synthesis mode.  See
 ``devdocs/system/agent-general-path-control-flow.md``.
+
+## Update (2026-10-19): `chat` plans return to the entry router
+
+The narrow entry router can call a conversational turn ``task`` (it is
+fail-closed).  When that happens the Planner can find no task at all -- for
+example a follow-up that only needs the conversation history.  Previously it
+had to choose between ``no_plan_required`` (which routes to
+``AnswerFromResults``; that node has no memory, so the reply lost the
+conversation) and ``unplannable`` (a false failure).
+
+A new ``chat`` plan status separates the two: ``no_plan_required`` means "a
+real task whose facts are already available", while ``chat`` means "not a task
+-- the request was misrouted and needs the conversation".  A ``chat`` plan
+carries no steps and no goal; the graph routes it back to ``RouteDecision``,
+which is forced (via a prompt override and a router check on
+``plan.status == "chat"``) to answer as chat from conversation history.  The
+answer-composer stays off this path because it deliberately has no memory.
+
+This also removes the misclassification failure mode: an empty plan is no
+longer coerced to ``unplannable`` when the Planner meant to hand back a
+conversational turn.  `_validate_result` rejects ``chat`` with steps;
+`_update_state` fails closed to ``unplannable`` if the model insists after the
+validation retries.  On the forced re-entry, ``RouteDecision._validate_result``
+requires a ``chat`` route with a non-empty answer, so an ignored override
+triggers the validation retry and, if the model still refuses, the routing is
+still forced to ``chat`` (the delivery node's empty-answer fallback applies).
+See ``devdocs/system/agent-general-path-control-flow.md``.

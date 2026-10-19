@@ -146,10 +146,19 @@ class PlannerPlanSchema(BaseModel):
     #:   session ``artefacts``).  A success, distinct from ``unplannable`` (the
     #:   goal cannot be met); the answer-composer writes the reply.  The Planner
     #:   still sets the goal.
+    #: * ``chat`` -- the entry router misclassified a conversational request as
+    #:   ``task``.  This is not a task outcome: return no steps and no goal; the
+    #:   graph routes back to ``RouteDecision`` (which has conversation memory)
+    #:   and forces it to answer as chat.  Distinct from ``no_plan_required``,
+    #:   which is a real task whose facts are already available.
     #: * ``unplannable`` -- no workable plan with the available tools.
-    status: Literal["in_progress", "needs_input", "no_plan_required", "unplannable"] = (
-        Field(default="in_progress", validate_default=True)
-    )
+    status: Literal[
+        "in_progress",
+        "needs_input",
+        "no_plan_required",
+        "unplannable",
+        "chat",
+    ] = Field(default="in_progress", validate_default=True)
 
     def render(
         self, *, markdown: bool = False, current_numbers: set[int] | None = None
@@ -344,6 +353,7 @@ class PlanSchema(PlannerPlanSchema):
         "failed",
         "aborted",
         "user_cancelled",
+        "chat",
         "unplannable",
     ] = Field(default="not_started", validate_default=True)
 

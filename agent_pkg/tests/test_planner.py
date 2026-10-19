@@ -101,6 +101,40 @@ class TestPlannerState(unittest.TestCase):
         self.assertNotIn("failure_reason", update)
         self.assertEqual(update["plan"].step_list, [])
 
+    def test_chat_writes_status_without_goal_or_messages(self):
+        """A chat status is a route signal, not a task plan (ADR-0035)."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="ignored"),
+                plan=PlannerPlanSchema(status="chat"),
+                reason="this is a conversational follow-up",
+            ),
+            KleaAgentState(query="what did you mean by that?"),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["plan"].status, "chat")
+        self.assertEqual(update["plan"].step_list, [])
+        self.assertNotIn("goal", update)
+        self.assertNotIn("failure_reason", update)
+        self.assertNotIn("messages", update)
+
+    def test_chat_with_steps_fails_closed(self):
+        """A contradictory chat+steps result must not silently drop work."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    status="chat",
+                    step_list=[
+                        StepSchema(description="do work", suggested_tools=["read_file"])
+                    ],
+                )
+            ),
+            KleaAgentState(query="q"),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertIn("chat status with steps", update["failure_reason"])
+
     def test_model_plan_statuses_are_used_verbatim(self):
         """Design A: the Planner's per-step statuses are not mutated.
 
@@ -629,6 +663,27 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("no goal was set", error)
+
+    def test_accepts_chat_without_goal_or_steps(self):
+        """Chat is a route signal: no goal and no steps are required."""
+        output = PlannerOutput(plan=PlannerPlanSchema(status="chat"))
+        self.assertIsNone(
+            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+        )
+
+    def test_rejects_chat_with_steps(self):
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                status="chat",
+                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+            )
+        )
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("chat", error)
 
     def test_accepts_blocked_step_as_draft(self):
         """A blocked step is exempt from the executable-step tool check."""

@@ -19,6 +19,7 @@ from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import (
     KleaAgentState,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 from klea_utils.llm import LLMModel
@@ -94,6 +95,7 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Planning", "Preparing review") in edges  # review step at the frontier
     assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
     assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
+    assert ("Planning", "Deciding route") in edges  # chat -> forced router re-entry
 
     # Human-in-the-loop (ADR-0046/ADR-0051): both await nodes loop back to the
     # Planner; a review approval can reach a further review step; a cancel
@@ -267,6 +269,22 @@ async def test_planner_router_no_plan_required_reaches_the_answer():
     failed = KleaAgentState()
     failed.plan = PlanSchema(status="unplannable")
     assert await agent._planner_router(failed) == "failure"
+
+
+@pytest.mark.asyncio
+async def test_planner_chat_reentry_forces_route_decision_chat():
+    """A chat plan returns to RouteDecision, which is forced to answer as chat.
+
+    The stale first-pass ``task`` route must not send the request back to the
+    Planner (that would loop, since the Planner already declined to plan).
+    """
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+    state.route = RouteSchema(route="task")
+    state.plan = PlanSchema(status="chat")
+
+    assert await agent._planner_router(state) == "chat"
+    assert await agent._route_decision_router(state) == "chat"
 
 
 @pytest.mark.asyncio

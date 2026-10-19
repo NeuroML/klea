@@ -435,6 +435,7 @@ class TestPlannerPlanSchema:
             "needs_input",
             "no_plan_required",
             "unplannable",
+            "chat",
         }
 
 
@@ -455,6 +456,7 @@ class TestPlanSchemaRuntime:
             "failed",
             "aborted",
             "user_cancelled",
+            "chat",
             "unplannable",
         }
 
