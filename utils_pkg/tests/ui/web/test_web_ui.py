@@ -14,6 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 from klea_utils.ui.web.nicegui.components import header
+from klea_utils.ui.web.nicegui.components.chat_list import _chat_preview
 from nicegui import ui
 from nicegui.testing.user_interaction import UserInteraction
 
@@ -121,3 +122,31 @@ async def test_session_list_shows_hydrated_chats(fake_backend, utils_user):
     fake_backend.chats = [{"chat_id": "c1", "title": "First Chat", "created_at": 0}]
     await utils_user.open("/")
     await utils_user.should_see("First Chat", retries=50)
+
+
+class TestChatPreview:
+    """The chat-list tooltip preview prefers the server's first query."""
+
+    def test_prefers_the_hydrated_server_preview(self):
+        chat = {
+            "preview": "server query",
+            "messages": [{"role": "user", "text": "local query"}],
+        }
+        assert _chat_preview(chat) == "server query"
+
+    def test_falls_back_to_the_first_local_user_message(self):
+        chat = {
+            "messages": [
+                {"role": "assistant", "text": "welcome"},
+                {"role": "user", "text": "first local query"},
+                {"role": "user", "text": "second"},
+            ]
+        }
+        assert _chat_preview(chat) == "first local query"
+
+    def test_collapses_and_truncates(self):
+        chat = {"preview": "line one\nline two " + "x" * 400}
+        preview = _chat_preview(chat)
+        assert preview.startswith("line one line two ")
+        assert preview.endswith("...")
+        assert len(preview) == 200

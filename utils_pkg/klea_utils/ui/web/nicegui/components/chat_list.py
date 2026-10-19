@@ -16,7 +16,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any
 
 import coolname
 from nicegui import background_tasks, ui
@@ -28,6 +30,7 @@ from klea_utils.ui.client import (
 )
 from klea_utils.ui.state import (
     chat_indicator,
+    chat_preview_text,
     chats,
     ensure_chat,
     get_chats_sorted,
@@ -37,6 +40,27 @@ from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.storage import safe_set_user
 
 logger = logging.getLogger(__name__)
+
+
+def _chat_preview(chat: Mapping[str, Any]) -> str:
+    """Return a single-line preview for a session row.
+
+    Prefers the server's first-user-query ``preview`` (hydrated from
+    ``GET /chat/{user_id}``); falls back to the first local user message so a
+    chat created or used in the current page session has a tooltip before the
+    next hydration.
+    """
+    preview = chat.get("preview")
+    if not preview:
+        preview = next(
+            (
+                str(message.get("text", ""))
+                for message in chat.get("messages", [])
+                if message.get("role") == "user"
+            ),
+            "",
+        )
+    return chat_preview_text(str(preview or ""), max_chars=200)
 
 
 def attach_chat_list(ctx: PageContext) -> None:
@@ -234,7 +258,11 @@ def attach_chat_list(ctx: PageContext) -> None:
                     tooltip += " - running"
                 elif awaiting:
                     tooltip += " - awaiting your input"
-                ui.tooltip(tooltip)
+                preview = _chat_preview(sdata)
+                with ui.tooltip():
+                    if preview:
+                        ui.label(preview).classes("text-xs")
+                    ui.label(tooltip).classes("text-xs")
                 # Three-dot context menu (right-aligned).
                 with (
                     ui.item_section().props("side"),

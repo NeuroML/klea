@@ -26,6 +26,8 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView, Static
 
+from klea_utils.ui.state import chat_preview_text
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,7 +47,7 @@ class SessionAction:
 
 
 def _session_label(session: dict[str, Any], active: bool) -> Text:
-    """Build a picker row label: ``*`` active marker, title, dim chat id."""
+    """Build a picker row label: active marker, title, dim chat id."""
     title = str(session.get("title") or session.get("chat_id") or "Untitled")
     chat_id = str(session.get("chat_id", ""))
     text = Text()
@@ -79,6 +81,12 @@ class SessionPicker(ModalScreen[SessionAction]):
     #sessions-list {
         height: auto;
         max-height: 16;
+    }
+    #sessions-preview {
+        height: auto;
+        max-height: 4;
+        padding-top: 1;
+        color: $text-muted;
     }
     """
 
@@ -118,13 +126,37 @@ class SessionPicker(ModalScreen[SessionAction]):
                 yield Button("Rename", id="sessions-rename")
                 yield Button("Delete", id="sessions-delete")
                 yield Button("Cancel", id="sessions-cancel", variant="error")
+            yield Static("", id="sessions-preview")
 
     def on_mount(self) -> None:
         """Focus the list (or the Cancel button when empty)."""
         if self._sessions:
             self.query_one("#sessions-list", ListView).focus()
+            self._update_preview()
         else:
             self.query_one("#sessions-cancel", Button).focus()
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        """Show the highlighted session's first-query preview.
+
+        :param event: The ``ListView.Highlighted`` event.
+        """
+        self._update_preview()
+
+    def _update_preview(self) -> None:
+        """Render the highlighted session's preview below the action buttons."""
+        chat_id = self._highlighted_id()
+        session = next(
+            (
+                item
+                for item in self._sessions
+                if chat_id is not None and str(item.get("chat_id")) == chat_id
+            ),
+            None,
+        )
+        preview = chat_preview_text((session or {}).get("preview"), max_chars=200)
+        text = f"Preview: {preview}" if preview else ""
+        self.query_one("#sessions-preview", Static).update(text)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Switch to the selected session.

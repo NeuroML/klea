@@ -165,7 +165,10 @@ enforcement point for each:
 
 * A keyed `{user_id}:{chat_id}` store with a single **active pointer**; the
   active session's messages and context are hydrated on create/switch/load,
-  the picker lists only server metadata (`GET /chat/{user_id}`).
+  the picker lists server metadata (`GET /chat/{user_id}`), including each
+  chat's first user query as a truncated preview.  The preview follows the
+  highlighted chat and is shown below the Rename/Delete/Cancel buttons, so it
+  does not crowd the session rows.
 * Create mints a chat id (coolname slug) and `POST`s it; `--continue` resumes
   the most recently updated session and `--resume <chat_id>` loads one.
 * `user_id` resolves through one seam (`klea_utils/ui/identity.py`):

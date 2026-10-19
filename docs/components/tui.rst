@@ -108,7 +108,8 @@ Sessions
 The TUI shows one active session at a time.  :kbd:`Ctrl+S` (or ``/sessions``)
 opens a picker listing the server's chats; choosing one switches to it, and
 the picker can also **rename** or **delete** a chat (deleting asks for
-confirmation first).  Switching is refused
+confirmation first).  The highlighted chat's first-query preview is shown
+below the action buttons.  Switching is refused
 while a run is streaming.  On launch, ``--continue`` opens the most recently
 updated chat and ``--resume <chat_id>`` opens a specific one.
 
@@ -117,10 +118,10 @@ Commands
 
 Type ``/`` in the input for a command menu.  ``/help`` lists the available
 commands: the TUI merges the server's command catalogue with the commands it
-handles itself.  A client-side command (``/help``, ``/sessions``, ``/model``,
-``/exit``) runs locally; a server-side command (such as ``/mode`` or
-``/access``, the agent's operating mode and tool access level) is sent to the
-agent.  An unknown command is reported locally and never sent.  ``/exit``
+handles itself.  A client-side command (``/help``, ``/new``, ``/sessions``,
+``/model``, ``/exit``) runs locally; a server-side command (such as ``/mode``
+or ``/access``, the agent's operating mode and tool access level) is sent to
+the agent.  An unknown command is reported locally and never sent.  ``/exit``
 stops any active run and quits immediately (typing it is deliberate, so -- unlike
 :kbd:`Ctrl+Q` -- it does not ask to confirm).  See
 :doc:`commands` for the list.
