@@ -322,7 +322,9 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">coolname</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">nicegui</span><span class="w"> </span><span class="kn">import</span> <span class="n">background_tasks</span><span class="p">,</span> <span class="n">ui</span>
@@ -334,6 +336,7 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">chat_indicator</span><span class="p">,</span>
+    <span class="n">chat_preview_text</span><span class="p">,</span>
     <span class="n">chats</span><span class="p">,</span>
     <span class="n">ensure_chat</span><span class="p">,</span>
     <span class="n">get_chats_sorted</span><span class="p">,</span>
@@ -343,6 +346,27 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.storage</span><span class="w"> </span><span class="kn">import</span> <span class="n">safe_set_user</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_chat_preview</span><span class="p">(</span><span class="n">chat</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a single-line preview for a session row.</span>
+
+<span class="sd">    Prefers the server's first-user-query ``preview`` (hydrated from</span>
+<span class="sd">    ``GET /chat/{user_id}``); falls back to the first local user message so a</span>
+<span class="sd">    chat created or used in the current page session has a tooltip before the</span>
+<span class="sd">    next hydration.</span>
+<span class="sd">    """</span>
+    <span class="n">preview</span> <span class="o">=</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preview"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">preview</span><span class="p">:</span>
+        <span class="n">preview</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="nb">str</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"user"</span>
+            <span class="p">),</span>
+            <span class="s2">""</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">chat_preview_text</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">preview</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">),</span> <span class="n">max_chars</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="attach_chat_list">
@@ -542,7 +566,11 @@
                     <span class="n">tooltip</span> <span class="o">+=</span> <span class="s2">" - running"</span>
                 <span class="k">elif</span> <span class="n">awaiting</span><span class="p">:</span>
                     <span class="n">tooltip</span> <span class="o">+=</span> <span class="s2">" - awaiting your input"</span>
-                <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">(</span><span class="n">tooltip</span><span class="p">)</span>
+                <span class="n">preview</span> <span class="o">=</span> <span class="n">_chat_preview</span><span class="p">(</span><span class="n">sdata</span><span class="p">)</span>
+                <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">tooltip</span><span class="p">():</span>
+                    <span class="k">if</span> <span class="n">preview</span><span class="p">:</span>
+                        <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">preview</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs"</span><span class="p">)</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">tooltip</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs"</span><span class="p">)</span>
                 <span class="c1"># Three-dot context menu (right-aligned).</span>
                 <span class="k">with</span> <span class="p">(</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">item_section</span><span class="p">()</span><span class="o">.</span><span class="n">props</span><span class="p">(</span><span class="s2">"side"</span><span class="p">),</span>

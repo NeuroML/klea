@@ -1287,10 +1287,19 @@
 <span class="c1">#:</span>
 <span class="c1">#: Deliberately generous: reasoning models spend most of the completion budget</span>
 <span class="c1">#: on hidden reasoning tokens, so a small cap truncates even tiny structured</span>
-<span class="c1">#: payloads.  The value is a ceiling, not a target, and is clamped per model by</span>
-<span class="c1">#: :func:`resolve_output_token_limit` (catalog output limit and context</span>
-<span class="c1">#: headroom), so a large default is safe for small models too.</span>
-<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">16384</span>
+<span class="c1">#: payloads and forces a slow grow-ladder retry.  The value is a ceiling, not a</span>
+<span class="c1">#: target, and is clamped per model by :func:`resolve_output_token_limit`</span>
+<span class="c1">#: (catalog output limit and context headroom), so a large default is safe for</span>
+<span class="c1">#: small models too.  HuggingFace is the exception: its total-budget accounting</span>
+<span class="c1">#: makes a large reservation trigger usage limits, so it keeps the smaller</span>
+<span class="c1">#: :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` default and relies on retries.</span>
+<span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">32768</span>
+
+<span class="c1">#: Conservative HuggingFace default.  HuggingFace-style providers account the</span>
+<span class="c1">#: reserved output window against the context and rate-limit large</span>
+<span class="c1">#: reservations, so keep the first attempt small and let the grow-ladder</span>
+<span class="c1">#: handle a genuinely truncated completion.</span>
+<span class="n">HUGGINGFACE_MAX_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">16384</span>
 
 <span class="c1">#: Built-in per-role max output token defaults.  Nodes may override these</span>
 <span class="c1">#: with the generic ``max_output_tokens`` key in ``model_defaults``, and</span>
@@ -1299,12 +1308,45 @@
 <span class="c1">#:</span>
 <span class="c1">#: ``guard`` stays small: a safety classifier emits a one-word verdict, so</span>
 <span class="c1">#: there is no reason to reserve a large window.  Every other role gets the</span>
-<span class="c1">#: generous default so reasoning models do not truncate.</span>
+<span class="c1">#: generous default so reasoning models do not truncate (and therefore do not</span>
+<span class="c1">#: pay a retry round-trip).</span>
 <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="s2">"chat"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
     <span class="s2">"plan"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"tool_picker"</span><span class="p">:</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
     <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
 <span class="p">}</span>
+
+<span class="c1">#: HuggingFace per-role overrides; roles absent here use</span>
+<span class="c1">#: :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` (or :data:`_ROLE_MAX_OUTPUT_TOKENS`</span>
+<span class="c1">#: where that is smaller, e.g. ``guard``).</span>
+<span class="n">_HF_ROLE_MAX_OUTPUT_TOKENS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"chat"</span><span class="p">:</span> <span class="n">HUGGINGFACE_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"plan"</span><span class="p">:</span> <span class="n">HUGGINGFACE_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"tool_picker"</span><span class="p">:</span> <span class="n">HUGGINGFACE_MAX_OUTPUT_TOKENS</span><span class="p">,</span>
+    <span class="s2">"guard"</span><span class="p">:</span> <span class="mi">2048</span><span class="p">,</span>
+<span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_default_output_tokens</span><span class="p">(</span><span class="n">provider</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the built-in max-output default for *provider* and *role*.</span>
+
+<span class="sd">    Non-HuggingFace providers get the generous default (larger requests do not</span>
+<span class="sd">    trigger their rate limits), while HuggingFace keeps the conservative</span>
+<span class="sd">    default because its total-budget accounting penalises large reservations.</span>
+
+<span class="sd">    :param provider: Klea provider id.</span>
+<span class="sd">    :param role: Model role, or ``None``.</span>
+<span class="sd">    :returns: The fallback token count.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">provider</span> <span class="o">==</span> <span class="s2">"huggingface"</span><span class="p">:</span>
+        <span class="n">role_defaults</span> <span class="o">=</span> <span class="n">_HF_ROLE_MAX_OUTPUT_TOKENS</span>
+        <span class="n">fallback</span> <span class="o">=</span> <span class="n">HUGGINGFACE_MAX_OUTPUT_TOKENS</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">role_defaults</span> <span class="o">=</span> <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span>
+        <span class="n">fallback</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span>
+    <span class="k">return</span> <span class="n">role_defaults</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span> <span class="n">fallback</span><span class="p">)</span>
+
 
 <span class="c1">#: The three max-output token parameter names used across providers.</span>
 <span class="n">_TOKEN_PARAMS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"max_tokens"</span><span class="p">,</span> <span class="s2">"max_new_tokens"</span><span class="p">,</span> <span class="s2">"num_predict"</span><span class="p">)</span>
@@ -1363,7 +1405,11 @@
 <span class="sd">       ``max_new_tokens`` / ``num_predict``) already present in</span>
 <span class="sd">       ``overrides`` (user/node/role value).</span>
 <span class="sd">    2. The generic ``max_output_tokens`` key (provider-agnostic count).</span>
-<span class="sd">    3. The built-in per-role fallback for *role*.</span>
+<span class="sd">    3. The built-in per-role fallback for *role* and *provider*: non-HF</span>
+<span class="sd">       providers get the generous :data:`DEFAULT_MAX_OUTPUT_TOKENS`;</span>
+<span class="sd">       HuggingFace gets the conservative</span>
+<span class="sd">       :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` because large reservations</span>
+<span class="sd">       count against its total budget and trigger usage limits.</span>
 
 <span class="sd">    The resolved value is clamped to ``min(value, catalog limit.output)``</span>
 <span class="sd">    and, when the catalog exposes a context window and *input_chars* is</span>
@@ -1386,7 +1432,7 @@
 <span class="sd">    :param overrides: The merged ``configurable`` dict to update in place.</span>
 <span class="sd">    :param provider: Klea provider id (``huggingface``, ``ollama``, ...).</span>
 <span class="sd">    :param role: Model role (e.g. ``"chat"``), used for the built-in</span>
-<span class="sd">        per-role fallback.</span>
+<span class="sd">        per-role, per-provider fallback.</span>
 <span class="sd">    :param input_chars: Character count of the prompt, to bound the output</span>
 <span class="sd">        within the total budget.</span>
 <span class="sd">    :param use_endpoint: When True, prefer the live endpoint's</span>
@@ -1406,12 +1452,12 @@
     <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">value</span> <span class="o">=</span> <span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"max_output_tokens"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">_default_output_tokens</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
     <span class="k">try</span><span class="p">:</span>
         <span class="n">value</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>  <span class="c1"># type: ignore[arg-type]</span>
     <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid token limit </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">, using fallback"</span><span class="p">)</span>
-        <span class="n">value</span> <span class="o">=</span> <span class="n">_ROLE_MAX_OUTPUT_TOKENS</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">,</span> <span class="n">DEFAULT_MAX_OUTPUT_TOKENS</span><span class="p">)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">_default_output_tokens</span><span class="p">(</span><span class="n">provider</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
 
     <span class="c1"># Clamp to the model's output limit and total budget, if known.</span>
     <span class="c1"># models.dev's limits are per-deployment config and may under-report a</span>

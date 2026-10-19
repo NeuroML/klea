@@ -528,6 +528,9 @@
                     <span class="n">ensure_chat</span><span class="p">(</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                     <span class="n">chats</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s2">"name"</span><span class="p">]</span> <span class="o">=</span> <span class="n">chat_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
                     <span class="n">chats</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s2">"created"</span><span class="p">]</span> <span class="o">=</span> <span class="n">chat_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"created_at"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="c1"># First user query, from the server session list; shown as</span>
+                    <span class="c1"># a human-readable hint in the picker / chat-list tooltip.</span>
+                    <span class="n">chats</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s2">"preview"</span><span class="p">]</span> <span class="o">=</span> <span class="n">chat_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preview"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
 
                 <span class="c1"># Fetch messages for every chat returned by the server.</span>
                 <span class="k">for</span> <span class="n">chat_data</span> <span class="ow">in</span> <span class="n">chats_from_server</span><span class="p">:</span>

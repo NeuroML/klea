@@ -751,10 +751,10 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail dot com&gt;</p>
 <dd><p>Render an interrupt resume mapping as the user turn for the transcript.</p>
 <p>Each interrupt kind has a renderer (see <code class="xref py py-data docutils literal notranslate"><span class="pre">_RESPONSE_RENDERERS</span></code>):
 input <code class="docutils literal notranslate"><span class="pre">answers</span></code> are joined; path-permission <code class="docutils literal notranslate"><span class="pre">decisions</span></code> are shown as
-“Allowed once: /tmp”, “Allowed for session: /proj”, “Denied: &lt;key&gt;”; a
-review <code class="docutils literal notranslate"><span class="pre">decision</span></code> becomes “Plan approved” / “Revision requested:
-&lt;feedback&gt;”.  An unknown shape falls back to its JSON form.  This is
-display only: the wire values are unchanged.</p>
+“Allowed once: /tmp”, “Allowed for session: /proj”, “Denied: &lt;key&gt;” or
+“Not a path: &lt;key&gt;”; a review <code class="docutils literal notranslate"><span class="pre">decision</span></code> becomes “Plan approved” /
+“Revision requested: &lt;feedback&gt;”.  An unknown shape falls back to its JSON
+form.  This is display only: the wire values are unchanged.</p>
 <p>Shared by <code class="docutils literal notranslate"><span class="pre">chat_core</span></code> (the persisted user row) and the web UI (the live
 transcript) so the two cannot drift.</p>
 </dd></dl>
@@ -859,6 +859,13 @@ serialization round-trip.</p>
 <p>File: klea_utils/api/sessions_db.py</p>
 <p>Copyright 2026 Ankur Sinha
 Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.api.sessions_db.CHAT_PREVIEW_MAX_CHARS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.api.sessions_db.</span></span><span class="sig-name descname"><span class="pre">CHAT_PREVIEW_MAX_CHARS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">200</span></span><a class="headerlink" href="#klea_utils.api.sessions_db.CHAT_PREVIEW_MAX_CHARS" title="Link to this definition">¶</a></dt>
+<dd><p>Maximum characters of a chat’s first user query returned as its list
+<code class="docutils literal notranslate"><span class="pre">preview</span></code>.  Bounds the session-list payload and the frontends’ display.</p>
+</dd></dl>
+
 <dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.api.sessions_db.CREDENTIAL_PURGE_INTERVAL_SECONDS">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.api.sessions_db.</span></span><span class="sig-name descname"><span class="pre">CREDENTIAL_PURGE_INTERVAL_SECONDS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3600</span></span><a class="headerlink" href="#klea_utils.api.sessions_db.CREDENTIAL_PURGE_INTERVAL_SECONDS" title="Link to this definition">¶</a></dt>
@@ -1033,6 +1040,11 @@ below any per-chat overrides.  Returns
 <dt class="sig sig-object py" id="klea_utils.api.sessions_db.SessionStore.list_chats">
 <span class="sig-name descname"><span class="pre">list_chats</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">user_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/api/sessions_db.html#SessionStore.list_chats"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.api.sessions_db.SessionStore.list_chats" title="Link to this definition">¶</a></dt>
 <dd><p>Return all chats for <em>user_id</em>, newest first.</p>
+<p>Each row carries a <code class="docutils literal notranslate"><span class="pre">preview</span></code>: the first persisted <strong>user</strong> message,
+truncated to <a class="reference internal" href="#klea_utils.api.sessions_db.CHAT_PREVIEW_MAX_CHARS" title="klea_utils.api.sessions_db.CHAT_PREVIEW_MAX_CHARS"><code class="xref py py-data docutils literal notranslate"><span class="pre">CHAT_PREVIEW_MAX_CHARS</span></code></a>.  It gives the frontends a
+human-readable idea of what the chat is about without fetching every
+chat’s messages.  <code class="docutils literal notranslate"><span class="pre">None</span></code> when the chat has no user message yet (a
+freshly created chat).</p>
 </dd></dl>
 
 <dl class="py method">
@@ -1674,6 +1686,7 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 </ul>
 </li>
 <li><a class="reference internal" href="#klea_utils.api.sessions.create_sessions_router"><code class="docutils literal notranslate"><span class="pre">create_sessions_router()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.api.sessions_db.CHAT_PREVIEW_MAX_CHARS"><code class="docutils literal notranslate"><span class="pre">CHAT_PREVIEW_MAX_CHARS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.sessions_db.CREDENTIAL_PURGE_INTERVAL_SECONDS"><code class="docutils literal notranslate"><span class="pre">CREDENTIAL_PURGE_INTERVAL_SECONDS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.sessions_db.CREDENTIAL_TOUCH_INTERVAL_SECONDS"><code class="docutils literal notranslate"><span class="pre">CREDENTIAL_TOUCH_INTERVAL_SECONDS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.api.sessions_db.CREDENTIAL_TTL_ENV_VAR"><code class="docutils literal notranslate"><span class="pre">CREDENTIAL_TTL_ENV_VAR</span></code></a></li>

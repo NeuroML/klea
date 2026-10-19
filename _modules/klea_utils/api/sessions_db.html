@@ -355,6 +355,10 @@
 <span class="c1">#: Minimum gap between ``last_used_at`` bumps for a credential.</span>
 <span class="n">CREDENTIAL_TOUCH_INTERVAL_SECONDS</span> <span class="o">=</span> <span class="mi">60</span> <span class="o">*</span> <span class="mi">60</span>
 
+<span class="c1">#: Maximum characters of a chat's first user query returned as its list</span>
+<span class="c1">#: ``preview``.  Bounds the session-list payload and the frontends' display.</span>
+<span class="n">CHAT_PREVIEW_MAX_CHARS</span> <span class="o">=</span> <span class="mi">200</span>
+
 
 <div class="viewcode-block" id="resolve_credential_ttl_seconds">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.resolve_credential_ttl_seconds">[docs]</a>
@@ -527,11 +531,25 @@
 <div class="viewcode-block" id="SessionStore.list_chats">
 <a class="viewcode-back" href="../../../api/utils/api.html#klea_utils.api.sessions_db.SessionStore.list_chats">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">list_chats</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">user_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
-<span class="w">        </span><span class="sd">"""Return all chats for *user_id*, newest first."""</span>
+<span class="w">        </span><span class="sd">"""Return all chats for *user_id*, newest first.</span>
+
+<span class="sd">        Each row carries a ``preview``: the first persisted **user** message,</span>
+<span class="sd">        truncated to :data:`CHAT_PREVIEW_MAX_CHARS`.  It gives the frontends a</span>
+<span class="sd">        human-readable idea of what the chat is about without fetching every</span>
+<span class="sd">        chat's messages.  ``None`` when the chat has no user message yet (a</span>
+<span class="sd">        freshly created chat).</span>
+<span class="sd">        """</span>
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
             <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span>
-                <span class="s2">"SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC"</span><span class="p">,</span>
-                <span class="p">(</span><span class="n">user_id</span><span class="p">,),</span>
+                <span class="s2">"SELECT cs.*, ("</span>
+                <span class="s2">"  SELECT substr(m.content, 1, ?) FROM messages m"</span>
+                <span class="s2">"  WHERE m.user_id = cs.user_id AND m.chat_id = cs.chat_id"</span>
+                <span class="s2">"    AND m.role = 'user'"</span>
+                <span class="s2">"  ORDER BY m.created_at ASC, m.id ASC LIMIT 1"</span>
+                <span class="s2">") AS preview "</span>
+                <span class="s2">"FROM chat_sessions cs WHERE cs.user_id = ? "</span>
+                <span class="s2">"ORDER BY cs.updated_at DESC"</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">CHAT_PREVIEW_MAX_CHARS</span><span class="p">,</span> <span class="n">user_id</span><span class="p">),</span>
             <span class="p">)</span><span class="o">.</span><span class="n">fetchall</span><span class="p">()</span>
         <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="nb">dict</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">]</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"list_chats(</span><span class="si">%s</span><span class="s2">): </span><span class="si">%d</span><span class="s2"> chat(s)"</span><span class="p">,</span> <span class="n">user_id</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>

@@ -358,6 +358,10 @@
 <span class="c1">#: picker (used by ``/sessions``).  The app registers a no-argument callable.</span>
 <span class="n">OPEN_SESSIONS_SERVICE</span> <span class="o">=</span> <span class="s2">"open_sessions"</span>
 
+<span class="c1">#: ``CommandContext.services`` key for the app hook that starts a new chat</span>
+<span class="c1">#: (used by ``/new``).  The app registers a no-argument callable.</span>
+<span class="n">NEW_CHAT_SERVICE</span> <span class="o">=</span> <span class="s2">"new_chat"</span>
+
 <span class="c1">#: ``CommandContext.services`` key for the app hook that opens the model</span>
 <span class="c1">#: dialog (used by ``/model``).  The app registers a no-argument callable.</span>
 <span class="n">OPEN_MODELS_SERVICE</span> <span class="o">=</span> <span class="s2">"open_models"</span>
@@ -392,6 +396,16 @@
             <span class="n">side</span><span class="o">=</span><span class="s2">"client"</span><span class="p">,</span>
             <span class="n">while_streaming</span><span class="o">=</span><span class="s2">"block"</span><span class="p">,</span>
             <span class="n">handler</span><span class="o">=</span><span class="n">_handle_sessions</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
+        <span class="n">Command</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"new"</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="s2">"Start a new chat"</span><span class="p">,</span>
+            <span class="n">side</span><span class="o">=</span><span class="s2">"client"</span><span class="p">,</span>
+            <span class="n">klass</span><span class="o">=</span><span class="s2">"ui"</span><span class="p">,</span>
+            <span class="n">while_streaming</span><span class="o">=</span><span class="s2">"block"</span><span class="p">,</span>
+            <span class="n">handler</span><span class="o">=</span><span class="n">_handle_new</span><span class="p">,</span>
         <span class="p">)</span>
     <span class="p">)</span>
     <span class="n">registry</span><span class="o">.</span><span class="n">register</span><span class="p">(</span>
@@ -453,6 +467,20 @@
         <span class="k">return</span> <span class="n">CommandResult</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"The session picker is not available."</span><span class="p">)</span>
     <span class="n">open_sessions</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">CommandResult</span><span class="o">.</span><span class="n">ok</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_handle_new</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">CommandContext</span><span class="p">,</span> <span class="n">parsed</span><span class="p">:</span> <span class="n">ParsedCommand</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CommandResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Start a new chat via the app-provided hook.</span>
+
+<span class="sd">    Like ``/sessions``, the handler renders nothing: switching to a fresh chat</span>
+<span class="sd">    is the effect.  The hook is registered under :data:`NEW_CHAT_SERVICE`.</span>
+<span class="sd">    """</span>
+    <span class="n">new_chat</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">service</span><span class="p">(</span><span class="n">NEW_CHAT_SERVICE</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">new_chat</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">CommandResult</span><span class="o">.</span><span class="n">fail</span><span class="p">(</span><span class="s2">"Starting a new chat is not supported here."</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"command /new: starting a new chat"</span><span class="p">)</span>
+    <span class="n">new_chat</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">CommandResult</span><span class="p">()</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_handle_models</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">CommandContext</span><span class="p">,</span> <span class="n">parsed</span><span class="p">:</span> <span class="n">ParsedCommand</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CommandResult</span><span class="p">:</span>

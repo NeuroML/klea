@@ -428,7 +428,8 @@ raw structured details), grouped per query.</p>
 <p>The TUI shows one active session at a time.  <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd> (or <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>)
 opens a picker listing the server’s chats; choosing one switches to it, and
 the picker can also <strong>rename</strong> or <strong>delete</strong> a chat (deleting asks for
-confirmation first).  Switching is refused
+confirmation first).  The highlighted chat’s first-query preview is shown
+below the action buttons.  Switching is refused
 while a run is streaming.  On launch, <code class="docutils literal notranslate"><span class="pre">--continue</span></code> opens the most recently
 updated chat and <code class="docutils literal notranslate"><span class="pre">--resume</span> <span class="pre">&lt;chat_id&gt;</span></code> opens a specific one.</p>
 </section>
@@ -436,10 +437,10 @@ updated chat and <code class="docutils literal notranslate"><span class="pre">--
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading">¶</a></h2>
 <p>Type <code class="docutils literal notranslate"><span class="pre">/</span></code> in the input for a command menu.  <code class="docutils literal notranslate"><span class="pre">/help</span></code> lists the available
 commands: the TUI merges the server’s command catalogue with the commands it
-handles itself.  A client-side command (<code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code>,
-<code class="docutils literal notranslate"><span class="pre">/exit</span></code>) runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code> or
-<code class="docutils literal notranslate"><span class="pre">/access</span></code>, the agent’s operating mode and tool access level) is sent to the
-agent.  An unknown command is reported locally and never sent.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code>
+handles itself.  A client-side command (<code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/new</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/model</span></code>, <code class="docutils literal notranslate"><span class="pre">/exit</span></code>) runs locally; a server-side command (such as <code class="docutils literal notranslate"><span class="pre">/mode</span></code>
+or <code class="docutils literal notranslate"><span class="pre">/access</span></code>, the agent’s operating mode and tool access level) is sent to
+the agent.  An unknown command is reported locally and never sent.  <code class="docutils literal notranslate"><span class="pre">/exit</span></code>
 stops any active run and quits immediately (typing it is deliberate, so – unlike
 <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd> – it does not ask to confirm).  See
 <a class="reference internal" href="commands.html"><span class="doc">Session commands</span></a> for the list.</p>

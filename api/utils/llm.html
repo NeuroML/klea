@@ -377,13 +377,16 @@ Responses API when <code class="docutils literal notranslate"><span class="pre">
 
 <dl class="py data">
 <dt class="sig sig-object py" id="klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS">
-<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16384</span></span><a class="headerlink" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">32768</span></span><a class="headerlink" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
 <dd><p>Fallback max output tokens used when no node/role default provides a value.</p>
 <p>Deliberately generous: reasoning models spend most of the completion budget
 on hidden reasoning tokens, so a small cap truncates even tiny structured
-payloads.  The value is a ceiling, not a target, and is clamped per model by
-<a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit" title="klea_utils.llm.resolve_output_token_limit"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a> (catalog output limit and context
-headroom), so a large default is safe for small models too.</p>
+payloads and forces a slow grow-ladder retry.  The value is a ceiling, not a
+target, and is clamped per model by <a class="reference internal" href="#klea_utils.llm.resolve_output_token_limit" title="klea_utils.llm.resolve_output_token_limit"><code class="xref py py-func docutils literal notranslate"><span class="pre">resolve_output_token_limit()</span></code></a>
+(catalog output limit and context headroom), so a large default is safe for
+small models too.  HuggingFace is the exception: its total-budget accounting
+makes a large reservation trigger usage limits, so it keeps the smaller
+<a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS" title="klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS"><code class="xref py py-data docutils literal notranslate"><span class="pre">HUGGINGFACE_MAX_OUTPUT_TOKENS</span></code></a> default and relies on retries.</p>
 </dd></dl>
 
 <dl class="py data">
@@ -397,6 +400,15 @@ HuggingFace router’s default selection).</p>
 <dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX">
 <span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_LOCAL_SUFFIX</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'local'</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX" title="Link to this definition">¶</a></dt>
 <dd><p>Suffix selecting the local (pipeline) HuggingFace backend.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.llm.</span></span><span class="sig-name descname"><span class="pre">HUGGINGFACE_MAX_OUTPUT_TOKENS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">16384</span></span><a class="headerlink" href="#klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS" title="Link to this definition">¶</a></dt>
+<dd><p>Conservative HuggingFace default.  HuggingFace-style providers account the
+reserved output window against the context and rate-limit large
+reservations, so keep the first attempt small and let the grow-ladder
+handle a genuinely truncated completion.</p>
 </dd></dl>
 
 <dl class="py data">
@@ -1322,7 +1334,11 @@ and rate limiting).  This helper guarantees a finite, clamped value.</p>
 <code class="docutils literal notranslate"><span class="pre">max_new_tokens</span></code> / <code class="docutils literal notranslate"><span class="pre">num_predict</span></code>) already present in
 <code class="docutils literal notranslate"><span class="pre">overrides</span></code> (user/node/role value).</p></li>
 <li><p>The generic <code class="docutils literal notranslate"><span class="pre">max_output_tokens</span></code> key (provider-agnostic count).</p></li>
-<li><p>The built-in per-role fallback for <em>role</em>.</p></li>
+<li><p>The built-in per-role fallback for <em>role</em> and <em>provider</em>: non-HF
+providers get the generous <a class="reference internal" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS" title="klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></code></a>;
+HuggingFace gets the conservative
+<a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS" title="klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS"><code class="xref py py-data docutils literal notranslate"><span class="pre">HUGGINGFACE_MAX_OUTPUT_TOKENS</span></code></a> because large reservations
+count against its total budget and trigger usage limits.</p></li>
 </ol>
 <p>The resolved value is clamped to <code class="docutils literal notranslate"><span class="pre">min(value,</span> <span class="pre">catalog</span> <span class="pre">limit.output)</span></code>
 and, when the catalog exposes a context window and <em>input_chars</em> is
@@ -1346,7 +1362,7 @@ the endpoint probe fails.  The <code class="docutils literal notranslate"><span 
 <li><p><strong>overrides</strong> – The merged <code class="docutils literal notranslate"><span class="pre">configurable</span></code> dict to update in place.</p></li>
 <li><p><strong>provider</strong> – Klea provider id (<code class="docutils literal notranslate"><span class="pre">huggingface</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span></code>, …).</p></li>
 <li><p><strong>role</strong> – Model role (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;chat&quot;</span></code>), used for the built-in
-per-role fallback.</p></li>
+per-role, per-provider fallback.</p></li>
 <li><p><strong>input_chars</strong> – Character count of the prompt, to bound the output
 within the total budget.</p></li>
 <li><p><strong>use_endpoint</strong> – When True, prefer the live endpoint’s
@@ -1475,6 +1491,7 @@ still reject – the first attempt for a key always probes.</p>
 <li><a class="reference internal" href="#klea_utils.llm.DEFAULT_MAX_OUTPUT_TOKENS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_MAX_OUTPUT_TOKENS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_DEFAULT_INFERENCE_PROVIDER</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_LOCAL_SUFFIX"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_LOCAL_SUFFIX</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_MAX_OUTPUT_TOKENS"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_MAX_OUTPUT_TOKENS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_PROVIDER"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_PROVIDER</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.HUGGINGFACE_ROUTING_POLICIES"><code class="docutils literal notranslate"><span class="pre">HUGGINGFACE_ROUTING_POLICIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.llm.HuggingFaceBackend"><code class="docutils literal notranslate"><span class="pre">HuggingFaceBackend</span></code></a><ul>

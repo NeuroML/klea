@@ -529,6 +529,9 @@
     <span class="n">token_usage</span><span class="p">:</span> <span class="n">TokenUsage</span>
     <span class="c1">#: Hydrated graph session context (e.g. the agent operating mode).</span>
     <span class="n">context</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+    <span class="c1">#: Truncated first user query, from the server session list; used as a</span>
+    <span class="c1">#: human-readable hint in the session picker / chat-list tooltip.</span>
+    <span class="n">preview</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="c1">#: Pending HITL ask (ADR-0046) while the run is paused: the interrupt</span>
     <span class="c1">#: ``data`` (``kind``, ``question``/``questions``, ``interrupt_id`` and a</span>
     <span class="c1">#: ``hitl_response_schema`` when the node supplied one).  Cleared when the</span>
@@ -714,6 +717,25 @@
     <span class="n">items</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">":"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">],</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">chats</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">prefix</span><span class="p">)]</span>
     <span class="n">items</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="ow">not</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">"pinned"</span><span class="p">],</span> <span class="o">-</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">"created"</span><span class="p">]))</span>
     <span class="k">return</span> <span class="n">items</span></div>
+
+
+
+<div class="viewcode-block" id="chat_preview_text">
+<a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.state.chat_preview_text">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">chat_preview_text</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">120</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a single-line, truncated preview for a chat list or tooltip.</span>
+
+<span class="sd">    Collapses whitespace (a query may contain newlines) and appends an</span>
+<span class="sd">    ellipsis when the text exceeds *max_chars*.</span>
+
+<span class="sd">    :param text: The raw preview (a first user query), or ``None``.</span>
+<span class="sd">    :param max_chars: Maximum display length, including the ellipsis.</span>
+<span class="sd">    :returns: The normalized preview, or ``""`` when there is none.</span>
+<span class="sd">    """</span>
+    <span class="n">collapsed</span> <span class="o">=</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">text</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">collapsed</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">collapsed</span>
+    <span class="k">return</span> <span class="n">collapsed</span><span class="p">[:</span> <span class="n">max_chars</span> <span class="o">-</span> <span class="mi">3</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">"..."</span></div>
 
 </pre></div>
         </article>

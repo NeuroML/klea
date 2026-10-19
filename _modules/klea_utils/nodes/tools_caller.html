@@ -545,6 +545,8 @@
 <span class="sd">        """</span>
         <span class="n">allowed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_now</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span><span class="p">)</span>
         <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Path permission: </span><span class="si">{</span><span class="n">allowed</span><span class="si">}</span><span class="s2"> allowed, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">denied</span><span class="p">)</span><span class="si">}</span><span class="s2"> denied"</span>
+        <span class="k">if</span> <span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="p">:</span>
+            <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="p">)</span><span class="si">}</span><span class="s2"> not a path"</span>
         <span class="n">details</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">"requests"</span><span class="p">:</span> <span class="p">[</span>
                 <span class="p">{</span>

@@ -349,6 +349,7 @@
 <span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.commands</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">EXIT_APP_SERVICE</span><span class="p">,</span>
+    <span class="n">NEW_CHAT_SERVICE</span><span class="p">,</span>
     <span class="n">OPEN_MODELS_SERVICE</span><span class="p">,</span>
     <span class="n">OPEN_SESSIONS_SERVICE</span><span class="p">,</span>
     <span class="n">TUI_CAPABILITIES</span><span class="p">,</span>
@@ -973,6 +974,7 @@
                 <span class="n">TUI_CAPABILITIES</span><span class="p">,</span>
                 <span class="n">services</span><span class="o">=</span><span class="p">{</span>
                     <span class="n">OPEN_SESSIONS_SERVICE</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_open_sessions_hook</span><span class="p">,</span>
+                    <span class="n">NEW_CHAT_SERVICE</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_new_chat_hook</span><span class="p">,</span>
                     <span class="n">OPEN_MODELS_SERVICE</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_open_models_hook</span><span class="p">,</span>
                     <span class="n">EXIT_APP_SERVICE</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exit_hook</span><span class="p">,</span>
                 <span class="p">},</span>
@@ -1017,6 +1019,10 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">_open_sessions_hook</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Command-service hook for ``/sessions`` (schedules the picker)."""</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">run_worker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">action_open_sessions</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_new_chat_hook</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Command-service hook for ``/new`` (schedules a fresh chat)."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_worker</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_new_chat</span><span class="p">())</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_open_models_hook</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Command-service hook for ``/model`` (schedules the dialog)."""</span>
@@ -1293,11 +1299,23 @@
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">action_open_sessions</span><span class="p">()</span>
 
     <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_new_chat</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Activate a fresh, empty chat."""</span>
-        <span class="c1"># Lazy: coolname only mints the id.</span>
+<span class="w">        </span><span class="sd">"""Activate a fresh, empty chat and persist it on the server."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_streaming</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span>
+                <span class="s2">"Stop the current run before starting a new chat."</span><span class="p">,</span>
+                <span class="n">severity</span><span class="o">=</span><span class="s2">"warning"</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+        <span class="c1"># Lazy: coolname mints the id; the server client only for a live server.</span>
         <span class="kn">import</span><span class="w"> </span><span class="nn">coolname</span>
 
-        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_chat</span><span class="p">(</span><span class="n">coolname</span><span class="o">.</span><span class="n">generate_slug</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">hydrate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_chat_on_server</span>
+
+        <span class="n">chat_id</span> <span class="o">=</span> <span class="n">coolname</span><span class="o">.</span><span class="n">generate_slug</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">load_chat</span><span class="p">(</span><span class="n">chat_id</span><span class="p">,</span> <span class="n">hydrate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="c1"># Persist immediately (parity with the web's ``/new``), so the fresh</span>
+        <span class="c1"># chat appears in the session picker before the first query.</span>
+        <span class="k">await</span> <span class="n">create_chat_on_server</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_open_hitl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Mount the inline HITL panel for *ask* (review / input / permission).</span>

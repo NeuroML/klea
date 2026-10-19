@@ -327,7 +327,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cached_property</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textwrap</span><span class="w"> </span><span class="kn">import</span> <span class="n">dedent</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputParserException</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
@@ -439,7 +439,7 @@
 <span class="c1">#: :meth:`BaseLLMNode._jump_output_target` raises the ceiling to the</span>
 <span class="c1">#: endpoint's remaining context.  It is still clamped to the model's</span>
 <span class="c1">#: catalog output limit / total budget by ``resolve_output_token_limit``.</span>
-<span class="n">MAX_OUTPUT_TOKENS_CEILING</span> <span class="o">=</span> <span class="mi">32768</span>
+<span class="n">MAX_OUTPUT_TOKENS_CEILING</span> <span class="o">=</span> <span class="mi">65536</span>
 
 <span class="c1">#: Floor for the reserved output window when shrinking it on overflow.</span>
 <span class="n">MIN_OUTPUT_TOKENS</span> <span class="o">=</span> <span class="mi">64</span>
@@ -566,6 +566,12 @@
 <span class="sd">    via the setter if the defaults (lowercase class name / sibling ``prompts/``)</span>
 <span class="sd">    are not appropriate.</span>
 <span class="sd">    """</span>
+
+    <span class="c1">#: Append the effective model identity to the system prompt.  Opt in on</span>
+    <span class="c1">#: nodes that compose a user-facing reply, so the model can answer "which</span>
+    <span class="c1">#: model are you running" with the model that actually produced the reply.</span>
+    <span class="c1">#: Off by default: most nodes never need it and it costs prompt tokens.</span>
+    <span class="n">include_model_identity</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -1418,6 +1424,28 @@
 <span class="s2">            """</span>
         <span class="p">)</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_effective_model_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the model string this node will invoke.</span>
+
+<span class="sd">        Mirrors the model-selection layers of :meth:`_build_invoke_config`</span>
+<span class="sd">        (frozen node default &gt; per-run role override &gt; graph/env default) so a</span>
+<span class="sd">        node can report the model that will actually produce its output without</span>
+<span class="sd">        building the full invoke config.  Reads the LangGraph runtime context</span>
+<span class="sd">        when available and tolerates its absence (unit tests).  Never reads</span>
+<span class="sd">        credentials.</span>
+
+<span class="sd">        :returns: The effective model string (provider-prefixed when known), or</span>
+<span class="sd">            ``""`` when no model is configured.</span>
+<span class="sd">        """</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_defaults</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">model</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">overrides</span> <span class="o">=</span> <span class="n">model_overrides_from_context</span><span class="p">(</span><span class="n">get_runtime</span><span class="p">()</span><span class="o">.</span><span class="n">context</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - no run context (e.g. unit tests)</span>
+                <span class="n">overrides</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">overrides</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model_role</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">model</span> <span class="ow">or</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_llm_entry</span><span class="p">,</span> <span class="s2">"model_name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_system_prompt</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">]</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">:</span>
@@ -1438,6 +1466,11 @@
 
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
             <span class="n">system_prompt</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_output_schema_prompt</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_model_identity</span><span class="p">:</span>
+            <span class="n">model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_effective_model_name</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">model</span><span class="p">:</span>
+                <span class="n">system_prompt</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n\n</span><span class="s2">Model in use: </span><span class="si">{</span><span class="n">model</span><span class="si">}</span><span class="s2">"</span>
 
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">memory</span><span class="p">:</span>
             <span class="n">memory_addition</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_memory_addition</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>

@@ -430,6 +430,13 @@ next turn starts.</p>
 </dd></dl>
 
 <dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.ui.state.ChatData.preview">
+<span class="sig-name descname"><span class="pre">preview</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.NotRequired" title="(in Python v3.15)"><span class="pre">NotRequired</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#klea_utils.ui.state.ChatData.preview" title="Link to this definition">¶</a></dt>
+<dd><p>Truncated first user query, from the server session list; used as a
+human-readable hint in the session picker / chat-list tooltip.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="klea_utils.ui.state.ChatData.state_sections">
 <span class="sig-name descname"><span class="pre">state_sections</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#klea_utils.ui.state.StateSection" title="klea_utils.ui.state.StateSection"><span class="pre">StateSection</span></a><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#klea_utils.ui.state.ChatData.state_sections" title="Link to this definition">¶</a></dt>
 <dd><p>Status-pane sections, keyed by node label / section key.</p>
@@ -584,6 +591,25 @@ currently shown chat is marked with the theme’s primary colour.</p>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
 <dd class="field-even"><p>The <a class="reference internal" href="#klea_utils.ui.state.ChatIndicator" title="klea_utils.ui.state.ChatIndicator"><code class="xref py py-class docutils literal notranslate"><span class="pre">ChatIndicator</span></code></a> to render.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.ui.state.chat_preview_text">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.ui.state.</span></span><span class="sig-name descname"><span class="pre">chat_preview_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_chars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">120</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/state.html#chat_preview_text"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.state.chat_preview_text" title="Link to this definition">¶</a></dt>
+<dd><p>Return a single-line, truncated preview for a chat list or tooltip.</p>
+<p>Collapses whitespace (a query may contain newlines) and appends an
+ellipsis when the text exceeds <em>max_chars</em>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>text</strong> – The raw preview (a first user query), or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><strong>max_chars</strong> – Maximum display length, including the ellipsis.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The normalized preview, or <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> when there is none.</p>
 </dd>
 </dl>
 </dd></dl>
@@ -2677,6 +2703,7 @@ which turns the wrapped URLs into clickable anchors.</p>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.model_info"><code class="docutils literal notranslate"><span class="pre">ChatData.model_info</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.name"><code class="docutils literal notranslate"><span class="pre">ChatData.name</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.pinned"><code class="docutils literal notranslate"><span class="pre">ChatData.pinned</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.state.ChatData.preview"><code class="docutils literal notranslate"><span class="pre">ChatData.preview</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.state_sections"><code class="docutils literal notranslate"><span class="pre">ChatData.state_sections</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.token_usage"><code class="docutils literal notranslate"><span class="pre">ChatData.token_usage</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ChatData.turn_status"><code class="docutils literal notranslate"><span class="pre">ChatData.turn_status</span></code></a></li>
@@ -2695,6 +2722,7 @@ which turns the wrapped URLs into clickable anchors.</p>
 <li><a class="reference internal" href="#klea_utils.ui.state.TokenUsage"><code class="docutils literal notranslate"><span class="pre">TokenUsage</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.TurnStatus"><code class="docutils literal notranslate"><span class="pre">TurnStatus</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.chat_indicator"><code class="docutils literal notranslate"><span class="pre">chat_indicator()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.ui.state.chat_preview_text"><code class="docutils literal notranslate"><span class="pre">chat_preview_text()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.ensure_chat"><code class="docutils literal notranslate"><span class="pre">ensure_chat()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.get_chats_sorted"><code class="docutils literal notranslate"><span class="pre">get_chats_sorted()</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.ui.state.idle_turn_status"><code class="docutils literal notranslate"><span class="pre">idle_turn_status()</span></code></a></li>
