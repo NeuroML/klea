@@ -73,6 +73,10 @@ client, and is general enough to fix any local tool that takes path arguments
   paths and URLs are left untouched.
 * **Discovery.** `InitGraphState` passes the effective root to
   `refresh_project_files`, so `AGENTS.md`/`CLAUDE.md` is read from the root.
+  The refresh reconciles the instruction file to the current root: a stale item
+  from a previous root (a different file name, or a root with no instruction
+  file) is dropped rather than kept.  `/cwd` reconciles discovery immediately,
+  so the previous root's `AGENTS.md` does not persist until the next turn.
 
 ### Why not MCP roots
 

@@ -129,8 +129,10 @@ and the menu (`CommandRegistry.available`).
 Planned server commands (present in code as `implemented=False`, not
 published yet): `/file`, `/webfetch`, `/run`.
 `/cwd` sets the session project root (the file tools' boundary and default
-directory, ADR-0053); it must be an existing directory.  `/compact` is
-registered only when conversation memory is enabled (it
+directory, ADR-0053); it must be an existing directory.  Setting it also
+reconciles discovery (`discovery_persistent`) against the new root in the same
+turn, so the previous root's `AGENTS.md`/`CLAUDE.md` does not persist.
+`/compact` is registered only when conversation memory is enabled (it
 hands off to the compaction node); it forces a summarisation past the automatic
 threshold and reports the outcome in the inspection pane.  `/init` is a
 workflow command that hands off *back into the normal path* with a

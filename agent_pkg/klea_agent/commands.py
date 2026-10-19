@@ -29,8 +29,9 @@ from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
+from klea_agent.discovery import refresh_project_files
 from klea_agent.nodes.mode_router import decide_mode
-from klea_agent.schemas import Mode
+from klea_agent.schemas import Discovery, Mode
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,11 @@ def _handle_cwd(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     directory, and writes it to ``state.project_root``.  The root is the file
     tools' boundary and default directory.
 
+    Setting a root also reconciles discovery against it immediately, so the
+    previous root's ``AGENTS.md``/``CLAUDE.md`` does not persist in the session
+    (otherwise it would only be refreshed on the next turn's
+    ``InitGraphState``).
+
     :param state: The graph state.
     :param parsed: The parsed command.
     :returns: The command result.
@@ -251,10 +257,14 @@ def _handle_cwd(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     if not resolved.is_dir():
         logger.warning(f"command /cwd: not a directory {resolved}")
         return GraphCommandResult(message=f"Not a directory: {resolved}.")
+    # Reconcile discovery with the new root now, so a stale instruction file
+    # from the previous root is dropped in the same turn.
+    current_discovery = getattr(state, "discovery_persistent", None) or Discovery()
+    discovery = refresh_project_files(current_discovery, resolved)
     message = f"Project root set to {resolved}."
     logger.debug(f"command /cwd: set project_root={resolved}")
     return GraphCommandResult(
-        updates={"project_root": str(resolved)},
+        updates={"project_root": str(resolved), "discovery_persistent": discovery},
         message=message,
         summary=message,
         details={"project_root": str(resolved)},

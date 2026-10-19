@@ -60,6 +60,38 @@ def test_refresh_no_file_returns_unchanged(tmp_path):
     assert refresh_project_files(discovery, tmp_path) is discovery
 
 
+def test_refresh_no_file_clears_previous_root(tmp_path):
+    """A root with no instruction file drops the previous root's item."""
+    first = tmp_path / "first"
+    first.mkdir()
+    (first / "AGENTS.md").write_text("first rules")
+    discovery = refresh_project_files(Discovery(), first)
+    assert discovery.items
+
+    second = tmp_path / "second"
+    second.mkdir()
+    cleared = refresh_project_files(discovery, second)
+
+    assert cleared is not discovery
+    assert cleared.items == []
+    assert cleared.timestamp == 0
+
+
+def test_refresh_switching_source_drops_stale_item(tmp_path):
+    """The current root's file (CLAUDE.md) replaces a stale AGENTS.md item."""
+    (tmp_path / "CLAUDE.md").write_text("claude rules")
+    discovery = Discovery(
+        items=[DiscoveryItem(source="AGENTS.md", content="old rules")],
+        timestamp=123,
+    )
+
+    refreshed = refresh_project_files(discovery, tmp_path)
+
+    assert [(i.source, i.content) for i in refreshed.items] == [
+        ("CLAUDE.md", "claude rules")
+    ]
+
+
 def test_refresh_skips_when_mtime_unchanged(tmp_path):
     (tmp_path / "AGENTS.md").write_text("v1")
     discovery = refresh_project_files(Discovery(), tmp_path)

@@ -15,7 +15,7 @@ from typing import Any, cast
 import pytest
 from klea_agent.commands import _INIT_PROMPT, build_agent_commands
 from klea_agent.klea_agent import KleaAgent
-from klea_agent.schemas import KleaAgentState
+from klea_agent.schemas import Discovery, DiscoveryItem, KleaAgentState
 from klea_utils.commands.common import Command, CommandRegistry, Subcommand
 from klea_utils.commands.graph import (
     GraphCommandResult,
@@ -207,6 +207,41 @@ class TestCwdHandler:
         updates = await node.execute(_state(f"/cwd {file}"))
         assert "Not a directory" in updates["message_for_user"]
         assert "project_root" not in updates
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="shlex drops backslashes in Windows paths (#204)",
+    )
+    async def test_set_directory_refreshes_discovery(self, tmp_path):
+        """Setting the root loads that root's AGENTS.md immediately."""
+        target = tmp_path / "proj"
+        target.mkdir()
+        (target / "AGENTS.md").write_text("proj rules")
+        node = _agent_node([])
+        updates = await node.execute(_state(f"/cwd {target}"))
+
+        items = updates["discovery_persistent"].items
+        assert [(i.source, i.content) for i in items] == [("AGENTS.md", "proj rules")]
+
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="shlex drops backslashes in Windows paths (#204)",
+    )
+    async def test_set_directory_clears_stale_discovery(self, tmp_path):
+        """A new root with no instruction file drops the previous one."""
+        target = tmp_path / "proj"
+        target.mkdir()
+        state = KleaAgentState(
+            query=f"/cwd {target}",
+            messages=[HumanMessage(content=f"/cwd {target}")],
+            discovery_persistent=Discovery(
+                items=[DiscoveryItem(source="AGENTS.md", content="old rules")]
+            ),
+        )
+        node = _agent_node([])
+        updates = await node.execute(state)
+
+        assert updates["discovery_persistent"].items == []
 
     async def test_relative_resolves_against_current_root(self, tmp_path):
         base = tmp_path / "base"

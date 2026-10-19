@@ -185,6 +185,7 @@
 
 ### Fixed
 
+- `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).
 - A conversational turn that the entry router classified as a task is now handed back to the router instead of being answered by the answer-composer (which has no conversation history): the Planner returns a new `chat` status, distinct from `no_plan_required`, and the router is forced to reply as chat.
 - The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.
 - Answer synthesis reports the correct success/failure outcome and no longer duplicates the failure-reason label.
