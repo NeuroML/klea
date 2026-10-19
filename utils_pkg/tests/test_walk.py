@@ -116,7 +116,9 @@ def test_iter_files_file_root_raises(tmp_path):
         list(iter_files(a_file, project_root=str(tmp_path)))
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="permission bits ignored as root")
+@pytest.mark.skipif(
+    getattr(os, "geteuid", lambda: -1)() == 0, reason="permission bits ignored as root"
+)
 def test_iter_files_unreadable_subdir_is_skipped(tmp_path):
     (tmp_path / "top.txt").write_text("top")
     locked = tmp_path / "locked"
