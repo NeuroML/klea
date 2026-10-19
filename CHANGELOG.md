@@ -6,6 +6,7 @@
 
 ### Added
 
+- User-facing answer nodes report the effective model that produced the reply in their system prompt, so questions like "which model are you running" are answerable: `AnswerFromContext` (RAG), the shared `AnswerGeneral`, and the agent's `RouteDecision`/`AnswerFromResults`.
 - Terminal UI: `klea tui` / `klea-rag tui` launch a full-screen Textual client over the same backend as the web UI. It renders a MIME-aware transcript with an inspector view, lists / switches / renames / deletes sessions, edits per-role models and provider credentials, presents HITL review / input / permission modals, and blocks a send until the required models and API keys are set (ADR-0050). Requires the new optional `tui` extra.
 - The Planner can return a `no_plan_required` plan status when no execution steps are needed because the goal is already satisfiable from the available information (for example session artefacts from earlier tasks); the run then completes and the answer-composer writes the reply, instead of the empty plan being coerced to `unplannable` (a failure).
 - Bundled read-only `search_papers` tool: academic paper search by keywords, returning title, authors, year, journal, abstract, DOI, link and a `peer_reviewed` flag. Peer reviewed sources come first: OpenAlex and Crossref (plus Semantic Scholar when `SEMANTIC_SCHOLAR_API_KEY` is set) are rotated per call with fallback on rate limits, errors or results without abstracts, and `domain: "life-sciences"` searches Europe PMC first, then PubMed (NCBI E-utilities) as its fallback. Preprints (arXiv, and Europe PMC preprints such as bioRxiv) are only searched with `preprints: true` and are listed after the peer reviewed results.
@@ -153,6 +154,7 @@
 
 ### Added
 
+- The agent's user-facing answer nodes (`RouteDecision` for inline chat, `AnswerFromResults` for task answers) report the effective model that produced the reply, so questions like "which model are you running" are answerable.
 - Agent terminal UI (`klea tui`): a full-screen Textual client with the operating-mode and tool-access selectors in the status panel (choosing one sends `/mode` or `/access`), per-role model and credential dialogs, and the HITL / permission modals (ADR-0030/0037/0050).
 - Agent operating modes (Scientific / General) with `Mode{requested,resolved,note}`, mode router, CLI `--mode` and web selector/badge (ADR-0030).
 - App-owned web mode UI (`ui/web/mode_ui.py`, `page.py`, `app.py`) and `GET /chat/{user}/{chat}/context` hydration on the agent side.

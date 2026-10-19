@@ -162,3 +162,21 @@ separately).
    `self._optional_section(...)`.
 4. Tests: render with the optional fields empty and assert their headings are
    absent; render with content and assert they appear.
+
+## Opt-in model identity
+
+A node that composes a **user-facing reply** can set
+`include_model_identity = True` (a `BaseLLMNode` class attribute, default
+`False`).  The base then appends one line to the system prompt:
+
+```
+Model in use: <effective model>
+```
+
+The effective model is resolved by `BaseLLMNode._effective_model_name()`
+(frozen node default > per-run role override > graph/env default), so the
+model can answer "which model are you running" with the model that actually
+produced the reply.  This is a factual line only -- no prompt rule is needed,
+and the block is omitted when no model is configured.  Enabled on the agent's
+`RouteDecision`/`AnswerFromResults`, the RAG `AnswerFromContext`, and the
+shared `AnswerGeneral` (the user-facing reply nodes).

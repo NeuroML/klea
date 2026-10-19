@@ -33,6 +33,9 @@ class FallbackConfig(BaseModel):
 
 class AnswerGeneral(BaseLLMNode[BaseModel, BaseModel]):
     model_role = "chat"
+    #: Report the model that produced the reply, so "which model are you
+    #: running" is answerable.
+    include_model_identity = True
     #: Free-text answer node: its token deltas are meaningful to stream.
     stream_tokens = True
     model_defaults: ClassVar[dict[str, Any]] = {

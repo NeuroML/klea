@@ -21,7 +21,7 @@ from collections.abc import Awaitable, Callable
 from functools import cached_property
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -258,6 +258,12 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
     via the setter if the defaults (lowercase class name / sibling ``prompts/``)
     are not appropriate.
     """
+
+    #: Append the effective model identity to the system prompt.  Opt in on
+    #: nodes that compose a user-facing reply, so the model can answer "which
+    #: model are you running" with the model that actually produced the reply.
+    #: Off by default: most nodes never need it and it costs prompt tokens.
+    include_model_identity: ClassVar[bool] = False
 
     def __init__(
         self,
@@ -1107,6 +1113,28 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             """
         )
 
+    def _effective_model_name(self) -> str:
+        """Return the model string this node will invoke.
+
+        Mirrors the model-selection layers of :meth:`_build_invoke_config`
+        (frozen node default > per-run role override > graph/env default) so a
+        node can report the model that will actually produce its output without
+        building the full invoke config.  Reads the LangGraph runtime context
+        when available and tolerates its absence (unit tests).  Never reads
+        credentials.
+
+        :returns: The effective model string (provider-prefixed when known), or
+            ``""`` when no model is configured.
+        """
+        model = str(self.model_defaults.get("model", "") or "")
+        if not model:
+            try:
+                overrides = model_overrides_from_context(get_runtime().context)
+            except Exception:  # noqa: BLE001 - no run context (e.g. unit tests)
+                overrides = {}
+            model = str(overrides.get(self.model_role, {}).get("model", "") or "")
+        return model or str(getattr(self._llm_entry, "model_name", "") or "")
+
     def _get_system_prompt(
         self, state: TState, ctx: LLMNodeContext[TOutput]
     ) -> str | list:
@@ -1127,6 +1155,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
 
         if ctx.output_schema:
             system_prompt += self._format_output_schema_prompt(ctx.output_schema)
+
+        if self.include_model_identity:
+            model = self._effective_model_name()
+            if model:
+                system_prompt += f"\n\nModel in use: {model}"
 
         if self.memory:
             memory_addition = self._get_memory_addition(state)
