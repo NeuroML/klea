@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur at gmail DOT com>
 """
 
 import logging
+import sys
 from typing import Any, cast
 
 import pytest
@@ -186,6 +187,11 @@ class TestCwdHandler:
         updates = await node.execute(_state("/cwd"))
         assert updates["message_for_user"].startswith("Project root:")
 
+    # https://github.com/NeuroML/klea/issues/204
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="shlex drops backslashes in Windows paths (#204)",
+    )
     async def test_set_directory(self, tmp_path):
         target = tmp_path / "proj"
         target.mkdir()
