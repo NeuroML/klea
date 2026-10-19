@@ -12,6 +12,7 @@ import logging
 
 from klea_rag.nodes.answer_from_context import AnswerFromContext, AnswerSchema
 from klea_rag.schemas import RAGState
+from klea_utils.llm import LLMModel
 from klea_utils.nodes.base import EMPTY_RESULT_FALLBACK
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
@@ -49,3 +50,15 @@ def test_empty_reference_material_renders_sentinel():
     """An empty retrieval renders a sentinel, not an empty context label."""
     variables = _node()._get_prompt_variables(RAGState(query="q"), LLMNodeContext())
     assert variables["reference_material"] == "(no reference material)"
+
+
+def test_system_prompt_reports_model_identity():
+    """The RAG answer node can answer which model is replying."""
+    node = AnswerFromContext(
+        logger=logging.getLogger("test_answer_from_context"),
+        label="Answering",
+        llm_models={"chat": LLMModel(instance=None, model_name="openai:gpt-4o")},
+    )
+    prompt = node._get_system_prompt(RAGState(query="q"), LLMNodeContext())
+    assert isinstance(prompt, str)
+    assert "Model in use: openai:gpt-4o" in prompt
