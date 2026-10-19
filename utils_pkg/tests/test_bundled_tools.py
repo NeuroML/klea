@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -554,7 +555,7 @@ def test_list_files_basic(tmp_path):
     logger.debug(f"{len(result['files']) = }")
     logger.debug(f"{result['error'] = }")
 
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     assert "a.py" in names
     assert "b.md" in names
     assert "sub" in names
@@ -570,7 +571,7 @@ def test_list_files_defaults_to_cwd(tmp_path, monkeypatch):
     result = list_files()
 
     logger.debug(f"{result = }")
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     assert "a.txt" in names
     assert result["error"] == ""
 
@@ -589,7 +590,7 @@ def test_list_files_recursive(tmp_path):
     logger.debug(f"{len(result['files']) = }")
     logger.debug(f"{result['error'] = }")
 
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     assert "c.py" in names
     assert result["error"] == ""
 
@@ -609,7 +610,7 @@ def test_list_files_unfiltered_fallback(tmp_path):
         project_root=str(tmp_path),
     )
 
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"{names = }\n{result['note'] = }")
     assert names == {"README.md", "pyproject.toml", "main.py"}
     assert result["note"] != ""
@@ -636,7 +637,7 @@ def test_list_files_include_flags_fallback(tmp_path):
         project_root=str(tmp_path),
     )
 
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"{names = }\n{result['note'] = }")
     assert names == {"f.py"}
     assert result["note"] != ""
@@ -670,7 +671,7 @@ def test_list_files_max_depth(tmp_path):
         max_depth=1,
         project_root=str(tmp_path),
     )
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"max_depth=1: {names = }")
     # The *.py filter matches nothing at depth 1, so list_files falls back to
     # the unfiltered listing: the directory 'a' is visible, but no .py file
@@ -685,7 +686,7 @@ def test_list_files_max_depth(tmp_path):
         max_depth=2,
         project_root=str(tmp_path),
     )
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"max_depth=2: {names = }")
     assert "top.py" in names
     assert "c.py" not in names
@@ -697,7 +698,7 @@ def test_list_files_max_depth(tmp_path):
         max_depth=3,
         project_root=str(tmp_path),
     )
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"max_depth=3: {names = }")
     assert "top.py" in names
     assert "c.py" in names
@@ -713,7 +714,7 @@ def test_list_files_include_directories(tmp_path):
         include_directories=False,
         project_root=str(tmp_path),
     )
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"{names = }")
     assert "f.py" in names
     assert "sub" not in names
@@ -729,7 +730,7 @@ def test_list_files_include_files(tmp_path):
         include_files=False,
         project_root=str(tmp_path),
     )
-    names = {f["path"].split("/")[-1] for f in result["files"]}
+    names = {Path(f["path"]).name for f in result["files"]}
     logger.debug(f"{names = }")
     assert "sub" in names
     assert "f.py" not in names
@@ -744,7 +745,7 @@ def test_list_files_symlink_not_recursed(tmp_path):
         path=str(tmp_path), pattern="*", recursive=True, project_root=str(tmp_path)
     )
     logger.debug(f"{result['files'] = }")
-    by_path = {f["path"].split("/")[-1]: f for f in result["files"]}
+    by_path = {Path(f["path"]).name: f for f in result["files"]}
     assert by_path["link"]["type"] == "link"
     assert by_path["real"]["type"] == "directory"
     assert "target.py" in by_path  # reached via the real dir, not the link
@@ -753,7 +754,7 @@ def test_list_files_symlink_not_recursed(tmp_path):
     result = list_files(
         path=str(tmp_path), pattern="*", include_files=False, project_root=str(tmp_path)
     )
-    by_path = {f["path"].split("/")[-1]: f for f in result["files"]}
+    by_path = {Path(f["path"]).name: f for f in result["files"]}
     logger.debug(f"{by_path = }")
     assert by_path["link"]["type"] == "link"
     assert by_path["real"]["type"] == "directory"

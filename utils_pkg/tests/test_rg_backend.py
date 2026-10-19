@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 import importlib.metadata
 import json
 import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -151,9 +152,9 @@ with open(fixture) as fh:
     spec = json.load(fh)
 if spec.get("sleep"):
     time.sleep(spec["sleep"])
-sys.stderr.write(spec.get("stderr", ""))
+sys.stderr.buffer.write(spec.get("stderr", "").encode())
 for line in spec.get("stdout", []):
-    sys.stdout.write(line + "\\n")
+    sys.stdout.buffer.write((line + "\\n").encode())
 sys.exit(spec.get("exit", 0))
 """
 
@@ -162,7 +163,12 @@ def _write_fake_rg(tmp_path: Path) -> Path:
     script = tmp_path / "fake_rg"
     script.write_text(_FAKE_RG)
     script.chmod(0o755)
-    return script
+    if sys.platform != "win32":
+        return script
+    # Windows cannot exec a shebang script; a .bat wrapper can be started.
+    wrapper = tmp_path / "fake_rg.bat"
+    wrapper.write_text(f'@echo off\r\n"{sys.executable}" "{script}" %*\r\n')
+    return wrapper
 
 
 def _fixture(tmp_path: Path, **spec) -> Path:

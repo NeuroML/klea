@@ -128,9 +128,12 @@ class TestSpawnServer(unittest.TestCase):
         self.mock_monotonic = mock.patch("klea_utils.api.server.time.monotonic").start()
         # Default monotonic progression for deadline loop
         self.mock_monotonic.side_effect = lambda: 0  # overridden per-test as needed
-        self.mock_killpg = mock.patch("klea_utils.api.server.os.killpg").start()
+        # killpg/getpgid are POSIX-only; create them so Windows can patch too.
+        self.mock_killpg = mock.patch(
+            "klea_utils.api.server.os.killpg", create=True
+        ).start()
         self.mock_getpgid = mock.patch(
-            "klea_utils.api.server.os.getpgid", return_value=12345
+            "klea_utils.api.server.os.getpgid", return_value=12345, create=True
         ).start()
 
     def _proc(self, poll_result=None, returncode=None):

@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import gc
 import json
 import logging
 import pickle
@@ -625,6 +626,15 @@ class TestIngestion:
         self.logger = logging.getLogger("test_ingestion")
 
     def teardown_method(self):
+        # Chroma keeps its index files open, and Windows cannot delete open
+        # files: stop the cached Chroma systems before removing the store.
+        try:
+            from chromadb.api.shared_system_client import SharedSystemClient
+        except ImportError:
+            pass
+        else:
+            SharedSystemClient.clear_system_cache()
+        gc.collect()
         self.tmpdir.cleanup()
 
     def _use_in_process_workers(self, monkeypatch):

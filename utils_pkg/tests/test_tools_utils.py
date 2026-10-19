@@ -13,7 +13,6 @@ import logging
 from fastmcp.client.client import CallToolResult
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from mcp.types import EmbeddedResource, TextContent, TextResourceContents
-from pydantic.networks import AnyUrl
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +115,7 @@ def test_textualize_tool_results_multiple_blocks():
     embedded = EmbeddedResource(
         type="resource",
         resource=TextResourceContents(
-            uri=AnyUrl("file:///cache/42.xml"),
+            uri="file:///cache/42.xml",
             mimeType="application/xml",
             text="<cell>Purkinje</cell>",
         ),

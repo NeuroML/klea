@@ -246,7 +246,8 @@ def test_detect_file_uri_without_authority(tmp_path):
         project_root=root,
     )
     assert len(requests) == 1
-    assert requests[0].directory == str(Path("/etc").resolve())
+    # A drive-less "/etc" resolves on the project's drive on Windows.
+    assert requests[0].directory == str((Path(root.anchor) / "etc").resolve())
 
 
 def test_detect_http_url_still_skipped(tmp_path):

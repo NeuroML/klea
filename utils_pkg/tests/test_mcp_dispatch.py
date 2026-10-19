@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import asyncio
 import logging
+import os
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.dispatch import (
@@ -512,7 +513,7 @@ async def test_dispatch_timeout_becomes_error():
 def test_resource_key_normalises_checkpath_values():
     infos = {"edit_file": ToolInfo(checkpaths=["path"], destructive=True)}
     call = ToolCallSchema(tool="edit_file", args={"path": "./a/b.txt"})
-    assert resource_key(call, infos) == frozenset({"a/b.txt"})
+    assert resource_key(call, infos) == frozenset({os.path.normpath("a/b.txt")})
 
 
 def test_resource_key_empty_without_identifiable_resource():
