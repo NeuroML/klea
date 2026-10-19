@@ -44,7 +44,7 @@ def test_is_binary():
 
 def test_read_whole_text_basic(tmp_path):
     f = tmp_path / "a.txt"
-    f.write_text("hello\nworld\n")
+    f.write_bytes(b"hello\nworld\n")
 
     doc = file_ops.read_whole_text(f)
 
@@ -126,10 +126,12 @@ def test_write_whole_text_preserves_existing_mode(tmp_path):
     target = tmp_path / "a.sh"
     target.write_text("old")
     target.chmod(0o750)
+    # Windows only keeps the read-only bit, so compare with what chmod left.
+    before = stat.S_IMODE(target.stat().st_mode)
 
     file_ops.write_whole_text(target, "new\n")
 
-    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    assert stat.S_IMODE(target.stat().st_mode) == before
     assert target.read_text() == "new\n"
 
 

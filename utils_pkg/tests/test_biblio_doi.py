@@ -253,7 +253,7 @@ def test_resolve_writes_cache(tmp_path):
 
     cache_file = tmp_path / "doi-cache.json"
     assert cache_file.is_file()
-    cache = json.loads(cache_file.read_text())
+    cache = json.loads(cache_file.read_text(encoding="utf-8"))
     assert cache["10.1234/abc.5678"]["title"] == "A Crossref Sample Paper"
 
 
@@ -278,7 +278,7 @@ def test_cache_written_as_literal_utf8(tmp_path):
     finally:
         resolver.close()
 
-    text = (tmp_path / "doi-cache.json").read_text()
+    text = (tmp_path / "doi-cache.json").read_text(encoding="utf-8")
     assert "B\u00f3ris Marin" in text
     assert "\\u00f3" not in text
     cache = json.loads(text)
@@ -300,7 +300,7 @@ def test_cache_save_is_atomic_no_tmp_left(tmp_path):
     cache_file = tmp_path / "doi-cache.json"
     assert cache_file.is_file()
     assert list(tmp_path.glob("*.json.tmp")) == []
-    cache = json.loads(cache_file.read_text())
+    cache = json.loads(cache_file.read_text(encoding="utf-8"))
     assert cache["10.1234/abc.5678"]["title"] == "A Crossref Sample Paper"
 
 
@@ -321,7 +321,7 @@ def test_cache_save_batches_and_flushes_on_close(tmp_path, monkeypatch):
         # Second resolution reaches the threshold: mid-run write.
         resolver.resolve("10.2345/def.6789")
         assert cache_file.is_file()
-        cache = json.loads(cache_file.read_text())
+        cache = json.loads(cache_file.read_text(encoding="utf-8"))
         assert set(cache) == {"10.1234/abc.5678", "10.2345/def.6789"}
     finally:
         resolver.close()

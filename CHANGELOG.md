@@ -147,6 +147,7 @@
 - `klea_utils[tui]` (`textual`) provides the terminal UI; it is included in the `full` extra.
 - `setproctitle` (a new `klea_utils` dependency) sets a friendly process title for the CLIs.
 - `klea_rag` depends on `klea_utils[rerank]` (`sentence-transformers`) for cross-encoder reranking.
+- Python 3.14 is supported and tested in CI. Python 3.15 is not supported yet: `onnxruntime` (required by `chromadb`) has no 3.15 wheels.
 
 ## Unreleased  ---  `klea_agent` (WIP, unreleased)
 

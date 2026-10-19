@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+import sys
 from pathlib import Path
 
 import pytest
@@ -161,6 +162,14 @@ def test_detect_name_heuristic(tmp_path):
     assert requests[0].source == "name:file_path"
 
 
+# https://github.com/NeuroML/klea/issues/204
+windows_shell_paths = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows paths in shell commands are not detected (#204)",
+)
+
+
+@windows_shell_paths
 def test_detect_shell_command_tokens(tmp_path):
     root, outside = _root_and_outside(tmp_path)
     outside.mkdir()
@@ -174,6 +183,7 @@ def test_detect_shell_command_tokens(tmp_path):
     assert requests[0].source == "value:command"
 
 
+@windows_shell_paths
 def test_detect_shell_redirection_assignment_and_flags(tmp_path):
     root, outside = _root_and_outside(tmp_path)
     outside.mkdir()
@@ -222,6 +232,7 @@ def test_detect_allowed_dirs_suppresses(tmp_path):
     )
 
 
+@windows_shell_paths
 def test_detect_file_uri_is_a_path(tmp_path):
     """A ``file:`` URI names a local path and must be checked, not skipped."""
     root, outside = _root_and_outside(tmp_path)
@@ -246,7 +257,8 @@ def test_detect_file_uri_without_authority(tmp_path):
         project_root=root,
     )
     assert len(requests) == 1
-    assert requests[0].directory == str(Path("/etc").resolve())
+    # A drive-less "/etc" resolves on the project's drive on Windows.
+    assert requests[0].directory == str((Path(root.anchor) / "etc").resolve())
 
 
 def test_detect_http_url_still_skipped(tmp_path):

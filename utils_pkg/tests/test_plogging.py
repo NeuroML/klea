@@ -55,6 +55,7 @@ class TestSetupRootLogger(unittest.TestCase):
         root = logging.getLogger()
         for handler in list(root.handlers):
             root.removeHandler(handler)
+            handler.close()
         for handler in self._saved_handlers:
             root.addHandler(handler)
         root.setLevel(self._saved_level)
@@ -89,29 +90,29 @@ class TestSetupRootLogger(unittest.TestCase):
 
     def test_file_handler(self):
         """A rotating file handler is created and receives all levels."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            setup_root_logger("testapp", log_dir=tmpdir)
-            root = logging.getLogger()
+        # Removed after tearDown closes the log file (Windows cannot delete an
+        # open file).
+        tmpdir = self.enterContext(tempfile.TemporaryDirectory())
+        setup_root_logger("testapp", log_dir=tmpdir)
+        root = logging.getLogger()
 
-            file_handlers = [
-                h for h in root.handlers if isinstance(h, RotatingFileHandler)
-            ]
-            self.assertEqual(len(file_handlers), 1)
-            self.assertTrue(file_handlers[0].baseFilename.endswith("testapp.log"))
-            self.assertEqual(file_handlers[0].level, logging.DEBUG)
+        file_handlers = [h for h in root.handlers if isinstance(h, RotatingFileHandler)]
+        self.assertEqual(len(file_handlers), 1)
+        self.assertTrue(file_handlers[0].baseFilename.endswith("testapp.log"))
+        self.assertEqual(file_handlers[0].level, logging.DEBUG)
 
-            logger = logging.getLogger("klea_utils.test")
-            logger.debug("debug line")
-            logger.info("info line")
-            logger.warning("warning line")
-            for handler in file_handlers:
-                handler.flush()
+        logger = logging.getLogger("klea_utils.test")
+        logger.debug("debug line")
+        logger.info("info line")
+        logger.warning("warning line")
+        for handler in file_handlers:
+            handler.flush()
 
-            with open(file_handlers[0].baseFilename) as f:
-                content = f.read()
-            self.assertIn("debug line", content)
-            self.assertIn("info line", content)
-            self.assertIn("warning line", content)
+        with open(file_handlers[0].baseFilename) as f:
+            content = f.read()
+        self.assertIn("debug line", content)
+        self.assertIn("info line", content)
+        self.assertIn("warning line", content)
 
     def test_no_file_handler_without_log_dir(self):
         """Without log_dir, only the two console handlers are added."""
@@ -122,20 +123,20 @@ class TestSetupRootLogger(unittest.TestCase):
 
     def test_console_false_adds_only_the_file_handler(self):
         """console=False suppresses the stream handlers but keeps the file."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            setup_root_logger("testapp", log_dir=tmpdir, console=False)
-            root = logging.getLogger()
-            stream_handlers = [
-                h
-                for h in root.handlers
-                if isinstance(h, logging.StreamHandler)
-                and not isinstance(h, logging.FileHandler)
-            ]
-            self.assertEqual(stream_handlers, [])
-            self.assertEqual(
-                len([h for h in root.handlers if isinstance(h, RotatingFileHandler)]),
-                1,
-            )
+        tmpdir = self.enterContext(tempfile.TemporaryDirectory())
+        setup_root_logger("testapp", log_dir=tmpdir, console=False)
+        root = logging.getLogger()
+        stream_handlers = [
+            h
+            for h in root.handlers
+            if isinstance(h, logging.StreamHandler)
+            and not isinstance(h, logging.FileHandler)
+        ]
+        self.assertEqual(stream_handlers, [])
+        self.assertEqual(
+            len([h for h in root.handlers if isinstance(h, RotatingFileHandler)]),
+            1,
+        )
 
     def test_console_false_without_log_dir_discards_output(self):
         """console=False with no log_dir installs a NullHandler (no lastResort)."""

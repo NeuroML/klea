@@ -38,13 +38,15 @@ async def test_send_renders_the_answer(fake_backend, agent_user):
 
 async def test_user_message_is_rendered_verbatim(fake_backend, agent_user):
     """User input is not Markdown-decorated (underscores, '#', newlines kept)."""
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     await agent_user.open("/")
     await agent_user.should_not_see("Backend is starting")
     _send(agent_user, "my_file_name.py\n# not a heading")
     await agent_user.should_see("my_file_name.py")
     await agent_user.should_see("# not a heading")
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
 
 
 async def test_selected_mode_and_access_are_sent(fake_backend, agent_user):
@@ -120,9 +122,11 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     await agent_user.should_see("Answer")
 
     # Answering starts a follow-up run carrying the resume mapping.
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     agent_user.find("Answer").click()
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
 
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
 
@@ -147,9 +151,11 @@ async def test_interrupt_replaces_the_composer(fake_backend, agent_user):
     # The ask replaces the composer.
     await agent_user.should_not_see(kind=ui.textarea)
 
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     agent_user.find("Answer").click()
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
     await agent_user.should_see(kind=ui.textarea)
 
 
@@ -231,9 +237,11 @@ async def test_permission_interrupt_outside_renders_and_submits(
     ]
     assert active, "the selected option should be highlighted"
 
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     agent_user.find("Submit").click()
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
 
     body = next(
         body for body in fake_backend.stream_bodies() if "interrupt_response" in body
@@ -270,9 +278,11 @@ async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     agent_user.find("Not a path").click()
     await asyncio.sleep(0.1)
 
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     agent_user.find("Submit").click()
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
 
     body = next(
         body for body in fake_backend.stream_bodies() if "interrupt_response" in body
@@ -301,9 +311,11 @@ async def test_permission_interrupt_sensitive_renders_file(fake_backend, agent_u
     _send(agent_user, "Hello")
     await agent_user.should_see("Sensitive file: /proj/.env", retries=50)
 
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     agent_user.find("Submit").click()
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
 
     body = next(
         body for body in fake_backend.stream_bodies() if "interrupt_response" in body

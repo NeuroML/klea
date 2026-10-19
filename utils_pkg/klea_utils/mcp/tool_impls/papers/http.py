@@ -45,7 +45,10 @@ class Throttle:
         wait = self._last + self.min_interval - time.monotonic()
         if wait > 0:
             logger.debug(f"Throttling for {wait:.2f}s")
+        # asyncio.sleep can wake slightly early (coarse timers on Windows).
+        while wait > 0:
             await asyncio.sleep(wait)
+            wait = self._last + self.min_interval - time.monotonic()
 
     async def __aexit__(self, *exc) -> None:
         self._last = time.monotonic()

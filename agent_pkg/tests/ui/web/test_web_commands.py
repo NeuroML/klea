@@ -151,11 +151,13 @@ async def test_clicking_a_suggestion_completes_and_closes(fake_backend, agent_us
 async def test_server_command_is_forwarded(fake_backend, agent_user):
     """A server command is forwarded to the graph as the query."""
     fake_backend.commands = [_mode_metadata()]
-    fake_backend.stream_events = [{"type": "complete", "message_for_user": "ok"}]
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Run complete!"}
+    ]
     await agent_user.open("/")
     await agent_user.should_not_see("Backend is starting")
     _send(agent_user, "/mode general")
-    await agent_user.should_see("ok", retries=50)
+    await agent_user.should_see("Run complete!", retries=50)
     assert fake_backend.stream_bodies()[-1]["query"] == "/mode general"
 
 

@@ -24,6 +24,21 @@ from klea_utils.mcp.tool_impls.run_command import (
 )
 
 
+def _python_command(code: str) -> str:
+    """Return a shell command that runs *code* with the test interpreter.
+
+    Double quotes are the only quoting both POSIX ``sh`` and ``cmd.exe``
+    understand, so *code* must not contain double quotes, ``$`` or backticks.
+    """
+    return f'"{sys.executable}" -c "{code}"'
+
+
+OUT_ERR_EXIT_1 = _python_command(
+    "import sys; print('out'); print('err', file=sys.stderr); sys.exit(1)"
+)
+PRINT_CWD = _python_command("import os; print(os.getcwd())")
+
+
 async def test_runs_command_and_captures_output(tmp_path):
     result = await run_command(
         "echo hello", working_directory=str(tmp_path), project_root=str(tmp_path)
@@ -52,7 +67,7 @@ async def test_nonzero_exit_is_a_normal_result(tmp_path):
 async def test_nonzero_exit_keeps_output(tmp_path):
     """A command that writes output and exits non-zero still returns it."""
     result = await run_command(
-        "echo out; echo err >&2; exit 1",
+        OUT_ERR_EXIT_1,
         working_directory=str(tmp_path),
         project_root=str(tmp_path),
     )
@@ -65,19 +80,19 @@ async def test_nonzero_exit_keeps_output(tmp_path):
 async def test_display_shell_block_includes_command_output_and_exit(tmp_path):
     """The chat display is one text/x-shell block with command/output/exit."""
     result = await run_command(
-        "echo out; echo err >&2; exit 1",
+        OUT_ERR_EXIT_1,
         working_directory=str(tmp_path),
         project_root=str(tmp_path),
     )
     display = result["display"]
     assert display["mime"] == "text/x-shell"
-    assert display["data"].splitlines()[0] == "$ echo out; echo err >&2; exit 1"
+    assert display["data"].splitlines()[0] == f"$ {OUT_ERR_EXIT_1}"
     assert "out" in display["data"]
     assert "--- stderr ---" in display["data"]
     assert "err" in display["data"]
     assert display["data"].rstrip().endswith("[exit 1]")
     assert display["meta"] == {
-        "command": "echo out; echo err >&2; exit 1",
+        "command": OUT_ERR_EXIT_1,
         "returncode": 1,
     }
 
@@ -121,14 +136,14 @@ async def test_working_directory_used(tmp_path):
     sub = tmp_path / "sub"
     sub.mkdir()
     result = await run_command(
-        "pwd", working_directory=str(sub), project_root=str(tmp_path)
+        PRINT_CWD, working_directory=str(sub), project_root=str(tmp_path)
     )
     assert result["returncode"] == 0
     assert str(sub.resolve()) in result["stdout"]
 
 
 async def test_default_working_directory_is_project_root(tmp_path):
-    result = await run_command("pwd", project_root=str(tmp_path))
+    result = await run_command(PRINT_CWD, project_root=str(tmp_path))
     assert result["returncode"] == 0
     assert str(tmp_path.resolve()) in result["stdout"]
 
@@ -182,6 +197,14 @@ async def _wait_for_death(pid: int, *, attempts: int = 40) -> bool:
     return False
 
 
+# https://github.com/NeuroML/klea/issues/203
+windows_child_kill = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="child processes are not killed on Windows (#203)",
+)
+
+
+@windows_child_kill
 async def test_timeout_kills_sigterm_ignoring_grandchild(tmp_path):
     """A grandchild that ignores SIGTERM is still killed on timeout.
 
@@ -208,6 +231,7 @@ async def test_timeout_kills_sigterm_ignoring_grandchild(tmp_path):
     assert await _wait_for_death(pid), f"grandchild {pid} survived the timeout kill"
 
 
+@windows_child_kill
 async def test_cancellation_kills_process_group(tmp_path):
     """Cancelling ``run_command`` kills the spawned process group.
 
@@ -240,7 +264,7 @@ async def test_cancellation_kills_process_group(tmp_path):
 
 
 async def test_output_truncated(tmp_path):
-    command = f"{shlex.quote(sys.executable)} -c \"print('x' * 1000)\""
+    command = _python_command("print('x' * 1000)")
     result = await run_command(
         command,
         working_directory=str(tmp_path),

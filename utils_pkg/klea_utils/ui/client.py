@@ -153,7 +153,7 @@ def server_message_to_data(message: Mapping[str, Any]) -> MessageData:
         ``metadata``, ``created_at``).
     :returns: A message dict for ``ChatData["messages"]``.
     """
-    stamp = datetime.fromtimestamp(message["created_at"]).astimezone().strftime("%X")
+    stamp = datetime.fromtimestamp(message["created_at"]).strftime("%X")
     if message.get("role") == "tool":
         meta = message.get("metadata") or {}
         return {

@@ -116,18 +116,24 @@ def test_iter_files_file_root_raises(tmp_path):
         list(iter_files(a_file, project_root=str(tmp_path)))
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="permission bits ignored as root")
-def test_iter_files_unreadable_subdir_is_skipped(tmp_path):
+def test_iter_files_unreadable_subdir_is_skipped(tmp_path, monkeypatch):
     (tmp_path / "top.txt").write_text("top")
     locked = tmp_path / "locked"
     locked.mkdir()
     (locked / "hidden.txt").write_text("hidden")
-    locked.chmod(0o000)
 
-    try:
-        found = _names(list(iter_files(tmp_path, project_root=str(tmp_path))))
-    finally:
-        locked.chmod(0o700)
+    # chmod cannot make a directory unreadable on Windows or as root, so
+    # simulate the permission error the walker sees for it.
+    real_scandir = os.scandir
+
+    def scandir(path):
+        if os.fspath(path) == os.fspath(locked):
+            raise PermissionError(13, "Permission denied", os.fspath(path))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+
+    found = _names(list(iter_files(tmp_path, project_root=str(tmp_path))))
 
     logger.debug(f"{found = }")
     assert found == {"top.txt"}

@@ -56,10 +56,12 @@ def test_write_file_preserves_mode(tmp_path):
     target = tmp_path / "a.sh"
     target.write_text("old")
     target.chmod(0o750)
+    # Windows only keeps the read-only bit, so compare with what chmod left.
+    before = stat.S_IMODE(target.stat().st_mode)
 
     write_file(str(target), "new\n", project_root=str(tmp_path))
 
-    assert stat.S_IMODE(target.stat().st_mode) == 0o750
+    assert stat.S_IMODE(target.stat().st_mode) == before
 
 
 def test_write_file_preserves_crlf(tmp_path):
