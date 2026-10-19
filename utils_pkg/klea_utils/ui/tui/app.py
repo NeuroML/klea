@@ -43,6 +43,7 @@ from klea_utils.commands.common import (
 )
 from klea_utils.ui.tui.components.commands import (
     EXIT_APP_SERVICE,
+    NEW_CHAT_SERVICE,
     OPEN_MODELS_SERVICE,
     OPEN_SESSIONS_SERVICE,
     TUI_CAPABILITIES,
@@ -591,6 +592,7 @@ class KleaTuiApp(App[None]):
                 TUI_CAPABILITIES,
                 services={
                     OPEN_SESSIONS_SERVICE: self._open_sessions_hook,
+                    NEW_CHAT_SERVICE: self._new_chat_hook,
                     OPEN_MODELS_SERVICE: self._open_models_hook,
                     EXIT_APP_SERVICE: self._exit_hook,
                 },
@@ -631,6 +633,10 @@ class KleaTuiApp(App[None]):
     def _open_sessions_hook(self) -> None:
         """Command-service hook for ``/sessions`` (schedules the picker)."""
         self.run_worker(self.action_open_sessions())
+
+    def _new_chat_hook(self) -> None:
+        """Command-service hook for ``/new`` (schedules a fresh chat)."""
+        self.run_worker(self._new_chat())
 
     def _open_models_hook(self) -> None:
         """Command-service hook for ``/model`` (schedules the dialog)."""
@@ -886,11 +892,23 @@ class KleaTuiApp(App[None]):
         await self.action_open_sessions()
 
     async def _new_chat(self) -> None:
-        """Activate a fresh, empty chat."""
-        # Lazy: coolname only mints the id.
+        """Activate a fresh, empty chat and persist it on the server."""
+        if self._streaming:
+            self.notify(
+                "Stop the current run before starting a new chat.",
+                severity="warning",
+            )
+            return
+        # Lazy: coolname mints the id; the server client only for a live server.
         import coolname
 
-        await self.load_chat(coolname.generate_slug(2), hydrate=False)
+        from klea_utils.ui.client import create_chat_on_server
+
+        chat_id = coolname.generate_slug(2)
+        await self.load_chat(chat_id, hydrate=False)
+        # Persist immediately (parity with the web's ``/new``), so the fresh
+        # chat appears in the session picker before the first query.
+        await create_chat_on_server(self.ctx.server_url, self.ctx.user_id, chat_id)
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
         """Mount the inline HITL panel for *ask* (review / input / permission).

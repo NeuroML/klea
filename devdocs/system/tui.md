@@ -178,8 +178,8 @@ enforcement point for each:
 
 The TUI reuses `klea_utils/commands/common.py`: it validates `/`-input against
 the merge of its client commands and the server catalogue (`GET /commands`),
-runs client commands locally (`/help`, `/sessions`, `/model`, `/exit`; later
-`/new`, `/rename`, `/export`), and forwards server commands (`/mode`,
+runs client commands locally (`/help`, `/new`, `/sessions`, `/model`,
+`/exit`; later `/rename`, `/export`), and forwards server commands (`/mode`,
 `/access`) as the query.  The `/`-autocomplete is a Textual completion/
 suggestion list over the merged catalogue.  TUI capabilities start empty (no
 browser file picker); local-filesystem/shell capabilities are deferred with
@@ -187,7 +187,8 @@ the session-workspace work and are not needed for parity.
 
 `/exit` (the command form of `Ctrl+Q`) stops any active run -- cancelling the
 worker and sending the best-effort `POST /query/cancel` -- and then quits, so
-it is safe mid-stream.
+it is safe mid-stream.  `/new` switches to a fresh, empty chat; like session
+switching, it is refused while a run is streaming.
 
 ## HITL and permissions
 

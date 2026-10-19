@@ -1138,6 +1138,41 @@ async def test_sessions_command_blocked_while_streaming(
         await pilot.pause()
 
 
+async def test_new_command_starts_a_fresh_chat(fake_backend, make_app):
+    """A client ``/new`` switches to a fresh, empty chat."""
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await _submit(pilot, app, "/new")
+        await _settle(pilot, app)
+        assert app.ctx.chat_id != "c1"
+
+    assert fake_backend.calls == []
+    assert fake_backend.created == [app.ctx.chat_id]
+
+
+async def test_new_command_blocked_while_streaming(fake_backend, make_app, monkeypatch):
+    """``/new`` is refused while a run is streaming (I2)."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "x"}}
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await _submit(pilot, app, "/new")
+        await pilot.pause()
+        assert app.ctx.chat_id == "c1"
+        assert fake_backend.created == []
+        assert app._worker is not None
+        app._worker.cancel()
+        await pilot.pause()
+
+
 def _model_info() -> dict:
     """A two-role model config (chat + plan, both modifiable)."""
     return {

@@ -52,6 +52,10 @@ _REGISTRY_SERVICE = "registry"
 #: picker (used by ``/sessions``).  The app registers a no-argument callable.
 OPEN_SESSIONS_SERVICE = "open_sessions"
 
+#: ``CommandContext.services`` key for the app hook that starts a new chat
+#: (used by ``/new``).  The app registers a no-argument callable.
+NEW_CHAT_SERVICE = "new_chat"
+
 #: ``CommandContext.services`` key for the app hook that opens the model
 #: dialog (used by ``/model``).  The app registers a no-argument callable.
 OPEN_MODELS_SERVICE = "open_models"
@@ -84,6 +88,16 @@ def client_commands() -> CommandRegistry:
             side="client",
             while_streaming="block",
             handler=_handle_sessions,
+        )
+    )
+    registry.register(
+        Command(
+            name="new",
+            summary="Start a new chat",
+            side="client",
+            klass="ui",
+            while_streaming="block",
+            handler=_handle_new,
         )
     )
     registry.register(
@@ -141,6 +155,20 @@ def _handle_sessions(context: CommandContext, parsed: ParsedCommand) -> CommandR
         return CommandResult.fail("The session picker is not available.")
     open_sessions()
     return CommandResult.ok()
+
+
+def _handle_new(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Start a new chat via the app-provided hook.
+
+    Like ``/sessions``, the handler renders nothing: switching to a fresh chat
+    is the effect.  The hook is registered under :data:`NEW_CHAT_SERVICE`.
+    """
+    new_chat = context.service(NEW_CHAT_SERVICE)
+    if new_chat is None:
+        return CommandResult.fail("Starting a new chat is not supported here.")
+    logger.debug("command /new: starting a new chat")
+    new_chat()
+    return CommandResult()
 
 
 def _handle_models(context: CommandContext, parsed: ParsedCommand) -> CommandResult:

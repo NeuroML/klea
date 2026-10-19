@@ -53,6 +53,8 @@ class FakeBackend:
         self.renames: list[dict[str, Any]] = []
         #: Recorded ``delete_chat_on_server`` chat ids.
         self.deletes: list[str] = []
+        #: Recorded ``create_chat_on_server`` chat ids.
+        self.created: list[str] = []
         #: Active model config per role (``GET .../models/active``).
         self.model_info: dict[str, dict[str, Any]] = {}
         #: Recorded ``set_model_override`` calls (chat scope).
@@ -158,6 +160,15 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 
     monkeypatch.setattr(
         "klea_utils.ui.client.delete_chat_on_server", _delete_chat_on_server
+    )
+
+    async def _create_chat_on_server(
+        server_url: str, user_id: str, chat_id: str
+    ) -> None:
+        backend.created.append(chat_id)
+
+    monkeypatch.setattr(
+        "klea_utils.ui.client.create_chat_on_server", _create_chat_on_server
     )
 
     async def _fetch_active_models(
