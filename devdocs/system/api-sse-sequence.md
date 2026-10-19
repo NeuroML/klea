@@ -92,6 +92,9 @@ sequenceDiagram
 
 Notes:
 
+* `GET /chat/{user_id}` includes each chat's first user query as a bounded
+  `preview`, so session pickers/tooltips can identify a chat without fetching
+  its full message history.
 * The user turn is persisted when the run starts; the assistant turn on
   `complete` (or the interrupt question on pause), so a failed run stays
   visible and retryable.

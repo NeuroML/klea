@@ -49,6 +49,10 @@ CREDENTIAL_PURGE_INTERVAL_SECONDS = 60 * 60
 #: Minimum gap between ``last_used_at`` bumps for a credential.
 CREDENTIAL_TOUCH_INTERVAL_SECONDS = 60 * 60
 
+#: Maximum characters of a chat's first user query returned as its list
+#: ``preview``.  Bounds the session-list payload and the frontends' display.
+CHAT_PREVIEW_MAX_CHARS = 200
+
 
 def resolve_credential_ttl_seconds() -> float:
     """Resolve the credential TTL (seconds) from the environment.
@@ -214,11 +218,25 @@ class SessionStore:
     # ------------------------------------------------------------------
 
     def list_chats(self, user_id: str) -> list[dict[str, Any]]:
-        """Return all chats for *user_id*, newest first."""
+        """Return all chats for *user_id*, newest first.
+
+        Each row carries a ``preview``: the first persisted **user** message,
+        truncated to :data:`CHAT_PREVIEW_MAX_CHARS`.  It gives the frontends a
+        human-readable idea of what the chat is about without fetching every
+        chat's messages.  ``None`` when the chat has no user message yet (a
+        freshly created chat).
+        """
         with self._lock:
             rows = self._conn.execute(
-                "SELECT * FROM chat_sessions WHERE user_id = ? ORDER BY updated_at DESC",
-                (user_id,),
+                "SELECT cs.*, ("
+                "  SELECT substr(m.content, 1, ?) FROM messages m"
+                "  WHERE m.user_id = cs.user_id AND m.chat_id = cs.chat_id"
+                "    AND m.role = 'user'"
+                "  ORDER BY m.created_at ASC, m.id ASC LIMIT 1"
+                ") AS preview "
+                "FROM chat_sessions cs WHERE cs.user_id = ? "
+                "ORDER BY cs.updated_at DESC",
+                (CHAT_PREVIEW_MAX_CHARS, user_id),
             ).fetchall()
         result = [dict(r) for r in rows]
         logger.debug("list_chats(%s): %d chat(s)", user_id, len(result))

@@ -37,6 +37,7 @@ from textual.widgets import (
     Button,
     Collapsible,
     Input,
+    Label,
     ListView,
     RadioButton,
     Static,
@@ -567,6 +568,33 @@ async def test_session_picker_switches(fake_backend, make_app):
 
     assert app.ctx.chat_id == "c2"
     assert [m["text"] for m in chats[":c2"]["messages"]] == ["hi2"]
+
+
+async def test_session_picker_shows_first_query_preview(fake_backend, make_app):
+    """The highlighted session's preview renders below the action buttons."""
+    fake_backend.chats = [
+        {"chat_id": "c2", "title": "B", "preview": "show me the models"},
+        {"chat_id": "c1", "title": "A"},
+    ]
+    app = make_app(chat_id="c1")
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen, SessionPicker)
+        list_view = app.screen.query_one("#sessions-list", ListView)
+        preview = app.screen.query_one("#sessions-preview", Static)
+        assert (
+            "show me the models"
+            not in list_view.children[0].query_one(Label).render().plain
+        )
+        assert "show me the models" in str(preview.render())
+
+        # Highlighting a session without a preview clears the hint.
+        list_view.index = 1
+        await pilot.pause()
+        assert str(preview.render()) == ""
 
 
 async def test_session_picker_rename(fake_backend, make_app):

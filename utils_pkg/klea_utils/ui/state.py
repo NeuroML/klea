@@ -194,6 +194,9 @@ class ChatData(TypedDict):
     token_usage: TokenUsage
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
+    #: Truncated first user query, from the server session list; used as a
+    #: human-readable hint in the session picker / chat-list tooltip.
+    preview: NotRequired[str]
     #: Pending HITL ask (ADR-0046) while the run is paused: the interrupt
     #: ``data`` (``kind``, ``question``/``questions``, ``interrupt_id`` and a
     #: ``hitl_response_schema`` when the node supplied one).  Cleared when the
@@ -361,3 +364,19 @@ def get_chats_sorted(user_id: str) -> list[tuple[str, ChatData]]:
     items = [(k.split(":", 1)[1], v) for k, v in chats.items() if k.startswith(prefix)]
     items.sort(key=lambda x: (not x[1]["pinned"], -x[1]["created"]))
     return items
+
+
+def chat_preview_text(text: str | None, max_chars: int = 120) -> str:
+    """Return a single-line, truncated preview for a chat list or tooltip.
+
+    Collapses whitespace (a query may contain newlines) and appends an
+    ellipsis when the text exceeds *max_chars*.
+
+    :param text: The raw preview (a first user query), or ``None``.
+    :param max_chars: Maximum display length, including the ellipsis.
+    :returns: The normalized preview, or ``""`` when there is none.
+    """
+    collapsed = " ".join(str(text or "").split())
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[: max_chars - 3].rstrip() + "..."

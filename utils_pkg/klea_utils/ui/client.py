@@ -202,6 +202,9 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                     ensure_chat(user_id, chat_id)
                     chats[key]["name"] = chat_data.get("title", chat_id)
                     chats[key]["created"] = chat_data.get("created_at", 0)
+                    # First user query, from the server session list; shown as
+                    # a human-readable hint in the picker / chat-list tooltip.
+                    chats[key]["preview"] = chat_data.get("preview") or ""
 
                 # Fetch messages for every chat returned by the server.
                 for chat_data in chats_from_server:

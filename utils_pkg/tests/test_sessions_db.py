@@ -12,6 +12,7 @@ import logging
 
 import pytest
 from klea_utils.api.sessions_db import (
+    CHAT_PREVIEW_MAX_CHARS,
     SessionStore,
     resolve_credential_ttl_seconds,
 )
@@ -265,3 +266,32 @@ def test_delete_user_chats_purges_events(store):
     store.add_chat_events("u1", "c1", _events())
     store.delete_user_chats("u1")
     assert store.get_chat_events("u1", "c1") == []
+
+
+def test_list_chats_preview_uses_the_first_user_message(store):
+    """The list preview is the first user query, not an earlier assistant row."""
+    store.create_chat("u1", "c1", "First chat")
+    store.add_message("u1", "c1", "assistant", "welcome")
+    store.add_message("u1", "c1", "user", "what is X?")
+    store.add_message("u1", "c1", "user", "and Y?")
+
+    chats = store.list_chats("u1")
+
+    assert chats[0]["preview"] == "what is X?"
+
+
+def test_list_chats_preview_is_none_without_messages(store):
+    """A freshly created chat has no preview yet."""
+    store.create_chat("u1", "c1", "Empty")
+
+    assert store.list_chats("u1")[0]["preview"] is None
+
+
+def test_list_chats_preview_is_truncated(store):
+    """The preview is bounded server-side."""
+    store.create_chat("u1", "c1", "Long")
+    store.add_message("u1", "c1", "user", "x" * (CHAT_PREVIEW_MAX_CHARS + 50))
+
+    preview = store.list_chats("u1")[0]["preview"]
+
+    assert len(preview) == CHAT_PREVIEW_MAX_CHARS

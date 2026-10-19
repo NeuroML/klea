@@ -56,7 +56,15 @@ def _handler(request: httpx.Request) -> httpx.Response:
     url = str(request.url)
     if url.endswith("/chat/u") and request.method == "GET":
         return httpx.Response(
-            200, json=[{"chat_id": "c1", "title": "C1", "created_at": 0}]
+            200,
+            json=[
+                {
+                    "chat_id": "c1",
+                    "title": "C1",
+                    "created_at": 0,
+                    "preview": "show me X",
+                }
+            ],
         )
     if url.endswith("/chat/u/c1/messages"):
         return httpx.Response(200, json=[])
@@ -143,3 +151,10 @@ async def test_usage_is_hydrated_from_the_checkpoint(_mock_client):
     await client.hydrate_chats("http://backend", "u")
 
     assert chats["u:c1"]["token_usage"] == _USAGE
+
+
+async def test_session_preview_is_hydrated(_mock_client):
+    """The server's first-query preview reaches the chat cache."""
+    await client.hydrate_chats("http://backend", "u")
+
+    assert chats["u:c1"]["preview"] == "show me X"

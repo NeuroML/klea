@@ -26,6 +26,7 @@ from klea_utils.ui.tui.components.inspector import (
     _section_title,
     group_sections,
 )
+from klea_utils.ui.tui.components.sessions import _session_label
 from klea_utils.ui.tui.components.status_panel import (
     _section_widget,
     _usage_line,
@@ -281,3 +282,19 @@ class TestPermissionPanelHelpers:
         assert "read_file" in hint
         assert "path" in hint
         assert "/etc/hosts" in hint
+
+
+class TestSessionLabel:
+    """Session-picker rows show only the title and chat id."""
+
+    def test_label_has_title_and_chat_id(self):
+        label = _session_label({"chat_id": "c1", "title": "Chat"}, active=False)
+        assert label.plain.splitlines()[0].strip() == "Chat  c1"
+
+    def test_label_does_not_include_the_preview(self):
+        label = _session_label(
+            {"chat_id": "c1", "title": "Chat", "preview": "what is X?"},
+            active=False,
+        )
+        assert "\n" not in label.plain
+        assert "what is X?" not in label.plain
