@@ -102,6 +102,7 @@
 
 ### Fixed
 
+- A path-permission decision of "not a path" now renders as `Not a path: <key>` in the transcript and is counted as dismissed in the audit summary, instead of being shown as `Denied`.
 - `DELETE /chat/{user_id}/{chat_id}` now cancels the chat's active run and purges its LangGraph checkpoint as well as the chat row, so re-creating a chat does not inherit stale run state.
 - Token usage is reported accurately again: model streaming is disabled, because the graph's event stream forces chat models to stream and LangChain's streamed `usage_metadata` merge sums input/total tokens across chunks for providers that report usage per chunk (VLLM, HuggingFace Inference Providers, ...), inflating the counts massively (langchain#30429).
 - Path-permission confirmations render each decision on its own line, with the path in code formatting, instead of one `;`-joined line.

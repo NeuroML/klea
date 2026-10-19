@@ -46,7 +46,9 @@ The single enforcement point is the pre-dispatch gate in
   resolved ask is also emitted as an `inspect` entry (heading "Path
   permission": the requested keys, tool/argument/raw, and the resolution) so
   the inspection pane keeps an audit of the decision after the chat form is
-  gone.
+  gone.  The transcript renders the four outcomes distinctly
+  (`Allowed once`, `Allowed for session`, `Denied`, `Not a path`), so a
+  dismissed guess is never shown as a denial.
 
 The boundary is the **session project root** (`BaseGraphSchema.project_root`,
 ADR-0053), set with `/cwd`; it defaults to the API server's working directory

@@ -234,6 +234,8 @@ class ToolsCallerNode(
         """
         allowed = len(resolution.allowed_now) + len(resolution.allowed_session)
         summary = f"Path permission: {allowed} allowed, {len(resolution.denied)} denied"
+        if resolution.not_a_path:
+            summary += f", {len(resolution.not_a_path)} not a path"
         details = {
             "requests": [
                 {

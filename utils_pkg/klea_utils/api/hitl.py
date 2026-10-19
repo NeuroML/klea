@@ -107,6 +107,7 @@ _PERMISSION_DECISION_LABELS = {
     "once": "Allowed once",
     "session": "Allowed for session",
     "deny": "Denied",
+    "not_a_path": "Not a path",
 }
 
 
@@ -122,8 +123,8 @@ def _render_decisions(value: Mapping[str, Any]) -> str | None:
     """Render path-permission ``decisions``, or ``None`` when not applicable.
 
     Each decision is on its own line (readability when several paths were
-    approved/denied in one ask); the path is in backticks so the frontends
-    (which render the user turn as Markdown) show it as code.
+    approved/denied/dismissed in one ask); the path is in backticks so the
+    frontends (which render the user turn as Markdown) show it as code.
     """
     decisions = value.get("decisions")
     if not isinstance(decisions, list):
@@ -132,9 +133,8 @@ def _render_decisions(value: Mapping[str, Any]) -> str | None:
     for entry in decisions:
         if not isinstance(entry, Mapping):
             continue
-        label = _PERMISSION_DECISION_LABELS.get(
-            str(entry.get("decision", "")), "Denied"
-        )
+        decision = str(entry.get("decision", ""))
+        label = _PERMISSION_DECISION_LABELS.get(decision, decision or "Unknown")
         key = str(entry.get("key", ""))
         parts.append(f"- {label}: `{key}`" if key else label)
     return "\n".join(parts)
@@ -164,10 +164,10 @@ def render_interrupt_response(value: Mapping[str, Any]) -> str:
 
     Each interrupt kind has a renderer (see :data:`_RESPONSE_RENDERERS`):
     input ``answers`` are joined; path-permission ``decisions`` are shown as
-    "Allowed once: /tmp", "Allowed for session: /proj", "Denied: <key>"; a
-    review ``decision`` becomes "Plan approved" / "Revision requested:
-    <feedback>".  An unknown shape falls back to its JSON form.  This is
-    display only: the wire values are unchanged.
+    "Allowed once: /tmp", "Allowed for session: /proj", "Denied: <key>" or
+    "Not a path: <key>"; a review ``decision`` becomes "Plan approved" /
+    "Revision requested: <feedback>".  An unknown shape falls back to its JSON
+    form.  This is display only: the wire values are unchanged.
 
     Shared by ``chat_core`` (the persisted user row) and the web UI (the live
     transcript) so the two cannot drift.

@@ -323,10 +323,11 @@ class TestInterruptDisplay:
                         {"key": "/tmp", "decision": "once"},
                         {"key": "/proj", "decision": "session"},
                         {"key": "/proj/.env", "decision": "deny"},
+                        {"key": "not/a/real/path", "decision": "not_a_path"},
                     ]
                 }
             )
-            == "- Allowed once: `/tmp`\n- Allowed for session: `/proj`\n- Denied: `/proj/.env`"
+            == "- Allowed once: `/tmp`\n- Allowed for session: `/proj`\n- Denied: `/proj/.env`\n- Not a path: `not/a/real/path`"
         )
 
     def test_cancel_and_empty(self):

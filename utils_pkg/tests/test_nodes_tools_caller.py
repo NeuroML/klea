@@ -218,7 +218,10 @@ async def test_state_project_root_is_the_gate_boundary(tmp_path):
     assert client.calls == [("list_files", {"path": str(inside)})]
 
 
-def _approve(directory: str, decision: Literal["once", "session", "deny"] = "session"):
+def _approve(
+    directory: str,
+    decision: Literal["once", "session", "deny", "not_a_path"] = "session",
+):
     def _interrupt(payload, response_schema=None):
         return PermissionResponse(
             decisions=[PathDecision(key=directory, decision=decision)]
@@ -969,3 +972,38 @@ async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):
     assert details["resolution"]["allowed_session"] == [str(outside)]
     assert details["requests"][0]["key"] == str(outside)
     assert details["requests"][0]["kind"] == "outside"
+
+
+async def test_ask_policy_not_a_path_is_reported_as_dismissed(tmp_path, monkeypatch):
+    """A "not a path" decision is not counted as a denial in the audit summary."""
+    root, outside = _outside_dirs(tmp_path)
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"list_files": ToolInfo(meta={"checkpaths": ["path"]})},
+        permission_policy="ask",
+    )
+    events: list[dict] = []
+    _record_stream(node, events)
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller.interrupt",
+        _approve(str(outside), "not_a_path"),
+    )
+
+    state = MiniState(
+        project_root=str(root),
+        tool_calls=[ToolCallSchema(tool="list_files", args={"path": str(outside)})],
+    )
+    await node.execute(state)
+
+    permission = [
+        event
+        for event in events
+        if event.get("type") == "inspect"
+        and event["data"]["heading"] == "Path permission"
+    ]
+    assert len(permission) == 1
+    assert (
+        permission[0]["data"]["summary"]
+        == "Path permission: 0 allowed, 0 denied, 1 not a path"
+    )
