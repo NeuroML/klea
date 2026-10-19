@@ -32,7 +32,6 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
   |-- chat --> AnswerUser -> END
   '-- task --> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
-                 |-- status no_plan_required -> AnswerFromResults (success; no execution needed) -> AnswerUser -> END
                  |-- status chat ---------> RouteDecision (forced chat) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
                  |-- status needs_input ---> AwaitHuman (input) --answer--> Planner
@@ -75,11 +74,13 @@ reply vs needs the environment **or derives from earlier session work**",
 defaulting to ``task`` (fail-closed) so a world-fact is never answered from
 assumption and a derivation is never answered inline from the conversation.
 Routing a derivation to ``task`` is cheap when no environment work is needed:
-the Planner returns ``no_plan_required`` and the answer-composer writes (and
-persists) the result.  If the Planner instead finds that the request was a
-conversational turn (no task at all), it returns ``chat`` and the run goes back
-to ``RouteDecision``, which is forced to answer as chat from conversation
-history; the answer-composer is deliberately bypassed because it has no memory.
+the Planner plans a single ``reasoning`` step that synthesises the already-known
+facts, and the answer-composer writes (and persists) the result from the
+resulting observation.  There is no zero-step "already known" bypass.  If the
+Planner instead finds that the request was a conversational turn (no task at
+all), it returns ``chat`` and the run goes back to ``RouteDecision``, which is
+forced to answer as chat from conversation history; the answer-composer is
+deliberately bypassed because it has no memory.
 On that forced pass the router's result is validated (a ``chat`` route with a
 non-empty answer), so an ignored override triggers a bounded re-invoke; the
 graph routing itself is still forced to ``chat`` regardless of the model's
@@ -119,7 +120,6 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 | status | meaning | edge |
 |--------|---------|------|
 | ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
-| ``no_plan_required`` | no execution needed; the goal is satisfiable from the available information (for example session ``artefacts``) | ``AnswerFromResults`` (success) |
 | ``chat`` | the entry router misclassified a conversational request as ``task``; return no steps and no goal | ``RouteDecision`` (forced chat) -> ``AnswerUser`` |
 | ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
 | ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
@@ -127,11 +127,13 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``Planner._update_state``: any step with ``needs_input`` questions forces
 ``needs_input`` (a draft; the status is derived from the steps); steps ->
 ``in_progress`` (a ``review`` step pauses when it reaches the frontier; there is
-no review status -- ADR-0051); ``no_plan_required`` is kept as a success (the
-goal is set, no steps run); ``chat`` writes no goal and no steps and hands the
-run back to ``RouteDecision``, which is forced to answer as chat from
+no review status -- ADR-0051); ``chat`` writes no goal and no steps and hands
+the run back to ``RouteDecision``, which is forced to answer as chat from
 conversation history (the request is not a task); ``unplannable`` (or any other
-status with no steps) -> ``unplannable``.  It never answers the user.
+status with no steps) -> ``unplannable``.  An ``in_progress`` plan must carry at
+least one step: a task whose facts are already known is planned as a
+``reasoning`` step, so the conclusion reaches the answer-composer through
+observations.  The Planner never answers the user.
 ``PlannerPlanSchema`` exposes only
 these editable statuses to the model; the state ``PlanSchema`` also carries the
 runtime ones
@@ -380,13 +382,15 @@ only curated results cross into later tasks:
   the final reply.  ``AnswerFromResults`` auto-persists the completed task's
   deliverable as a concise ``ArtefactSchema`` (goal + result, keyed by a slug of
   the   goal so a re-run supersedes); failure persists nothing.
-  The Planner and ``AnswerFromResults`` see the rendered artefacts
-  (``artefacts_text()``), so a later task can build on an earlier one and the
-  final reply can draw on prior deliverables.  Intermediate tool/reasoning
-  outputs never leak into artefacts.
-  The rendered block is bounded (the most recently written 20 entries and
-  12,000 characters, with a note when older entries are omitted); the
-  checkpoint still retains all artefacts.
+  Only ``AnswerFromResults`` sees the rendered artefacts (``artefacts_text()``),
+  so the final reply can draw on prior deliverables without relying on lossy
+  conversation memory.  The Planner does not receive artefacts: it reads the
+  conversation history, and an already-known result is planned as a
+  ``reasoning`` step whose conclusion enters observations.  Intermediate
+  tool/reasoning outputs never leak into artefacts.  The rendered block is
+  bounded (the most recently written 20 entries and 12,000 characters, with a
+  note when older entries are omitted); the checkpoint still retains all
+  artefacts.
 
 ## Failure signals (levels)
 
@@ -532,8 +536,7 @@ semantics are in ``devdocs/system/graph-resume.md``.
 
 ## Answer synthesis
 
-``AnswerFromResults`` runs once when the plan is ``completed`` or
-``no_plan_required``
+``AnswerFromResults`` runs once when the plan is ``completed``
 (success) or ``abort``/``unplannable`` (failure).  (A ``needs_input`` plan never reaches it:
 it pauses at the HITL input node.)  On success it writes ``message_for_user``
 from the goal, the completed plan, the observations and the session artefacts

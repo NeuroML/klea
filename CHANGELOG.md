@@ -8,7 +8,6 @@
 
 - User-facing answer nodes report the effective model that produced the reply in their system prompt, so questions like "which model are you running" are answerable: `AnswerFromContext` (RAG), the shared `AnswerGeneral`, and the agent's `RouteDecision`/`AnswerFromResults`.
 - Terminal UI: `klea tui` / `klea-rag tui` launch a full-screen Textual client over the same backend as the web UI. It renders a MIME-aware transcript with an inspector view, lists / switches / renames / deletes sessions, edits per-role models and provider credentials, presents HITL review / input / permission modals, and blocks a send until the required models and API keys are set (ADR-0050). Requires the new optional `tui` extra.
-- The Planner can return a `no_plan_required` plan status when no execution steps are needed because the goal is already satisfiable from the available information (for example session artefacts from earlier tasks); the run then completes and the answer-composer writes the reply, instead of the empty plan being coerced to `unplannable` (a failure).
 - Bundled read-only `search_papers` tool: academic paper search by keywords, returning title, authors, year, journal, abstract, DOI, link and a `peer_reviewed` flag. Peer reviewed sources come first: OpenAlex and Crossref (plus Semantic Scholar when `SEMANTIC_SCHOLAR_API_KEY` is set) are rotated per call with fallback on rate limits, errors or results without abstracts, and `domain: "life-sciences"` searches Europe PMC first, then PubMed (NCBI E-utilities) as its fallback. Preprints (arXiv, and Europe PMC preprints such as bioRxiv) are only searched with `preprints: true` and are listed after the peer reviewed results.
 - Cross-encoder reranking: fused retrieval results are re-scored by a local cross-encoder (default `cross-encoder/ms-marco-MiniLM-L-6-v2`, configurable via `general.cross_encoder_model`) before the recency blend; the model is loaded once at startup and its weights are downloaded and cached by Hugging Face on first use.
 - Custom model endpoints (`custom:<model>:<url>`) accept a full endpoint URL and select the wire API from its path (`/chat/completions`, `/responses`, or `/v1/messages`); a bare base URL still defaults to OpenAI Chat Completions.
@@ -174,7 +173,8 @@
 
 ### Changed
 
-- Session artefacts rendered into the Planner and answer-composer prompts are now bounded (the most recently written 20 entries and 12,000 characters, with a note when older entries are omitted), so a long session no longer grows those prompts without limit; the checkpoint still retains every artefact.
+- Session artefacts rendered into the answer-composer prompt are now bounded (the most recently written 20 entries and 12,000 characters, with a note when older entries are omitted), so a long session no longer grows that prompt without limit; the checkpoint still retains every artefact.
+- The Planner no longer has a zero-step `no_plan_required` status, and its prompt no longer carries the artefacts block: a goal whose facts are already known is planned as a single `reasoning` step, whose conclusion reaches the answer-composer through observations. This removes the asymmetry where the Planner decided from conversation history the answer-composer could not see.
 - The tool picker runs on a dedicated `tool_picker` model role instead of borrowing the chat/plan model; there is no silent fallback, so the role must be configured.
 - Tool selection: the Planner selects the tool for each step; the picker binds arguments only and never substitutes a different tool. A picker that cannot bind a suggested tool escalates to the Planner with the reason; malformed empty selections are retried a bounded number of times, then escalated.
 - The plan revision budget counts automated replans only; human review resets it, so user iteration is not charged against the failure budget.
@@ -189,7 +189,7 @@
 ### Fixed
 
 - `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).
-- A conversational turn that the entry router classified as a task is now handed back to the router instead of being answered by the answer-composer (which has no conversation history): the Planner returns a new `chat` status, distinct from `no_plan_required`, and the router is forced to reply as chat.
+- A conversational turn that the entry router classified as a task is now handed back to the router instead of being answered by the answer-composer (which has no conversation history): the Planner returns a new `chat` status, and the router is forced to reply as chat.
 - The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.
 - Answer synthesis reports the correct success/failure outcome and no longer duplicates the failure-reason label.
 - Superseded failed tool outputs are dropped from a step's observations once a call succeeds, so stale errors no longer confuse evaluation or the final answer.

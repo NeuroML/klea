@@ -472,7 +472,6 @@ class TestPlannerPlanSchema:
         assert set(status["enum"]) == {
             "in_progress",
             "needs_input",
-            "no_plan_required",
             "unplannable",
             "chat",
         }
@@ -490,7 +489,6 @@ class TestPlanSchemaRuntime:
             "not_started",
             "in_progress",
             "needs_input",
-            "no_plan_required",
             "completed",
             "failed",
             "aborted",

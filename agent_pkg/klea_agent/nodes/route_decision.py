@@ -37,7 +37,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     environment/workspace/session, **or** that derives a result from earlier
     work or turns (summarising, compiling, comparing, synthesising); the Planner
     plans and the tool loop runs (a synthesis needing no environment work is
-    still routed here -- see the ``no_plan_required`` plan status).
+    planned as a ``reasoning`` step).
 
     The decision is **fail-closed**: the default is ``task``, so the router
     answers inline only when it is clearly general conversation/knowledge.

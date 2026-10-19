@@ -141,21 +141,15 @@ class PlannerPlanSchema(BaseModel):
     #: * ``needs_input`` -- cannot finalise a plan without a missing fact from
     #:   the user; the questions are carried on the blocked step(s) and the
     #:   run pauses to ask;
-    #: * ``no_plan_required`` -- no execution steps are needed: the goal is
-    #:   already satisfiable from the available information (for example the
-    #:   session ``artefacts``).  A success, distinct from ``unplannable`` (the
-    #:   goal cannot be met); the answer-composer writes the reply.  The Planner
-    #:   still sets the goal.
     #: * ``chat`` -- the entry router misclassified a conversational request as
     #:   ``task``.  This is not a task outcome: return no steps and no goal; the
     #:   graph routes back to ``RouteDecision`` (which has conversation memory)
-    #:   and forces it to answer as chat.  Distinct from ``no_plan_required``,
-    #:   which is a real task whose facts are already available.
+    #:   and forces it to answer as chat.  A request whose facts are already
+    #:   known is still a task: plan a ``reasoning`` step to synthesise them.
     #: * ``unplannable`` -- no workable plan with the available tools.
     status: Literal[
         "in_progress",
         "needs_input",
-        "no_plan_required",
         "unplannable",
         "chat",
     ] = Field(default="in_progress", validate_default=True)
@@ -348,7 +342,6 @@ class PlanSchema(PlannerPlanSchema):
         "not_started",
         "in_progress",
         "needs_input",
-        "no_plan_required",
         "completed",
         "failed",
         "aborted",
@@ -421,7 +414,7 @@ class ArtefactSchema(BaseModel):
     unlike plan-scoped working memory (``step_outputs``), which
     ``InitGraphState`` clears each run.  ``AnswerFromResults`` auto-persists
     the completed task's deliverable here, and later tasks see it through the
-    Planner prompt (rendered by ``KleaAgentState.artefacts_text``).
+    answer-composer prompt (rendered by ``KleaAgentState.artefacts_text``).
 
     Conventions:
 
@@ -879,7 +872,7 @@ class KleaAgentState(BaseGraphSchema):
     def artefacts_text(self) -> str:
         """Render the session-scoped artefacts as one bounded text block.
 
-        Used by the Planner and answer-composer so a later task can build on earlier
+        Used by the answer-composer so a later task can build on earlier
         tasks' durable results.  Each artefact is rendered with its id, type and
         metadata (provenance/references) so the model can cite them; content is
         the concise result.

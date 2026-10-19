@@ -36,11 +36,13 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
 
     A reasoning step is a plan step whose output is a judgement rather than an
     external observation (interpretation, decision, hypothesis, design,
-    synthesis).  This node reads the goal, the plan, the current step and the
-    observations so far and emits a general conclusion; the picker/caller are
-    skipped.  The conclusion is recorded as a :class:`StepOutput` (a plain
-    string, not a ``CallToolResult``) so later steps and the Planner see it in
-    ``observations`` alongside tool results.
+    synthesis).  This node reads the goal, the plan, the current step, the
+    observations so far and (when memory is enabled) the conversation history,
+    and emits a general conclusion; the picker/caller are skipped.  The
+    conclusion is recorded as a :class:`StepOutput` (a plain string, not a
+    ``CallToolResult``) so later steps and the Planner see it in
+    ``observations`` alongside tool results.  This is how a goal whose facts are
+    already known in an earlier turn reaches the answer-composer.
 
     It never answers the user: the final reply is written by
     ``AnswerFromResults``.  The Evaluator judges the step afterwards, like any

@@ -16,8 +16,8 @@
 * `query`: the original user request
 * `goal` (optional): the fixed goal already set for this run (do not change it)
 * `plan` (optional): the current plan with per-step status markers
-* `discovery`, `artefacts`: project information and durable results from
-  earlier tasks (this task's result is persisted by the answer-composer)
+* `discovery`: project information (the project instruction file and other
+  stable context)
 * `tools`: the tools you may use
 * `observations`: working memory for the current plan (tool outputs and
   reasoning conclusions; cleared when you author a new plan)
@@ -42,11 +42,13 @@
   * `tool`: acts on the environment; name at least one real tool in
     `suggested_tools` (never invent tools or shell commands).  The executor
     binds the arguments later.
-  * `reasoning`: produces a conclusion a **later step in this plan** needs to
-    proceed (a decision selecting later steps, or content they build on) from
-    data already gathered.  Name no tools; if it needs data not yet gathered,
-    plan a `tool` step instead.  State the question in `description` and the
-    expected conclusion in `success_criteria`.
+  * `reasoning`: produces a conclusion from data already gathered, or from the
+    conversation history when the facts the goal needs are already known.  Name
+    no tools; if it needs data not yet gathered, plan a `tool` step first.  State
+    the question in `description` and the expected conclusion in
+    `success_criteria`.  A reasoning step may be the plan's only step when it
+    synthesises the answer; otherwise a later step must depend on its
+    conclusion.
   * `review`: a human checkpoint -- a **pure gate**.  The run pauses there for
     the user to approve or request changes.  Name no tools, give no
     `success_criteria`, and put **no action** in its description: a `review`
@@ -72,20 +74,20 @@
     `review` step for it.  Only add a `review` step when the user wants to
     approve before the work runs.
 * Never answer directly, even if the request looks answerable from knowledge.
-* If no environment work is needed at all and the goal is satisfiable from the
-  provided `artefacts`/`observations`, return no steps with status
-  `no_plan_required` and set the goal (do not answer directly -- the
-  answer-composer writes the reply from the available information).  Use this
-  only when no reachable step is needed; never to skip work you could do.
+* If every fact the goal needs is already known (from the conversation
+  history, `observations`, or `discovery`), plan a single `reasoning` step that
+  synthesises the answer from that information.  Do not return an empty plan;
+  the reasoning conclusion is what the answer-composer uses.
 * If the request is not a task at all -- the entry router misclassified a
   conversational turn or follow-up that only needs the conversation history --
   return no steps and no goal with status `chat`.  Do not use `chat` for a real
-  task whose facts are already available: that is `no_plan_required`.  Do not
-  use `chat` to avoid work you could plan.
+  task whose facts are already available: plan a `reasoning` step instead.  Do
+  not use `chat` to avoid work you could plan.
 * Do not add a step to check/compare/verify earlier results (the evaluator does
   that) or to prepare/summarise/state the reply (the answer-composer does that).
-  A `reasoning` step is valid only when a later step depends on its conclusion;
-  a plan may have no reasoning steps.
+  A `reasoning` step is valid when a later step depends on its conclusion, or
+  when it is the single step that synthesises already-known facts; a plan may
+  have no reasoning steps.
 * Give every step a concise `success_criteria` (the observable outcome that
   shows it is done).
 * A step that needs a fact only the user can supply is **blocked**: put the
@@ -98,8 +100,8 @@
 * For read-only requests, do not add write/create/edit/delete steps or create
   resources, and do not fabricate.
 * Persistence: evidence is working memory for this plan only; earlier tasks'
-  results appear under `artefacts`, and this task's result is written by the
-  answer-composer, not a plan step.
+  results are available in the conversation history, and this task's result is
+  written by the answer-composer, not a plan step.
 * Return the **complete** plan every time (all steps, 1-based unique numbers,
   statuses, `depends_on`):
   * `depends_on` lists earlier steps this step needs and may reference only
@@ -124,30 +126,21 @@
   step's `needs_input` and the run pauses to ask.  The answers arrive grouped
   by step as `human_input`; incorporate them and re-author every step without
   questions so the plan becomes runnable.
-* `no_plan_required`: no execution steps are needed -- every fact the goal needs
-  is already available (for example in `artefacts` from earlier tasks).  Return
-  no steps and set the goal.  This is a success, unlike `unplannable` (the goal
-  cannot be met): the answer-composer writes the reply.
 * `chat`: the entry router misclassified a conversational request (a greeting,
   direct discussion, or follow-up that only needs the conversation history);
   it is not a task.  Return no steps and no goal.  The run goes back to the
   entry router, which answers from conversation history.  Do not use this for a
-  task whose facts are already available -- that is `no_plan_required`.
+  task whose facts are already available -- plan a `reasoning` step instead.
 * `unplannable`: no workable plan with the available tools (return no steps).
   Marking a task impossible or dependency-missing is as valuable as completing
   it; do not use this to avoid a hard step.
 * `reason`: a short explanation -- the failure explanation (`unplannable`), a
   summary for `needs_input` (the questions themselves go on the blocked steps),
-  why no execution is needed (`no_plan_required`), or why the request is chat
-  (`chat`).
+  or why the request is chat (`chat`).
 
 ---
 
 ## Project context
-
-### Artefacts
-
-{artefacts}
 
 ### Discovery
 

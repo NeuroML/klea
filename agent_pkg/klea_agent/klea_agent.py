@@ -215,24 +215,20 @@ class KleaAgent(BaseLangGraph):
     async def _planner_router(self, state: KleaAgentState) -> str:
         """Route on the Planner's ``plan.status`` and the step kind (ADR-0035).
 
-        ``unplannable`` -> failure answer; ``no_plan_required`` -> answer
-        (success: no execution needed, the answer-composer writes the reply);
-        ``chat`` -> back to the entry router, which is forced to answer as chat
-        from conversation history (the request is not a task); ``needs_input``
-        -> the HITL input node asks the blocked steps' questions (ADR-0046);
-        ``completed`` (all steps already done) -> answer; otherwise
-        (``in_progress``) -> dispatch the next runnable step by ``kind``
-        (ADR-0041): a ``review`` step pauses for human review (ADR-0051),
-        ``tool``/``reasoning`` execute.  An ``in_progress`` plan with no
-        runnable step is blocked and fails closed.
+        ``unplannable`` -> failure answer; ``chat`` -> back to the entry router,
+        which is forced to answer as chat from conversation history (the request
+        is not a task); ``needs_input`` -> the HITL input node asks the blocked
+        steps' questions (ADR-0046); ``completed`` (all steps already done) ->
+        answer; otherwise (``in_progress``) -> dispatch the next runnable step by
+        ``kind`` (ADR-0041): a ``review`` step pauses for human review
+        (ADR-0051), ``tool``/``reasoning`` execute.  An ``in_progress`` plan
+        with no runnable step is blocked and fails closed.
         """
         status = state.plan.status
         if status == "unplannable":
             return "failure"
         if status == "chat":
             return "chat"
-        if status == "no_plan_required":
-            return "plan_done"
         if status == "needs_input":
             return "needs_input"
         if status == "completed":

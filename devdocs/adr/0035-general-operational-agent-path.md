@@ -318,7 +318,8 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
   answers the user.  `plan.status` is the post-Planner routing source:
   `in_review` -> `AwaitHuman` (review), `needs_input` -> `AwaitHuman` (input),
-  `no_plan_required` -> answer (success; no execution needed),
+  `no_plan_required` -> answer (success; no execution needed; removed
+  2026-10-19, see the update below),
   `unplannable` -> failure answer, `in_progress` -> step execution.  It
   produces a plan even for a single action.
 * Trivial chat stays the cheap floor: Guard + RouteDecision (2 calls).
@@ -478,11 +479,12 @@ State lifetime is explicit; the aim is a bounded working set, not the
   The completed task's deliverable is auto-persisted by
   `AnswerFromResults` as a concise `ArtefactSchema` (`content` = the
   result, `metadata` = goal/provenance/references, `type_` = category), and
-  the Planner prompt renders it (`artefacts_text()`) so a later task can
-  build on it.  This extends the artefact model of ADR-0029 (evidence and
-  provenance).
+  the answer-composer prompt renders it (`artefacts_text()`) so a later task
+  can build on it.  The Planner does not receive artefacts (2026-10-19); it
+  works from conversation memory.  This extends the artefact model of
+  ADR-0029 (evidence and provenance).
 * The rendered artefact block is **bounded** so a long session cannot grow
-  the Planner/answer prompts without limit: `artefacts_text()` selects the
+  the answer-composer prompt without limit: `artefacts_text()` selects the
   most recently written entries up to `MAX_ARTEFACTS_IN_PROMPT` (20) and
   `MAX_ARTEFACTS_PROMPT_CHARS` (12,000), then renders them in chronological
   order and notes how many older entries were omitted.  A superseded id
@@ -564,6 +566,9 @@ exposed as ``validation_feedback`` and, if the model insists, fails closed
 
 ## Update (2026-10-12): `no_plan_required` (no-execution) plans
 
+> Superseded by the 2026-10-19 update below: the status and the zero-step
+> bypass have been removed.
+
 A task may need no environment work at all -- every fact its goal needs is
 already available (for example in the session ``artefacts`` gathered by earlier
 tasks).  The Planner now signals this with a new ``no_plan_required`` status (no
@@ -606,3 +611,32 @@ requires a ``chat`` route with a non-empty answer, so an ignored override
 triggers the validation retry and, if the model still refuses, the routing is
 still forced to ``chat`` (the delivery node's empty-answer fallback applies).
 See ``devdocs/system/agent-general-path-control-flow.md``.
+
+## Update (2026-10-19): `no_plan_required` removed; already-known facts use a reasoning step
+
+`no_plan_required` let the Planner emit a zero-step plan when it judged the goal
+answerable from information it could see.  That created an information
+asymmetry: the Planner has conversation memory, but `AnswerFromResults` does
+not, so a status decided from history could reach an answer-composer that could
+not see the same facts.  It also bypassed the plan/evaluation loop and made the
+Planner's output depend on a source (`artefacts`) that is no longer rendered
+into its prompt.
+
+The status is removed.  An `in_progress` plan must carry at least one step;
+when the facts a goal needs are already known (conversation history,
+observations, discovery), the Planner plans a single `reasoning` step that
+synthesises them.  `ReasoningNode` has memory, so its conclusion lands in
+`observations`, which `AnswerFromResults` does see, keeping the decision and
+the composition on the same information contract.  The cost is one reasoning
+plus one evaluator call on that path (previously none); the benefit is that a
+"no work needed" decision can no longer strand the answer-composer without the
+facts.
+
+`_validate_result` rejects an empty `in_progress` plan and later retries are
+coerced to `unplannable` (a failure) as before.  The Planner prompt no longer
+receives the `artefacts` block: `artefacts` remain the answer-composer's
+session-scoped cross-task record, but are no longer load-bearing for planning.
+In-run completion is unchanged and uses the Evaluator's `plan_done` ->
+`completed` path, not a Planner status.
+
+See `devdocs/system/agent-general-path-control-flow.md`.
