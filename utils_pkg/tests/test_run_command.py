@@ -197,6 +197,14 @@ async def _wait_for_death(pid: int, *, attempts: int = 40) -> bool:
     return False
 
 
+# https://github.com/NeuroML/klea/issues/203
+windows_child_kill = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="child processes are not killed on Windows (#203)",
+)
+
+
+@windows_child_kill
 async def test_timeout_kills_sigterm_ignoring_grandchild(tmp_path):
     """A grandchild that ignores SIGTERM is still killed on timeout.
 
@@ -223,6 +231,7 @@ async def test_timeout_kills_sigterm_ignoring_grandchild(tmp_path):
     assert await _wait_for_death(pid), f"grandchild {pid} survived the timeout kill"
 
 
+@windows_child_kill
 async def test_cancellation_kills_process_group(tmp_path):
     """Cancelling ``run_command`` kills the spawned process group.
 
