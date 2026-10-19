@@ -22,9 +22,9 @@ menu); more are planned in both groups.
 
    Client commands are shared by the web UI and the TUI.  The lightweight
    ``klea cli`` REPL has no client-command handling, so only server commands
-   work there.  The TUI offers ``/help``, ``/sessions``, ``/model`` and
-   ``/exit``; the web UI also offers ``/new``, ``/rename``, ``/export`` and
-   the ``/sessions`` verbs.  Server commands depend on the app's graph: the
+   work there.  The TUI offers ``/help``, ``/new``, ``/sessions``, ``/model``
+   and ``/exit``; the web UI also offers ``/rename``, ``/export`` and the
+   ``/sessions`` verbs.  Server commands depend on the app's graph: the
    agent registers ``/mode``, ``/access``, ``/cwd``, ``/init`` and
    ``/compact``, while the RAG graphs register none yet.
 
@@ -46,7 +46,7 @@ These run in the frontend.
      - List the available commands, or show one command's usage.
    * - ``/new``
      - ``/new``
-     - web
+     - web, TUI
      - Start a new session.
    * - ``/rename``
      - ``/rename <name>``

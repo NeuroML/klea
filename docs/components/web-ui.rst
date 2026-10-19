@@ -82,6 +82,8 @@ Sessions
 --------
 
 Use the left pane to start a new chat or switch between existing ones.
+Hovering a session shows when it was created plus a truncated preview of its
+first query, so similarly named chats are easy to tell apart.
 ``klea web`` opens the interface in your default browser on launch (pass
 ``--no-open`` on a headless or remote host), and accepts ``--continue`` or
 ``--resume <chat_id>`` to open the most recently updated or a specific session
