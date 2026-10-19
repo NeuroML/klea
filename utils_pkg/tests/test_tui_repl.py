@@ -123,6 +123,7 @@ def test_permission_sensitive_session_uses_file_key(monkeypatch):
         "klea",
     )
     assert response == {"decisions": [{"key": "/proj/.env", "decision": "session"}]}
+    assert cancel is False
 
 
 def test_permission_multiple_decisions(monkeypatch):
@@ -155,6 +156,7 @@ def test_permission_retries_invalid_choice(monkeypatch):
         "klea",
     )
     assert response == {"decisions": [{"key": "/etc", "decision": "session"}]}
+    assert cancel is False
 
 
 def test_permission_cancel(monkeypatch):
