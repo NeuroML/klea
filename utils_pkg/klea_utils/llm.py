@@ -900,10 +900,19 @@ def get_token_limit_param(provider: str) -> str:
 #:
 #: Deliberately generous: reasoning models spend most of the completion budget
 #: on hidden reasoning tokens, so a small cap truncates even tiny structured
-#: payloads.  The value is a ceiling, not a target, and is clamped per model by
-#: :func:`resolve_output_token_limit` (catalog output limit and context
-#: headroom), so a large default is safe for small models too.
-DEFAULT_MAX_OUTPUT_TOKENS = 16384
+#: payloads and forces a slow grow-ladder retry.  The value is a ceiling, not a
+#: target, and is clamped per model by :func:`resolve_output_token_limit`
+#: (catalog output limit and context headroom), so a large default is safe for
+#: small models too.  HuggingFace is the exception: its total-budget accounting
+#: makes a large reservation trigger usage limits, so it keeps the smaller
+#: :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` default and relies on retries.
+DEFAULT_MAX_OUTPUT_TOKENS = 32768
+
+#: Conservative HuggingFace default.  HuggingFace-style providers account the
+#: reserved output window against the context and rate-limit large
+#: reservations, so keep the first attempt small and let the grow-ladder
+#: handle a genuinely truncated completion.
+HUGGINGFACE_MAX_OUTPUT_TOKENS = 16384
 
 #: Built-in per-role max output token defaults.  Nodes may override these
 #: with the generic ``max_output_tokens`` key in ``model_defaults``, and
@@ -912,12 +921,45 @@ DEFAULT_MAX_OUTPUT_TOKENS = 16384
 #:
 #: ``guard`` stays small: a safety classifier emits a one-word verdict, so
 #: there is no reason to reserve a large window.  Every other role gets the
-#: generous default so reasoning models do not truncate.
+#: generous default so reasoning models do not truncate (and therefore do not
+#: pay a retry round-trip).
 _ROLE_MAX_OUTPUT_TOKENS: dict[str, int] = {
     "chat": DEFAULT_MAX_OUTPUT_TOKENS,
     "plan": DEFAULT_MAX_OUTPUT_TOKENS,
+    "tool_picker": DEFAULT_MAX_OUTPUT_TOKENS,
     "guard": 2048,
 }
+
+#: HuggingFace per-role overrides; roles absent here use
+#: :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` (or :data:`_ROLE_MAX_OUTPUT_TOKENS`
+#: where that is smaller, e.g. ``guard``).
+_HF_ROLE_MAX_OUTPUT_TOKENS: dict[str, int] = {
+    "chat": HUGGINGFACE_MAX_OUTPUT_TOKENS,
+    "plan": HUGGINGFACE_MAX_OUTPUT_TOKENS,
+    "tool_picker": HUGGINGFACE_MAX_OUTPUT_TOKENS,
+    "guard": 2048,
+}
+
+
+def _default_output_tokens(provider: str, role: str | None) -> int:
+    """Return the built-in max-output default for *provider* and *role*.
+
+    Non-HuggingFace providers get the generous default (larger requests do not
+    trigger their rate limits), while HuggingFace keeps the conservative
+    default because its total-budget accounting penalises large reservations.
+
+    :param provider: Klea provider id.
+    :param role: Model role, or ``None``.
+    :returns: The fallback token count.
+    """
+    if provider == "huggingface":
+        role_defaults = _HF_ROLE_MAX_OUTPUT_TOKENS
+        fallback = HUGGINGFACE_MAX_OUTPUT_TOKENS
+    else:
+        role_defaults = _ROLE_MAX_OUTPUT_TOKENS
+        fallback = DEFAULT_MAX_OUTPUT_TOKENS
+    return role_defaults.get(role or "", fallback)
+
 
 #: The three max-output token parameter names used across providers.
 _TOKEN_PARAMS = ("max_tokens", "max_new_tokens", "num_predict")
@@ -971,7 +1013,11 @@ def resolve_output_token_limit(
        ``max_new_tokens`` / ``num_predict``) already present in
        ``overrides`` (user/node/role value).
     2. The generic ``max_output_tokens`` key (provider-agnostic count).
-    3. The built-in per-role fallback for *role*.
+    3. The built-in per-role fallback for *role* and *provider*: non-HF
+       providers get the generous :data:`DEFAULT_MAX_OUTPUT_TOKENS`;
+       HuggingFace gets the conservative
+       :data:`HUGGINGFACE_MAX_OUTPUT_TOKENS` because large reservations
+       count against its total budget and trigger usage limits.
 
     The resolved value is clamped to ``min(value, catalog limit.output)``
     and, when the catalog exposes a context window and *input_chars* is
@@ -994,7 +1040,7 @@ def resolve_output_token_limit(
     :param overrides: The merged ``configurable`` dict to update in place.
     :param provider: Klea provider id (``huggingface``, ``ollama``, ...).
     :param role: Model role (e.g. ``"chat"``), used for the built-in
-        per-role fallback.
+        per-role, per-provider fallback.
     :param input_chars: Character count of the prompt, to bound the output
         within the total budget.
     :param use_endpoint: When True, prefer the live endpoint's
@@ -1014,12 +1060,12 @@ def resolve_output_token_limit(
     if value is None:
         value = overrides.get("max_output_tokens")
     if value is None:
-        value = _ROLE_MAX_OUTPUT_TOKENS.get(role or "", DEFAULT_MAX_OUTPUT_TOKENS)
+        value = _default_output_tokens(provider, role)
     try:
         value = int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError) as exc:
         logger.warning(f"Invalid token limit {value!r}: {exc}, using fallback")
-        value = _ROLE_MAX_OUTPUT_TOKENS.get(role or "", DEFAULT_MAX_OUTPUT_TOKENS)
+        value = _default_output_tokens(provider, role)
 
     # Clamp to the model's output limit and total budget, if known.
     # models.dev's limits are per-deployment config and may under-report a

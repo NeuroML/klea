@@ -491,7 +491,7 @@ class TestInvokeWithRetries:
         """Persistent raised truncation climbs to the ceiling, then re-raises.
 
         From 1024 the ladder steps +2048 through the linear phase up to
-        16384, then +32768 to the fixed 32768 ceiling (9 rungs); at the
+        17408, then +32768 rungs clamped to the 65536 ceiling; at the
         ceiling the window cannot grow further, so the error surfaces.
         """
         inst = mock.Mock()
@@ -508,8 +508,8 @@ class TestInvokeWithRetries:
         else:
             raise AssertionError("expected RuntimeError")
 
-        # 1 original + 9 grow rungs (3072..32768); the ceiling cannot grow further.
-        assert inst.ainvoke.await_count == 10
+        # 1 original + 10 grow rungs (3072..65536); the ceiling cannot grow further.
+        assert inst.ainvoke.await_count == 11
         assert config["configurable"]["max_tokens"] == MAX_OUTPUT_TOKENS_CEILING
 
     async def test_truncation_exception_linear_rungs_before_success(self):
@@ -548,8 +548,8 @@ class TestInvokeWithRetries:
         config = make_config(max_tokens=1024)
         out = await self._invoke(inst, config)
 
-        # 1 original + 9 grow rungs to the 32768 ceiling; then no progress.
-        assert inst.ainvoke.await_count == 10
+        # 1 original + 10 grow rungs to the 65536 ceiling; then no progress.
+        assert inst.ainvoke.await_count == 11
         assert out.content == "cut"
         assert config["configurable"]["max_tokens"] == MAX_OUTPUT_TOKENS_CEILING
 
@@ -572,7 +572,7 @@ class TestInvokeWithRetries:
                 )
             )
             # base_url present so the endpoint lookup applies; small prompt so
-            # the endpoint headroom (~262k) is far above the 32768 fallback.
+            # the endpoint headroom (~262k) is far above the 65536 fallback.
             config = make_config(max_tokens=2048)
             config["configurable"]["base_url"] = (
                 "https://inf01.arc-llm.condenser.arc.ucl.ac.uk/v1/"

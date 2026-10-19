@@ -191,3 +191,24 @@ endpoint limits".
 * Codified ``2026-08-28``; ladder hardened ``2026-08-18..21`` during the
   LLM-retry + catalog hardening sprint; always-bounded HuggingFace fix
   from ``2026-08-03`` Session 2.
+
+## Update (2026-10-19): larger first-attempt output budgets
+
+The retry ladder stays, but it should be the exception rather than the normal
+path: each truncation retry costs a full model round-trip, which dominates the
+loop's latency.  The first-attempt defaults are therefore larger:
+
+* ``DEFAULT_MAX_OUTPUT_TOKENS = 32768`` and the ``chat``/``plan``/
+  ``tool_picker`` roles default to it (``guard`` stays at 2048).
+* ``MAX_OUTPUT_TOKENS_CEILING = 65536``, so a truncated response still has
+  headroom to grow.
+* HuggingFace keeps the conservative
+  ``HUGGINGFACE_MAX_OUTPUT_TOKENS = 16384`` because its total-budget
+  accounting penalises large reservations (the original rate-limit cause);
+  the grow ladder is primarily for that provider.  Other providers do not
+  rate-limit larger input/output requests, so they get the larger default
+  and usually complete on the first attempt.
+
+Explicit ``max_tokens``/``max_output_tokens`` and per-provider
+``providers.<provider>.<role>`` config still win; catalog output and
+context-headroom clamps still bound every value.

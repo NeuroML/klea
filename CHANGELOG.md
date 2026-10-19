@@ -57,6 +57,7 @@
 
 ### Changed
 
+- LLM output budgets: the first-attempt max output tokens for `chat`, `plan` and `tool_picker` are now 32768 (up from 16384), and the truncation-retry ceiling is 65536, so long or reasoning-heavy completions usually finish on the first call instead of paying a retry round-trip. HuggingFace keeps a 16384 default because its total-budget accounting penalises large reservations (ADR-0017).
 - Web UI: the user's own messages are rendered verbatim (no Markdown decoration), so literal underscores, `#`, lists, line breaks and pasted code are preserved; bare URLs stay clickable. Agent and system messages remain Markdown.
 - Entry routing: the `chat` route is now reserved for self-contained conversational/general-knowledge replies (including direct conversational edits such as shortening or rephrasing); a request that derives a result from earlier work or turns (summarise, compile, compare, synthesise) is routed to the `task` path so it is planned/checked and its deliverable persisted, instead of being answered inline by the router.
 - The agent client identities are now `klea-agent-tui` / `klea-agent-web` (previously `klea-tui` / `klea-web`), matching the `klea-{agent,rag}-{tui,web}` scheme the RAG clients already use; the log file and NiceGUI user-data directory names change accordingly, and existing agent web storage under `klea-web` is not migrated.

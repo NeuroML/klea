@@ -13,6 +13,7 @@ from unittest import mock
 
 from klea_utils.llm import (
     DEFAULT_MAX_OUTPUT_TOKENS,
+    HUGGINGFACE_MAX_OUTPUT_TOKENS,
     resolve_output_token_limit,
 )
 from klea_utils.models_catalog import ModelLimits
@@ -38,6 +39,15 @@ class TestResolveOutputTokenLimit(unittest.TestCase):
             {"model": "gpt-4o", "model_provider": "openai"}, "openai", role="chat"
         )
         self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
+
+    def test_huggingface_chat_role_default_is_conservative(self):
+        ov = self._resolve(
+            {"model": "org/model", "model_provider": "huggingface"},
+            "huggingface",
+            role="chat",
+        )
+        self.assertEqual(ov["max_tokens"], HUGGINGFACE_MAX_OUTPUT_TOKENS)
+        self.assertLess(HUGGINGFACE_MAX_OUTPUT_TOKENS, DEFAULT_MAX_OUTPUT_TOKENS)
 
     def test_guard_role_default(self):
         ov = self._resolve(
@@ -147,7 +157,7 @@ class TestResolveOutputTokenLimit(unittest.TestCase):
         with _no_catalog(ModelLimits(context=8192, output=65536)):
             ov = {"model": "org/model", "model_provider": "huggingface"}
             resolve_output_token_limit(ov, "huggingface", role="chat")
-        self.assertEqual(ov["max_tokens"], DEFAULT_MAX_OUTPUT_TOKENS)
+        self.assertEqual(ov["max_tokens"], HUGGINGFACE_MAX_OUTPUT_TOKENS)
 
     def test_no_clamp_without_catalog(self):
         """No catalog info means only the role default applies."""

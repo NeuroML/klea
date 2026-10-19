@@ -133,7 +133,7 @@ TRUNCATION_PHASE2_STEP = 32768
 #: :meth:`BaseLLMNode._jump_output_target` raises the ceiling to the
 #: endpoint's remaining context.  It is still clamped to the model's
 #: catalog output limit / total budget by ``resolve_output_token_limit``.
-MAX_OUTPUT_TOKENS_CEILING = 32768
+MAX_OUTPUT_TOKENS_CEILING = 65536
 
 #: Floor for the reserved output window when shrinking it on overflow.
 MIN_OUTPUT_TOKENS = 64
