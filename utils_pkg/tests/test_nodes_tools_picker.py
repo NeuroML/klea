@@ -10,12 +10,13 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+import pytest
 from fastmcp.client.client import CallToolResult
 from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.context import LLMNodeContext, NodeContext
 from klea_utils.nodes.tools_picker import ToolsPicker
 from mcp.types import TextContent
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 TOOLS_INFO = {
     "NeuroML": {
@@ -59,6 +60,8 @@ class Step(BaseModel):
     step_number: int = 1
     description: str = "do it"
     status: str = "pending"
+    kind: str = "tool"
+    suggested_tools: list[str] = Field(default_factory=list)
 
     def render(self, *, current: bool = False) -> str:
         return self.description
@@ -84,6 +87,7 @@ class AgentLikeState(BaseModel):
     artefacts: dict = Field(default_factory=dict)
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
+    binding_calls: list[ToolCallSchema] = Field(default_factory=list)
     plan: PlanLike = Field(default_factory=PlanLike)
     access_level: str = "full"
     picker_attempts: int = 0
@@ -91,6 +95,13 @@ class AgentLikeState(BaseModel):
 
     def observations_text(self) -> str:
         return "rendered observations"
+
+
+class BatchPlan(PlanLike):
+    """Plan double whose batch is the full step list."""
+
+    def next_batch(self, max_steps: int | None = None) -> list[Step]:
+        return self.step_list[:max_steps] if max_steps is not None else self.step_list
 
 
 def _make_picker(**kwargs) -> ToolsPicker:
@@ -122,6 +133,134 @@ def test_get_tool_descriptions_includes_all_without_domains():
 def test_get_tool_descriptions_unknown_domain_is_empty():
     picker = _make_picker()
     assert picker._get_tool_descriptions(RagLikeState(query_domains=["nope"])) == ""
+
+
+def test_binding_group_is_contiguous_and_uses_identical_sets():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["read_file"]),
+            Step(step_number=2, suggested_tools=["read_file"]),
+            Step(step_number=3, suggested_tools=["grep"]),
+            Step(step_number=4, suggested_tools=["read_file"]),
+        ]
+    )
+
+    group = picker._binding_group(AgentLikeState(plan=plan))
+
+    assert [step.step_number for step in group] == [1, 2]
+
+
+def test_binding_group_is_capped():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=number, suggested_tools=["read_file"])
+            for number in range(1, 7)
+        ]
+    )
+
+    group = picker._binding_group(AgentLikeState(plan=plan))
+
+    assert [step.step_number for step in group] == [1, 2, 3, 4]
+
+
+def test_binding_group_skips_already_bound_steps():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["read_file"]),
+            Step(step_number=2, suggested_tools=["read_file"]),
+            Step(step_number=3, suggested_tools=["read_file"]),
+        ]
+    )
+    state = AgentLikeState(
+        plan=plan,
+        binding_calls=[ToolCallSchema(tool="read_file", step=1)],
+    )
+
+    group = picker._binding_group(state)
+
+    assert [step.step_number for step in group] == [2, 3]
+
+
+def test_binding_allowed_tools_only_covers_the_group():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["get_models"]),
+            Step(step_number=2, suggested_tools=["other_tool"]),
+        ]
+    )
+
+    state = AgentLikeState(plan=plan)
+    allowed = picker._binding_allowed_tools(state)
+
+    assert set(allowed) == {"get_models"}
+    assert picker._get_tool_descriptions(state) == "Find models."
+
+
+def test_binding_allowed_tools_respects_access_level():
+    picker = _make_picker(
+        bind_planned_steps=True,
+        tools_info={
+            "files": {
+                "read_tool": ToolInfo(read_only=True, description="read"),
+                "write_tool": ToolInfo(read_only=False, description="write"),
+            }
+        },
+    )
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["write_tool"])])
+
+    state = AgentLikeState(plan=plan, access_level="read_only")
+
+    assert picker._binding_allowed_tools(state) == {}
+
+
+def test_binding_mode_disabled_keeps_full_catalogue():
+    picker = _make_picker()
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["get_models"])])
+
+    state = AgentLikeState(plan=plan)
+
+    assert set(picker._binding_allowed_tools(state)) == {
+        "get_models",
+        "run_simulation",
+        "other_tool",
+    }
+
+
+def test_binding_schema_excludes_unsuggested_tools():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["get_models"])])
+    schema = picker._get_output_schema(AgentLikeState(plan=plan), LLMNodeContext())
+    assert schema is not None
+
+    parsed = schema.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "find models",
+                    "call": {"tool": "get_models", "search_query": "cerebellum"},
+                }
+            ]
+        }
+    )
+    assert picker._normalize_calls(parsed)[0].tool == "get_models"
+
+    with pytest.raises(ValidationError):
+        schema.model_validate(
+            {
+                "tool_calls": [
+                    {
+                        "step": 1,
+                        "reason": "wrong tool",
+                        "call": {"tool": "other_tool"},
+                    }
+                ]
+            }
+        )
 
 
 def test_output_schema_is_a_per_tool_union():

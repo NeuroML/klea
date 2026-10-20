@@ -30,6 +30,8 @@ from klea_utils.tools import last_tool_error_text
 
 #: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).
 MAX_BATCH_STEPS = 8
+#: Maximum steps bound in one binder invocation when steps share a tool set.
+MAX_BIND_GROUP = 4
 #: Maximum tool calls bound in one picker invocation (ADR-0041 batch cap).
 MAX_BATCH_CALLS = 16
 
@@ -53,6 +55,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     ``_get_prompt_variables`` returns a superset of variables; each prompt
     file uses only the ones it declares (``ChatPromptTemplate`` ignores the
     rest), so one class serves both prompts.
+
+    With ``bind_planned_steps=True`` (the agent's ``ToolCallBinder``) the node
+    binds the Planner's chosen tools instead of choosing tools: it processes
+    one contiguous group of plan steps that share the same suggested-tool set,
+    exposes only those tools, and accumulates calls in ``binding_calls`` until
+    the batch is fully bound.  RAG keeps the default picker behavior.
     """
 
     model_role = "chat"
@@ -70,6 +78,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         prompt_prefix: str = "ToolsPicker",
         prompt_registry_location: str | Path | None = None,
         on_unusable: Callable[[Any, str], dict[str, Any]] | None = None,
+        bind_planned_steps: bool = False,
     ):
         """Initialise the tools picker node.
 
@@ -89,6 +98,12 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             explains why (a single empty-name call with a ``reason``).  The app
             records that as a synthetic failure observation and a
             ``replan_reason`` (agent); RAG passes nothing.
+        :param bind_planned_steps: Bind the plan's suggested tools instead of
+            choosing tools.  When true, each invocation covers one contiguous
+            group of batch steps sharing the same ``suggested_tools`` set, and
+            calls accumulate in ``state.binding_calls`` until the batch is
+            bound.  The agent's ``ToolCallBinder`` sets this; RAG leaves it
+            false.
         """
         # Must be set before AbstractLLMNode.__init__ reads it to pick the
         # right entry from llm_models.
@@ -103,6 +118,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         self._tools_info = tools_info or {}
         self._prompt_prefix = prompt_prefix
         self._on_unusable = on_unusable
+        self._bind_planned_steps = bind_planned_steps
         if prompt_registry_location is not None:
             self.prompt_registry_location = Path(prompt_registry_location)
 
@@ -137,6 +153,104 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             for name, info in domain_tools.items()
         }
 
+    def _batch_steps(self, state: BaseModel) -> list[Any]:
+        """Return the current plan batch, or ``[]`` for a planless state.
+
+        :param state: Current graph state.
+        :returns: The ordered batch steps.
+        """
+        plan = getattr(state, "plan", None)
+        if plan is None or not hasattr(plan, "next_batch"):
+            return []
+        return list(plan.next_batch(MAX_BATCH_STEPS))
+
+    def _bound_step_numbers(self, state: BaseModel) -> set[int]:
+        """Return the step numbers already bound in this batch.
+
+        A call with an empty tool name is a failure signal, not a binding.
+
+        :param state: Current graph state.
+        :returns: Bound 1-based step numbers.
+        """
+        bound: set[int] = set()
+        for call in getattr(state, "binding_calls", None) or []:
+            if not str(getattr(call, "tool", "") or "").strip():
+                continue
+            try:
+                number = int(getattr(call, "step", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if number > 0:
+                bound.add(number)
+        return bound
+
+    def _binding_group(self, state: BaseModel) -> list[Any]:
+        """Return the next contiguous group of steps sharing a tool set.
+
+        Binding mode processes the batch one tool-set group at a time: the
+        first unbound step, followed by contiguous unbound steps whose
+        ``suggested_tools`` are an identical set, capped at
+        :data:`MAX_BIND_GROUP`.  Non-contiguous steps are a separate group even
+        when their tool sets match, so binding order stays predictable.
+
+        :param state: Current graph state.
+        :returns: The steps to bind in this invocation, or ``[]`` when binding
+            is disabled, there is no batch, or every step is already bound.
+        """
+        if not self._bind_planned_steps:
+            return []
+        batch = self._batch_steps(state)
+        if not batch:
+            return []
+        bound = self._bound_step_numbers(state)
+        start = next(
+            (
+                index
+                for index, step in enumerate(batch)
+                if int(getattr(step, "step_number", 0) or 0) not in bound
+            ),
+            None,
+        )
+        if start is None:
+            return []
+        first = batch[start]
+        group_key = frozenset(getattr(first, "suggested_tools", None) or [])
+        group: list[Any] = []
+        for step in batch[start:]:
+            number = int(getattr(step, "step_number", 0) or 0)
+            if number in bound:
+                break
+            if frozenset(getattr(step, "suggested_tools", None) or []) != group_key:
+                break
+            group.append(step)
+            if len(group) >= MAX_BIND_GROUP:
+                break
+        return group
+
+    def _binding_allowed_tools(self, state: BaseModel) -> dict[str, ToolInfo]:
+        """Return the tools the current invocation may use.
+
+        In picker mode this is the access/domain-filtered catalogue.  In
+        binder mode it is narrowed to the current binding group's shared
+        suggested-tool set; an empty group yields no tools, so the binder must
+        escalate rather than choose from the wider catalogue.
+
+        :param state: Current graph state.
+        :returns: ``{tool_name: ToolInfo}`` available to this invocation.
+        """
+        disclosed = self._disclosed_tools(state)
+        if not self._bind_planned_steps:
+            return disclosed
+        if not self._batch_steps(state):
+            return disclosed
+        group = self._binding_group(state)
+        if not group:
+            return {}
+        allowed: set[str] = set()
+        for step in group:
+            allowed.update(getattr(step, "suggested_tools", None) or [])
+        return {name: info for name, info in disclosed.items() if name in allowed}
+
     def _get_tool_descriptions(self, state: BaseModel) -> str:
         """Return the combined tool descriptions relevant to *state*.
 
@@ -144,18 +258,19 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         :returns: Descriptions joined into one block, or ``""`` when none.
         """
         return "\n\n".join(
-            info.description or "" for info in self._disclosed_tools(state).values()
+            info.description or ""
+            for info in self._binding_allowed_tools(state).values()
         )
 
     @override
     def _get_output_schema(self, state: BaseModel, ctx: Any) -> Any:
-        """Build the picker's per-tool call schema for this run.
+        """Build the picker/binder per-tool call schema for this run.
 
-        A discriminated union over the same disclosed tool set as the prompt
+        A discriminated union over the same tool set as the prompt
         descriptions, so every tool's parameters are real, typed fields (not a
         free-form ``args`` object that strict structured-output modes close).
         """
-        tools = self._disclosed_tools(state)
+        tools = self._binding_allowed_tools(state)
         if not tools:
             return super()._get_output_schema(state, ctx)
         self.logger.debug(f"picker output schema\n{len(tools) = }\n{list(tools) = }")
