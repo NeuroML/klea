@@ -332,7 +332,10 @@ class PlanSchema(PlannerPlanSchema):
       ``InitGraphState``; ``completed``/``failed``/``aborted`` from the
       Evaluator and budget guards) alongside the Planner's entry values.  This
       single field is the post-Planner routing source; no separate route flag
-      exists.
+      exists.  A code-written failure (``unplannable``) or budget-guidance
+      draft (``needs_input``) may retain the last authored ``step_list`` so the
+      status pane still shows it; the model-authored
+      :class:`PlannerPlanSchema` still rejects ``unplannable`` with steps.
     * run-history counters.  These let a downstream node (the answer synthesis)
       be told the final plan is a settled artifact reached through iterations
       *without* being handed the raw feedback or every plan version - feedback is

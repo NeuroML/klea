@@ -333,6 +333,67 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             )
         return "; ".join(errors) if errors else None
 
+    @staticmethod
+    def _preserved_plan(
+        prior: PlanSchema,
+        status: Literal["unplannable", "needs_input"],
+        version: int,
+        review_rounds: int,
+        revisions: int,
+        *,
+        extra_steps: list[StepSchema] | None = None,
+    ) -> PlanSchema:
+        """Build a terminal/draft plan without discarding the authored steps.
+
+        A failed run (or a pause for guidance) keeps the last plan visible in
+        the status pane; only the lifecycle status and counters change.  The
+        step objects are preserved as-is, including their statuses.
+
+        :param prior: The plan from the incoming state.
+        :param status: Runtime plan status to write.
+        :param version: New plan version.
+        :param review_rounds: Human feedback rounds.
+        :param revisions: Automated revision counter.
+        :param extra_steps: Optional steps to append (for a guidance draft).
+        :returns: The preserved plan.
+        """
+        steps = list(prior.step_list)
+        if extra_steps:
+            steps.extend(extra_steps)
+        return PlanSchema(
+            step_list=steps,
+            status=status,
+            plan_version=version,
+            human_feedback_rounds=review_rounds,
+            automated_plan_revisions=revisions,
+        )
+
+    @staticmethod
+    def _guidance_step(prior: PlanSchema, reason: str) -> StepSchema:
+        """Return a blocked step carrying the budget-exhaustion help question.
+
+        Reusing ``needs_input`` means the ordinary HITL input node handles the
+        pause; the step is a draft and is never executed.
+
+        :param prior: The incoming plan (for the next step number).
+        :param reason: Last automated replan/tool reason, if any.
+        :returns: A blocked guidance step.
+        """
+        number = max((step.step_number for step in prior.step_list), default=0) + 1
+        question = (
+            "The automated replan budget is exhausted. "
+            f"Last reason: {reason.strip() or 'the plan could not be revised automatically'}. "
+            "How should I proceed?"
+        )
+        return StepSchema(
+            step_number=number,
+            description="Provide guidance to continue",
+            success_criteria="The user provides guidance for the next plan.",
+            kind="reasoning",
+            needs_input=[question],
+            status="pending",
+        )
+
     @override
     def _update_state(
         self, result: PlannerOutput, state: KleaAgentState, ctx: Any
@@ -381,21 +442,6 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "binding_calls": [],
         }
 
-        # If validation retries are exhausted, fail closed rather than
-        # accepting the last (still invalid) plan.
-        if ctx.validation_feedback:
-            reason = f"plan validation failed: {ctx.validation_feedback}"
-            self.logger.warning(
-                "Plan validation failed; giving up: %s", ctx.validation_feedback
-            )
-            update["plan"] = PlanSchema(status="unplannable")
-            update["failure_reason"] = reason
-            update["messages_internal"] = [
-                *state.messages_internal,
-                AIMessage(content=f"Planning failed: {reason}"),
-            ]
-            return update
-
         # --- Plan-history counters (durable run signal) -------------------
         # ``plan_version`` increments on every authoring; ``human_feedback_rounds``
         # increments when the Planner processes review feedback; the automated
@@ -405,6 +451,28 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         prior = state.plan
         version = prior.plan_version + 1
         review_rounds = prior.human_feedback_rounds + (1 if state.human_feedback else 0)
+
+        # If validation retries are exhausted, fail closed rather than
+        # accepting the last (still invalid) plan.  Keep the previous plan
+        # visible; only the status changes.
+        if ctx.validation_feedback:
+            reason = f"plan validation failed: {ctx.validation_feedback}"
+            self.logger.warning(
+                "Plan validation failed; giving up: %s", ctx.validation_feedback
+            )
+            update["plan"] = self._preserved_plan(
+                prior,
+                "unplannable",
+                version,
+                review_rounds,
+                prior.automated_plan_revisions,
+            )
+            update["failure_reason"] = reason
+            update["messages_internal"] = [
+                *state.messages_internal,
+                AIMessage(content=f"Planning failed: {reason}"),
+            ]
+            return update
 
         # --- Replan budget (deterministic) -------------------------------
         # Link the counter to the unified replan reason: an entry carrying a
@@ -429,21 +497,35 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             )
         revisions = prior.automated_plan_revisions + 1 if is_replan else 0
         if revisions > self.max_automated_plan_revisions:
+            reason = (
+                state.replan_reason or "the plan could not be revised automatically"
+            )
             self.logger.warning(
-                "Plan revision budget (%d) exhausted; giving up",
+                "Plan revision budget (%d) exhausted; asking for guidance: %s",
                 self.max_automated_plan_revisions,
+                reason,
             )
-            update["plan"] = PlanSchema(
-                status="unplannable",
-                plan_version=version,
-                human_feedback_rounds=review_rounds,
-                automated_plan_revisions=revisions,
+            guidance = self._guidance_step(prior, reason)
+            plan = self._preserved_plan(
+                prior,
+                "needs_input",
+                version,
+                review_rounds,
+                revisions,
+                extra_steps=[guidance],
             )
-            update["failure_reason"] = "plan revision budget exhausted"
+            update["plan"] = plan
             update["messages_internal"] = [
                 *state.messages_internal,
-                AIMessage(content="Planning failed: plan revision budget exhausted"),
+                AIMessage(
+                    content=(
+                        f"Plan (needs_input):\n{plan.render()}\n"
+                        f"Questions:\n- Step {guidance.step_number}: "
+                        f"{guidance.needs_input[0]}"
+                    )
+                ),
             ]
+            self.logger.debug(f"{update = }")
             return update
 
         # --- Unplannable: the Planner's explicit signal, or no steps at all
@@ -466,11 +548,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     "Planner returned chat status with %d step(s); failing closed",
                     len(steps),
                 )
-                update["plan"] = PlanSchema(
-                    status="unplannable",
-                    plan_version=version,
-                    human_feedback_rounds=review_rounds,
-                    automated_plan_revisions=revisions,
+                update["plan"] = self._preserved_plan(
+                    prior,
+                    "unplannable",
+                    version,
+                    review_rounds,
+                    revisions,
                 )
                 update["failure_reason"] = "planner returned chat status with steps"
                 update["messages_internal"] = [
@@ -491,11 +574,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         if result.plan.status == "unplannable" or (
             not steps and result.plan.status not in ("needs_input", "chat")
         ):
-            update["plan"] = PlanSchema(
-                status="unplannable",
-                plan_version=version,
-                human_feedback_rounds=review_rounds,
-                automated_plan_revisions=revisions,
+            update["plan"] = self._preserved_plan(
+                prior,
+                "unplannable",
+                version,
+                review_rounds,
+                revisions,
             )
             update["failure_reason"] = (
                 result.reason

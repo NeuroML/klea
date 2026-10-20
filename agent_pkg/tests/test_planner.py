@@ -471,12 +471,16 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(len(update["messages_internal"]), 1)
         self.assertIn("Plan (in_progress)", update["messages_internal"][0].content)
 
-    def test_revision_budget_exhausted_is_unplannable(self):
+    def test_revision_budget_exhausted_asks_for_guidance(self):
+        """Budget exhaustion pauses for guidance and keeps the old steps."""
         planner = Planner(
             logger=logging.getLogger("test"),
             label="Planning",
             llm_models={"plan": object()},
             max_automated_plan_revisions=2,
+        )
+        prior_step = StepSchema(
+            step_number=1, description="s", suggested_tools=["read_file"]
         )
         update = planner._update_state(
             PlannerOutput(
@@ -487,14 +491,59 @@ class TestPlannerState(unittest.TestCase):
                 )
             ),
             KleaAgentState(
-                plan=PlanSchema(plan_version=3, automated_plan_revisions=2),
+                plan=PlanSchema(
+                    step_list=[prior_step],
+                    plan_version=3,
+                    automated_plan_revisions=2,
+                ),
                 replan_reason="tool failed",
             ),
             LLMNodeContext(),
         )
-        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].status, "needs_input")
         self.assertEqual(update["plan"].automated_plan_revisions, 3)
-        self.assertIn("failure_reason", update)
+        self.assertEqual(update["plan"].step_list[0].description, "s")
+        guidance = update["plan"].step_list[-1]
+        self.assertEqual(guidance.description, "Provide guidance to continue")
+        self.assertIn("automated replan budget", guidance.needs_input[0])
+        self.assertIn("tool failed", guidance.needs_input[0])
+        self.assertNotIn("failure_reason", update)
+        self.assertEqual(update["replan_reason"], "")
+
+    def test_validation_failure_preserves_prior_plan(self):
+        """A rejected invalid plan keeps the previous plan visible."""
+        planner = self._planner()
+        prior = PlanSchema(
+            step_list=[StepSchema(step_number=1, description="existing step")],
+            plan_version=2,
+        )
+        ctx = LLMNodeContext()
+        ctx.validation_feedback = "invalid plan"
+
+        update = planner._update_state(PlannerOutput(), KleaAgentState(plan=prior), ctx)
+
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].step_list[0].description, "existing step")
+        self.assertIn("plan validation failed", update["failure_reason"])
+
+    def test_explicit_unplannable_preserves_prior_plan(self):
+        """A Planner-decided impossible task keeps the previous plan visible."""
+        prior = PlanSchema(
+            step_list=[StepSchema(step_number=1, description="existing step")],
+            plan_version=2,
+        )
+
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(status="unplannable"), reason="impossible"
+            ),
+            KleaAgentState(plan=prior),
+            LLMNodeContext(),
+        )
+
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].step_list[0].description, "existing step")
+        self.assertEqual(update["failure_reason"], "impossible")
 
     def test_first_plan_does_not_count_as_revision(self):
         """The initial plan (entry status not_started) resets the counter."""
@@ -510,6 +559,29 @@ class TestPlannerState(unittest.TestCase):
             LLMNodeContext(),
         )
         self.assertEqual(update["plan"].plan_version, 1)
+        self.assertEqual(update["plan"].automated_plan_revisions, 0)
+
+    def test_guidance_reentry_resets_revision_counter(self):
+        """Human guidance after budget exhaustion resets the replan budget."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(
+                plan=PlanSchema(
+                    step_list=[StepSchema(step_number=1, description="blocked")],
+                    status="needs_input",
+                    automated_plan_revisions=3,
+                ),
+                human_input={1: ["use a different approach"]},
+            ),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["plan"].status, "in_progress")
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
 
     def test_human_review_resets_revision_counter(self):

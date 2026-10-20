@@ -119,6 +119,7 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         return {
             "human_input": human_input,
             "replan_reason": "",
+            "failure_reason": "",
             "messages": [
                 *state.messages,
                 HumanMessage(content=self._render_answers(state, human_input)),
