@@ -361,7 +361,8 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan;
   3 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->
-  replan), Planner entries (`automated_plan_revisions` -> `unplannable`).
+  replan), Planner entries (`automated_plan_revisions` -> preserve the plan
+  and ask the human for guidance via `needs_input`).
   The plan length itself is deliberately unbounded: long-horizon research
   tasks may need many focused steps, and the per-step/replan budgets bound the
   execution loop.
@@ -688,3 +689,20 @@ quality guard, not a hard length limit.
 The Reasoning node also starts with the full output-token ceiling (65536,
 provider-clamped) because reasoning models spend most of the completion budget
 on hidden reasoning tokens before emitting the conclusion.
+
+## Update (2026-10-20): failed plans stay visible; exhausted budgets ask for help
+
+A code-generated failure no longer replaces the plan with an empty
+`PlanSchema`.  Validation exhaustion and a Planner-decided `unplannable` keep
+the last authored `step_list` and counters, changing only the status (and
+`failure_reason`); the status pane therefore still shows what was planned and
+how far it got.
+
+Replan-budget exhaustion is not a final failure.  The Planner preserves the
+steps, appends a blocked "Provide guidance to continue" step carrying the last
+replan reason, and writes `needs_input`.  The ordinary input HITL node asks the
+user; its answer re-enters the Planner with human guidance, and because the
+plan is a `needs_input` draft with no `replan_reason`, the automated revision
+counter resets.  A cancel keeps the steps and marks the plan
+`user_cancelled`.  This reuses `needs_input` rather than adding a new status or
+HITL kind.

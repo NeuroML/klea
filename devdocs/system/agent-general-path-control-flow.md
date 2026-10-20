@@ -121,9 +121,9 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 
 | status | meaning | edge |
 |--------|---------|------|
-| ``needs_input`` | a step carries ``needs_input`` questions: a draft plan the Planner re-authors after the answers | ``AwaitHuman`` (input) |
+| ``needs_input`` | a step carries ``needs_input`` questions, or the replan budget is exhausted and the Planner appends a guidance step: a draft the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``chat`` | the entry router misclassified a conversational request as ``task``; return no steps and no goal | ``RouteDecision`` (forced chat) -> ``AnswerUser`` |
-| ``unplannable`` | no viable plan | ``AnswerFromResults`` (failure) |
+| ``unplannable`` | no viable plan; the last authored steps are preserved for the status pane | ``AnswerFromResults`` (failure) |
 | ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
 
 ``Planner._update_state``: any step with ``needs_input`` questions forces
@@ -131,9 +131,13 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``in_progress`` (a ``review`` step pauses when it reaches the frontier; there is
 no review status -- ADR-0051); ``chat`` writes no goal and no steps and hands
 the run back to ``RouteDecision``, which is forced to answer as chat from
-conversation history (the request is not a task); ``unplannable`` (or any other
-status with no steps) -> ``unplannable``.  An ``in_progress`` plan must carry at
-least one step: a task whose facts are already known is planned as a
+conversation history (the request is not a task); ``unplannable`` (Planner
+decided no viable plan, or validation retries exhausted) keeps the last
+authored steps for the status pane and routes to the failure answer.  On
+deterministic replan-budget exhaustion the Planner preserves the steps, appends
+a blocked "Provide guidance to continue" step, and writes ``needs_input`` so
+the input HITL asks the user how to proceed.  An ``in_progress`` plan must carry
+at least one step: a task whose facts are already known is planned as a
 ``reasoning`` step, so the conclusion reaches the answer-composer through
 observations.  The Planner never answers the user.
 ``PlannerPlanSchema`` exposes only
@@ -441,7 +445,7 @@ level 2 verifier with provenance.
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
-| plan cannot be revised usefully | failure answer | ``automated_plan_revisions`` cap -> ``unplannable`` |
+| plan revision budget exhausted | human guidance | preserve steps, append a blocked guidance step, set ``needs_input`` -> ``AwaitHuman`` (input) |
 | long plan | run continues | no step-count cap; the per-step/replan budgets bound execution |
 
 Failure is attributed per call, not per round: successful calls in a round are
@@ -531,9 +535,10 @@ answer explains the real cause.
 The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
 counters live in state (incremented by the acting nodes) and the caps are
 enforced deterministically in the Evaluator/Planner ``_update_state`` (not by
-the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
-``automated_plan_revisions`` escalate to a replan/``unplannable``, so the
-act/eval loop always terminates.
+the LLM).  ``tool_retry_counts`` (triage) and ``step_attempt_counts`` escalate
+to a replan; ``automated_plan_revisions`` exhaustion preserves the plan and
+asks the human for guidance via ``needs_input``, so the act/eval loop always
+terminates or pauses for a human.
 
 The plan length is deliberately **not capped**: long-horizon research tasks may
 need many focused steps.  A single oversized plan can still consume tokens, so

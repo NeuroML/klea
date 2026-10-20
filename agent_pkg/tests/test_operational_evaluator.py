@@ -466,3 +466,20 @@ class TestOperationalEvaluator(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_update_state_emits_a_progress_notice():
+    """The evaluator's concise verdict is surfaced to the chat transcript."""
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    evaluator.write_custom_stream = events.append
+
+    evaluator._update_state(
+        _verdict(1, "step_done", "the file was read"),
+        TestOperationalEvaluator()._state(),
+        LLMNodeContext(),
+    )
+
+    notice = next(event for event in events if event.get("type") == "notice")
+    assert "step 1 step_done" in notice["data"]["summary"]
+    assert notice["data"]["details"]["kind"] == "progress"

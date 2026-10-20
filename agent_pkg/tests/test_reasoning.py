@@ -124,6 +124,22 @@ class TestReasoningNode(unittest.TestCase):
         assert "generate a hypothesis" in variables["goal"]
         assert "observations" in variables
 
+    def test_emits_a_progress_notice_with_the_conclusion(self):
+        """The reasoning conclusion is surfaced without opening the inspector."""
+        node = self._node()
+        events: list[dict] = []
+        node.write_custom_stream = events.append
+
+        node._update_state(
+            ReasoningSchema(conclusion="H1: X causes Y", rationale="from obs"),
+            self._state(),
+            LLMNodeContext(),
+        )
+
+        notice = next(event for event in events if event.get("type") == "notice")
+        assert "H1: X causes Y" in notice["data"]["summary"]
+        assert notice["data"]["details"]["kind"] == "progress"
+
     def test_default_error_result_is_explicit_failure(self):
         """A failed reasoning step is loud, not a silent empty conclusion."""
         result = self._node()._get_default_error_result(LLMNodeContext())

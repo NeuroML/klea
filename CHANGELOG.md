@@ -159,6 +159,7 @@
 ### Added
 
 - The agent's user-facing answer nodes (`RouteDecision` for inline chat, `AnswerFromResults` for task answers) report the effective model that produced the reply, so questions like "which model are you running" are answerable.
+- The chat transcript shows concise progress notices for evaluator verdicts and reasoning conclusions via a new `notice` stream event/role. Notices are persisted as transcript rows but kept out of graph conversation memory.
 - Agent terminal UI (`klea tui`): a full-screen Textual client with the operating-mode and tool-access selectors in the status panel (choosing one sends `/mode` or `/access`), per-role model and credential dialogs, and the HITL / permission modals (ADR-0030/0037/0050).
 - Agent operating modes (Scientific / General) with `Mode{requested,resolved,note}`, mode router, CLI `--mode` and web selector/badge (ADR-0030).
 - App-owned web mode UI (`ui/web/mode_ui.py`, `page.py`, `app.py`) and `GET /chat/{user}/{chat}/context` hydration on the agent side.
@@ -180,6 +181,7 @@
 
 - Session artefacts rendered into the answer-composer prompt are now bounded (the most recently written 20 entries and 12,000 characters, with a note when older entries are omitted), so a long session no longer grows that prompt without limit; the checkpoint still retains every artefact.
 - Internal run history (plan versions, evaluator verdicts and reasoning conclusions) is now kept in `messages_internal` and summarised alongside the user-visible conversation; it is no longer injected into prompts via conversation memory. The verbatim recent-memory window is bounded (10k chars) instead of including the whole current run.
+- A failed plan no longer disappears from the status pane: validation and Planner-decided `unplannable` failures preserve the last steps and change only the status. Replan-budget exhaustion now preserves the plan, appends a blocked guidance step, and pauses at the input HITL for human help instead of ending the run.
 - The Planner no longer has a zero-step `no_plan_required` status, and its prompt no longer carries the artefacts block: a goal whose facts are already known is planned as a single `reasoning` step, whose conclusion reaches the answer-composer through observations. This removes the asymmetry where the Planner decided from conversation history the answer-composer could not see.
 - The tool picker runs on a dedicated `tool_picker` model role instead of borrowing the chat/plan model; there is no silent fallback, so the role must be configured.
 - Tool selection: the Planner selects the tool for each step, and the agent's `ToolCallBinder` binds arguments only for one contiguous group of steps sharing the same suggested-tool set (capped at 4). The binder sees only that group's tools and never substitutes; off-contract selections are retried twice, then escalate to the Planner with the reason. RAG's shared picker is unchanged.
