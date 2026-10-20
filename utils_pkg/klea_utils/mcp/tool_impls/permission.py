@@ -54,17 +54,25 @@ def permitted_roots(
         approved for the session (ADR-0007 update 2026-10-08).
     :returns: A list of resolved boundary roots.
     """
-    roots = [
-        Path(project_root).expanduser().resolve()
-        if project_root
-        else Path.cwd().resolve()
-    ]
+    try:
+        primary = (
+            Path(project_root).expanduser().resolve()
+            if project_root
+            else Path.cwd().resolve()
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.warning(
+            f"Could not resolve project root {project_root!r}: {exc}; "
+            "using the current directory"
+        )
+        primary = Path.cwd().resolve()
+    roots = [primary]
     for entry in allowed_dirs or []:
         if not str(entry).strip():
             continue
         try:
             roots.append(Path(entry).expanduser().resolve())
-        except (OSError, RuntimeError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             logger.warning(f"Skipping unresolvable allowed directory {entry!r}: {exc}")
     return roots
 
@@ -81,7 +89,11 @@ def resolve_path(path: str | os.PathLike) -> Path | None:
     """
     if not str(path).strip():
         return None
-    base_path = Path(path).expanduser()
+    try:
+        base_path = Path(path).expanduser()
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.warning(f"Could not expand path {path!r}: {exc}")
+        return None
     try:
         # ``strict=True`` makes a symlink loop (ELOOP) or an unreadable parent
         # raise here instead of being silently returned as-is by the non-strict

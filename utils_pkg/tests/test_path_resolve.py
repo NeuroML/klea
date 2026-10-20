@@ -16,6 +16,25 @@ from klea_utils.mcp.path_detect import resolve_path_arguments
 from klea_utils.mcp.schemas import ToolInfo
 
 
+def test_unexpandable_path_is_left_untouched(tmp_path, monkeypatch):
+    """A path that cannot expand its home prefix is returned as-is."""
+    original = Path.expanduser
+
+    def fake_expanduser(path):
+        if str(path).startswith("~"):
+            raise RuntimeError("Could not determine home directory.")
+        return original(path)
+
+    monkeypatch.setattr(Path, "expanduser", fake_expanduser)
+    info = ToolInfo(checkpaths=["path"])
+
+    out = resolve_path_arguments(
+        {"path": "~missing/file.txt"}, info, project_root=str(tmp_path)
+    )
+
+    assert out == {"path": "~missing/file.txt"}
+
+
 def test_declared_checkpath_relative_is_absolute(tmp_path):
     root = tmp_path / "root"
     root.mkdir()

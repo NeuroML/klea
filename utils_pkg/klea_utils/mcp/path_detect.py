@@ -138,6 +138,43 @@ def _strip_file_uri(token: str) -> str | None:
     return path or None
 
 
+def _safe_expanduser(value: str | os.PathLike) -> Path | None:
+    """Expand ``~`` without letting a missing home directory abort detection.
+
+    ``Path.expanduser`` raises ``RuntimeError`` when the home directory cannot
+    be determined.  Path discovery is advisory: a guessed token (for example a
+    ``~nonsense`` fragment inside a code string) must be skipped, not crash the
+    tool dispatch.
+
+    :param value: The raw path-like value.
+    :returns: The expanded path, or ``None`` when it cannot be expanded.
+    """
+    try:
+        return Path(value).expanduser()
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug(f"Could not expand path {value!r}: {exc}; skipping")
+        return None
+
+
+def _safe_resolved(value: str | os.PathLike) -> Path | None:
+    """Return a resolved path, or ``None`` when resolution fails.
+
+    Used for the boundary itself and session approvals, where a crash would
+    abort every tool call.
+
+    :param value: The path to resolve.
+    :returns: The resolved path, or ``None``.
+    """
+    path = _safe_expanduser(value)
+    if path is None:
+        return None
+    try:
+        return path.resolve()
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug(f"Could not resolve path {value!r}: {exc}; skipping")
+        return None
+
+
 def _is_nonfile_url(token: str) -> bool:
     """Return whether a token is a URL other than a ``file:`` URI."""
     if "://" not in token:
@@ -211,13 +248,16 @@ def _resolve_against(text: str, root: Path) -> Path | None:
     """
     if not text.strip():
         return None
-    text = _strip_file_uri(text) or text
-    candidate = Path(text).expanduser()
-    if not candidate.is_absolute():
-        candidate = root / candidate
     try:
+        text = _strip_file_uri(text) or text
+        candidate = _safe_expanduser(text)
+        if candidate is None:
+            return None
+        if not candidate.is_absolute():
+            candidate = root / candidate
         return candidate.resolve(strict=False)
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug(f"Could not resolve guessed path {text!r}: {exc}; skipping")
         return None
 
 
@@ -258,16 +298,15 @@ def detect_path_requests(
         f"{project_root = }\n{allowed_dirs = }\n{allowed_files = }\n"
         f"{picker_paths = }\n{include_sensitive = }"
     )
-    root = (
-        Path(project_root).expanduser().resolve()
-        if project_root
-        else Path.cwd().resolve()
-    )
+    root = _safe_resolved(project_root) if project_root else Path.cwd().resolve()
+    if root is None:
+        logger.warning("Could not resolve project root; using the current directory")
+        root = Path.cwd().resolve()
     roots = permitted_roots(project_root, allowed_dirs)
     approved_files = {
-        str(Path(entry).expanduser().resolve())
+        str(resolved)
         for entry in (allowed_files or [])
-        if str(entry).strip()
+        if str(entry).strip() and (resolved := _safe_resolved(entry)) is not None
     }
     requests: dict[str, PathRequest] = {}
 
@@ -356,12 +395,15 @@ def _resolve_relative_value(value: str, root: Path) -> str | None:
         return None
     if text.startswith("-") or text[0] in "*?[":
         return None
-    candidate = Path(text).expanduser()
-    if candidate.is_absolute():
-        return None
     try:
+        candidate = _safe_expanduser(text)
+        if candidate is None:
+            return None
+        if candidate.is_absolute():
+            return None
         return str((root / candidate).resolve())
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, ValueError) as exc:
+        logger.debug(f"Could not resolve path value {text!r}: {exc}; leaving as-is")
         return None
 
 

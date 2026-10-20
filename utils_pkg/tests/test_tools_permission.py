@@ -116,6 +116,26 @@ def _root_only(tmp_path):
     return root
 
 
+def test_detect_skips_unexpandable_guess(tmp_path, monkeypatch):
+    """A guessed ``~`` token must not crash discovery when home is unknown."""
+    original = Path.expanduser
+
+    def fake_expanduser(path):
+        if str(path).startswith("~"):
+            raise RuntimeError("Could not determine home directory.")
+        return original(path)
+
+    monkeypatch.setattr(Path, "expanduser", fake_expanduser)
+
+    requests = detect_path_requests(
+        "run_command",
+        {"command": "cat ~missing/file.txt"},
+        project_root=str(tmp_path),
+    )
+
+    assert requests == []
+
+
 def test_detect_ignores_inside_paths(tmp_path):
     root = _root_only(tmp_path)
     (root / "f.txt").touch()
