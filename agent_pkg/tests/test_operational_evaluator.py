@@ -12,6 +12,7 @@ import logging
 import unittest
 from typing import Literal
 
+from fastmcp.client.client import CallToolResult
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.schemas import (
     EvaluationSchema,
@@ -24,6 +25,7 @@ from klea_agent.schemas import (
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.prompts import ChatPromptTemplate
+from mcp.types import TextContent
 
 
 def _verdict(
@@ -34,6 +36,17 @@ def _verdict(
     """Build a single-step evaluation."""
     return EvaluationSchema(
         evaluations=[StepEvaluation(step_number=step, verdict=verdict, reason=reason)]
+    )
+
+
+def _error_result(text: str) -> CallToolResult:
+    """Return an error tool result carrying *text*."""
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=True,
     )
 
 
@@ -356,6 +369,57 @@ class TestOperationalEvaluator(unittest.TestCase):
             variables["executed_tools"],
             "Step 1: list_files, read_file\nStep 2: write_file",
         )
+
+    def test_recent_tool_failures_block_lists_failed_calls(self):
+        """The evaluator sees every failed call and its path/URI arguments."""
+        state = self._state()
+        state.tool_calls = [
+            ToolCallSchema(
+                tool="web_fetch",
+                step=1,
+                args={"url": "https://example.com/194021.json", "content": "free"},
+            ),
+            ToolCallSchema(
+                tool="read_file",
+                step=2,
+                args={"path": "/tmp/a.txt", "old_string": "x" * 50},
+            ),
+        ]
+        state.tool_results = [
+            _error_result("HTTP 404"),
+            _error_result("permission denied"),
+        ]
+
+        evaluator = self._evaluator()
+        variables = evaluator._get_prompt_variables(state, LLMNodeContext())
+        block = variables["recent_tool_failures_block"]
+
+        self.assertIn("Recent tool failures", block)
+        self.assertIn("https://example.com/194021.json", block)
+        self.assertIn("/tmp/a.txt", block)
+        self.assertIn("HTTP 404", block)
+        self.assertIn("permission denied", block)
+        self.assertNotIn("free", block)
+        self.assertNotIn("old_string", block)
+
+        template = ChatPromptTemplate(
+            [("human", evaluator._load_prompt_file("OperationalEvaluator_user"))]
+        )
+        text = template.format_messages(**variables)[0].content
+        self.assertIn("Recent tool failures", text)
+        self.assertIn("HTTP 404", text)
+
+    def test_recent_tool_failures_block_omitted_when_clean(self):
+        """The conditional block is omitted entirely when no call failed."""
+        evaluator = self._evaluator()
+        variables = evaluator._get_prompt_variables(self._state(), LLMNodeContext())
+        self.assertEqual(variables["recent_tool_failures_block"], "")
+
+        template = ChatPromptTemplate(
+            [("human", evaluator._load_prompt_file("OperationalEvaluator_user"))]
+        )
+        text = template.format_messages(**variables)[0].content
+        self.assertNotIn("Recent tool failures", text)
 
     def test_review_readiness_not_ready_replans(self):
         """A missing evidence step before a gate sends the plan back."""

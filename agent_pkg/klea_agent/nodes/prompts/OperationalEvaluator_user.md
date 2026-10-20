@@ -20,6 +20,8 @@
 
 {observations}
 
+{recent_tool_failures_block}
+
 ---
 
 ## Pending review steps

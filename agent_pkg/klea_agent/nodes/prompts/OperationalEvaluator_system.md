@@ -14,6 +14,8 @@
 * `plan`: the full plan with ordered steps, their success criteria and suggested tools; the step(s) you are judging are marked `[CURRENT]`
 * `executed_tools`: the tools run in the latest batch, grouped by step
 * `observations`: the tool outputs so far
+* `recent_tool_failures` (optional): failed calls in the latest batch, with
+  their tool and path/URI arguments; a failed call is not evidence of success
 * `validation_feedback` (optional): a consistency error in your previous
   response; correct it.
 

@@ -19,6 +19,7 @@ from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
+from klea_utils.tools import tool_call_errors
 from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import (
@@ -110,6 +111,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             "plan": plan.render(current_numbers=batch_numbers),
             "executed_tools": self._executed_tools_text(state),
             "observations": self._observations_text(state),
+            "recent_tool_failures_block": self._optional_section(
+                "Recent tool failures",
+                tool_call_errors(state.tool_calls, state.tool_results),
+            ),
             "pending_reviews": self._pending_reviews_text(state),
             "validation_feedback_block": self._optional_section(
                 "Validation feedback", ctx.validation_feedback
