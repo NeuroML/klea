@@ -28,7 +28,7 @@ from klea_utils.nodes.guard_router import GuardRouterNode
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
-from klea_utils.tools import last_tool_error_text
+from klea_utils.tools import tool_call_errors
 from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
 
@@ -459,9 +459,10 @@ class KleaAgent(BaseLangGraph):
         (ADR-0041).
 
         It also maintains ``replan_reason``: a batch with an ``is_error``
-        result records the failed call's text as the unified reason the
-        Planner may be re-entered with, and a clean batch clears it (progress),
-        so a stale tool error cannot mislead a later replan.
+        result records every failed call (tool, path/URI arguments and error)
+        as the unified reason the Planner may be re-entered with, and a clean
+        batch clears it (progress), so a stale tool error cannot mislead a
+        later replan.
 
         On a clean batch, the step's earlier errored entries are pruned before
         the new results are appended: once a call succeeds, its superseded
@@ -502,7 +503,9 @@ class KleaAgent(BaseLangGraph):
         # batch clears it (progress), so a stale tool error cannot mislead a
         # later replan (ADR-0035 update 2026-09-19).
         replan_reason = (
-            (last_tool_error_text(results) or "a tool call failed") if has_error else ""
+            (tool_call_errors(calls, results) or "a tool call failed")
+            if has_error
+            else ""
         )
         self.logger.debug(
             f"{counts = }\n{outputs.keys() = }\n{has_error = }\n{replan_reason = }"

@@ -74,11 +74,52 @@ def test_error_round_increments_tool_retry_counts():
 
 
 def test_failed_round_sets_replan_reason():
-    """A failed batch exposes its error text as the unified replan reason."""
+    """A failed batch exposes its failed call as the unified replan reason."""
     agent = _agent()
-    state = KleaAgentState(plan=PlanSchema())
+    state = KleaAgentState(
+        plan=PlanSchema(),
+        tool_calls=[
+            ToolCallSchema(tool="read_file", step=1, args={"path": "missing.txt"})
+        ],
+    )
     update = agent._record_tool_round(state, [_error_result("no such file")], [False])
-    assert update["replan_reason"] == "no such file"
+    reason = update["replan_reason"]
+    assert "read_file" in reason
+    assert "path=missing.txt" in reason
+    assert "no such file" in reason
+
+
+def test_failed_round_lists_every_failed_call_in_replan_reason():
+    """The Planner receives every failed call, including its path/URI args."""
+    agent = _agent()
+    state = KleaAgentState(
+        plan=PlanSchema(),
+        tool_calls=[
+            ToolCallSchema(
+                tool="web_fetch",
+                step=1,
+                args={"url": "https://example.com/194021.json"},
+            ),
+            ToolCallSchema(
+                tool="edit_file",
+                step=2,
+                args={"path": "/tmp/a.py", "old_string": "x" * 100},
+            ),
+        ],
+    )
+
+    update = agent._record_tool_round(
+        state,
+        [_error_result("HTTP 404"), _error_result("old_string matched 2 times")],
+        [False, False],
+    )
+
+    reason = update["replan_reason"]
+    assert "https://example.com/194021.json" in reason
+    assert "/tmp/a.py" in reason
+    assert "HTTP 404" in reason
+    assert "old_string matched 2 times" in reason
+    assert "old_string=" not in reason
 
 
 def test_clean_round_clears_replan_reason():
