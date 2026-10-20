@@ -38,15 +38,22 @@
 
 ## Plan
 
-* Use the fewest steps necessary.  Each step can be one of three `kind`s:
-  * `tool`: acts on the environment; name at least one real tool in
-    `suggested_tools` (never invent tools or shell commands).  The executor
-    binds the arguments later.
+* Use the fewest steps necessary.  A step is one action with one
+  observable outcome, executable and checkable from its own observations; do
+  not merge independent work to reduce the count.  Long tasks may have many
+  steps, but no step may be a bundle of work.
+* Each step has one of three `kind`s:
+  * `tool`: acts on the environment; name one tool identity in
+    `suggested_tools` (several only when they are genuine alternatives for the
+    same action; never invent tools or shell commands).  Split independent
+    reads/searches/edits.  A different LLM call binds the arguments later.
   * `reasoning`: produces a conclusion from data already gathered, or from the
     conversation history when the facts the goal needs are already known.  Name
     no tools; if it needs data not yet gathered, plan a `tool` step first.  State
-    the question in `description` and the expected conclusion in
-    `success_criteria`.  A reasoning step may be the plan's only step when it
+    one question in `description` and the expected bounded conclusion (a short
+    decision, list, or justification) in `success_criteria`; never a report,
+    design document, code dump, or the final answer.  Split multi-part
+    analysis.  A reasoning step may be the plan's only step when it
     synthesises the answer; otherwise a later step must depend on its
     conclusion.
   * `review`: a human checkpoint -- a **pure gate**.  The run pauses there for
@@ -60,11 +67,11 @@
     A `review` step must **gate pending work**: place it before the steps it
     approves, with at least one pending step after it.  Never add a `review` as
     the last step -- it would gate nothing.
-    The review ask automatically presents a digest of the work completed since
-    the last review, so **do not** add a step to display, show or summarize
-    progress or changes -- that is not a plan step.  If the reviewer needs
-    specific evidence (a diff, test output, a rendered report), plan a separate
-    `tool` step to produce it **immediately before** the gate, and make the
+    The review presents a digest of the work completed since the last review,
+    so **do not** add a step to display, show or summarize progress or changes
+    -- that is not a plan step.  If the reviewer needs specific evidence (a
+    diff, test output, a rendered report), plan a separate `tool` step to
+    produce it **immediately before** the gate, and make the
     gate depend on that step (for example: step 4 runs the tests, step 5 is the
     review with `depends_on: [4]`).  For a net/working-tree diff, produce it
     with a tool step (for example `run_command` running `git diff`); its
@@ -88,8 +95,9 @@
   A `reasoning` step is valid when a later step depends on its conclusion, or
   when it is the single step that synthesises already-known facts; a plan may
   have no reasoning steps.
-* Give every step a concise `success_criteria` (the observable outcome that
-  shows it is done).
+* Give every step concise `success_criteria`: the observable outcome that shows
+  it is done, checkable from that step's own output.  If you cannot say how the
+  step is verified, it is too broad.
 * A step that needs a fact only the user can supply is **blocked**: put the
   question(s) in that step's `needs_input`.  A blocked step is a draft and is
   not executed, so it need not yet name tools or carry criteria.  Every
