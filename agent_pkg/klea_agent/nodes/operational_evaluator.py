@@ -384,13 +384,13 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
         # Record the verdict in run history so a replan (and summarisation) can
         # see why the plan was sent back.
-        summary = "; ".join(
-            f"step {verdict.step_number} {verdict.verdict} -- {verdict.reason}"
+        summary = "\n".join(
+            f"- step {verdict.step_number} {verdict.verdict} -- {verdict.reason}"
             for verdict in result.evaluations
         )
         if result.overall:
-            summary = f"{summary}; overall {result.overall}".strip("; ")
-        self._emit_notice(f"{summary or 'no verdict'}")
+            summary = f"{summary}\n- overall {result.overall}".strip("\n")
+        self._emit_notice(f"Evaluating:\n{summary or 'no verdict'}")
         update["messages_internal"] = [
             *state.messages_internal,
             AIMessage(content=f"Evaluation: {summary or 'no verdict'}"),
