@@ -600,31 +600,19 @@ class TestPlannerValidation(unittest.TestCase):
             for i in range(1, count + 1)
         ]
 
-    def test_rejects_plan_over_step_limit(self):
-        output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31)))
-        error = self._planner()._validate_result(
-            output, KleaAgentState(), LLMNodeContext()
-        )
-        self.assertIsNotNone(error)
-        assert error is not None
-        self.assertIn("at most 30", error)
+    def test_large_plan_is_not_capped(self):
+        """Long-horizon plans are not rejected by an arbitrary step limit."""
+        planner = self._planner()
+        output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(100)))
 
-    def test_accepts_plan_at_step_limit(self):
-        output = PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(30)))
         self.assertIsNone(
-            self._planner()._validate_result(output, KleaAgentState(), LLMNodeContext())
+            planner._validate_result(output, KleaAgentState(), LLMNodeContext())
         )
-
-    def test_oversize_plan_fails_closed(self):
-        """A plan over the limit that survives retries fails as unplannable."""
-        update = self._planner()._update_state(
-            PlannerOutput(plan=PlannerPlanSchema(step_list=self._steps(31))),
-            KleaAgentState(query="q"),
-            LLMNodeContext(),
+        update = planner._update_state(
+            output, KleaAgentState(query="q"), LLMNodeContext()
         )
-        self.assertEqual(update["plan"].status, "unplannable")
-        self.assertEqual(update["plan"].step_list, [])
-        self.assertIn("maximum of 30 steps", update["failure_reason"])
+        self.assertEqual(update["plan"].status, "in_progress")
+        self.assertEqual(len(update["plan"].step_list), 100)
 
     def test_exhausted_validation_fails_closed(self):
         """An invalid plan that survives retries must not be accepted.
