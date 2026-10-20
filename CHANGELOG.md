@@ -104,6 +104,7 @@
 
 ### Fixed
 
+- The generic LLM-node validation retry loop now performs exactly `max_validation_retries` re-invokes (previously one extra) and leaves the final validation error in `ctx.validation_feedback` for `_update_state`, instead of clearing it, so a node can fail closed rather than accept an invalid result.
 - A path-permission decision of "not a path" now renders as `Not a path: <key>` in the transcript and is counted as dismissed in the audit summary, instead of being shown as `Denied`.
 - `DELETE /chat/{user_id}/{chat_id}` now cancels the chat's active run and purges its LangGraph checkpoint as well as the chat row, so re-creating a chat does not inherit stale run state.
 - Token usage is reported accurately again: model streaming is disabled, because the graph's event stream forces chat models to stream and LangChain's streamed `usage_metadata` merge sums input/total tokens across chunks for providers that report usage per chunk (VLLM, HuggingFace Inference Providers, ...), inflating the counts massively (langchain#30429).
@@ -192,6 +193,7 @@
 
 ### Fixed
 
+- The Planner no longer accepts an invalid plan after the validation-retry budget is exhausted: it now fails closed as `unplannable`, with the validation error in the failure reason, instead of writing and executing the last invalid plan.
 - `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).
 - A conversational turn that the entry router classified as a task is now handed back to the router instead of being answered by the answer-composer (which has no conversation history): the Planner returns a new `chat` status, and the router is forced to reply as chat.
 - The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.

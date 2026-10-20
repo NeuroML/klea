@@ -162,9 +162,12 @@ Instead:
   error;
 * a validation failure triggers a bounded re-invoke through the generic
   ``AbstractLLMNode`` validation-retry loop (``max_validation_retries``;
-  the error is exposed to the prompt as ``validation_feedback``), after which
-  the invalid result is accepted fail-closed and ``_update_state`` routes it
-  to ``unplannable``.
+  the error is exposed to the prompt as ``validation_feedback``).  The loop
+  clears the feedback when a result finally validates; if the retries are
+  exhausted it leaves the last error in ``ctx.validation_feedback`` so
+  ``_update_state`` can fail closed -- the Planner writes ``unplannable``
+  with the error in ``failure_reason`` instead of accepting the invalid
+  plan.
 
 The general principle: machine-checkable consistency lives in schema
 validation + fail-closed handling, not in prompt rules or positional patches.

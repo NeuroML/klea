@@ -79,6 +79,12 @@ positional argument to every overridable hook:
 * result: `_validate_result(result, state, ctx)`,
   `_update_state(result, state, ctx)`.
 
+`validation_feedback` is transient: `execute` sets it to the current error
+before each retry, clears it before `_update_state` when a result finally
+validates, and leaves the last error set when the retry budget is exhausted.
+That lets a node's `_update_state` fail closed (the Planner writes
+`unplannable`) instead of accepting the invalid result.
+
 The picker's per-run schema is resolved with
 `ctx.output_schema = self._get_output_schema(state, ctx)` and consumed
 from `ctx` (schema block, `with_structured_output`, parsing,
