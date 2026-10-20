@@ -26,8 +26,10 @@ class MemoryState(BaseModel):
     """Minimal state exposing the fields memory nodes read."""
 
     messages: list = Field(default_factory=list)
+    messages_internal: list = Field(default_factory=list)
     context_summary: str = ""
     summarised_till: int = 0
+    summarised_internal_till: int = 0
     query: str = ""
 
 
@@ -133,6 +135,27 @@ def test_summarise_renders_previous_summary_when_present():
     variables = node._get_prompt_variables(state, LLMNodeContext())
     assert variables["old_summary_block"].startswith("## Current summary")
     assert "earlier facts" in variables["old_summary_block"]
+
+
+def test_summarise_includes_internal_history_and_advances_its_cursor():
+    node = _make_summarise_node(summarisation_threshold_chars=1, num_history_chars=50)
+    state = MemoryState(
+        messages=[HumanMessage(content="q")],
+        messages_internal=[AIMessage(content="Plan v1: inspect path_detect.py")],
+        summarised_till=0,
+        summarised_internal_till=0,
+    )
+
+    assert node._pre_exec(state, NodeContext()) is True
+    variables = node._get_prompt_variables(state, LLMNodeContext())
+    assert "Internal run history" in variables["internal_history"]
+    assert "Plan v1" in variables["internal_history"]
+
+    updates = node._update_state(
+        AIMessage(content="a summary"), state, LLMNodeContext()
+    )
+    assert updates["summarised_internal_till"] == 1
+    assert updates["summarised_till"] == 0
 
 
 def test_summarise_skips_when_nothing_new_old():
@@ -261,6 +284,27 @@ def test_memory_injection_returns_list_with_real_messages(tmp_path):
     assert roles == ["system", "human", "ai", "human", "human"]
     assert [m.content for m in messages[1:-1]] == ["q1", "a1", "q2"]
     assert messages[-1].content == "User query: latest"
+
+
+def test_memory_injection_uses_a_bounded_recent_window(tmp_path):
+    node = _dummy_node(tmp_path, memory=True)
+    state = MemoryState(
+        messages=[
+            HumanMessage(content="old " + ("x" * 20_000)),
+            AIMessage(content="older answer"),
+            HumanMessage(content="latest question"),
+        ],
+        query="latest",
+    )
+
+    system = node._get_system_prompt(state, LLMNodeContext())
+
+    assert isinstance(system, list)
+    history = system[1:]
+    assert [message.content for message in history] == [
+        "older answer",
+        "latest question",
+    ]
 
 
 def test_memory_injection_off_returns_string(tmp_path):

@@ -157,3 +157,22 @@ Chosen option: "B. Hybrid: summary string + typed recent window".
   threshold), ``98c6501``/``f78c410`` (helper moves).
 * Codified ``2026-08-28``; memory seam hardened in ``2026-08-16``
   alongside the abstract node extraction.
+
+## Update (2026-10-20): two memory streams and a bounded recent window
+
+The agent now separates user-visible conversation from internal run history:
+
+* ``messages`` holds user-visible turns (query, HITL notes, final answer).
+* ``messages_internal`` holds plan versions, evaluator verdicts and reasoning
+  conclusions.  It is checkpointed for provenance but is never injected
+  verbatim into a node prompt.
+* ``SummariseMemoryNode`` consumes both streams and maintains
+  ``summarised_till`` / ``summarised_internal_till``.  Internal history is
+  summarised from its cursor to the end; user-visible history keeps the
+  existing recent-window exclusion.
+* ``_get_recent_memory_messages`` now uses the bounded
+  ``DEFAULT_RECENT_MEMORY_CHARS`` window promised by this ADR, instead of the
+  regressed ``summarised_till - 2``-to-end slice.  Long runs therefore inject
+  ``context_summary`` plus the recent window, not the whole run.
+* RAG has no internal run history: it keeps the single ``messages`` stream,
+  and the shared summariser treats the absent ``messages_internal`` as empty.

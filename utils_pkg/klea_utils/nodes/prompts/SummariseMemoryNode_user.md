@@ -7,3 +7,5 @@ Please create a summary of the conversation between the user and the AI assistan
 Here are the exchanges between the user and the assistant since the last summarisation:
 
 {conversation}
+
+{internal_history}

@@ -24,7 +24,7 @@ from textwrap import dedent
 from typing import Any, ClassVar, Literal, cast
 
 from langchain_core.exceptions import OutputParserException
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
@@ -42,8 +42,8 @@ from ..llm import (
     classify_llm_invocation_error,
     escape_prompt_braces,
     estimate_input_tokens,
-    get_last_n_conversations,
     get_provider_allowed_fields,
+    get_recent_messages,
     get_token_limit_param,
     is_empty_structured_parse_error,
     is_output_empty,
@@ -69,6 +69,11 @@ MAX_CONTEXT_OVERFLOW_RETRIES = 3
 #: providers (notably HuggingFace) intermittently return a successful but
 #: blank message; the retry is a plain re-invoke with no window change.
 MAX_EMPTY_OUTPUT_RETRIES = 2
+
+#: Character budget for the verbatim recent-conversation window injected into
+#: memory-enabled node prompts.  Older history is represented by
+#: ``context_summary`` instead.
+DEFAULT_RECENT_MEMORY_CHARS = 10_000
 
 #: Max times to retry a transiently failed invoke (a timeout, e.g. a stalled
 #: stream that never produced a chunk).  Rate limits, auth and model-not-found
@@ -1174,34 +1179,23 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         return system_prompt
 
     def _get_recent_memory_messages(self, state: TState) -> list[BaseMessage]:
-        """Return the recent verbatim history messages for the prompt.
+        """Return the recent verbatim conversation for the prompt.
 
-        Forward-stable: ``messages[summarised_till - N:]`` keeps the cached
-        prefix stable (``messages[summarised_till]`` stays for ``5`` turns)
-        vs ``get_recent_messages`` ``last N`` which drifts every turn. ``N=2``
-        keeps the last ``human``/``ai`` pair for continuity even after
-        ``context_summary`` has absorbed it.
+        The window is bounded by :data:`DEFAULT_RECENT_MEMORY_CHARS`, so a
+        long run cannot inject its entire history.  ``context_summary``
+        carries the older history.  Only user-visible ``messages`` are injected;
+        ``messages_internal`` is summarised separately and never placed in a
+        prompt verbatim.
 
         :param state: Graph state.
-        :returns: Ordered recent human/ai messages.
+        :returns: Ordered recent human/ai messages within the budget.
         """
-        # Fallback: if state has no summarised_till (e.g. legacy checkpoint),
-        # include all messages and skip summarisation (caller handles).
-        if not hasattr(state, "summarised_till"):
-            return [
-                m  # type: ignore[return-value]
-                for m in state.messages  # type: ignore
-                if isinstance(m, (HumanMessage, AIMessage))
-            ]
-        try:
-            till = int(getattr(state, "summarised_till", 0) or 0)
-        except (TypeError, ValueError):
-            till = 0
-        N = 2  # one human+ai pair overlap for continuity
-        start = max(0, till - N)
-        # get_last_n_conversations filters to Human/AI and preserves order
-        _, recent = get_last_n_conversations(state.messages, start=start)  # type: ignore
-        return recent
+        messages = list(getattr(state, "messages", None) or [])
+        return get_recent_messages(
+            messages,
+            DEFAULT_RECENT_MEMORY_CHARS,
+            keep_at_least=2,
+        )
 
     def _get_human_prompt(self, state: TState, ctx: LLMNodeContext[TOutput]) -> str:
         """Load human prompt from file."""

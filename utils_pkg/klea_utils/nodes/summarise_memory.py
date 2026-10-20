@@ -42,14 +42,17 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
     Uses _pre_exec() to skip execution if there isn't enough *old*
     conversation to summarise.  The most recent messages (within
     ``num_history_chars``) form the verbatim window that the prompt
-    assembly injects as real messages, so this node only summarises history
-    up to that window -- the summary and the verbatim window never overlap.
-    Does NOT append the summary to messages -- it's metadata, not a turn.
+    assembly injects as real messages, so this node summarises user-visible
+    history up to that window.  Internal run history (``messages_internal``)
+    is not injected verbatim into prompts; it is summarised from its own
+    cursor to the end.  Does NOT append the summary to messages -- it is
+    metadata, not a turn.
 
     Expects state to have the following fields:
 
-    - messages: list of messages
-    - summarised_till: index of messages that have been summarised already
+    - messages: user-visible conversation messages
+    - messages_internal: internal plan/evaluation/reasoning run history
+    - summarised_till / summarised_internal_till: per-stream cursors
     - context_summary: previous memory/context summary
 
     """
@@ -113,6 +116,23 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         )
         return conversation, window_start
 
+    def _internal_window(self, state: BaseModel) -> tuple[str, int]:
+        """Return ``(conversation, window_end)`` for internal run history.
+
+        Internal messages (plan versions, evaluation verdicts, reasoning
+        conclusions) are not injected verbatim into node prompts, so there is
+        no recent-tail window to preserve: everything from the internal cursor
+        to the end is summarised.
+
+        :param state: Current graph state.
+        :returns: The internal conversation text and the new internal cursor.
+        """
+        messages = list(getattr(state, "messages_internal", None) or [])
+        cursor = int(getattr(state, "summarised_internal_till", 0) or 0)
+        cursor = max(0, min(cursor, len(messages)))
+        conversation, _ = get_last_n_conversations(messages, start=cursor)
+        return conversation, len(messages)
+
     @override
     def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
         """Skip if not enough old conversation to summarise.
@@ -121,30 +141,40 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         ran and why nothing happened); the run continues to END either way.
         """
         conversation, window_start = self._summarisation_window(state)
+        internal, internal_end = self._internal_window(state)
+        internal_cursor = int(getattr(state, "summarised_internal_till", 0) or 0)
+        no_user_history = window_start <= state.summarised_till  # type: ignore
+        no_internal_history = internal_end <= internal_cursor
 
-        if window_start <= state.summarised_till:  # type: ignore
+        if no_user_history and no_internal_history:
             self.logger.debug("No new history to summarise yet")
             self._emit_memory_inspect(
                 "Nothing new to summarise",
                 {
                     "summarised_till": state.summarised_till,  # type: ignore
                     "window_start": window_start,
+                    "summarised_internal_till": internal_cursor,
+                    "internal_end": internal_end,
                 },
             )
             return False
 
-        if len(conversation) < self.summarisation_threshold_chars:
+        combined_chars = len(conversation) + len(internal)
+        if combined_chars < self.summarisation_threshold_chars:
             self.logger.debug(
                 f"Not enough conversation to summarise yet: "
-                f"{len(conversation)}/{self.summarisation_threshold_chars} chars"
+                f"{combined_chars}/{self.summarisation_threshold_chars} chars"
             )
             self._emit_memory_inspect(
                 "Not enough old history to summarise yet",
                 {
                     "conversation_chars": len(conversation),
+                    "internal_chars": len(internal),
                     "threshold_chars": self.summarisation_threshold_chars,
                     "summarised_till": state.summarised_till,  # type: ignore
                     "window_start": window_start,
+                    "summarised_internal_till": internal_cursor,
+                    "internal_end": internal_end,
                 },
             )
             return False
@@ -176,12 +206,16 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
         entirely when there is none (prompt conventions).
         """
         conversation, _ = self._summarisation_window(state)
+        internal, _ = self._internal_window(state)
         return {
             "old_summary_block": self._optional_section(
                 "Current summary",
                 state.context_summary,  # type: ignore
             ),
             "conversation": conversation,
+            "internal_history": self._optional_section(
+                "Internal run history (decisions and progress)", internal
+            ),
         }
 
     @override
@@ -204,10 +238,13 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
             )
             return {}
         _conversation, window_start = self._summarisation_window(state)
+        _internal, internal_end = self._internal_window(state)
         updates: dict[str, Any] = {
             "context_summary": answer,
             "summarised_till": window_start,
         }
+        if hasattr(state, "summarised_internal_till"):
+            updates["summarised_internal_till"] = internal_end
         if self.announce:
             # A manual compaction confirmation (the automatic node sets no
             # ``announce``, so it never clobbers the run's answer).
@@ -232,18 +269,23 @@ class SummariseMemoryNode(BaseLLMNode[BaseModel, BaseModel]):
                 summary="Summarisation produced no usable summary",
                 details={
                     "summarised_till": state.summarised_till,  # type: ignore
+                    "summarised_internal_till": getattr(
+                        state, "summarised_internal_till", 0
+                    ),
                     "note": "the model returned blank output; state preserved",
                 },
             )
+        internal_cursor = updates.get("summarised_internal_till")
+        progress = f"user index {updates.get('summarised_till')}"
+        if internal_cursor is not None:
+            progress += f" and internal index {internal_cursor}"
         return NodeStreamData(
             heading="Memory",
-            summary=(
-                f"Summarised the memory window up to index "
-                f"{updates.get('summarised_till')} ({len(summary)} chars)"
-            ),
+            summary=f"Summarised memory up to {progress} ({len(summary)} chars)",
             details={
                 "summary": summary,
                 "summarised_till": updates.get("summarised_till"),
+                "summarised_internal_till": internal_cursor,
                 "summary_chars": len(summary),
             },
         )
