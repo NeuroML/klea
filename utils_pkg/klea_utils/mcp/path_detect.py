@@ -26,7 +26,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 import os
-import re
 import shlex
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -38,30 +37,12 @@ from pydantic import BaseModel
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.sensitive import is_sensitive
 from klea_utils.mcp.tool_impls.permission import path_is_allowed, permitted_roots
+from klea_utils.tool_args import is_path_argument_name
 
 logger = logging.getLogger(__name__)
 
 #: Confidence that a discovered string really is a path, strongest first.
 Confidence = Literal["declared", "expected", "guess"]
-
-#: Argument-name words that mark a value as path-like (snake/kebab-case parts).
-_PATHY_NAME_WORDS = frozenset(
-    {
-        "path",
-        "paths",
-        "file",
-        "files",
-        "filename",
-        "filepath",
-        "dir",
-        "dirs",
-        "folder",
-        "directory",
-        "root",
-        "cwd",
-        "workdir",
-    }
-)
 
 
 class PathRequest(BaseModel):
@@ -115,13 +96,6 @@ def declared_checkpaths(tool_info: ToolInfo | None) -> list[str]:
         if isinstance(folded, list):
             return [str(name) for name in folded]
     return []
-
-
-def _name_is_pathy(name: str) -> bool:
-    """Return whether an argument *name* looks like it holds a path."""
-    return any(
-        part in _PATHY_NAME_WORDS for part in re.split(r"[_\-\s]+", name.lower())
-    )
 
 
 def _strip_file_uri(token: str) -> str | None:
@@ -362,7 +336,7 @@ def detect_path_requests(
     for name, value in arguments.items():
         if name.lower() in declared_values or not isinstance(value, str):
             continue
-        if _name_is_pathy(name):
+        if is_path_argument_name(name):
             consider(value, name, "guess", f"name:{name}")
 
     # 4. Path-like values, including tokens of shell command strings.  A bare
@@ -427,9 +401,9 @@ def resolve_path_arguments(
     * a declared ``checkpaths`` argument is always resolved (string or
       ``list[str]`` value);
     * other arguments are resolved heuristically when the argument **name** is
-      path-ish (:func:`_name_is_pathy`) and the value is a **single-token**,
-      non-URL/non-flag/non-glob string (multi-token shell command strings are
-      never rewritten);
+      path-ish (:func:`klea_utils.tool_args.is_path_argument_name`) and the
+      value is a **single-token**, non-URL/non-flag/non-glob string
+      (multi-token shell command strings are never rewritten);
     * ``working_directory`` (the ``run_command`` convention) defaults to the
       session root when unset;
     * absolute paths and URLs are left unchanged.
@@ -469,7 +443,7 @@ def resolve_path_arguments(
             continue
         if not isinstance(value, str) or not value.strip():
             continue
-        heuristic = _name_is_pathy(name) and not any(
+        heuristic = is_path_argument_name(name) and not any(
             ch.isspace() for ch in value.strip()
         )
         if not (is_declared or heuristic):

@@ -11,7 +11,12 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 
 from fastmcp.client.client import CallToolResult
-from klea_utils.tools import last_tool_error_text, textualize_tool_results
+from klea_utils.mcp.schemas import ToolCallSchema
+from klea_utils.tools import (
+    last_tool_error_text,
+    textualize_tool_results,
+    tool_call_errors,
+)
 from mcp.types import EmbeddedResource, TextContent, TextResourceContents
 
 logger = logging.getLogger(__name__)
@@ -25,6 +30,126 @@ def _result(text: str, *, is_error: bool = False) -> CallToolResult:
         data=None,
         is_error=is_error,
     )
+
+
+def _call(tool: str, args: dict, *, step: int = 0, paths=None) -> ToolCallSchema:
+    return ToolCallSchema(tool=tool, args=args, step=step, paths=paths or [])
+
+
+def test_tool_call_errors_lists_every_failed_call_with_paths():
+    """All failed calls in the batch are aligned and rendered together."""
+    calls = [
+        _call("web_fetch", {"url": "https://example.com/194021.json"}, step=6),
+        _call(
+            "edit_file",
+            {"path": "/tmp/a.txt", "old_string": "x" * 500},
+            step=7,
+        ),
+    ]
+    results = [
+        _result("HTTP 404", is_error=True),
+        _result("permission denied", is_error=True),
+    ]
+
+    out = tool_call_errors(calls, results)
+
+    assert "step 6 web_fetch" in out
+    assert "194021.json" in out
+    assert "step 7 edit_file" in out
+    assert "/tmp/a.txt" in out
+    assert "HTTP 404" in out
+    assert "permission denied" in out
+    assert "old_string" not in out
+
+
+def test_tool_call_errors_skips_free_text_arguments():
+    """Only explicitly path/URI-named arguments are included."""
+    calls = [
+        _call(
+            "write_file",
+            {
+                "path": "/tmp/out.txt",
+                "content": "def free_text_function(): pass",
+                "command": "curl https://example.com/secret",
+            },
+        )
+    ]
+
+    out = tool_call_errors(calls, [_result("failed", is_error=True)])
+
+    assert "path=/tmp/out.txt" in out
+    assert "def free_text_function" not in out
+    assert "curl https://example.com/secret" not in out
+
+
+def test_tool_call_errors_matches_compound_path_and_uri_names():
+    """Path-word matching covers working_directory/output_dir etc."""
+    calls = [
+        _call(
+            "run_command",
+            {"working_directory": "/tmp/work", "command": "rm -rf /tmp/work"},
+        ),
+        _call(
+            "web_fetch",
+            {"url": "https://example.com/a", "output_dir": "/tmp/out"},
+        ),
+    ]
+
+    out = tool_call_errors(
+        calls,
+        [_result("failed", is_error=True), _result("failed", is_error=True)],
+    )
+
+    assert "working_directory=/tmp/work" in out
+    assert "output_dir=/tmp/out" in out
+    assert "url=https://example.com/a" in out
+    assert "command=" not in out
+
+
+def test_tool_call_errors_includes_picker_paths():
+    calls = [_call("custom_tool", {"content": "x"}, paths=["/tmp/picker.txt"])]
+
+    out = tool_call_errors(calls, [_result("failed", is_error=True)])
+
+    assert "paths=/tmp/picker.txt" in out
+    assert "content=" not in out
+
+
+def test_tool_call_errors_redacts_and_truncates():
+    calls = [
+        _call(
+            "web_fetch",
+            {"url": "https://user:pass@example.com/a?token=secret&x=1"},
+        )
+    ]
+
+    out = tool_call_errors(
+        calls,
+        [_result("e" * 1000, is_error=True)],
+        max_value_chars=200,
+        max_error_chars=20,
+        max_total_chars=500,
+    )
+
+    assert "user:pass" not in out
+    assert "secret" not in out
+    assert "***@" in out
+    assert "token=***" in out
+    assert "..." in out
+
+
+def test_tool_call_errors_empty_without_errors():
+    assert (
+        tool_call_errors([_call("read_file", {"path": "/tmp/a"})], [_result("ok")])
+        == ""
+    )
+    assert tool_call_errors(None, None) == ""
+
+
+def test_tool_call_errors_handles_a_missing_call():
+    out = tool_call_errors([], [_result("boom", is_error=True)])
+    assert "(unknown tool)" in out
+    assert "boom" in out
 
 
 def test_last_tool_error_text_returns_last_error():

@@ -10,10 +10,14 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import json
 import logging
+import re
+from collections.abc import Sequence
 from typing import Any
 
 from fastmcp.client.client import CallToolResult
 from mcp.types import EmbeddedResource, TextContent, Tool
+
+from klea_utils.tool_args import is_path_argument_name, is_uri_argument_name
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +104,117 @@ def last_tool_error_text(
             text = text[:max_len] + " [truncated]"
         return text
     return ""
+
+
+#: Additional argument names that are useful in a failure digest but are not
+#: necessarily filesystem paths (for example a transfer source or an output
+#: destination).  Arbitrary free-text arguments are deliberately not included.
+_DIGEST_EXTRA_ARG_NAMES = frozenset({"source", "target", "destination", "output"})
+
+
+def _is_digest_argument_name(name: str) -> bool:
+    """Return whether *name* is safe/compact enough for a failure digest."""
+    return (
+        is_path_argument_name(name)
+        or is_uri_argument_name(name)
+        or name.lower() in _DIGEST_EXTRA_ARG_NAMES
+    )
+
+
+_URI_USERINFO_RE = re.compile(r"(?i)(https?://)[^/@\s]+@")
+_URI_SECRET_QUERY_RE = re.compile(
+    r"(?i)([?&](?:token|api[_-]?key|key|secret|password|signature|sig|auth)=)[^&\s]+"
+)
+
+
+def _redact_uri_secrets(text: str) -> str:
+    """Redact credentials and common secret query parameters in a URI."""
+    text = _URI_USERINFO_RE.sub(r"\1***@", text)
+    return _URI_SECRET_QUERY_RE.sub(r"\1***", text)
+
+
+def _format_digest_value(value: Any, max_chars: int) -> str:
+    """Return a compact, redacted, truncated representation of an arg value."""
+    if isinstance(value, (list, tuple, set)):
+        text = ", ".join(str(item) for item in value)
+    else:
+        text = str(value)
+    text = " ".join(_redact_uri_secrets(text).split())
+    if max_chars is not None and len(text) > max_chars:
+        text = text[: max(0, max_chars - 3)].rstrip() + "..."
+    return text
+
+
+def tool_call_errors(
+    tool_calls: Sequence[Any] | None,
+    tool_results: Sequence[CallToolResult] | None,
+    *,
+    max_value_chars: int = 300,
+    max_error_chars: int = 300,
+    max_total_chars: int = 2000,
+) -> str:
+    """Render the failed calls in a tool batch as a compact LLM-facing digest.
+
+    ``CallToolResult`` does not carry the tool name or arguments, so calls and
+    results are aligned by index.  ``dispatch_tool_calls`` guarantees one
+    result per input call in input order; a missing call is rendered as an
+    unknown tool.  Only the latest batch is described (the caller passes the
+    current ``tool_calls``/``tool_results``).
+
+    Values are included only for arguments with an explicitly path/URI-like
+    name (plus the picker's declared ``paths``), and are redacted/truncated.
+    Arbitrary free-text arguments (file contents, edit strings, code, shell
+    commands) are deliberately omitted: this is an allowlist, not a guess at
+    whether a string "looks like" a path.
+
+    :param tool_calls: Calls that produced *tool_results*, in dispatch order.
+    :param tool_results: Results for the batch.
+    :param max_value_chars: Per-argument value cap.
+    :param max_error_chars: Per-error text cap.
+    :param max_total_chars: Total digest cap.
+    :returns: One line per failed call, or ``""`` when nothing failed.
+    """
+    calls = list(tool_calls or [])
+    results = list(tool_results or [])
+    lines: list[str] = []
+    for index, result in enumerate(results):
+        if not getattr(result, "is_error", False):
+            continue
+        call = calls[index] if index < len(calls) else None
+        tool = str(getattr(call, "tool", "") or "(unknown tool)")
+        step = int(getattr(call, "step", 0) or 0)
+        args = getattr(call, "args", None) or {}
+        paths = getattr(call, "paths", None) or []
+
+        selected: list[str] = []
+        for name, value in args.items():
+            if not isinstance(name, str) or not _is_digest_argument_name(name):
+                continue
+            if value is None or value == "":
+                continue
+            selected.append(f"{name}={_format_digest_value(value, max_value_chars)}")
+        if paths:
+            selected.append(
+                f"paths={_format_digest_value(list(paths), max_value_chars)}"
+            )
+
+        parts = [_textualize_content_block(block) for block in result.content]
+        error = " ".join(" ".join(parts).split()) or "(no error text)"
+        error = _format_digest_value(error, max_error_chars)
+
+        prefix = f"step {step} " if step > 0 else ""
+        line = f"- {prefix}{tool}"
+        if selected:
+            line += f"({', '.join(selected)})"
+        line += f": {error}"
+        lines.append(line)
+
+    if not lines:
+        return ""
+    digest = "\n".join(lines)
+    if max_total_chars is not None and len(digest) > max_total_chars:
+        digest = digest[:max_total_chars].rstrip() + "\n- [more failures truncated]"
+    return digest
 
 
 def _collapse_schema_type(schema: dict[str, Any]) -> str:
