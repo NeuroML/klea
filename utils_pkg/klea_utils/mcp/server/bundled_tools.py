@@ -438,9 +438,8 @@ async def read_file(
     - You need to see the contents of a file in the project.
     - You want to page through a large file by line numbers.
 
-    For a large file, prefer the grep tool to locate the region you need
-    first, then read around it with ``offset``/``limit``; reading a large file
-    page by page from the start is slow.
+    Read file chunks instead of complete files. Use the grep tool to locate the
+    region you need first, then read around it with ``offset``/``limit``.
 
     Do not use for:
     - Listing a directory (use the list files tool instead).
