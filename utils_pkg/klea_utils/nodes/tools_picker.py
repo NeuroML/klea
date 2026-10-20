@@ -44,10 +44,10 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     state, so all of that is configuration:
 
     - *prompt_registry_location* points at the application's ``prompts/``
-      directory (both apps name their picker prompts ``ToolsPicker_system.md``
-      and ``ToolsPicker_user.md``).
-    - *model_role* selects the ``llm_models`` role (``"plan"`` for the agent,
-      ``"chat"`` for RAG).
+      directory.  RAG uses ``ToolsPicker_*``; the agent's ``ToolCallBinder``
+      uses ``ToolCallBinder_*``.
+    - *model_role* selects the ``llm_models`` role (``"tool_picker"`` for the
+      agent binder, ``"chat"`` for RAG).
     - *tools_info* is the per-domain ``BaseLangGraph.tools_info``; when the
       state carries ``query_domains`` the descriptions are filtered to those
       domains (RAG), otherwise all tools are offered (agent).
@@ -662,8 +662,10 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                     "binding_calls": accumulated,
                 }
             else:
+                # Keep the failed/empty current selection visible to the
+                # router, while preserving earlier groups for the retry.
                 update = {
-                    "tool_calls": prior_binding,
+                    "tool_calls": tool_calls,
                     "binding_calls": prior_binding,
                 }
         else:

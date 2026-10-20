@@ -379,7 +379,7 @@ def test_binder_empty_selection_preserves_prior_bindings():
     )
 
     assert update["binding_calls"] == [prior]
-    assert update["tool_calls"] == [prior]
+    assert update["tool_calls"] == []
     assert update["picker_step"] == 2
     assert update["picker_attempts"] == 1
 
