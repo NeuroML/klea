@@ -92,8 +92,10 @@ class ChatBubble(ui.element):
 
         :param text: Message text (markdown); also the fallback body.
         :param stamp: Timestamp string.
-        :param role: ``"user"``, ``"agent"``, ``"tool"`` or ``"system"`` (a
-            client command's output); unknown values fall back to ``"agent"``.
+        :param role: ``"user"``, ``"agent"``, ``"tool"``, ``"system"`` (a
+            client command's output), or ``"notice"`` (a compact progress
+            note, rendered with the system surface); unknown values fall back
+            to ``"agent"``.
         :param collapsed: ``True`` if the text is collapsed to 4 lines.
         :param idx: Message index (used for expand/collapse tracking).
         :param header: Optional small bold header, e.g. a tool block's
@@ -110,7 +112,10 @@ class ChatBubble(ui.element):
         """
         super().__init__("div")
 
-        if role not in _ROLES:
+        if role == "notice":
+            # A progress notice is a muted, system-style transcript block.
+            role = "system"
+        elif role not in _ROLES:
             role = "agent"
 
         self.classes("w-full flex flex-col")

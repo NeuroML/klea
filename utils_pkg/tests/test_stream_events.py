@@ -218,6 +218,28 @@ class TestApplyStreamEvent:
         assert chat["context"]["mode"] == "scientific"
         assert chat["context"]["note"] == "no source"
 
+    def test_notice_appends_a_user_visible_progress_message(self, chat):
+        """notice events append a compact transcript row, not a pane entry."""
+        result = apply_stream_event(
+            chat,
+            {
+                "type": "notice",
+                "node": "Evaluating",
+                "data": {
+                    "summary": "Step 1 done: found the file",
+                    "details": {"content": "Step 1 done: found the file"},
+                },
+            },
+        )
+
+        assert result == "notice"
+        message = chat["messages"][0]
+        assert message["role"] == "notice"
+        assert message["text"] == "Step 1 done: found the file"
+        assert message["header"] == "Evaluating"
+        assert chat["inspector_entries"] == []
+        assert chat["state_sections"] == {}
+
     def test_complete_appends_message(self, chat):
         """complete events append the final assistant message."""
         result = apply_stream_event(

@@ -200,7 +200,7 @@ async def run_stream(
             elif action == "inspect":
                 entry = current_chat["inspector_entries"][-1]
                 ctx.append_inspector(chat_id, entry)
-            elif action == "tool":
+            elif action in ("tool", "notice"):
                 if _active():
                     ctx.render_chat_area()
             elif action == "interrupt":

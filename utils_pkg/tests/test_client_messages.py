@@ -30,6 +30,22 @@ def test_user_and_agent_rows_map_to_roles():
     assert agent["text"] == "yo"
 
 
+def test_notice_row_preserves_role_and_header():
+    """A notice row reloads as a compact transcript notice."""
+    data = server_message_to_data(
+        {
+            "role": "notice",
+            "content": "Step 1 done: ok",
+            "created_at": 0,
+            "metadata": {"header": "Evaluating", "kind": "progress"},
+        }
+    )
+    assert data["role"] == "notice"
+    assert data["text"] == "Step 1 done: ok"
+    assert data["header"] == "Evaluating"
+    assert data["kind"] == "progress"
+
+
 def test_tool_row_rebuilds_the_block_from_metadata():
     """A tool row's block fields are restored from its stored metadata."""
     row = {

@@ -154,6 +154,15 @@ def server_message_to_data(message: Mapping[str, Any]) -> MessageData:
     :returns: A message dict for ``ChatData["messages"]``.
     """
     stamp = datetime.fromtimestamp(message["created_at"]).strftime("%X")
+    if message.get("role") == "notice":
+        meta = message.get("metadata") or {}
+        return {
+            "text": message["content"],
+            "stamp": stamp,
+            "role": "notice",
+            "header": meta.get("header", ""),
+            "kind": meta.get("kind", "progress"),
+        }
     if message.get("role") == "tool":
         meta = message.get("metadata") or {}
         return {

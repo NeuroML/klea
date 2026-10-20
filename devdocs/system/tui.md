@@ -46,7 +46,7 @@ flowchart LR
     APP -- "compose + slots" --> TUI
     CTX --- SCREEN
     CLIENT -- "POST /query/stream" --> SERVER
-    SERVER -- "progress/inspect/state/usage/tool/\ncontext/interrupt/complete/error" --> CLIENT
+    SERVER -- "progress/inspect/state/usage/tool/notice/\ncontext/interrupt/complete/error" --> CLIENT
     CLIENT --> REDUCER --> STATE --> SCREEN
 ```
 
@@ -126,6 +126,7 @@ TUI must not reinterpret them.  Per event:
 | `state` | Update a status-panel section keyed by `data.key` or node label | status pane |
 | `usage` | Accumulate token totals in the status panel | token totals |
 | `tool` | Append a message widget (MIME-aware, text fallback) | chat blocks |
+| `notice` | Append a muted progress line | compact transcript note |
 | `token` | Not consumed (no live typing; see streams.md) | ignored |
 | `context` | Store on the active chat; reconcile the status-panel mode/access/project-root slots | status pane + `context_hooks` |
 | `interrupt` | Open the HITL / permission modal; stop streaming until answered | chat ask form |

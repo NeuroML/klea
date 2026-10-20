@@ -69,16 +69,18 @@ def chat_indicator(
 class MessageData(TypedDict):
     """A single rendered chat message.
 
-    ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an
-    optional small title (used by tool blocks).  Tool messages add the
-    mime/display/data/meta fields used by the chat-bubble renderer, plus
-    ``is_error`` for an errored tool result (styled by the renderer).
+    ``role`` is ``"user"``, ``"agent"``, ``"tool"`` or ``"notice"``; ``header``
+    is an optional small title (used by tool blocks and notices).  Tool
+    messages add the mime/display/data/meta fields used by the chat-bubble
+    renderer, plus ``is_error`` for an errored tool result (styled by the
+    renderer).  Notices carry an optional ``kind`` for future styling.
     """
 
     text: str
     stamp: str
     role: str
     header: str
+    kind: NotRequired[str]
     mime: NotRequired[str]
     data: NotRequired[str]
     meta: NotRequired[dict[str, Any]]

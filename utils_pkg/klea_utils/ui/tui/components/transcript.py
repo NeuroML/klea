@@ -82,6 +82,9 @@ def render_message(
     header = message.get("header", "")
     if role == "user":
         return Text(f"> {text}", style="bold")
+    if role == "notice":
+        prefix = f"{header}: " if header else ""
+        return Text(prefix + text, style="dim")
     parts: list[RenderableType] = []
     if header:
         style = error_style if message.get("is_error") else "bold"

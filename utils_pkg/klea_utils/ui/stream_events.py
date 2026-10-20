@@ -41,6 +41,7 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     ``"state"``     a status-pane section was stored
     ``"inspect"``   an inspection entry was appended
     ``"context"``   session context (e.g. the operating mode) was stored
+    ``"notice"``    a user-facing progress notice was appended
     ``"complete"``  the final assistant message was appended
     ``"error"``     the backend signalled an error
     ``None``        no state change (progress / info / token events)
@@ -104,6 +105,25 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
             "preformatted": data.get("preformatted", False),
         }
         return "state"
+
+    if t == "notice":
+        data = event.get("data", {})
+        content = str(
+            data.get("summary") or (data.get("details") or {}).get("content") or ""
+        ).strip()
+        if not content:
+            return None
+        stamp = datetime.now().astimezone().strftime("%X")
+        chat.setdefault("messages", []).append(
+            {
+                "text": content,
+                "stamp": stamp,
+                "role": "notice",
+                "header": event.get("node", ""),
+                "kind": (data.get("details") or {}).get("kind", "progress"),
+            }
+        )
+        return "notice"
 
     if t == "complete":
         message = event.get("message_for_user", "")

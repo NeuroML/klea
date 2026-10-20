@@ -331,6 +331,40 @@ class TestStreamResponseToolBlocks:
         assert store.get_messages("u", "c") == []
 
 
+class TestStreamResponseNotices:
+    """``stream_response`` persists user-visible progress notices."""
+
+    async def _collect(self, response):
+        return [c async for c in response.body_iterator]
+
+    @staticmethod
+    def _notice_stream():
+        async def _stream(query, thread_id, *, extra_state=None, context=None):
+            yield {
+                "type": "notice",
+                "node": "Evaluating",
+                "data": {
+                    "summary": "Step 1 done: found the file",
+                    "details": {"content": "Step 1 done: found the file"},
+                },
+            }
+            yield {"type": "complete", "message_for_user": "done"}
+
+        return _stream
+
+    async def test_persists_notice_before_the_answer(self, store, graph):
+        graph.run_graph_astream_events = self._notice_stream()
+        response = await chat_core.stream_response(
+            _make_request(store, graph), query="go", user_id="u", chat_id="c"
+        )
+        await self._collect(response)
+
+        rows = store.get_messages("u", "c")
+        assert [m["role"] for m in rows] == ["user", "notice", "assistant"]
+        assert rows[1]["content"] == "Step 1 done: found the file"
+        assert rows[1]["metadata"]["header"] == "Evaluating"
+
+
 class TestStreamResponseEventPersistence:
     """The pane events are persisted per chat for hydration (ADR-0032 update)."""
 
