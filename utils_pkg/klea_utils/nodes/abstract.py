@@ -82,7 +82,7 @@ class NodeStreamEvent(BaseModel):
     This is the contract between the graph infrastructure and the frontend.
     """
 
-    type: Literal["progress", "inspect", "state", "usage"] = Field(
+    type: Literal["progress", "inspect", "state", "usage", "notice"] = Field(
         description="Event type"
     )
     node: str = Field(description="Node label")
@@ -198,6 +198,37 @@ class AbstractLangGraphNode[
             data=NodeStreamData(heading=heading or self.label),
         )
         self.write_custom_stream(event.model_dump())
+
+    def _emit_notice(self, content: str, *, kind: str = "progress") -> None:
+        """Emit a concise, user-visible ``notice`` for the chat transcript.
+
+        Notices are derived progress notes (an evaluator verdict, a reasoning
+        conclusion), not status snapshots and not part of graph memory.  They
+        are persisted by the API layer as transcript rows.
+
+        :param content: Note text; blank content emits nothing.
+        :param kind: Semantic kind for styling/routing (default ``progress``).
+        """
+        text = str(content or "").strip()
+        if not text:
+            return
+        if len(text) > 1000:
+            text = text[:997].rstrip() + "..."
+        event = NodeStreamEvent(
+            type="notice",
+            node=self.label,
+            data=NodeStreamData(
+                heading=self.label,
+                summary=text,
+                details={"content": text, "kind": kind},
+            ),
+        )
+        try:
+            self.write_custom_stream(event.model_dump())
+        except RuntimeError:
+            # Unit tests call ``_update_state`` outside a graph run, where no
+            # stream writer exists; a notice is optional UI metadata.
+            pass
 
     def _pre_exec_stream(self, ctx: TCtx) -> None:
         """Emit streaming event before node execution.

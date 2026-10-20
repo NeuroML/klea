@@ -77,7 +77,7 @@ sequenceDiagram
     Core-->>UI: 200 text/event-stream
     Core->>Graph: run_graph_astream_events(input, thread_id, context)
     loop graph supersteps
-        Graph-->>Core: progress / inspect / state / tool / context
+        Graph-->>Core: progress / inspect / state / tool / notice / context
         Core-->>UI: data: JSON event
         Core-->>UI: data: ping (only while a node runs >15s with no event)
     end
@@ -229,6 +229,7 @@ sequenceDiagram
             Graph-->>Core: Evaluating
         else tool
             Graph-->>Core: Binding tool calls
+            Note over Graph,Core: Evaluator verdicts and reasoning conclusions also emit notice events for the chat transcript.
             alt path outside project / sensitive
                 Graph-->>Core: Running tools (interrupt: permission)
                 Core-->>UI: data: interrupt (path permission)
@@ -272,7 +273,7 @@ Notes:
 * **Stopping an active run**: `POST /query/cancel` (idempotent, 204) cancels
   the asyncio task; the checkpoint stays resumable.
 * **Hydration**: the transcript comes from `/messages`
-  (`user`/`assistant`/`tool` rows); the inspection/status panes from `/events`
+  (`user`/`assistant`/`tool`/`notice` rows); the inspection/status panes from `/events`
   (the stored `inspect`/`state` events plus a per-turn `query` marker,
   replayed through the shared reducer); and the session context plus the
   cumulative token totals from `/context`.  See `streams.md` ("Persistence

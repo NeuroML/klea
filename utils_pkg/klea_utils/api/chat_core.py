@@ -573,6 +573,29 @@ async def stream_response(
                             rows = _tool_event_messages(event)
                             if rows:
                                 store.add_messages(user_id, chat_id, rows)
+                    elif t == "notice":
+                        # A concise user-facing progress note (evaluator
+                        # verdict/reasoning conclusion), persisted as a
+                        # transcript row.  It is not graph conversation memory.
+                        data = event.get("data") or {}
+                        content = str(
+                            data.get("summary")
+                            or (data.get("details") or {}).get("content")
+                            or ""
+                        ).strip()
+                        if content and not ephemeral_command:
+                            store.add_message(
+                                user_id,
+                                chat_id,
+                                "notice",
+                                content,
+                                metadata={
+                                    "header": event.get("node", ""),
+                                    "kind": (data.get("details") or {}).get(
+                                        "kind", "progress"
+                                    ),
+                                },
+                            )
                     if t in _HYDRATION_EVENT_TYPES:
                         # Pane event: persisted so the inspector/status panes
                         # survive a reload (flushed in ``finally``).

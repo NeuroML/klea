@@ -19,7 +19,7 @@ LangGraph's `astream_events(version="v3")` exposes three channels the runner
 reads:
 
 * **custom** - node-authored events (`write_custom_stream`): `progress`,
-  `inspect`, `state`, `usage`, `tool`.  `_CustomChannelEnabler`
+  `inspect`, `state`, `usage`, `tool`, `notice`.  `_CustomChannelEnabler`
   (`graph/base.py`) declares `required_stream_modes = ("custom",)` so the
   channel is enabled.
 * **messages** - LLM token deltas (`content-block-delta`); forwarded as `token`
@@ -40,6 +40,7 @@ exception.
 | `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | status-panel section |
 | `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | token totals |
 | `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | transcript block (MIME-aware) |
+| `notice` | node (custom) | `{type, node, data{heading, summary, details{content, kind}}}` | compact chat progress note | muted transcript line |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
 | `context` | runner (values) | `{type, data}` | status pane (mode/access) | stored on the chat; status-panel mode/access slots refresh |
 | `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, interrupt_id, hitl_response_schema}}` | ask form replacing the composer | inline ask panel replacing the composer |
@@ -90,8 +91,10 @@ persisted server-side and rehydrated on load:
 * **Transcript** - `sessions_db.messages`: the `user`/`assistant` turns
   written by `chat_core`, plus one `tool` row per chat-renderable tool entry
   (`role="tool"`, `content` = the display fallback, rendering keys
-  `header`/`mime`/`data`/`meta`/`is_error` in the row's `metadata`).
-  Hydrated via `GET /chat/{user_id}/{chat_id}/messages`;
+  `header`/`mime`/`data`/`meta`/`is_error` in the row's `metadata`), plus a
+  `notice` row for each user-facing progress note (`role="notice"`, with the
+  emitting node as `header`).  Hydrated via
+  `GET /chat/{user_id}/{chat_id}/messages`;
   `server_message_to_data` rebuilds the frontend message shape.
 * **Inspection/status panes** - `sessions_db.chat_events`:
   `chat_core.stream_response` persists the pane events (`inspect`, `state`)
@@ -107,7 +110,8 @@ persisted server-side and rehydrated on load:
   checkpointed state (same reasoning as `context`; see ADR-0032).
 
 Only these UI-relevant events are persisted; `progress`/`ping`/`token` are
-transient, and `complete`/`tool`/`interrupt` are covered by the transcript.
+transient, and `complete`/`tool`/`notice`/`interrupt` are covered by the
+transcript.
 Deleting a chat (or all of a user's chats) purges both `messages` and
 `chat_events`.
 
@@ -155,6 +159,18 @@ section in place (empty = key by node label); the Planner and Evaluator share
 `key="plan"` so the plan section is live but singular.  `NodeStreamData.preformatted`
 renders `display` as monospace `<pre>` (the plan) so tool names with `_` are
 not parsed as markdown.
+
+### `notice` (chat progress note)
+
+A concise, user-facing progress note derived from an internal node result: an
+evaluator verdict/reason (`Evaluating`) or a reasoning conclusion
+(`Reasoning`).  It is append-only transcript history, not a status snapshot:
+the status pane keeps the current plan/state, while notices explain what
+happened in order.  `chat_core` persists each notice as a `role="notice"`
+transcript row; it is **not** added to graph `messages` or
+`messages_internal` (the underlying evaluator/reasoning data is already
+there).  Long content is truncated by the emitting node to keep the chat
+usable.
 
 ### `tool` (chat-renderable output)
 

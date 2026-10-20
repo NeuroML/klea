@@ -1215,7 +1215,7 @@ class BaseLangGraph(ABC):
                             "data": payload,
                         }
 
-                elif event_type in ("inspect", "state", "usage", "tool"):
+                elif event_type in ("inspect", "state", "usage", "tool", "notice"):
                     node = data.get("node")
                     if not node:
                         continue

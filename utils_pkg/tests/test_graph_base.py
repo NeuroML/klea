@@ -613,6 +613,17 @@ class ContextGraph(BaseLangGraph):
             # Attempt to author a context event from a node.  Under ADR-0032
             # this custom-channel event must NOT be forwarded.
             get_stream_writer()({"type": "context", "data": {"hacked": True}})
+            get_stream_writer()(
+                {
+                    "type": "notice",
+                    "node": "Hack context",
+                    "data": {
+                        "heading": "Hack context",
+                        "summary": "progress note",
+                        "details": {"content": "progress note", "kind": "progress"},
+                    },
+                }
+            )
             return {"message_for_user": "done"}
 
         workflow.add_node("Set mode", _set_mode)
@@ -646,6 +657,9 @@ class TestContextEventForwarding:
             {"type": "context", "data": {"mode": "general", "assurance": "unverified"}}
         ]
         assert all("hacked" not in e.get("data", {}) for e in context_events)
+        notices = [e for e in events if e.get("type") == "notice"]
+        assert notices, "expected the custom notice event to be forwarded"
+        assert notices[0]["data"]["summary"] == "progress note"
         assert [e for e in events if e.get("type") == "complete"], "expected complete"
 
 
