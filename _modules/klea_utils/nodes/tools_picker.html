@@ -332,7 +332,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">NodeStreamData</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseLLMNode</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMNodeContext</span><span class="p">,</span> <span class="n">NodeContext</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">last_tool_error_text</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool_call_errors</span>
 
 <span class="c1">#: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).</span>
 <span class="n">MAX_BATCH_STEPS</span> <span class="o">=</span> <span class="mi">8</span>
@@ -655,7 +655,10 @@
         <span class="c1"># Derived from the incoming state (thread-isolated), not instance</span>
         <span class="c1"># fields (ADR-0033).</span>
         <span class="n">attempts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="n">last_error</span> <span class="o">=</span> <span class="n">last_tool_error_text</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span>
+        <span class="n">tool_errors</span> <span class="o">=</span> <span class="n">tool_call_errors</span><span class="p">(</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+        <span class="p">)</span>
         <span class="n">validation</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s2">"validation_feedback"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="n">allowed_names</span> <span class="o">=</span> <span class="p">(</span>
             <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_binding_allowed_tools</span><span class="p">(</span><span class="n">state</span><span class="p">))</span>
@@ -670,25 +673,28 @@
                 <span class="s2">"return a single entry with an empty `tool` and the reason in "</span>
                 <span class="s2">"`reason`."</span>
             <span class="p">)</span>
-        <span class="k">elif</span> <span class="n">last_error</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_binding_enabled</span><span class="p">():</span>
+        <span class="k">elif</span> <span class="n">tool_errors</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_binding_enabled</span><span class="p">():</span>
             <span class="n">suggested</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">allowed_names</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"(no suggested tool available)"</span>
             <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s2">"Your previous tool call failed. The error was:</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="s2">"Fix the arguments of the suggested tool(s) and do not choose "</span>
-                <span class="s2">"a different tool. If none can carry out the step, return a "</span>
-                <span class="s2">"single entry with an empty `tool` and the reason in `reason`.</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="s2">"Your previous tool call(s) failed. The failed call(s) were:</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_errors</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="s2">"Correct the arguments of the suggested tool(s). Do not repeat "</span>
+                <span class="s2">"any call listed above with identical arguments: it cannot "</span>
+                <span class="s2">"succeed. Do not choose a different tool. If none can carry "</span>
+                <span class="s2">"out the step, return a single entry with an empty `tool` and "</span>
+                <span class="s2">"the reason in `reason`.</span><span class="se">\n</span><span class="s2">"</span>
                 <span class="sa">f</span><span class="s2">"The current step suggests: </span><span class="si">{</span><span class="n">suggested</span><span class="si">}</span><span class="s2">."</span>
             <span class="p">)</span>
-        <span class="k">elif</span> <span class="n">last_error</span><span class="p">:</span>
+        <span class="k">elif</span> <span class="n">tool_errors</span><span class="p">:</span>
             <span class="n">feedback</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s2">"Your previous tool call failed. The error was:</span><span class="se">\n</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">last_error</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="s2">"Your previous tool call(s) failed. The failed call(s) were:</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_errors</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
                 <span class="s2">"Fix the arguments of the same tool so the call can succeed. "</span>
-                <span class="s2">"Do not switch to a different tool and do not add new calls. "</span>
-                <span class="s2">"If the error shows the step cannot be completed with this "</span>
-                <span class="s2">"tool, return a single entry with an empty `tool` and the "</span>
-                <span class="s2">"reason in `reason`."</span>
+                <span class="s2">"Do not repeat any call listed above with identical arguments: "</span>
+                <span class="s2">"it cannot succeed. Do not switch to a different tool and do "</span>
+                <span class="s2">"not add new calls. If the error shows the step cannot be "</span>
+                <span class="s2">"completed with this tool, return a single entry with an empty "</span>
+                <span class="s2">"`tool` and the reason in `reason`."</span>
             <span class="p">)</span>
         <span class="k">elif</span> <span class="n">attempts</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_binding_enabled</span><span class="p">():</span>
             <span class="n">suggested</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">allowed_names</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">"(no suggested tool available)"</span>
@@ -720,36 +726,52 @@
             <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">args</span> <span class="ow">or</span> <span class="p">{},</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="nb">str</span><span class="p">),</span>
         <span class="p">)</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_failed_call_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return canonical ``(tool, args)`` keys for the previous failed calls.</span>
+
+<span class="sd">        Calls and results are aligned by index; a result missing from the</span>
+<span class="sd">        state is treated as unknown and does not make its call a failure.</span>
+<span class="sd">        Successful calls in a mixed batch are deliberately excluded so that</span>
+<span class="sd">        repeating them is not blocked by another call's error.</span>
+
+<span class="sd">        :param state: The incoming state (still holding the previous batch).</span>
+<span class="sd">        :returns: Keys for calls whose corresponding result is an error.</span>
+<span class="sd">        """</span>
+        <span class="n">previous_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">previous_results</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">failed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">call</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">previous_calls</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">previous_results</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">previous_results</span><span class="p">[</span><span class="n">index</span><span class="p">],</span> <span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="n">failed</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">call</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">failed</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_is_identical_failed_retry</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span> <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">ToolCallSchema</span><span class="p">],</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return whether *tool_calls* repeat the just-failed batch exactly.</span>
+<span class="w">        </span><span class="sd">"""Return whether *tool_calls* repeat any just-failed call.</span>
 
 <span class="sd">        A deterministic anti-waste guard: re-emitting the same call with the</span>
 <span class="sd">        same arguments cannot repair a call-level error, so the picker should</span>
-<span class="sd">        escalate to the app (which replans) rather than loop.  Only active when</span>
-<span class="sd">        an ``on_unusable`` callback is installed (the agent has a replan edge;</span>
-<span class="sd">        RAG does not), and only when the immediately-previous batch actually</span>
-<span class="sd">        errored -- a repeat after a successful round, or on a new step, is left</span>
-<span class="sd">        alone.</span>
+<span class="sd">        escalate to the app (which replans) rather than loop.  The check is</span>
+<span class="sd">        per-call, not per-batch: a subset, reordered batch, or a batch with</span>
+<span class="sd">        new calls alongside a repeated failed call is still blocked.  Only</span>
+<span class="sd">        active when an ``on_unusable`` callback is installed (the agent has a</span>
+<span class="sd">        replan edge; RAG does not), and only when the immediately-previous</span>
+<span class="sd">        batch actually errored -- a repeat after a successful round, or on a</span>
+<span class="sd">        new step, is left alone.</span>
 
 <span class="sd">        :param tool_calls: The picker's new selection.</span>
 <span class="sd">        :param state: The incoming state (still holding the previous batch).</span>
-<span class="sd">        :returns: ``True`` when the new selection repeats the failed batch.</span>
+<span class="sd">        :returns: ``True`` when any new call repeats a failed call.</span>
 <span class="sd">        """</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_on_unusable</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">tool_calls</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="n">previous_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-        <span class="n">previous_results</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_results"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">previous_calls</span><span class="p">:</span>
+        <span class="n">failed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_failed_call_keys</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">failed</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s2">"is_error"</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">previous_results</span><span class="p">):</span>
-            <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">previous_calls</span><span class="p">):</span>
-            <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sorted</span><span class="p">(</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">previous_calls</span>
-        <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_selection_key</span><span class="p">(</span><span class="n">call</span><span class="p">)</span> <span class="ow">in</span> <span class="n">failed</span> <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_calls</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">ToolCallSchema</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">"""Normalize the picker result to the dispatch ``ToolCallSchema`` list.</span>
@@ -862,7 +884,7 @@
 <span class="sd">        graph state (thread-isolated, ADR-0033) so the orchestrator can retry</span>
 <span class="sd">        the picker a bounded number of times before escalating.</span>
 
-<span class="sd">        A selection that *exactly repeats the previous failed batch* is</span>
+<span class="sd">        A selection that repeats any call from the previous failed batch is</span>
 <span class="sd">        converted to a deliberate failure (with an explanatory reason) so it is</span>
 <span class="sd">        escalated instead of dispatched again: identical retries cannot succeed</span>
 <span class="sd">        and only waste a round.</span>
@@ -885,9 +907,9 @@
 
         <span class="k">if</span> <span class="n">usable</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_identical_failed_retry</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
             <span class="n">reason</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="s2">"The picker repeated the previous tool call with identical "</span>
-                <span class="s2">"arguments after it failed; repeating the same call cannot "</span>
-                <span class="s2">"succeed. Replan the step or correct the approach."</span>
+                <span class="s2">"The picker repeated a previously failed tool call with "</span>
+                <span class="s2">"identical arguments; repeating the same call cannot succeed. "</span>
+                <span class="s2">"Replan the step or correct the approach."</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"picker repeated the identical failed call; escalating</span><span class="se">\n</span><span class="si">{</span><span class="n">reason</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>

@@ -332,7 +332,6 @@
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">shlex</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
@@ -344,30 +343,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.sensitive</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_sensitive</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.permission</span><span class="w"> </span><span class="kn">import</span> <span class="n">path_is_allowed</span><span class="p">,</span> <span class="n">permitted_roots</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.tool_args</span><span class="w"> </span><span class="kn">import</span> <span class="n">is_path_argument_name</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 <span class="c1">#: Confidence that a discovered string really is a path, strongest first.</span>
 <span class="n">Confidence</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"declared"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">,</span> <span class="s2">"guess"</span><span class="p">]</span>
-
-<span class="c1">#: Argument-name words that mark a value as path-like (snake/kebab-case parts).</span>
-<span class="n">_PATHY_NAME_WORDS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
-    <span class="p">{</span>
-        <span class="s2">"path"</span><span class="p">,</span>
-        <span class="s2">"paths"</span><span class="p">,</span>
-        <span class="s2">"file"</span><span class="p">,</span>
-        <span class="s2">"files"</span><span class="p">,</span>
-        <span class="s2">"filename"</span><span class="p">,</span>
-        <span class="s2">"filepath"</span><span class="p">,</span>
-        <span class="s2">"dir"</span><span class="p">,</span>
-        <span class="s2">"dirs"</span><span class="p">,</span>
-        <span class="s2">"folder"</span><span class="p">,</span>
-        <span class="s2">"directory"</span><span class="p">,</span>
-        <span class="s2">"root"</span><span class="p">,</span>
-        <span class="s2">"cwd"</span><span class="p">,</span>
-        <span class="s2">"workdir"</span><span class="p">,</span>
-    <span class="p">}</span>
-<span class="p">)</span>
 
 
 <div class="viewcode-block" id="PathRequest">
@@ -427,13 +408,6 @@
             <span class="k">return</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">folded</span><span class="p">]</span>
     <span class="k">return</span> <span class="p">[]</span></div>
 
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_name_is_pathy</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Return whether an argument *name* looks like it holds a path."""</span>
-    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span>
-        <span class="n">part</span> <span class="ow">in</span> <span class="n">_PATHY_NAME_WORDS</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[_\-\s]+"</span><span class="p">,</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
-    <span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_strip_file_uri</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
@@ -676,7 +650,7 @@
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">declared_values</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="k">continue</span>
-        <span class="k">if</span> <span class="n">_name_is_pathy</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">is_path_argument_name</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
             <span class="n">consider</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"guess"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"name:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
     <span class="c1"># 4. Path-like values, including tokens of shell command strings.  A bare</span>
@@ -744,9 +718,9 @@
 <span class="sd">    * a declared ``checkpaths`` argument is always resolved (string or</span>
 <span class="sd">      ``list[str]`` value);</span>
 <span class="sd">    * other arguments are resolved heuristically when the argument **name** is</span>
-<span class="sd">      path-ish (:func:`_name_is_pathy`) and the value is a **single-token**,</span>
-<span class="sd">      non-URL/non-flag/non-glob string (multi-token shell command strings are</span>
-<span class="sd">      never rewritten);</span>
+<span class="sd">      path-ish (:func:`klea_utils.tool_args.is_path_argument_name`) and the</span>
+<span class="sd">      value is a **single-token**, non-URL/non-flag/non-glob string</span>
+<span class="sd">      (multi-token shell command strings are never rewritten);</span>
 <span class="sd">    * ``working_directory`` (the ``run_command`` convention) defaults to the</span>
 <span class="sd">      session root when unset;</span>
 <span class="sd">    * absolute paths and URLs are left unchanged.</span>
@@ -786,7 +760,7 @@
             <span class="k">continue</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
             <span class="k">continue</span>
-        <span class="n">heuristic</span> <span class="o">=</span> <span class="n">_name_is_pathy</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
+        <span class="n">heuristic</span> <span class="o">=</span> <span class="n">is_path_argument_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span>
             <span class="n">ch</span><span class="o">.</span><span class="n">isspace</span><span class="p">()</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">is_declared</span> <span class="ow">or</span> <span class="n">heuristic</span><span class="p">):</span>

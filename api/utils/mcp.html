@@ -731,9 +731,9 @@ Klea-authored).</p>
 <li><p>a declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code> argument is always resolved (string or
 <code class="docutils literal notranslate"><span class="pre">list[str]</span></code> value);</p></li>
 <li><p>other arguments are resolved heuristically when the argument <strong>name</strong> is
-path-ish (<code class="xref py py-func docutils literal notranslate"><span class="pre">_name_is_pathy()</span></code>) and the value is a <strong>single-token</strong>,
-non-URL/non-flag/non-glob string (multi-token shell command strings are
-never rewritten);</p></li>
+path-ish (<code class="xref py py-func docutils literal notranslate"><span class="pre">klea_utils.tool_args.is_path_argument_name()</span></code>) and the
+value is a <strong>single-token</strong>, non-URL/non-flag/non-glob string
+(multi-token shell command strings are never rewritten);</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">working_directory</span></code> (the <code class="docutils literal notranslate"><span class="pre">run_command</span></code> convention) defaults to the
 session root when unset;</p></li>
 <li><p>absolute paths and URLs are left unchanged.</p></li>
