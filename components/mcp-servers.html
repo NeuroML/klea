@@ -326,8 +326,9 @@ servers.</p>
 to external tools (validation, file handling, model lookup, code
 execution, etc.).  A domain in a RAG or agent config can declare one or
 more MCP servers; the tools they expose are fetched at startup and made
-available to the graph’s tool picker, which decides which tools to call
-for a given query.</p>
+available to the graph’s tool binder/picker.  The agent’s binder completes
+the arguments for the Planner’s chosen tools; the RAG picker chooses tools for
+a query.</p>
 </section>
 <section id="configuring-mcp-servers">
 <h2>Configuring MCP servers<a class="headerlink" href="#configuring-mcp-servers" title="Link to this heading">¶</a></h2>
@@ -504,9 +505,9 @@ specific and should wire in only the tools it needs.</p>
 <section id="how-klea-uses-the-tools">
 <h2>How Klea uses the tools<a class="headerlink" href="#how-klea-uses-the-tools" title="Link to this heading">¶</a></h2>
 <p>At startup, the graph connects to each configured MCP server, lists its
-tools, and stores per-domain metadata.  The tool picker node then selects
-the tools relevant to the current query, and the selected tools are
-called during graph execution.  When several MCP servers are configured,
+tools, and stores per-domain metadata.  The tool binder/picker then completes
+the planned calls (agent) or selects the tools relevant to the current query
+(RAG), and the calls are dispatched during graph execution.  When several MCP servers are configured,
 fastmcp prefixes tool names with the server name (e.g.
 <code class="docutils literal notranslate"><span class="pre">NeuroML_list_files</span></code>) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.</p>
@@ -566,7 +567,7 @@ cloud config), pauses the run and asks the user, per path, to allow it
 <strong>once</strong>, allow it <strong>for the session</strong>, or <strong>deny</strong> it.  The ask is shown in
 the web UI and terminal REPL; a session approval is remembered for the chat, and a
 denied path returns a non-halting error so the run continues.  Path discovery
-is layered – a tool’s declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>, the paths the tool picker
+is layered – a tool’s declared <code class="docutils literal notranslate"><span class="pre">checkpaths</span></code>, the paths the tool binder/picker
 declares, and heuristics (including the tokens of a shell command) – with
 each request labelled by its confidence.  The set of sensitive filenames can
 be extended with the comma-separated <code class="docutils literal notranslate"><span class="pre">KLEA_SENSITIVE_PATTERNS</span></code> environment

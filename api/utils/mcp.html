@@ -3805,9 +3805,8 @@ Document formats (PDF, office files) are converted to Markdown first.</p>
 <p>Use when:
 - You need to see the contents of a file in the project.
 - You want to page through a large file by line numbers.</p>
-<p>For a large file, prefer the grep tool to locate the region you need
-first, then read around it with <code class="docutils literal notranslate"><span class="pre">offset</span></code>/<code class="docutils literal notranslate"><span class="pre">limit</span></code>; reading a large file
-page by page from the start is slow.</p>
+<p>Read file chunks instead of complete files. Use the grep tool to locate the
+region you need first, then read around it with <code class="docutils literal notranslate"><span class="pre">offset</span></code>/<code class="docutils literal notranslate"><span class="pre">limit</span></code>.</p>
 <p>Do not use for:
 - Listing a directory (use the list files tool instead).
 - Fetching remote content (use the web fetch tool instead).</p>
