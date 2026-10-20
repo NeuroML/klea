@@ -67,6 +67,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
     }
+    #: Binder mode retries an off-contract selection before failing closed.
+    #: Picker mode does not validate selections, so this is inert for RAG.
+    max_validation_retries: ClassVar[int] = 2
 
     def __init__(
         self,
@@ -121,6 +124,16 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         self._bind_planned_steps = bind_planned_steps
         if prompt_registry_location is not None:
             self.prompt_registry_location = Path(prompt_registry_location)
+
+    def _binding_enabled(self) -> bool:
+        """Return whether this instance binds planned steps.
+
+        Read via ``getattr`` so lightweight test doubles built with
+        ``object.__new__`` still behave as normal pickers.
+
+        :returns: True when binder mode is enabled.
+        """
+        return bool(getattr(self, "_bind_planned_steps", False))
 
     def _disclosed_tools(self, state: BaseModel) -> dict[str, ToolInfo]:
         """Return the tools disclosed to the model for *state*.
@@ -197,7 +210,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         :returns: The steps to bind in this invocation, or ``[]`` when binding
             is disabled, there is no batch, or every step is already bound.
         """
-        if not self._bind_planned_steps:
+        if not self._binding_enabled():
             return []
         batch = self._batch_steps(state)
         if not batch:
@@ -239,7 +252,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         :returns: ``{tool_name: ToolInfo}`` available to this invocation.
         """
         disclosed = self._disclosed_tools(state)
-        if not self._bind_planned_steps:
+        if not self._binding_enabled():
             return disclosed
         if not self._batch_steps(state):
             return disclosed
@@ -272,13 +285,23 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         """
         tools = self._binding_allowed_tools(state)
         if not tools:
+            if self._binding_enabled():
+                # A group with no available suggested tools may only escalate.
+                return build_tool_call_schema({})
             return super()._get_output_schema(state, ctx)
         self.logger.debug(f"picker output schema\n{len(tools) = }\n{list(tools) = }")
         return build_tool_call_schema(tools)
 
     @override
     def _pre_exec(self, state: BaseModel, ctx: NodeContext) -> bool:
-        """Skip when no tool description is available for this state."""
+        """Skip only when a picker has nothing to offer.
+
+        A binder must still run for a planned group with no available tool so
+        it can return ``no_tool``; skipping would route back to the picker
+        without advancing the retry counter.
+        """
+        if self._binding_enabled() and self._batch_steps(state):
+            return True
         return bool(self._get_tool_descriptions(state))
 
     @override
@@ -307,16 +330,15 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             variables["observations"] = state.tool_results
         plan = getattr(state, "plan", None)
         if plan is not None:
-            batch = (
-                plan.next_batch(MAX_BATCH_STEPS) if hasattr(plan, "next_batch") else []
-            )
+            batch = self._batch_steps(state)
+            steps = self._binding_group(state) if self._binding_enabled() else batch
             self.logger.debug(
-                f"picker batch\n{len(batch) = }\n"
-                f"{[step.step_number for step in batch] = }"
+                f"picker batch\n{len(steps) = }\n"
+                f"{[step.step_number for step in steps] = }"
             )
             variables["current_step"] = (
-                "\n".join(step.render(current=True) for step in batch)
-                if batch
+                "\n".join(step.render(current=True) for step in steps)
+                if steps
                 else "(no plan)"
             )
         # A conditional user-prompt section, composed whole and omitted
@@ -326,7 +348,31 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         # fields (ADR-0033).
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
         last_error = last_tool_error_text(getattr(state, "tool_results", None))
-        if last_error:
+        validation = str(getattr(ctx, "validation_feedback", "") or "").strip()
+        allowed_names = (
+            sorted(self._binding_allowed_tools(state))
+            if self._binding_enabled()
+            else []
+        )
+        if validation:
+            feedback = (
+                "Your previous selection was rejected:\n"
+                f"{validation}\n"
+                "Bind only the suggested tools for the current step(s), or "
+                "return a single entry with an empty `tool` and the reason in "
+                "`reason`."
+            )
+        elif last_error and self._binding_enabled():
+            suggested = ", ".join(allowed_names) or "(no suggested tool available)"
+            feedback = (
+                "Your previous tool call failed. The error was:\n"
+                f"{last_error}\n"
+                "Fix the arguments of the suggested tool(s) and do not choose "
+                "a different tool. If none can carry out the step, return a "
+                "single entry with an empty `tool` and the reason in `reason`.\n"
+                f"The current step suggests: {suggested}."
+            )
+        elif last_error:
             feedback = (
                 "Your previous tool call failed. The error was:\n"
                 f"{last_error}\n"
@@ -335,6 +381,14 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 "If the error shows the step cannot be completed with this "
                 "tool, return a single entry with an empty `tool` and the "
                 "reason in `reason`."
+            )
+        elif attempts > 0 and self._binding_enabled():
+            suggested = ", ".join(allowed_names) or "(no suggested tool available)"
+            feedback = (
+                "Your previous selection contained no usable tool call. Bind "
+                "the suggested tool(s) for the current step(s), or return a "
+                "single entry with an empty `tool` and the reason in `reason`. "
+                f"The current step suggests: {suggested}."
             )
         elif attempts > 0:
             feedback = (
@@ -442,6 +496,51 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         return normalized
 
     @override
+    def _validate_result(self, result: Any, state: BaseModel, ctx: Any) -> str | None:
+        """Reject a binder selection outside the current group's tool sets.
+
+        The dynamic schema already excludes tools outside the group, but a
+        structured-output fallback (plain invoke) can still emit one, and the
+        group may contain steps with different suggested sets.  A rejected
+        selection is retried with the errors as feedback, then fails closed.
+
+        :param result: The processed picker result.
+        :param state: Current graph state.
+        :param ctx: Per-run node context.
+        :returns: An error description, or ``None`` when valid.
+        """
+        if not self._binding_enabled():
+            return None
+        group = self._binding_group(state)
+        if not group:
+            return None
+        group_numbers = {int(getattr(step, "step_number", 0) or 0) for step in group}
+        default_step = int(getattr(group[0], "step_number", 0) or 0)
+        errors: list[str] = []
+        for call in self._normalize_calls(result):
+            tool = call.tool.strip()
+            if not tool:
+                continue
+            number = call.step if call.step in group_numbers else default_step
+            step = next(
+                (
+                    item
+                    for item in group
+                    if int(getattr(item, "step_number", 0) or 0) == number
+                ),
+                group[0],
+            )
+            allowed = set(getattr(step, "suggested_tools", None) or [])
+            if tool in allowed:
+                continue
+            suggested = ", ".join(sorted(allowed)) or "(none)"
+            errors.append(
+                f"step {number} suggests {suggested}; you selected '{tool}'. "
+                "Bind a suggested tool or return no_tool with a reason."
+            )
+        return "; ".join(errors) if errors else None
+
+    @override
     def _update_state(
         self, result: ToolCallsSchema, state: BaseModel, ctx: Any
     ) -> dict[str, Any]:
@@ -460,6 +559,19 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         escalated instead of dispatched again: identical retries cannot succeed
         and only waste a round.
         """
+        validation_feedback = str(getattr(ctx, "validation_feedback", "") or "").strip()
+        if self._binding_enabled() and validation_feedback:
+            reason = (
+                f"The binder could not bind the suggested tools: {validation_feedback}"
+            )
+            self.logger.warning(f"{reason = }")
+            failure_update: dict[str, Any] = {
+                "tool_calls": [ToolCallSchema(tool="", args={}, reason=reason)]
+            }
+            if self._on_unusable is not None:
+                failure_update.update(self._on_unusable(state, reason))
+            return failure_update
+
         tool_calls = self._normalize_calls(result)
         usable = any(tc.tool.strip() for tc in tool_calls)
 
@@ -476,29 +588,34 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             usable = False
 
         plan = getattr(state, "plan", None)
-        batch = (
-            plan.next_batch(MAX_BATCH_STEPS)
-            if plan is not None and hasattr(plan, "next_batch")
-            else []
-        )
-        batch_numbers = [step_item.step_number for step_item in batch]
-        step = batch_numbers[0] if batch_numbers else -1
+        if self._binding_enabled():
+            target_steps = self._binding_group(state)
+        else:
+            target_steps = (
+                plan.next_batch(MAX_BATCH_STEPS)
+                if plan is not None and hasattr(plan, "next_batch")
+                else []
+            )
+        target_numbers = [
+            int(getattr(step_item, "step_number", 0) or 0) for step_item in target_steps
+        ]
+        step = target_numbers[0] if target_numbers else -1
 
-        # Attribute each usable call to its originating batch step (ADR-0041).
-        # The model tags calls with `step`; a call with an absent/invalid step
-        # falls back to the first batch step.  RAG has no plan, so its calls
-        # keep ``step = 0``.
-        if batch_numbers:
+        # Attribute each usable call to its originating batch/group step
+        # (ADR-0041).  The model tags calls with `step`; a call with an
+        # absent/invalid step falls back to the first step.  RAG has no plan,
+        # so its calls keep ``step = 0``.
+        if target_numbers:
             for call in tool_calls:
                 if not call.tool.strip():
                     continue
-                if call.step not in batch_numbers:
+                if call.step not in target_numbers:
                     self.logger.warning(
                         f"picker call step is not in the current batch; "
                         f"attributing it to the first batch step\n"
-                        f"{call.step = }\n{batch_numbers = }"
+                        f"{call.step = }\n{target_numbers = }"
                     )
-                    call.step = batch_numbers[0]
+                    call.step = target_numbers[0]
             usable_calls = [c for c in tool_calls if c.tool.strip()]
             if len(usable_calls) > MAX_BATCH_CALLS:
                 self.logger.warning(
@@ -511,12 +628,46 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 ]
 
         self.logger.debug(
-            f"picker batch attribution\n{batch_numbers = }\n"
+            f"picker batch attribution\n{target_numbers = }\n"
             f"{[call.step for call in tool_calls if call.tool.strip()] = }\n"
             f"{len(tool_calls) = }"
         )
 
-        update: dict[str, Any] = {"tool_calls": tool_calls}
+        prior_binding = (
+            list(getattr(state, "binding_calls", None) or [])
+            if self._binding_enabled()
+            else []
+        )
+        update: dict[str, Any]
+        if self._binding_enabled():
+            usable_calls = [c for c in tool_calls if c.tool.strip()]
+            remaining = max(0, MAX_BATCH_CALLS - len(prior_binding))
+            if len(usable_calls) > remaining:
+                self.logger.warning(
+                    f"binder emitted more calls than the remaining batch cap; "
+                    f"truncating\n{len(usable_calls) = }\n{remaining = }"
+                )
+                keep = {id(c) for c in usable_calls[:remaining]}
+                tool_calls = [
+                    c for c in tool_calls if not c.tool.strip() or id(c) in keep
+                ]
+            usable = any(c.tool.strip() for c in tool_calls)
+            if usable:
+                accumulated = [
+                    *prior_binding,
+                    *[c for c in tool_calls if c.tool.strip()],
+                ]
+                update = {
+                    "tool_calls": accumulated,
+                    "binding_calls": accumulated,
+                }
+            else:
+                update = {
+                    "tool_calls": prior_binding,
+                    "binding_calls": prior_binding,
+                }
+        else:
+            update = {"tool_calls": tool_calls}
 
         # Deliberate failure: no usable call, but the picker explained why.  The
         # app records it (synthetic is_error result + replan_reason) so the

@@ -263,6 +263,182 @@ def test_binding_schema_excludes_unsuggested_tools():
         )
 
 
+def test_binder_prompt_targets_one_group_only():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(
+                step_number=1,
+                description="models a",
+                suggested_tools=["get_models"],
+            ),
+            Step(
+                step_number=2,
+                description="models b",
+                suggested_tools=["get_models"],
+            ),
+            Step(
+                step_number=3,
+                description="other",
+                suggested_tools=["other_tool"],
+            ),
+        ]
+    )
+
+    variables = picker._get_prompt_variables(
+        AgentLikeState(plan=plan), LLMNodeContext()
+    )
+
+    assert "models a" in variables["current_step"]
+    assert "models b" in variables["current_step"]
+    assert "other" not in variables["current_step"]
+    assert variables["tools_description"] == "Find models."
+
+
+def test_binder_validation_rejects_unsuggested_tool():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["get_models"])])
+    result = ToolCallsSchema(tool_calls=[ToolCallSchema(tool="other_tool", step=1)])
+
+    error = picker._validate_result(result, AgentLikeState(plan=plan), LLMNodeContext())
+
+    assert error is not None
+    assert "suggests get_models" in error
+    assert "other_tool" in error
+
+
+def test_binder_validation_accepts_suggested_tool():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["get_models"])])
+    result = ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models", step=1)])
+
+    assert (
+        picker._validate_result(result, AgentLikeState(plan=plan), LLMNodeContext())
+        is None
+    )
+
+
+def test_binder_accumulates_group_calls():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["get_models"]),
+            Step(step_number=2, suggested_tools=["get_models"]),
+        ]
+    )
+    state = AgentLikeState(plan=plan)
+    result = ToolCallsSchema(
+        tool_calls=[
+            ToolCallSchema(tool="get_models", step=1),
+            ToolCallSchema(tool="get_models", step=2),
+        ]
+    )
+
+    update = picker._update_state(result, state, LLMNodeContext())
+
+    assert len(update["binding_calls"]) == 2
+    assert len(update["tool_calls"]) == 2
+    assert update["picker_step"] == 1
+    assert update["picker_attempts"] == 0
+
+
+def test_binder_appends_to_existing_bindings():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["get_models"]),
+            Step(step_number=2, suggested_tools=["get_models"]),
+        ]
+    )
+    prior = ToolCallSchema(tool="get_models", step=1)
+    state = AgentLikeState(plan=plan, binding_calls=[prior])
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="get_models", step=2)]),
+        state,
+        LLMNodeContext(),
+    )
+
+    assert [call.step for call in update["binding_calls"]] == [1, 2]
+    assert [call.step for call in update["tool_calls"]] == [1, 2]
+
+
+def test_binder_empty_selection_preserves_prior_bindings():
+    picker = _make_picker(bind_planned_steps=True)
+    plan = BatchPlan(
+        step_list=[
+            Step(step_number=1, suggested_tools=["get_models"]),
+            Step(step_number=2, suggested_tools=["get_models"]),
+        ]
+    )
+    prior = ToolCallSchema(tool="get_models", step=1)
+    state = AgentLikeState(plan=plan, binding_calls=[prior])
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[]), state, LLMNodeContext()
+    )
+
+    assert update["binding_calls"] == [prior]
+    assert update["tool_calls"] == [prior]
+    assert update["picker_step"] == 2
+    assert update["picker_attempts"] == 1
+
+
+def test_binder_validation_exhaustion_fails_closed():
+    seen: dict[str, str] = {}
+
+    def on_unusable(state, reason):
+        seen["reason"] = reason
+        return {"replan_reason": reason}
+
+    picker = _make_picker(
+        bind_planned_steps=True,
+        on_unusable=on_unusable,
+    )
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["get_models"])])
+    ctx = LLMNodeContext()
+    ctx.validation_feedback = "step 1 suggests get_models; you selected 'other_tool'"
+
+    update = picker._update_state(
+        ToolCallsSchema(tool_calls=[ToolCallSchema(tool="other_tool", step=1)]),
+        AgentLikeState(plan=plan),
+        ctx,
+    )
+
+    assert update["tool_calls"][0].tool == ""
+    assert "could not bind" in seen["reason"]
+    assert update["replan_reason"] == seen["reason"]
+
+
+def test_binder_pre_exec_runs_without_available_tools():
+    picker = _make_picker(
+        bind_planned_steps=True,
+        tools_info={
+            "files": {
+                "write_tool": ToolInfo(read_only=False, description="write"),
+            }
+        },
+    )
+    plan = BatchPlan(step_list=[Step(step_number=1, suggested_tools=["write_tool"])])
+    state = AgentLikeState(plan=plan, access_level="read_only")
+
+    assert picker._pre_exec(state, NodeContext()) is True
+    schema = picker._get_output_schema(state, LLMNodeContext())
+    assert schema is not None
+    parsed = schema.model_validate(
+        {
+            "tool_calls": [
+                {
+                    "step": 1,
+                    "reason": "no tool",
+                    "call": {"tool": "no_tool", "reason": "unavailable"},
+                }
+            ]
+        }
+    )
+    assert picker._normalize_calls(parsed)[0].tool == ""
+
+
 def test_output_schema_is_a_per_tool_union():
     """The picker builds its structured schema from the disclosed tools."""
     picker = _make_picker()
