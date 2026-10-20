@@ -20,6 +20,7 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.mcp.schemas import ToolCallSchema
 from langchain_core.messages import HumanMessage
 
 
@@ -46,6 +47,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
         ),
         tool_retry_counts={0: 2},
         step_attempt_counts={0: 1},
+        binding_calls=[ToolCallSchema(tool="read_file", step=1)],
         failure_reason="boom",
         evaluation=EvaluationSchema(overall="abort"),
         replan_reason="tool failed",
@@ -61,6 +63,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert update["goal"].goal == ""
     assert update["tool_retry_counts"] == {}
     assert update["step_attempt_counts"] == {}
+    assert update["binding_calls"] == []
     assert update["failure_reason"] == ""
     assert update["replan_reason"] == ""
     assert update["human_input"] == {}

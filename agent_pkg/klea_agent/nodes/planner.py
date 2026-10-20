@@ -390,6 +390,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "human_input": {},
             "replan_reason": "",
             "review_progress": "",
+            "binding_calls": [],
         }
 
         # If validation retries are exhausted, fail closed rather than

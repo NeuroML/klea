@@ -80,6 +80,7 @@ class InitGraphState(
             "step_attempt_counts": {},
             "picker_attempts": 0,
             "picker_step": -1,
+            "binding_calls": [],
             "failure_reason": "",
             "human_feedback": "",
             "human_input": {},

@@ -488,6 +488,9 @@ class KleaAgent(BaseLangGraph):
             "tool_retry_counts": counts,
             "step_outputs": outputs,
             "replan_reason": replan_reason,
+            # The batch's bindings are consumed by this dispatch; the next
+            # batch (or a Triage retry) starts a fresh binding round.
+            "binding_calls": [],
         }
 
     @staticmethod

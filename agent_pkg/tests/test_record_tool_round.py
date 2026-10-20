@@ -42,9 +42,11 @@ def test_accumulates_step_outputs():
     agent = _agent()
     state = KleaAgentState(plan=PlanSchema())
     state.step_outputs = {1: [StepOutput(result=_result())]}
+    state.binding_calls = [ToolCallSchema(tool="read_file", step=1)]
     update = agent._record_tool_round(state, [_result(), _result()], [False, False])
     assert len(update["step_outputs"][1]) == 3
     assert update["tool_retry_counts"] == {}
+    assert update["binding_calls"] == []
 
 
 def test_caps_step_outputs():

@@ -20,7 +20,7 @@ from klea_agent.schemas import (
     PlanSchema,
     StepSchema,
 )
-from klea_utils.mcp.schemas import ToolInfo
+from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import LLMNodeContext
 
 
@@ -440,6 +440,21 @@ class TestPlannerState(unittest.TestCase):
             LLMNodeContext(),
         )
         self.assertEqual(update["replan_reason"], "")
+
+    def test_plan_write_resets_binding_calls(self):
+        """A new plan invalidates any calls bound for the previous one."""
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(binding_calls=[ToolCallSchema(tool="read_file", step=1)]),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["binding_calls"], [])
 
     def test_plan_recorded_in_messages(self):
         update = self._planner()._update_state(

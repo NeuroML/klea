@@ -13,6 +13,7 @@ from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
 from klea_utils.graph.state import BaseGraphSchema
+from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from pydantic import BaseModel, Field
 
@@ -729,6 +730,10 @@ class KleaAgentState(BaseGraphSchema):
     # the plan step index ``picker_attempts`` belongs to, so a new step
     # resets the empty-selection counter
     picker_step: int = -1
+    # calls bound so far in the current batch (binder mode).  Accumulated across
+    # one invocation per tool-set group, then consumed by the caller; cleared
+    # after dispatch and when the Planner writes a new plan.
+    binding_calls: list[ToolCallSchema] = Field(default_factory=list)
     # why the run failed or could not be planned (for the failure answer)
     failure_reason: str = ""
 
