@@ -260,3 +260,18 @@ distinct status alongside ``done``/``failed`` (see ADR-0035 update
 2026-10-02).  The frontier treats a skipped dependency as satisfied: a step is
 unblocked when every ``depends_on`` entry is ``done`` or ``skipped``.  The
 batch selection and resource grouping are otherwise unchanged.
+
+## Update (2026-10-20): binding is per tool-set group
+
+Batch **binding** is no longer one LLM call for the whole frontier.  The
+agent's ``ToolCallBinder`` processes one contiguous group of steps whose
+``suggested_tools`` are an identical set (capped at 4 steps) per invocation,
+then routes ``bind_next`` back to itself until every batch step is bound.  Calls
+accumulate in ``binding_calls``; the caller then dispatches the whole batch in
+parallel exactly as before, and the Evaluator still judges the batch.
+
+This preserves the parallelism benefit at the dispatch layer while making the
+tool contract deterministic: each binder call sees only the group's suggested
+tools, with a per-step validation backstop.  The cost is one binder LLM call
+per group and a less stable prompt prefix (ADR-0028).  RAG has no plan and keeps
+the shared ``ToolsPicker`` behavior.

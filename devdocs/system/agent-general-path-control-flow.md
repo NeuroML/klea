@@ -43,19 +43,21 @@ RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
 
 Batch entry (maximal same-kind prefix of the frontier, capped at 8 steps):
   kind = tool:
-    ToolsPicker (binds every batch step's calls, each tagged with its step)
-      --usable call(s)------> ToolsCaller -> TriageRouter
+    ToolCallBinder (binds one contiguous group of steps with the same
+      suggested-tool set; only those tools are disclosed)
+      --usable call(s)------> more groups? -> ToolCallBinder (bind_next)
+                              all bound  -> ToolsCaller -> TriageRouter
       --deliberate failure--> Planner   (synthetic error observation + replan_reason)
-      --empty (glitch)------> ToolsPicker (bounded retry), then Planner
+      --empty (glitch)------> ToolCallBinder (bounded retry), then Planner
   kind = reasoning:
     ReasoningNode (one reasoning step per round) -> Evaluator
 
-ToolsCaller (ADR-0041): groups the batch's calls by resource (``checkpaths``)
-  and runs same-resource calls sequentially in step order; the rest run
-  concurrently.
+ToolsCaller (ADR-0041): receives the accumulated calls, groups them by resource
+  (``checkpaths``) and runs same-resource calls sequentially in step order; the
+  rest run concurrently.
 
 TriageRouter (deterministic, per-step tool-error triage):
-  every errored step within budget -> ToolsPicker
+  every errored step within budget -> ToolCallBinder
   any errored step over budget     -> Planner
   no error                         -> Evaluator
 
@@ -97,8 +99,8 @@ route field.
 | Planner | task-path brain: write the immutable goal, create/revise the plan (ADR-0035); never answers the user | yes (plan role) |
 | ReviewProgress | synthesise a human-facing digest of the work since the last review, immediately before a review gate; calls no tools (ADR-0051) | yes (chat role) |
 | AwaitHuman | HITL pause/resume (ADR-0046/ADR-0051): a review step (approve/revise) or a blocked step's questions; no LLM | no |
-| ToolsPicker + ToolsCaller (Act, ``kind=tool``) | bind arguments for every batch step's suggested tools (calls tagged with their step) and dispatch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | picker yes, caller no |
-| ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no picker/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
+| ToolCallBinder + ToolsCaller (Act, ``kind=tool``) | bind arguments for one contiguous group of steps sharing a suggested-tool set; accumulate calls and dispatch the bound batch, serialising same-resource calls (ADR-0020/0034/0041); never substitute a different tool | binder yes, caller no |
+| ReasoningNode (``kind=reasoning``) | produce one step's conclusion from the goal/plan/observations; records a ``str`` step output; no binder/caller (serial; batching deferred, ADR-0041) | yes (chat role) |
 | TriageRouter | deterministic per-step tool-error triage: which steps errored? retries left? | no |
 | Evaluator | operational judge only: goal + each batch step's criterion; per-step verdict map plus an overall outcome; also checks review readiness when a gate is next (ADR-0051) | yes (chat role; separate node from Act) |
 | AnswerFromResults | synthesise the user answer (success) or the failure explanation | yes (chat role) |
@@ -261,7 +263,7 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 |------|-----------|-----------|
 | RouteDecision | no tool list | narrow chat|task routing; tools would only tempt capability guessing |
 | Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
-| ToolsPicker | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` |
+| ToolCallBinder | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` for the group's suggested tools |
 
 Plans contain **tool-executable steps** and **reasoning steps**, selected by
 ``StepSchema.kind``.  A ``reasoning`` step derives an intermediate conclusion a
@@ -272,16 +274,19 @@ must not plan either as a step
 (``Planner_system.md``).  A self-contained request that needs no tools is answered
 inline by ``RouteDecision`` (``chat``).  Tool identity is the Planner's: each
 tool step names its tool(s) in ``suggested_tools`` (normally one; more only for
-overlapping alternatives).  The picker **binds arguments only** and never
-substitutes: it sees the full static catalogue (prompt-cache stability,
-ADR-0028) but is instructed to use only the step's suggested tools.  When none
-can carry out the step it returns a single empty-``tool`` call carrying the
-reason; the picker node records that as a synthetic ``is_error`` observation
-plus ``replan_reason``, and the graph escalates to the Planner.  The picker is
-shared with RAG, which has no plan and selects freely from all tools.
+overlapping alternatives).  The **ToolCallBinder** binds arguments only and
+never substitutes.  Each invocation covers one contiguous group of batch steps
+whose ``suggested_tools`` are an identical set (capped at 4 steps), and exposes
+only that set: the binder cannot choose an unplanned tool.  If a group cannot
+be bound the binder returns a single empty-``tool`` call carrying the reason;
+the node records that as a synthetic ``is_error`` observation plus
+``replan_reason``, and the graph escalates to the Planner.  Bound calls
+accumulate in ``binding_calls`` until the whole batch is bound; the caller then
+dispatches them, still in parallel.  RAG keeps the shared ``ToolsPicker``,
+which has no plan and selects freely from its domain tools.
 
 Access level (ADR-0037): a ``read_only | full`` policy filters the Planner's
-and picker's tool lists by the MCP ``read_only``/``destructive`` annotations and
+and binder's tool lists by the MCP ``read_only``/``destructive`` annotations and
 is hard-enforced at dispatch, so a read-only run can still plan and inspect but
 cannot mutate.
 
@@ -290,8 +295,8 @@ filtering is deferred; if it becomes necessary, prefer multi-domain selection
 (ADR-0011) or tool retrieval over single-domain classification.  Caching: the
 tool block is kept stable so provider prefix caching (ADR-0028) still applies.
 
-Planner and ToolsPicker stay separate nodes: the Planner runs once (or on
-replan) without per-step outputs, while the picker runs after each batch with
+Planner and ToolCallBinder stay separate nodes: the Planner runs once (or on
+replan) without per-step outputs, while the binder runs after each group with
 the latest observations so it can bind arguments that depend on prior outputs
 (ADR-0020/0035).
 
@@ -303,10 +308,12 @@ earlier steps a step needs.  Execution position is **derived, not stored**:
 * **Frontier** -- pending steps whose ``depends_on`` are all ``done`` or
   ``skipped``, in step order.  ``depends_on: []`` is immediately runnable.
 * **Batch** -- the maximal *same-kind* prefix of the frontier (capped at 8
-  steps), so tool steps go through the picker/caller and reasoning steps
+  steps), so tool steps go through the binder/caller and reasoning steps
   through the reasoning node.  A mixed frontier is drained one kind at a time.
-* **Picker binding** -- one invocation binds every batch step's calls, each
-  tagged with its originating ``step`` (the picker caps the batch at 16 calls).
+* **Binder binding** -- one invocation binds one contiguous group of steps
+  sharing a suggested-tool set (capped at 4 steps); calls are tagged with their
+  originating ``step`` and accumulate until the batch is bound (capped at 16
+  calls).  The caller then dispatches the whole batch in parallel.
 * **Resource guard** -- the caller groups the batch's calls by resource (the
   tool's ``checkpaths`` arguments, compared lexically with ``os.path.normpath``)
   and runs same-resource calls sequentially in step order, the rest
@@ -346,8 +353,11 @@ deferred ADR-0041 open item.
   step; ADaPT re-pick budget).
 * ``step_attempt_counts: dict[int, int]`` (non-advancing evaluations per step;
   semantic no-progress budget).
-* ``picker_attempts``/``picker_step`` (consecutive unusable picker selections
-  and the step they belong to; bounded retry before escalating).
+* ``picker_attempts``/``picker_step`` (consecutive unusable binder selections
+  and the step they belong to; bounded retry before escalating).  The field
+  names predate the binder rename.
+* ``binding_calls: list[ToolCallSchema]`` (calls bound so far in the current
+  batch; accumulated one tool-set group at a time and cleared after dispatch).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``evaluation: EvaluationSchema`` (latest per-step verdict map plus the
   ``overall`` outcome and a reason; ADR-0041).
@@ -421,8 +431,8 @@ level 2 verifier with provenance.
 | Cause | Route | Notes |
 |-------|-------|-------|
 | transient (network, timeout, 5xx) | retry at dispatch | bounded (ADR-0017 handles LLM; dispatch handles tools) |
-| call-level (bad args, permission denied) | picker | re-pick the **same** tool with corrected arguments; the picker may not switch tools |
-| picker cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the picker does not substitute |
+| call-level (bad args, permission denied) | binder | re-bind the **same** suggested tool with corrected arguments; the binder may not switch tools |
+| binder cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the binder does not substitute |
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
@@ -448,7 +458,7 @@ so a new request gets a fresh goal without a new session.
 
 The Evaluator judges only and runs after every tool round.  It judges the
 **batch** -- the steps marked ``[CURRENT]`` in its prompt (the same-kind
-frontier prefix the picker/caller or reasoning node just ran) -- and returns an
+frontier prefix the binder/caller or reasoning node just ran) -- and returns an
 ``EvaluationSchema``: a map ``{step_number: {verdict, reason}}`` plus an
 optional ``overall`` outcome.
 
@@ -578,7 +588,8 @@ the ADR-0029 layer additively.
 
 ## Relationship to shared nodes
 
-``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020).  The
-evaluator and planner are agent nodes; the general evaluator contract
-(operational) differs from the scientific evaluator contract (epistemic), even
-if code is shared.
+``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the agent
+uses ``ToolCallBinder``, a ``ToolsPicker`` subclass that binds the Planner's
+chosen tools one group at a time.  The evaluator and planner are agent nodes;
+the general evaluator contract (operational) differs from the scientific
+evaluator contract (epistemic), even if code is shared.

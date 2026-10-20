@@ -456,7 +456,7 @@ steps can consume them.
   arguments -- never a search for a different tool.
 * An unusable selection is recorded as a synthetic `is_error`
   `CallToolResult` (the standard result shape) and, after a bounded
-  emission retry, routes `Selecting tools -> Planning` directly.  This
+  emission retry, routes `Binding tool calls -> Planning` directly.  This
   supersedes the empty-selection rule at `:326-337` (empty -> caller ->
   Evaluator -> `need_replan`), which spent a caller dispatch and an
   Evaluator call on a batch with nothing to run.  Call-level tool errors
@@ -638,5 +638,32 @@ receives the `artefacts` block: `artefacts` remain the answer-composer's
 session-scoped cross-task record, but are no longer load-bearing for planning.
 In-run completion is unchanged and uses the Evaluator's `plan_done` ->
 `completed` path, not a Planner status.
+
+See `devdocs/system/agent-general-path-control-flow.md`.
+
+## Update (2026-10-20): tool identity is enforced by the binder
+
+The tool-identity contract above (Planner selects, picker binds, no
+substitution) is now enforced in code rather than left to prompt guidance.
+The agent uses `ToolCallBinder`, a `ToolsPicker` subclass configured with
+`bind_planned_steps=True`:
+
+* One binder invocation covers one contiguous group of batch steps whose
+  `suggested_tools` are an identical set (capped at 4 steps).  The prompt,
+  schema and tool descriptions expose only that set; the binder cannot select
+  a tool the Planner did not suggest.  Different sets are never unioned.
+* The output is validated deterministically against each step's suggested
+  tools.  Retries are bounded (2), after which the binder fails closed with a
+  deliberate `no_tool` reason that returns the run to the Planner.
+* Calls accumulate in `binding_calls`; `bind_next` loops the binder until all
+  batch steps are bound, then the caller dispatches the accumulated calls in
+  parallel (ADR-0041).  RAG keeps the shared `ToolsPicker` over its full
+  domain set.
+* The earlier "full static catalogue / deferred substitution backstop"
+  trade-off is superseded for the agent.  Losing the stable tool block in the
+  provider prefix cache (ADR-0028) is accepted in exchange for the contract.
+* The Evaluator remains an outcome judge and does not police tool identity: a
+  different tool may still satisfy a step's success criteria.  The binding
+  contract is enforced before dispatch.
 
 See `devdocs/system/agent-general-path-control-flow.md`.

@@ -67,7 +67,7 @@ discovery function the gate uses to decide which paths a call would touch.
 It unions, per call, three confidence tiers:
 
 - `declared` -- the tool's declared `checkpaths` argument values;
-- `expected` -- paths the tools picker declared for the call;
+- `expected` -- paths the binder/picker declared for the call;
 - `guess` -- heuristic: path-ish argument names, plus path-like values
   (shell command strings are split with `shlex.split` first, and non-`file`
   URLs, flags, operators and pure globs are skipped; `file:` URIs are
@@ -94,7 +94,7 @@ redaction of what reaches the model.
 
 ```mermaid
 flowchart TD
-    LLM[LLM selects tool call] --> Picker[ToolsPicker]
+    LLM[LLM binds planned tool call] --> Picker[ToolCallBinder / ToolsPicker]
     Picker --> Caller[ToolsCallerNode]
     Caller --> PreCheck{"detect_path_requests\n(outside / sensitive?)"}
     PreCheck -- none / approved --> Server[MCP server]
@@ -141,11 +141,13 @@ copies onto `ToolInfo`.  In `read_only`, a tool is permitted only when it
 is explicitly `read_only` and not `destructive`; a tool with no
 annotation fails closed.  Enforcement mirrors the path gate:
 
-- **Disclosure:** the Planner and `ToolsPicker` filter `tools_info` by the
-  level, so disallowed tools are never shown to the model.  The Planner also
-  validates each step's `suggested_tools` against this disclosed set, so an
-  unknown or access-filtered tool (or any tool step when no tools are
-  available) is rejected and retried before it reaches the picker.
+- **Disclosure:** the Planner and `ToolCallBinder`/`ToolsPicker` filter
+  `tools_info` by the level, so disallowed tools are never shown to the model.
+  The agent's binder narrows the set further to the current group's
+  `suggested_tools`, and the Planner validates each step's tools against the
+  disclosed set, so an unknown or access-filtered tool (or any tool step when
+  no tools are available) is rejected and retried before it reaches the binder
+  or picker.
 - **Dispatch:** `dispatch_tool_calls` rejects a disallowed call with the
   same synthetic `is_error` result used for a `checkpaths` denial, before
   it reaches the server.
@@ -201,14 +203,14 @@ to spawned MCP server subprocesses.
 Both Klea Agent and Klea RAG use the shared `ToolCallSchema` /
 `ToolCallsSchema` from `klea_utils.mcp.schemas` and the same state fields:
 
-- `tool_calls: list[ToolCallSchema]` -- selected calls (written by the
-  shared `ToolsPicker`, `klea_utils/nodes/tools_picker.py`).
+- `tool_calls: list[ToolCallSchema]` -- bound calls (written by the shared
+  `ToolsPicker`, or the agent's `ToolCallBinder` subclass).
 - `tool_results: list[CallToolResult]` -- results (written by the shared
   `ToolsCallerNode`).
 
-The shared picker/caller nodes are configured per app (prompt directory,
-`model_role`); the agent additionally passes a `post_dispatch` callback to
-mark its per-plan-step status.
+The shared picker/binder and caller nodes are configured per app (prompt
+directory, `model_role`); the agent additionally passes a `post_dispatch`
+callback to mark its per-plan-step status.
 
 ## Network safety (SSRF) for outbound tools
 
@@ -278,7 +280,7 @@ as built:
    site before dispatching to the MCP server, the single path enforcement
    point.  The shared `ToolsCallerNode` gates calls through
    `dispatch_tool_calls` + `detect_path_requests` (declared `checkpaths`,
-   picker-declared paths, and heuristics), denying out-of-boundary paths
+   binder/picker-declared paths, and heuristics), denying out-of-boundary paths
    before they reach the server.  With a `permission_resolver` it pauses for
    the interactive per-path *allow now* / *allow for session* / *deny* loop
    (ADR-0007 update 2026-10-08).  The *invocation* half (tool access level)

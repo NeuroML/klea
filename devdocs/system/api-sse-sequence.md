@@ -228,7 +228,7 @@ sequenceDiagram
             Graph-->>Core: Reasoning
             Graph-->>Core: Evaluating
         else tool
-            Graph-->>Core: Selecting tools
+            Graph-->>Core: Binding tool calls
             alt path outside project / sensitive
                 Graph-->>Core: Running tools (interrupt: permission)
                 Core-->>UI: data: interrupt (path permission)

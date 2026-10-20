@@ -13,8 +13,9 @@ Klea acts as the MCP client: it uses MCP servers to give its LLMs access
 to external tools (validation, file handling, model lookup, code
 execution, etc.).  A domain in a RAG or agent config can declare one or
 more MCP servers; the tools they expose are fetched at startup and made
-available to the graph's tool picker, which decides which tools to call
-for a given query.
+available to the graph's tool binder/picker.  The agent's binder completes
+the arguments for the Planner's chosen tools; the RAG picker chooses tools for
+a query.
 
 Configuring MCP servers
 -----------------------
@@ -210,9 +211,9 @@ How Klea uses the tools
 -----------------------
 
 At startup, the graph connects to each configured MCP server, lists its
-tools, and stores per-domain metadata.  The tool picker node then selects
-the tools relevant to the current query, and the selected tools are
-called during graph execution.  When several MCP servers are configured,
+tools, and stores per-domain metadata.  The tool binder/picker then completes
+the planned calls (agent) or selects the tools relevant to the current query
+(RAG), and the calls are dispatched during graph execution.  When several MCP servers are configured,
 fastmcp prefixes tool names with the server name (e.g.
 ``NeuroML_list_files``) so tools from different servers stay
 distinct; Klea keeps these prefixed names unchanged.
@@ -281,7 +282,7 @@ cloud config), pauses the run and asks the user, per path, to allow it
 **once**, allow it **for the session**, or **deny** it.  The ask is shown in
 the web UI and terminal REPL; a session approval is remembered for the chat, and a
 denied path returns a non-halting error so the run continues.  Path discovery
-is layered -- a tool's declared ``checkpaths``, the paths the tool picker
+is layered -- a tool's declared ``checkpaths``, the paths the tool binder/picker
 declares, and heuristics (including the tokens of a shell command) -- with
 each request labelled by its confidence.  The set of sensitive filenames can
 be extended with the comma-separated ``KLEA_SENSITIVE_PATTERNS`` environment

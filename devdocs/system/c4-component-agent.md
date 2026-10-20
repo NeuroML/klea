@@ -78,7 +78,7 @@ flowchart TD
         review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>a review step: approve/revise; ADR-0046/0051"]
         awaitInput["Awaiting input<br/>AwaitHuman (non-LLM)<br/>answers a blocked step's questions; ADR-0046"]
         cancelled["Cancelled<br/>FixedAnswer (shared)<br/>terminal: run cancelled"]
-        picker["Selecting tools<br/>ToolsPicker (chat, shared)<br/>binds args for suggested_tools; ADR-0020/0034"]
+        picker["Binding tool calls<br/>ToolCallBinder (tool_picker)<br/>binds args for one suggested-tool group; ADR-0020/0034/0035"]
         caller["Running tools<br/>ToolsCallerNode (shared)<br/>dispatch + access gate; ADR-0007/0037"]
         triage["Triaging<br/>TriageRouter (deterministic router)<br/>retry vs evaluate vs replan"]
         reasoning["Reasoning<br/>ReasoningNode (chat)<br/>conclusion as str StepOutput"]
@@ -125,6 +125,7 @@ flowchart TD
     awaitInput -. planner .-> planner
     awaitInput -. cancelled .-> cancelled
     cancelled --> ENDC
+    picker -. bind_next .-> picker
     picker -. dispatch .-> caller
     picker -. retry_picker .-> picker
     picker -. replan .-> planner
@@ -247,7 +248,7 @@ graph TD;
 	Declining\20query(Declining query)
 	Deciding\20route(Deciding route)
 	Planning(Planning)
-	Selecting\20tools(Selecting tools)
+	Binding\20tool\20calls(Binding tool calls)
 	Running\20tools(Running tools)
 	Reasoning(Reasoning)
 	Evaluating(Evaluating)
@@ -265,7 +266,7 @@ graph TD;
 	Awaiting\20review -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
 	Awaiting\20review -. &nbsp;planner&nbsp; .-> Planning;
 	Awaiting\20review -. &nbsp;reasoning&nbsp; .-> Reasoning;
-	Awaiting\20review -. &nbsp;tool&nbsp; .-> Selecting\20tools;
+	Awaiting\20review -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
 	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
 	Composing\20answer --> Preparing\20response;
@@ -277,28 +278,29 @@ graph TD;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
-	Evaluating -. &nbsp;tool&nbsp; .-> Selecting\20tools;
+	Evaluating -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
 	Initializing --> Determining\20mode;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
 	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
 	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
-	Planning -. &nbsp;tool&nbsp; .-> Selecting\20tools;
+	Planning -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
 	Preparing\20response --> Summarizing\20history;
 	Preparing\20review --> Awaiting\20review;
 	Reasoning --> Evaluating;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
 	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
-	Running\20tools -. &nbsp;retry&nbsp; .-> Selecting\20tools;
-	Selecting\20tools -. &nbsp;replan&nbsp; .-> Planning;
-	Selecting\20tools -. &nbsp;dispatch&nbsp; .-> Running\20tools;
+	Running\20tools -. &nbsp;retry&nbsp; .-> Binding\20tool\20calls;
+	Binding\20tool\20calls -. &nbsp;replan&nbsp; .-> Planning;
+	Binding\20tool\20calls -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
 	Cancelled --> __end__;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
 	Awaiting\20review -. &nbsp;review&nbsp; .-> Preparing\20review;
-	Selecting\20tools -. &nbsp;retry_picker&nbsp; .-> Selecting\20tools;
+	Binding\20tool\20calls -. &nbsp;bind_next&nbsp; .-> Binding\20tool\20calls;
+	Binding\20tool\20calls -. &nbsp;retry_picker&nbsp; .-> Binding\20tool\20calls;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc
@@ -322,7 +324,7 @@ graph TD;
 | Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035) |
 | Preparing review | ``klea_agent/nodes/review_progress.py`` | ``ReviewProgress`` (``chat``): synthesizes the human-facing digest of work since the last review, immediately before each review gate | ``ReviewProgressSchema``; no tools; reads ``step_outputs`` since the last approved gate; skips with no new work (ADR-0051) |
 | Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; presents the digest + all pending steps; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
-| Selecting tools | ``klea_utils/nodes/tools_picker.py`` | ``ToolsPicker`` (shared, ``chat``): binds arguments for the step's ``suggested_tools`` | per-app prompt registry, full static ``tools_info``; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034) |
+| Binding tool calls | ``klea_agent/nodes/tool_call_binder.py`` | ``ToolCallBinder`` (``tool_picker``): a ``ToolsPicker`` subclass that binds arguments for one contiguous group of steps sharing ``suggested_tools`` | ``ToolCallBinder_*`` prompts; only the group's tools are disclosed; accumulates ``binding_calls`` until the batch is bound; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034/0035) |
 | Running tools | ``klea_utils/nodes/tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
 | Triaging | ``klea_agent/nodes/triage_router.py`` | ``TriageRouter`` (deterministic router): mechanical tool-error triage | ``retry`` (re-pick same tool) / ``evaluate`` / ``replan``; ADaPT counter via ``update_tool_retry_counts`` (ADR-0035) |
 | Reasoning | ``klea_agent/nodes/reasoning.py`` | ``ReasoningNode`` (``chat``): produces a step conclusion | ``ReasoningSchema``; records a ``str`` ``StepOutput`` + ``rationale``; no picker/caller (ADR-0035) |
@@ -344,16 +346,17 @@ graph TD;
   WIP``); its control flow is documented in
   `agent-general-path-control-flow.md` and its topology decision in
   ADR-0035 (which supersedes the ADR-0025 proposal).
-* Every agent component that needs an LLM (guard, route, plan, picker,
+* Every agent component that needs an LLM (guard, route, plan, binder,
   reasoning, evaluate, review progress, compose, summarise, compact) is a
   ``BaseLLMNode`` (``klea_utils/nodes/base.py``, ADR-0019) and goes through the
   shared retryer + token-window ladder (ADR-0017), the structured-output
   fallback (``devdocs/system/structured-output-fallback.md``), and the
   ``BaseLangGraph`` per-request model switching (ADR-0014).
 * ``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the
-  agent adds the plan-aware picker contract (bind only the step's
-  ``suggested_tools``; ``on_unusable`` -> synthetic error + ``replan_reason``)
-  and the ADaPT retry counter.
+  agent uses ``ToolCallBinder``, a ``ToolsPicker`` subclass that binds one
+  suggested-tool group at a time and accumulates calls until the batch is
+  bound (``on_unusable`` -> synthetic error + ``replan_reason``), plus the
+  ADaPT retry counter.
 * ``KleaAgent`` is the composition point for the whole container: it
   creates the nodes, wires the conditional edges (the routers are methods
   or ``AbstractRouterNode`` classes), keeps the per-round/picker callbacks

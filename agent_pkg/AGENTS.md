@@ -51,14 +51,18 @@ klea_agent/
 │                    #   mode branch (ADR-0030), overrides context_snapshot for the
 │                    #   graph-level ``context`` event (ADR-0032)
 ├── nodes/           # LangGraph nodes for agent workflows
+│   ├── answer_from_results.py  # final synthesis + deliverable artefact
 │   ├── answer_user.py
-│   ├── evaluator.py
-│   ├── explore_planner.py
-│   ├── goal_setter.py
+│   ├── await_human.py          # HITL review/input interrupts
 │   ├── init_graph.py
-│   ├── mode_router.py  # ModeDecision (resolves requested -> resolved mode) + ModeInformer
+│   ├── mode_router.py          # ModeDecision (requested -> resolved) + ModeInformer
+│   ├── operational_evaluator.py
 │   ├── planner.py
-│   └── tools_router.py
+│   ├── reasoning.py
+│   ├── review_progress.py
+│   ├── route_decision.py
+│   ├── tool_call_binder.py     # ToolCallBinder: binds the Planner's suggested tools group by group
+│   ├── triage_router.py
 │   └── prompts/     # Prompt markdown templates per node
 ├── schemas.py       # Pydantic schemas (incl. Mode: requested / resolved / note)
 └── ui/
