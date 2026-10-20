@@ -15,7 +15,7 @@ from typing import Any, ClassVar, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
-from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.base import MAX_OUTPUT_TOKENS_CEILING, BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
@@ -52,6 +52,11 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     model_role = "chat"
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.2,
+        # Reasoning models spend a large part of the completion budget on
+        # hidden reasoning tokens before emitting the conclusion.  Start at the
+        # truncation ceiling instead of burning a retry after a 32k cut-off;
+        # the provider resolver still clamps to the model/context limit.
+        "max_output_tokens": MAX_OUTPUT_TOKENS_CEILING,
     }
 
     def __init__(

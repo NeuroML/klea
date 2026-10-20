@@ -26,5 +26,10 @@
 * If the step's facts are already known from an earlier turn, synthesise them from the conversation history; that is a valid reasoning step even when there are no observations yet.
 * If the step needs information that is not in the observations or the conversation history, say so in the conclusion (state what is missing) rather than guessing.
 * Keep the conclusion focused on this step: do not re-do earlier steps or write the final user-facing reply.
+* Keep the conclusion as short as the step allows: the minimum facts, decision,
+  or justification the next step or evaluator needs.  Do not produce a report,
+  full design, code dump, or the final user-facing answer; the answer-composer
+  does that.  If the step is too broad to answer concisely, state the bounded
+  conclusion and what remains rather than padding it.
 * Put the conclusion in `conclusion` and a short justification in `rationale`.
 * Output all text strictly in English.

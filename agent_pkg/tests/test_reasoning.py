@@ -20,6 +20,7 @@ from klea_agent.schemas import (
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema
+from klea_utils.nodes.base import MAX_OUTPUT_TOKENS_CEILING
 from klea_utils.nodes.context import LLMNodeContext
 
 
@@ -104,6 +105,13 @@ class TestReasoningNode(unittest.TestCase):
         )
         assert update["tool_calls"] == []
         assert update["tool_results"] == []
+
+    def test_reasoning_starts_with_the_full_output_budget(self):
+        """Hidden reasoning tokens plus a conclusion need the raised budget."""
+        assert (
+            ReasoningNode.model_defaults["max_output_tokens"]
+            == MAX_OUTPUT_TOKENS_CEILING
+        )
 
     def test_pre_exec_requires_a_current_step(self):
         node = self._node()
