@@ -363,8 +363,12 @@ deferred ADR-0041 open item.
   ``overall`` outcome and a reason; ADR-0041).
 * ``artefacts: dict[str, ArtefactSchema]`` (session-scoped durable results; the
   completed task's deliverable is persisted here, see Persistence below).
-* ``messages`` (run history: query, plan/verdict progress, review input,
-  final answer).
+* ``messages`` (user-visible conversation: query, HITL notes, final answer).
+* ``messages_internal`` (internal run history: plan versions, evaluator
+  verdicts and reasoning conclusions; checkpointed for provenance but never
+  injected verbatim into a prompt).
+* ``summarised_till`` / ``summarised_internal_till`` (per-stream summary
+  cursors).
 * ``mode: Mode`` (requested / resolved / note).
 
 **Transient node-to-node signals** (not durable state; consumed/cleared within
@@ -390,9 +394,10 @@ only curated results cross into later tasks:
 * **Plan-scoped working memory** (`step_outputs`, the retry/attempt counters)
   is visible to later steps and cleared by ``InitGraphState`` each turn and by
   the Planner when it authors a new plan.
-* **Session-scoped** (`artefacts`, plus ``messages`` for lossy continuity,
-  ``mode`` and ``discovery_persistent``) survives across tasks in the same
-  session.  ``InitGraphState`` refreshes ``discovery_persistent`` with the
+* **Session-scoped** (`artefacts`, plus ``messages``/``messages_internal``
+  for continuity and provenance, ``mode`` and ``discovery_persistent``)
+  survives across tasks in the same session.  ``InitGraphState`` refreshes
+  ``discovery_persistent`` with the
   project instruction file (``AGENTS.md``, falling back to ``CLAUDE.md``),
   re-read only when the file changes; it is rendered into the Planner and
   ``AnswerFromResults`` prompts so project conventions reach both planning and
@@ -441,9 +446,15 @@ level 2 verifier with provenance.
 
 Failure is attributed per call, not per round: successful calls in a round are
 kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
-errored outputs are pruned from the observations (they remain in ``messages``
-and the node stream), so superseded failures do not mislead the Evaluator or
-the answer synthesis.
+errored outputs are pruned from the observations (they remain in
+``messages_internal`` and the node stream), so superseded failures do not
+mislead the Evaluator or the answer synthesis.
+
+The memory summariser consumes both streams: user-visible ``messages`` (minus
+its bounded recent window) and ``messages_internal`` from its own cursor.  It
+updates ``context_summary`` and both cursors.  Node prompts receive
+``context_summary`` plus a bounded window of ``messages`` only; internal run
+history is never injected verbatim.
 
 ## Goal handling
 

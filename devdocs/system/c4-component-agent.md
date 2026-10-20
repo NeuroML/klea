@@ -94,7 +94,7 @@ flowchart TD
         direction TB
         orchestrator["KleaAgent orchestrator<br/>klea_agent.py:_create_graph, _*_router,<br/>_record_tool_round / _record_picker_failure,<br/>context_snapshot; ADR-0016/0032/0035"]
         config["AppConfig + config loader<br/>config.py: bundled_tools, access_level,<br/>tool_access; env file + profile JSON; ADR-0015"]
-        state["KleaAgentState + schemas<br/>schemas.py: goal, plan, step_outputs,<br/>artefacts, retry budgets; ADR-0032"]
+        state["KleaAgentState + schemas<br/>schemas.py: goal, plan, step_outputs,<br/>artefacts, internal history, retry budgets; ADR-0032"]
         api["Agent API<br/>api/main.py make_app + api/chat.py ChatPayload<br/>POST /query, /query/stream; ADR-0031"]
         ui["Client UI / CLI<br/>ui/cli.py (klea, klea-serve) + ui/web/*<br/>mode + access selectors; ADR-0030/0037"]
     end
@@ -312,7 +312,7 @@ graph TD;
 |-----------|------|------|---------------|
 | KleaAgent orchestrator | ``klea_agent/klea_agent.py`` | ``BaseLangGraph`` subclass: ``_create_graph``, the conditional-edge routers, the tool-round/picker callbacks, ``context_snapshot`` | ``env_prefix``/config discovery (ADR-0015); graph exported as ``klea-agent-lang-graph.{png,mmd}`` (ADR-0016/0032/0035) |
 | AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``general.commands``, ``general.memory``, ``mcp_servers``, ``providers`` (ADR-0015/0037/0047) |
-| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``step_outputs``, ``artefacts``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
+| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
 | Agent API | ``klea_agent/api/{main,chat,server}.py`` | FastAPI app via ``make_app`` + the agent ``ChatPayload`` chat router | ``POST /query``, ``/query/stream``; ``mode``/``access_level`` in the payload; generic routers from ``klea_utils.api`` (ADR-0031) |
 | Client UI / CLI | ``klea_agent/ui/cli.py`` + ``ui/web/*`` | Typer CLI (``klea``, ``klea-serve``) and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037) |
 | Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: seeds/resets plan-scoped state each turn | Non-LLM; resets ``goal``/``plan``/``step_outputs``/counters (ADR-0035) |
