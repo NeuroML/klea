@@ -412,36 +412,52 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             json.dumps(call.args or {}, sort_keys=True, default=str),
         )
 
+    def _failed_call_keys(self, state: BaseModel) -> set[tuple[str, str]]:
+        """Return canonical ``(tool, args)`` keys for the previous failed calls.
+
+        Calls and results are aligned by index; a result missing from the
+        state is treated as unknown and does not make its call a failure.
+        Successful calls in a mixed batch are deliberately excluded so that
+        repeating them is not blocked by another call's error.
+
+        :param state: The incoming state (still holding the previous batch).
+        :returns: Keys for calls whose corresponding result is an error.
+        """
+        previous_calls = getattr(state, "tool_calls", None) or []
+        previous_results = getattr(state, "tool_results", None) or []
+        failed: set[tuple[str, str]] = set()
+        for index, call in enumerate(previous_calls):
+            if index >= len(previous_results):
+                continue
+            if getattr(previous_results[index], "is_error", False):
+                failed.add(self._selection_key(call))
+        return failed
+
     def _is_identical_failed_retry(
         self, tool_calls: list[ToolCallSchema], state: BaseModel
     ) -> bool:
-        """Return whether *tool_calls* repeat the just-failed batch exactly.
+        """Return whether *tool_calls* repeat any just-failed call.
 
         A deterministic anti-waste guard: re-emitting the same call with the
         same arguments cannot repair a call-level error, so the picker should
-        escalate to the app (which replans) rather than loop.  Only active when
-        an ``on_unusable`` callback is installed (the agent has a replan edge;
-        RAG does not), and only when the immediately-previous batch actually
-        errored -- a repeat after a successful round, or on a new step, is left
-        alone.
+        escalate to the app (which replans) rather than loop.  The check is
+        per-call, not per-batch: a subset, reordered batch, or a batch with
+        new calls alongside a repeated failed call is still blocked.  Only
+        active when an ``on_unusable`` callback is installed (the agent has a
+        replan edge; RAG does not), and only when the immediately-previous
+        batch actually errored -- a repeat after a successful round, or on a
+        new step, is left alone.
 
         :param tool_calls: The picker's new selection.
         :param state: The incoming state (still holding the previous batch).
-        :returns: ``True`` when the new selection repeats the failed batch.
+        :returns: ``True`` when any new call repeats a failed call.
         """
         if self._on_unusable is None or not tool_calls:
             return False
-        previous_calls = getattr(state, "tool_calls", None) or []
-        previous_results = getattr(state, "tool_results", None) or []
-        if not previous_calls:
+        failed = self._failed_call_keys(state)
+        if not failed:
             return False
-        if not any(getattr(r, "is_error", False) for r in previous_results):
-            return False
-        if len(tool_calls) != len(previous_calls):
-            return False
-        return sorted(self._selection_key(c) for c in tool_calls) == sorted(
-            self._selection_key(c) for c in previous_calls
-        )
+        return any(self._selection_key(call) in failed for call in tool_calls)
 
     def _normalize_calls(self, result: Any) -> list[ToolCallSchema]:
         """Normalize the picker result to the dispatch ``ToolCallSchema`` list.
@@ -554,7 +570,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         graph state (thread-isolated, ADR-0033) so the orchestrator can retry
         the picker a bounded number of times before escalating.
 
-        A selection that *exactly repeats the previous failed batch* is
+        A selection that repeats any call from the previous failed batch is
         converted to a deliberate failure (with an explanatory reason) so it is
         escalated instead of dispatched again: identical retries cannot succeed
         and only waste a round.
@@ -577,9 +593,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
 
         if usable and self._is_identical_failed_retry(tool_calls, state):
             reason = (
-                "The picker repeated the previous tool call with identical "
-                "arguments after it failed; repeating the same call cannot "
-                "succeed. Replan the step or correct the approach."
+                "The picker repeated a previously failed tool call with "
+                "identical arguments; repeating the same call cannot succeed. "
+                "Replan the step or correct the approach."
             )
             self.logger.warning(
                 f"picker repeated the identical failed call; escalating\n{reason = }"

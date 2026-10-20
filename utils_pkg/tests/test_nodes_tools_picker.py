@@ -827,6 +827,17 @@ def _error_result(text: str = "boom") -> CallToolResult:
     )
 
 
+def _ok_result() -> CallToolResult:
+    """Return a successful tool result."""
+    return CallToolResult(
+        content=[],
+        structured_content=None,
+        meta=None,
+        data=None,
+        is_error=False,
+    )
+
+
 def test_identical_failed_retry_is_escalated():
     """Repeating the exact failed call escalates instead of dispatching again."""
     seen: dict[str, str] = {}
@@ -853,6 +864,96 @@ def test_identical_failed_retry_is_escalated():
     # The dispatched selection is replaced by the empty-name escalation call.
     assert update["tool_calls"][0].tool == ""
     assert "identical" in update["replan_reason"]
+
+
+def test_subset_repeat_of_failed_call_is_escalated():
+    """A subset of the failed batch is still blocked."""
+    seen: dict[str, str] = {}
+
+    def on_unusable(state, reason):
+        seen["reason"] = reason
+        return {"replan_reason": reason}
+
+    picker = _make_picker(on_unusable=on_unusable)
+    failed = [
+        ToolCallSchema(tool="read_file", args={"path": "a.txt"}),
+        ToolCallSchema(tool="read_file", args={"path": "b.txt"}),
+    ]
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=failed,
+        tool_results=[_error_result("missing"), _error_result("missing")],
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[ToolCallSchema(tool="read_file", args={"path": "b.txt"})]
+        ),
+        state,
+        LLMNodeContext(),
+    )
+
+    assert "identical" in seen["reason"]
+    assert update["tool_calls"][0].tool == ""
+
+
+def test_reordered_batch_with_new_call_still_escalates():
+    """A repeated failed call is blocked even when the batch also has new calls."""
+    seen: dict[str, str] = {}
+
+    def on_unusable(state, reason):
+        seen["reason"] = reason
+        return {"replan_reason": reason}
+
+    picker = _make_picker(on_unusable=on_unusable)
+    failed = [
+        ToolCallSchema(tool="read_file", args={"path": "a.txt"}),
+        ToolCallSchema(tool="read_file", args={"path": "b.txt"}),
+    ]
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=failed,
+        tool_results=[_error_result("missing"), _error_result("missing")],
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[
+                ToolCallSchema(tool="read_file", args={"path": "b.txt"}),
+                ToolCallSchema(tool="get_models", args={"search_query": "x"}),
+            ]
+        ),
+        state,
+        LLMNodeContext(),
+    )
+
+    assert "identical" in seen["reason"]
+    assert update["tool_calls"][0].tool == ""
+
+
+def test_repeating_successful_call_from_mixed_batch_is_allowed():
+    """Only calls whose result errored are guarded."""
+    calls: list[str] = []
+    picker = _make_picker(on_unusable=lambda state, reason: calls.append(reason) or {})
+    ok_call = ToolCallSchema(tool="read_file", args={"path": "ok.txt"})
+    bad_call = ToolCallSchema(tool="read_file", args={"path": "bad.txt"})
+    state = AgentLikeState(
+        plan=PlanLike(step_list=[Step()]),
+        tool_calls=[ok_call, bad_call],
+        tool_results=[_ok_result(), _error_result("missing")],
+    )
+
+    update = picker._update_state(
+        ToolCallsSchema(
+            tool_calls=[ToolCallSchema(tool="read_file", args={"path": "ok.txt"})]
+        ),
+        state,
+        LLMNodeContext(),
+    )
+
+    assert calls == []
+    assert update["tool_calls"][0].tool == "read_file"
+    assert update["tool_calls"][0].args == {"path": "ok.txt"}
 
 
 def test_corrected_args_after_failure_are_dispatched():
