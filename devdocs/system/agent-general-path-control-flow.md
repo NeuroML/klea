@@ -9,7 +9,8 @@ and session-scoped artefacts (ADR-0035 update 2026-09-19); revised 2026-09-21
 for the ADR-0041 dependency-frontier model: per-step statuses replace the
 ``current_step_index`` cursor, work is dispatched in same-kind frontier
 batches, the Evaluator returns per-step verdicts, and the caller serialises
-same-resource calls.
+same-resource calls; revised 2026-10-20 for failed-batch feedback and the
+cross-batch repeated-call guard.
 
 ## Scope
 
@@ -284,10 +285,13 @@ whose ``suggested_tools`` are an identical set (capped at 4 steps), and exposes
 only that set: the binder cannot choose an unplanned tool.  If a group cannot
 be bound the binder returns a single empty-``tool`` call carrying the reason;
 the node records that as a synthetic ``is_error`` observation plus
-``replan_reason``, and the graph escalates to the Planner.  Bound calls
-accumulate in ``binding_calls`` until the whole batch is bound; the caller then
-dispatches them, still in parallel.  RAG keeps the shared ``ToolsPicker``,
-which has no plan and selects freely from its domain tools.
+``replan_reason``, and the graph escalates to the Planner.  A call that repeats
+a previously failed ``(tool, arguments)`` pair is also a deliberate failure,
+even when it appears in a subset, a reordered batch, or alongside new calls, so
+the binder cannot spend a round on an identical retry.  Bound calls accumulate
+in ``binding_calls`` until the whole batch is bound; the caller then dispatches
+them, still in parallel.  RAG keeps the shared ``ToolsPicker``, which has no
+plan and selects freely from its domain tools.
 
 Access level (ADR-0037): a ``read_only | full`` policy filters the Planner's
 and binder's tool lists by the MCP ``read_only``/``destructive`` annotations and
@@ -384,7 +388,8 @@ the run; not rendered into downstream prompts):
 * ``human_input: dict[int, list[str]]`` -- the answers to a blocked step's
   questions, written by ``AwaitHuman`` (input) and read/cleared by the Planner.
 * ``replan_reason: str`` -- the unified automated-replan trigger, set by the
-  Evaluator on ``need_replan`` and by the tool-round recorder on a failed batch;
+  Evaluator on ``need_replan`` and by the tool-round recorder from the failed
+  batch digest (every failed call with its tool, path/URI arguments and error);
   read and cleared by the Planner.
 * ``review_progress: str`` -- the synthesized digest of work since the last
   review, written by ``ReviewProgress`` and read by the review ask; cleared when
@@ -440,8 +445,9 @@ level 2 verifier with provenance.
 | Cause | Route | Notes |
 |-------|-------|-------|
 | transient (network, timeout, 5xx) | retry at dispatch | bounded (ADR-0017 handles LLM; dispatch handles tools) |
-| call-level (bad args, permission denied) | binder | re-bind the **same** suggested tool with corrected arguments; the binder may not switch tools |
+| call-level (bad args, permission denied) | binder | re-bind the **same** suggested tool with corrected arguments; the binder may not switch tools and sees every failed call, not just the last error |
 | binder cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the binder does not substitute |
+| repeated failed call (same tool + arguments) | planner | deterministic guard: escalate even for a subset/reordered batch; changed arguments are allowed |
 | repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
@@ -453,6 +459,14 @@ kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
 errored outputs are pruned from the observations (they remain in
 ``messages_internal`` and the node stream), so superseded failures do not
 mislead the Evaluator or the answer synthesis.
+
+Failed-batch feedback uses ``klea_utils.tools.tool_call_errors``: one line per
+failed call with its step/tool, path/URI-named arguments (plus the picker's
+declared ``paths``) and error.  URI credentials/secrets are redacted and the
+digest is bounded; free-text arguments (contents, edit strings, code, shell
+commands) are omitted.  The binder's ``picker_feedback``, the Planner's
+``replan_reason``, and the Evaluator's ``recent_tool_failures`` block all use
+this same digest.
 
 The memory summariser consumes both streams: user-visible ``messages`` (minus
 its bounded recent window) and ``messages_internal`` from its own cursor.  It
@@ -508,8 +522,10 @@ Planner, otherwise the next batch by kind.
 It judges the goal and each step's criterion against the **outcome**, not
 merely whether tools succeeded; ``executed_tools`` is rendered grouped by step
 and the observations are per step, so a different tool that meets the criteria
-is fine, while a material mismatch is reported in the step's ``reason``.  It
-never writes ``message_for_user``.  An empty or failed evaluation escalates
+is fine, while a material mismatch is reported in the step's ``reason``.  Its
+user prompt also carries an optional ``recent_tool_failures`` block from the
+failed-batch digest, so a failed call is not mistaken for evidence of success.
+It never writes ``message_for_user``.  An empty or failed evaluation escalates
 deterministically to a replan.  Scientific mode uses a separate, independent,
 epistemic verifier with the same judge-only contract.
 
