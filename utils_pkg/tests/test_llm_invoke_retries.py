@@ -1141,6 +1141,7 @@ class _ValidatingNode(_MinimalLLMNode):
         super().__init__(*args, **kwargs)
         self.calls = 0
         self.feedback_seen = []
+        self.update_feedback = None
 
     def _get_prompt_variables(self, state, ctx):
         self.feedback_seen.append(ctx.validation_feedback)
@@ -1170,6 +1171,7 @@ class _ValidatingNode(_MinimalLLMNode):
         return "bad plan" if result == 1 else None
 
     def _update_state(self, result, state, ctx):
+        self.update_feedback = ctx.validation_feedback
         return {"accepted": result}
 
     def _get_default_error_result(self, ctx):
@@ -1210,6 +1212,8 @@ class TestValidationRetryLoop:
         assert updates["accepted"] == 2
         # The retry saw the validation error as feedback.
         assert "bad plan" in node.feedback_seen
+        # A valid result arrives with no stale feedback.
+        assert node.update_feedback == ""
 
     async def test_gives_up_after_max_retries(self):
         class _AlwaysInvalid(_ValidatingNode):
@@ -1237,3 +1241,5 @@ class TestValidationRetryLoop:
         assert node.calls == 1 + _AlwaysInvalid.max_validation_retries
         # The final (still invalid) result is accepted fail-closed.
         assert updates["accepted"] == node.calls
+        # The error survives into ``_update_state`` so the node can fail closed.
+        assert node.update_feedback == "still bad"

@@ -408,22 +408,31 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             self.logger.debug(f"{chars_received = } characters received from LLM")
             ctx.result = self._process_output(ctx)
             error = self._validate_result(ctx.result, state, ctx)
-            if not error or attempt >= self.max_validation_retries:
-                if error:
+
+            if error:
+                if attempt < self.max_validation_retries:
+                    attempt += 1
+                    ctx.validation_feedback = error
                     self.logger.warning(
-                        "Validation failed after %d retries, accepting result: %s",
+                        "Invalid node result, retrying (%d/%d): %s",
+                        attempt,
+                        self.max_validation_retries,
+                        error,
+                    )
+                    continue
+                # error, but run out of retries
+                else:
+                    self.logger.warning(
+                        "Validation failed after %d retries, result: %s",
                         attempt,
                         error,
                     )
+                    # for nodes that want to use this, but others may choose to ignore
+                    ctx.validation_feedback = error
+                    break
+            else:
+                ctx.validation_feedback = ""
                 break
-            attempt += 1
-            ctx.validation_feedback = error
-            self.logger.warning(
-                "Invalid node result, retrying (%d/%d): %s",
-                attempt,
-                self.max_validation_retries,
-                error,
-            )
 
         ctx.state_updates = self._update_state(ctx.result, state, ctx)
 
