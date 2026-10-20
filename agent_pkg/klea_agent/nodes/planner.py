@@ -321,6 +321,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "review_progress": "",
         }
 
+        # If validation retries are exhausted, fail closed rather than
+        # accepting the last (still invalid) plan.
+        if ctx.validation_feedback:
+            reason = f"plan validation failed: {ctx.validation_feedback}"
+            self.logger.warning(
+                "Plan validation failed; giving up: %s", ctx.validation_feedback
+            )
+            update["plan"] = PlanSchema(status="unplannable")
+            update["failure_reason"] = reason
+            update["messages"] = [
+                *state.messages,
+                AIMessage(content=f"Planning failed: {reason}"),
+            ]
+            return update
+
         # --- Plan-history counters (durable run signal) -------------------
         # ``plan_version`` increments on every authoring; ``human_feedback_rounds``
         # increments when the Planner processes review feedback; the automated

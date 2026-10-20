@@ -607,6 +607,36 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertEqual(update["plan"].step_list, [])
         self.assertIn("maximum of 30 steps", update["failure_reason"])
 
+    def test_exhausted_validation_fails_closed(self):
+        """An invalid plan that survives retries must not be accepted.
+
+        The base retry loop exposes the last validation error through
+        ``ctx.validation_feedback``; the Planner must fail closed instead of
+        writing the invalid plan.
+        """
+        ctx = LLMNodeContext()
+        ctx.validation_feedback = "step 1 depends on 2, which does not exist"
+        invalid = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[
+                    StepSchema(
+                        step_number=1,
+                        description="do work",
+                        suggested_tools=["read_file"],
+                        depends_on=[2],
+                    )
+                ]
+            )
+        )
+
+        update = self._planner()._update_state(invalid, KleaAgentState(query="q"), ctx)
+
+        self.assertEqual(update["plan"].status, "unplannable")
+        self.assertEqual(update["plan"].step_list, [])
+        self.assertIn("plan validation failed", update["failure_reason"])
+        self.assertIn(ctx.validation_feedback, update["failure_reason"])
+        self.assertIn("Planning failed", update["messages"][-1].content)
+
     def test_rejects_unplannable_with_steps(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
