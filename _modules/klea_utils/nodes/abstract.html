@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.0 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.1 and Furo 2025.12.19 -->
         <title>klea_utils.nodes.abstract - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -733,22 +733,31 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">chars_received</span><span class="w"> </span><span class="si">= }</span><span class="s2"> characters received from LLM"</span><span class="p">)</span>
             <span class="n">ctx</span><span class="o">.</span><span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_process_output</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
             <span class="n">error</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_result</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">result</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="n">error</span> <span class="ow">or</span> <span class="n">attempt</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_validation_retries</span><span class="p">:</span>
-                <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="n">error</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">attempt</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_validation_retries</span><span class="p">:</span>
+                    <span class="n">attempt</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">validation_feedback</span> <span class="o">=</span> <span class="n">error</span>
                     <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                        <span class="s2">"Validation failed after </span><span class="si">%d</span><span class="s2"> retries, accepting result: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="s2">"Invalid node result, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="n">attempt</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">max_validation_retries</span><span class="p">,</span>
+                        <span class="n">error</span><span class="p">,</span>
+                    <span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="c1"># error, but run out of retries</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="s2">"Validation failed after </span><span class="si">%d</span><span class="s2"> retries, result: </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
                         <span class="n">attempt</span><span class="p">,</span>
                         <span class="n">error</span><span class="p">,</span>
                     <span class="p">)</span>
+                    <span class="c1"># for nodes that want to use this, but others may choose to ignore</span>
+                    <span class="n">ctx</span><span class="o">.</span><span class="n">validation_feedback</span> <span class="o">=</span> <span class="n">error</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">ctx</span><span class="o">.</span><span class="n">validation_feedback</span> <span class="o">=</span> <span class="s2">""</span>
                 <span class="k">break</span>
-            <span class="n">attempt</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">ctx</span><span class="o">.</span><span class="n">validation_feedback</span> <span class="o">=</span> <span class="n">error</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
-                <span class="s2">"Invalid node result, retrying (</span><span class="si">%d</span><span class="s2">/</span><span class="si">%d</span><span class="s2">): </span><span class="si">%s</span><span class="s2">"</span><span class="p">,</span>
-                <span class="n">attempt</span><span class="p">,</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">max_validation_retries</span><span class="p">,</span>
-                <span class="n">error</span><span class="p">,</span>
-            <span class="p">)</span>
 
         <span class="n">ctx</span><span class="o">.</span><span class="n">state_updates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_update_state</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">result</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
 
