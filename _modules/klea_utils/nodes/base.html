@@ -330,7 +330,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">Literal</span><span class="p">,</span> <span class="n">cast</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.exceptions</span><span class="w"> </span><span class="kn">import</span> <span class="n">OutputParserException</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span><span class="p">,</span> <span class="n">HumanMessage</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.messages</span><span class="w"> </span><span class="kn">import</span> <span class="n">AIMessage</span><span class="p">,</span> <span class="n">BaseMessage</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompt_values</span><span class="w"> </span><span class="kn">import</span> <span class="n">PromptValue</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.prompts</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatPromptTemplate</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.runnables</span><span class="w"> </span><span class="kn">import</span> <span class="n">Runnable</span><span class="p">,</span> <span class="n">RunnableConfig</span>
@@ -348,8 +348,8 @@
     <span class="n">classify_llm_invocation_error</span><span class="p">,</span>
     <span class="n">escape_prompt_braces</span><span class="p">,</span>
     <span class="n">estimate_input_tokens</span><span class="p">,</span>
-    <span class="n">get_last_n_conversations</span><span class="p">,</span>
     <span class="n">get_provider_allowed_fields</span><span class="p">,</span>
+    <span class="n">get_recent_messages</span><span class="p">,</span>
     <span class="n">get_token_limit_param</span><span class="p">,</span>
     <span class="n">is_empty_structured_parse_error</span><span class="p">,</span>
     <span class="n">is_output_empty</span><span class="p">,</span>
@@ -375,6 +375,11 @@
 <span class="c1">#: providers (notably HuggingFace) intermittently return a successful but</span>
 <span class="c1">#: blank message; the retry is a plain re-invoke with no window change.</span>
 <span class="n">MAX_EMPTY_OUTPUT_RETRIES</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1">#: Character budget for the verbatim recent-conversation window injected into</span>
+<span class="c1">#: memory-enabled node prompts.  Older history is represented by</span>
+<span class="c1">#: ``context_summary`` instead.</span>
+<span class="n">DEFAULT_RECENT_MEMORY_CHARS</span> <span class="o">=</span> <span class="mi">10_000</span>
 
 <span class="c1">#: Max times to retry a transiently failed invoke (a timeout, e.g. a stalled</span>
 <span class="c1">#: stream that never produced a chunk).  Rate limits, auth and model-not-found</span>
@@ -1485,34 +1490,23 @@
         <span class="k">return</span> <span class="n">system_prompt</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_recent_memory_messages</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">BaseMessage</span><span class="p">]:</span>
-<span class="w">        </span><span class="sd">"""Return the recent verbatim history messages for the prompt.</span>
+<span class="w">        </span><span class="sd">"""Return the recent verbatim conversation for the prompt.</span>
 
-<span class="sd">        Forward-stable: ``messages[summarised_till - N:]`` keeps the cached</span>
-<span class="sd">        prefix stable (``messages[summarised_till]`` stays for ``5`` turns)</span>
-<span class="sd">        vs ``get_recent_messages`` ``last N`` which drifts every turn. ``N=2``</span>
-<span class="sd">        keeps the last ``human``/``ai`` pair for continuity even after</span>
-<span class="sd">        ``context_summary`` has absorbed it.</span>
+<span class="sd">        The window is bounded by :data:`DEFAULT_RECENT_MEMORY_CHARS`, so a</span>
+<span class="sd">        long run cannot inject its entire history.  ``context_summary``</span>
+<span class="sd">        carries the older history.  Only user-visible ``messages`` are injected;</span>
+<span class="sd">        ``messages_internal`` is summarised separately and never placed in a</span>
+<span class="sd">        prompt verbatim.</span>
 
 <span class="sd">        :param state: Graph state.</span>
-<span class="sd">        :returns: Ordered recent human/ai messages.</span>
+<span class="sd">        :returns: Ordered recent human/ai messages within the budget.</span>
 <span class="sd">        """</span>
-        <span class="c1"># Fallback: if state has no summarised_till (e.g. legacy checkpoint),</span>
-        <span class="c1"># include all messages and skip summarisation (caller handles).</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_till"</span><span class="p">):</span>
-            <span class="k">return</span> <span class="p">[</span>
-                <span class="n">m</span>  <span class="c1"># type: ignore[return-value]</span>
-                <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">state</span><span class="o">.</span><span class="n">messages</span>  <span class="c1"># type: ignore</span>
-                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">m</span><span class="p">,</span> <span class="p">(</span><span class="n">HumanMessage</span><span class="p">,</span> <span class="n">AIMessage</span><span class="p">))</span>
-            <span class="p">]</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">till</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_till"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
-        <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-            <span class="n">till</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">N</span> <span class="o">=</span> <span class="mi">2</span>  <span class="c1"># one human+ai pair overlap for continuity</span>
-        <span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">till</span> <span class="o">-</span> <span class="n">N</span><span class="p">)</span>
-        <span class="c1"># get_last_n_conversations filters to Human/AI and preserves order</span>
-        <span class="n">_</span><span class="p">,</span> <span class="n">recent</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">messages</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">start</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
-        <span class="k">return</span> <span class="n">recent</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"messages"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="k">return</span> <span class="n">get_recent_messages</span><span class="p">(</span>
+            <span class="n">messages</span><span class="p">,</span>
+            <span class="n">DEFAULT_RECENT_MEMORY_CHARS</span><span class="p">,</span>
+            <span class="n">keep_at_least</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_get_human_prompt</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">TState</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">LLMNodeContext</span><span class="p">[</span><span class="n">TOutput</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Load human prompt from file."""</span>

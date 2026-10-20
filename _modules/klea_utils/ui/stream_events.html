@@ -349,6 +349,7 @@
 <span class="sd">    ``"state"``     a status-pane section was stored</span>
 <span class="sd">    ``"inspect"``   an inspection entry was appended</span>
 <span class="sd">    ``"context"``   session context (e.g. the operating mode) was stored</span>
+<span class="sd">    ``"notice"``    a user-facing progress notice was appended</span>
 <span class="sd">    ``"complete"``  the final assistant message was appended</span>
 <span class="sd">    ``"error"``     the backend signalled an error</span>
 <span class="sd">    ``None``        no state change (progress / info / token events)</span>
@@ -412,6 +413,25 @@
             <span class="s2">"preformatted"</span><span class="p">:</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preformatted"</span><span class="p">,</span> <span class="kc">False</span><span class="p">),</span>
         <span class="p">}</span>
         <span class="k">return</span> <span class="s2">"state"</span>
+
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"notice"</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="p">{})</span>
+        <span class="n">content</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"content"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">content</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span><span class="o">.</span><span class="n">astimezone</span><span class="p">()</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="s2">"messages"</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"text"</span><span class="p">:</span> <span class="n">content</span><span class="p">,</span>
+                <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
+                <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"notice"</span><span class="p">,</span>
+                <span class="s2">"header"</span><span class="p">:</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"node"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                <span class="s2">"kind"</span><span class="p">:</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"progress"</span><span class="p">),</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"notice"</span>
 
     <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s2">"complete"</span><span class="p">:</span>
         <span class="n">message</span> <span class="o">=</span> <span class="n">event</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"message_for_user"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>

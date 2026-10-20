@@ -450,6 +450,43 @@
     <span class="k">return</span> <span class="n">path</span> <span class="ow">or</span> <span class="kc">None</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_safe_expanduser</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Expand ``~`` without letting a missing home directory abort detection.</span>
+
+<span class="sd">    ``Path.expanduser`` raises ``RuntimeError`` when the home directory cannot</span>
+<span class="sd">    be determined.  Path discovery is advisory: a guessed token (for example a</span>
+<span class="sd">    ``~nonsense`` fragment inside a code string) must be skipped, not crash the</span>
+<span class="sd">    tool dispatch.</span>
+
+<span class="sd">    :param value: The raw path-like value.</span>
+<span class="sd">    :returns: The expanded path, or ``None`` when it cannot be expanded.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not expand path </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">; skipping"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_safe_resolved</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a resolved path, or ``None`` when resolution fails.</span>
+
+<span class="sd">    Used for the boundary itself and session approvals, where a crash would</span>
+<span class="sd">    abort every tool call.</span>
+
+<span class="sd">    :param value: The path to resolve.</span>
+<span class="sd">    :returns: The resolved path, or ``None``.</span>
+<span class="sd">    """</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">_safe_expanduser</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not resolve path </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">; skipping"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_is_nonfile_url</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Return whether a token is a URL other than a ``file:`` URI."""</span>
     <span class="k">if</span> <span class="s2">"://"</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">token</span><span class="p">:</span>
@@ -523,13 +560,16 @@
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">text</span> <span class="o">=</span> <span class="n">_strip_file_uri</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">text</span>
-    <span class="n">candidate</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
-        <span class="n">candidate</span> <span class="o">=</span> <span class="n">root</span> <span class="o">/</span> <span class="n">candidate</span>
     <span class="k">try</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">_strip_file_uri</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="ow">or</span> <span class="n">text</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_safe_expanduser</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">candidate</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="n">candidate</span> <span class="o">=</span> <span class="n">root</span> <span class="o">/</span> <span class="n">candidate</span>
         <span class="k">return</span> <span class="n">candidate</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not resolve guessed path </span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">; skipping"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
 
 
@@ -572,16 +612,15 @@
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">project_root</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">allowed_dirs</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">allowed_files</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">picker_paths</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">include_sensitive</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
     <span class="p">)</span>
-    <span class="n">root</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="n">Path</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-        <span class="k">if</span> <span class="n">project_root</span>
-        <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
-    <span class="p">)</span>
+    <span class="n">root</span> <span class="o">=</span> <span class="n">_safe_resolved</span><span class="p">(</span><span class="n">project_root</span><span class="p">)</span> <span class="k">if</span> <span class="n">project_root</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">root</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Could not resolve project root; using the current directory"</span><span class="p">)</span>
+        <span class="n">root</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
     <span class="n">roots</span> <span class="o">=</span> <span class="n">permitted_roots</span><span class="p">(</span><span class="n">project_root</span><span class="p">,</span> <span class="n">allowed_dirs</span><span class="p">)</span>
     <span class="n">approved_files</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="nb">str</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
+        <span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="p">(</span><span class="n">allowed_files</span> <span class="ow">or</span> <span class="p">[])</span>
-        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">resolved</span> <span class="o">:=</span> <span class="n">_safe_resolved</span><span class="p">(</span><span class="n">entry</span><span class="p">))</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
     <span class="p">}</span>
     <span class="n">requests</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">PathRequest</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
@@ -671,12 +710,15 @@
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"-"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">text</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="s2">"*?["</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="n">candidate</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-    <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
-        <span class="k">return</span> <span class="kc">None</span>
     <span class="k">try</span><span class="p">:</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_safe_expanduser</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">candidate</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">candidate</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+            <span class="k">return</span> <span class="kc">None</span>
         <span class="k">return</span> <span class="nb">str</span><span class="p">((</span><span class="n">root</span> <span class="o">/</span> <span class="n">candidate</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">())</span>
-    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">):</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not resolve path value </span><span class="si">{</span><span class="n">text</span><span class="si">!r}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">; leaving as-is"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
 
 

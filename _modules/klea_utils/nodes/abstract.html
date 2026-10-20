@@ -393,7 +393,7 @@
 <span class="sd">    This is the contract between the graph infrastructure and the frontend.</span>
 <span class="sd">    """</span>
 
-    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"progress"</span><span class="p">,</span> <span class="s2">"inspect"</span><span class="p">,</span> <span class="s2">"state"</span><span class="p">,</span> <span class="s2">"usage"</span><span class="p">,</span> <span class="s2">"notice"</span><span class="p">]</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span>
         <span class="n">description</span><span class="o">=</span><span class="s2">"Event type"</span>
     <span class="p">)</span>
     <span class="n">node</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Node label"</span><span class="p">)</span>
@@ -518,6 +518,37 @@
             <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span><span class="n">heading</span><span class="o">=</span><span class="n">heading</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">),</span>
         <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit_notice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"progress"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit a concise, user-visible ``notice`` for the chat transcript.</span>
+
+<span class="sd">        Notices are derived progress notes (an evaluator verdict, a reasoning</span>
+<span class="sd">        conclusion), not status snapshots and not part of graph memory.  They</span>
+<span class="sd">        are persisted by the API layer as transcript rows.</span>
+
+<span class="sd">        :param content: Note text; blank content emits nothing.</span>
+<span class="sd">        :param kind: Semantic kind for styling/routing (default ``progress``).</span>
+<span class="sd">        """</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">content</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1000</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="mi">997</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">"..."</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">"notice"</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span>
+                <span class="n">heading</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+                <span class="n">summary</span><span class="o">=</span><span class="n">text</span><span class="p">,</span>
+                <span class="n">details</span><span class="o">=</span><span class="p">{</span><span class="s2">"content"</span><span class="p">:</span> <span class="n">text</span><span class="p">,</span> <span class="s2">"kind"</span><span class="p">:</span> <span class="n">kind</span><span class="p">},</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+        <span class="k">except</span> <span class="ne">RuntimeError</span><span class="p">:</span>
+            <span class="c1"># Unit tests call ``_update_state`` outside a graph run, where no</span>
+            <span class="c1"># stream writer exists; a notice is optional UI metadata.</span>
+            <span class="k">pass</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">TCtx</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Emit streaming event before node execution.</span>

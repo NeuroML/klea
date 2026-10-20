@@ -477,6 +477,15 @@
 <span class="sd">    :returns: A message dict for ``ChatData["messages"]``.</span>
 <span class="sd">    """</span>
     <span class="n">stamp</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">fromtimestamp</span><span class="p">(</span><span class="n">message</span><span class="p">[</span><span class="s2">"created_at"</span><span class="p">])</span><span class="o">.</span><span class="n">strftime</span><span class="p">(</span><span class="s2">"</span><span class="si">%X</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"notice"</span><span class="p">:</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"metadata"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"text"</span><span class="p">:</span> <span class="n">message</span><span class="p">[</span><span class="s2">"content"</span><span class="p">],</span>
+            <span class="s2">"stamp"</span><span class="p">:</span> <span class="n">stamp</span><span class="p">,</span>
+            <span class="s2">"role"</span><span class="p">:</span> <span class="s2">"notice"</span><span class="p">,</span>
+            <span class="s2">"header"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+            <span class="s2">"kind"</span><span class="p">:</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">,</span> <span class="s2">"progress"</span><span class="p">),</span>
+        <span class="p">}</span>
     <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"tool"</span><span class="p">:</span>
         <span class="n">meta</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"metadata"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
         <span class="k">return</span> <span class="p">{</span>

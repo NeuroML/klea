@@ -511,10 +511,11 @@ different queries can be told apart when the pane keeps them all.</p>
 <span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.state.</span></span><span class="sig-name descname"><span class="pre">MessageData</span></span><a class="reference internal" href="../../_modules/klea_utils/ui/state.html#MessageData"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.state.MessageData" title="Link to this definition">¶</a></dt>
 <dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.TypedDict" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">TypedDict</span></code></a></p>
 <p>A single rendered chat message.</p>
-<p><code class="docutils literal notranslate"><span class="pre">role</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;user&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;agent&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;tool&quot;</span></code>; <code class="docutils literal notranslate"><span class="pre">header</span></code> is an
-optional small title (used by tool blocks).  Tool messages add the
-mime/display/data/meta fields used by the chat-bubble renderer, plus
-<code class="docutils literal notranslate"><span class="pre">is_error</span></code> for an errored tool result (styled by the renderer).</p>
+<p><code class="docutils literal notranslate"><span class="pre">role</span></code> is <code class="docutils literal notranslate"><span class="pre">&quot;user&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;agent&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;tool&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;notice&quot;</span></code>; <code class="docutils literal notranslate"><span class="pre">header</span></code>
+is an optional small title (used by tool blocks and notices).  Tool
+messages add the mime/display/data/meta fields used by the chat-bubble
+renderer, plus <code class="docutils literal notranslate"><span class="pre">is_error</span></code> for an errored tool result (styled by the
+renderer).  Notices carry an optional <code class="docutils literal notranslate"><span class="pre">kind</span></code> for future styling.</p>
 </dd></dl>
 
 <dl class="py class">
@@ -952,13 +953,16 @@ action the UI layer reacts to:</p>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;context&quot;</span></code></p></td>
 <td><p>session context (e.g. the operating mode) was stored</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;complete&quot;</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;notice&quot;</span></code></p></td>
+<td><p>a user-facing progress notice was appended</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;complete&quot;</span></code></p></td>
 <td><p>the final assistant message was appended</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;error&quot;</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;error&quot;</span></code></p></td>
 <td><p>the backend signalled an error</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
 <td><p>no state change (progress / info / token events)</p></td>
 </tr>
 </tbody>

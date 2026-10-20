@@ -400,8 +400,10 @@
 
 <span class="sd">        :param text: Message text (markdown); also the fallback body.</span>
 <span class="sd">        :param stamp: Timestamp string.</span>
-<span class="sd">        :param role: ``"user"``, ``"agent"``, ``"tool"`` or ``"system"`` (a</span>
-<span class="sd">            client command's output); unknown values fall back to ``"agent"``.</span>
+<span class="sd">        :param role: ``"user"``, ``"agent"``, ``"tool"``, ``"system"`` (a</span>
+<span class="sd">            client command's output), or ``"notice"`` (a compact progress</span>
+<span class="sd">            note, rendered with the system surface); unknown values fall back</span>
+<span class="sd">            to ``"agent"``.</span>
 <span class="sd">        :param collapsed: ``True`` if the text is collapsed to 4 lines.</span>
 <span class="sd">        :param idx: Message index (used for expand/collapse tracking).</span>
 <span class="sd">        :param header: Optional small bold header, e.g. a tool block's</span>
@@ -418,7 +420,10 @@
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">"div"</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">role</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROLES</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"notice"</span><span class="p">:</span>
+            <span class="c1"># A progress notice is a muted, system-style transcript block.</span>
+            <span class="n">role</span> <span class="o">=</span> <span class="s2">"system"</span>
+        <span class="k">elif</span> <span class="n">role</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_ROLES</span><span class="p">:</span>
             <span class="n">role</span> <span class="o">=</span> <span class="s2">"agent"</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full flex flex-col"</span><span class="p">)</span>

@@ -350,14 +350,17 @@
 <span class="sd">    Uses _pre_exec() to skip execution if there isn't enough *old*</span>
 <span class="sd">    conversation to summarise.  The most recent messages (within</span>
 <span class="sd">    ``num_history_chars``) form the verbatim window that the prompt</span>
-<span class="sd">    assembly injects as real messages, so this node only summarises history</span>
-<span class="sd">    up to that window -- the summary and the verbatim window never overlap.</span>
-<span class="sd">    Does NOT append the summary to messages -- it's metadata, not a turn.</span>
+<span class="sd">    assembly injects as real messages, so this node summarises user-visible</span>
+<span class="sd">    history up to that window.  Internal run history (``messages_internal``)</span>
+<span class="sd">    is not injected verbatim into prompts; it is summarised from its own</span>
+<span class="sd">    cursor to the end.  Does NOT append the summary to messages -- it is</span>
+<span class="sd">    metadata, not a turn.</span>
 
 <span class="sd">    Expects state to have the following fields:</span>
 
-<span class="sd">    - messages: list of messages</span>
-<span class="sd">    - summarised_till: index of messages that have been summarised already</span>
+<span class="sd">    - messages: user-visible conversation messages</span>
+<span class="sd">    - messages_internal: internal plan/evaluation/reasoning run history</span>
+<span class="sd">    - summarised_till / summarised_internal_till: per-stream cursors</span>
 <span class="sd">    - context_summary: previous memory/context summary</span>
 
 <span class="sd">    """</span>
@@ -421,6 +424,23 @@
         <span class="p">)</span>
         <span class="k">return</span> <span class="n">conversation</span><span class="p">,</span> <span class="n">window_start</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_internal_window</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return ``(conversation, window_end)`` for internal run history.</span>
+
+<span class="sd">        Internal messages (plan versions, evaluation verdicts, reasoning</span>
+<span class="sd">        conclusions) are not injected verbatim into node prompts, so there is</span>
+<span class="sd">        no recent-tail window to preserve: everything from the internal cursor</span>
+<span class="sd">        to the end is summarised.</span>
+
+<span class="sd">        :param state: Current graph state.</span>
+<span class="sd">        :returns: The internal conversation text and the new internal cursor.</span>
+<span class="sd">        """</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"messages_internal"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_internal_till"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">min</span><span class="p">(</span><span class="n">cursor</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">)))</span>
+        <span class="n">conversation</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_last_n_conversations</span><span class="p">(</span><span class="n">messages</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="n">cursor</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">conversation</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">messages</span><span class="p">)</span>
+
     <span class="nd">@override</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">NodeContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Skip if not enough old conversation to summarise.</span>
@@ -429,30 +449,40 @@
 <span class="sd">        ran and why nothing happened); the run continues to END either way.</span>
 <span class="sd">        """</span>
         <span class="n">conversation</span><span class="p">,</span> <span class="n">window_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">internal</span><span class="p">,</span> <span class="n">internal_end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_internal_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">internal_cursor</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_internal_till"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">no_user_history</span> <span class="o">=</span> <span class="n">window_start</span> <span class="o">&lt;=</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span>  <span class="c1"># type: ignore</span>
+        <span class="n">no_internal_history</span> <span class="o">=</span> <span class="n">internal_end</span> <span class="o">&lt;=</span> <span class="n">internal_cursor</span>
 
-        <span class="k">if</span> <span class="n">window_start</span> <span class="o">&lt;=</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">:</span>  <span class="c1"># type: ignore</span>
+        <span class="k">if</span> <span class="n">no_user_history</span> <span class="ow">and</span> <span class="n">no_internal_history</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No new history to summarise yet"</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_emit_memory_inspect</span><span class="p">(</span>
                 <span class="s2">"Nothing new to summarise"</span><span class="p">,</span>
                 <span class="p">{</span>
                     <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
                     <span class="s2">"window_start"</span><span class="p">:</span> <span class="n">window_start</span><span class="p">,</span>
+                    <span class="s2">"summarised_internal_till"</span><span class="p">:</span> <span class="n">internal_cursor</span><span class="p">,</span>
+                    <span class="s2">"internal_end"</span><span class="p">:</span> <span class="n">internal_end</span><span class="p">,</span>
                 <span class="p">},</span>
             <span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
 
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="p">:</span>
+        <span class="n">combined_chars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">internal</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">combined_chars</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"Not enough conversation to summarise yet: "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">)</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="si">}</span><span class="s2"> chars"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">combined_chars</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="si">}</span><span class="s2"> chars"</span>
             <span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_emit_memory_inspect</span><span class="p">(</span>
                 <span class="s2">"Not enough old history to summarise yet"</span><span class="p">,</span>
                 <span class="p">{</span>
                     <span class="s2">"conversation_chars"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">conversation</span><span class="p">),</span>
+                    <span class="s2">"internal_chars"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">internal</span><span class="p">),</span>
                     <span class="s2">"threshold_chars"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">summarisation_threshold_chars</span><span class="p">,</span>
                     <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
                     <span class="s2">"window_start"</span><span class="p">:</span> <span class="n">window_start</span><span class="p">,</span>
+                    <span class="s2">"summarised_internal_till"</span><span class="p">:</span> <span class="n">internal_cursor</span><span class="p">,</span>
+                    <span class="s2">"internal_end"</span><span class="p">:</span> <span class="n">internal_end</span><span class="p">,</span>
                 <span class="p">},</span>
             <span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
@@ -484,12 +514,16 @@
 <span class="sd">        entirely when there is none (prompt conventions).</span>
 <span class="sd">        """</span>
         <span class="n">conversation</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">internal</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_internal_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
             <span class="s2">"old_summary_block"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
                 <span class="s2">"Current summary"</span><span class="p">,</span>
                 <span class="n">state</span><span class="o">.</span><span class="n">context_summary</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
             <span class="p">),</span>
             <span class="s2">"conversation"</span><span class="p">:</span> <span class="n">conversation</span><span class="p">,</span>
+            <span class="s2">"internal_history"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
+                <span class="s2">"Internal run history (decisions and progress)"</span><span class="p">,</span> <span class="n">internal</span>
+            <span class="p">),</span>
         <span class="p">}</span>
 
     <span class="nd">@override</span>
@@ -512,10 +546,13 @@
             <span class="p">)</span>
             <span class="k">return</span> <span class="p">{}</span>
         <span class="n">_conversation</span><span class="p">,</span> <span class="n">window_start</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_summarisation_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">_internal</span><span class="p">,</span> <span class="n">internal_end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_internal_window</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
         <span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
             <span class="s2">"context_summary"</span><span class="p">:</span> <span class="n">answer</span><span class="p">,</span>
             <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">window_start</span><span class="p">,</span>
         <span class="p">}</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_internal_till"</span><span class="p">):</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">"summarised_internal_till"</span><span class="p">]</span> <span class="o">=</span> <span class="n">internal_end</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">announce</span><span class="p">:</span>
             <span class="c1"># A manual compaction confirmation (the automatic node sets no</span>
             <span class="c1"># ``announce``, so it never clobbers the run's answer).</span>
@@ -540,18 +577,23 @@
                 <span class="n">summary</span><span class="o">=</span><span class="s2">"Summarisation produced no usable summary"</span><span class="p">,</span>
                 <span class="n">details</span><span class="o">=</span><span class="p">{</span>
                     <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">summarised_till</span><span class="p">,</span>  <span class="c1"># type: ignore</span>
+                    <span class="s2">"summarised_internal_till"</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span>
+                        <span class="n">state</span><span class="p">,</span> <span class="s2">"summarised_internal_till"</span><span class="p">,</span> <span class="mi">0</span>
+                    <span class="p">),</span>
                     <span class="s2">"note"</span><span class="p">:</span> <span class="s2">"the model returned blank output; state preserved"</span><span class="p">,</span>
                 <span class="p">},</span>
             <span class="p">)</span>
+        <span class="n">internal_cursor</span> <span class="o">=</span> <span class="n">updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summarised_internal_till"</span><span class="p">)</span>
+        <span class="n">progress</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"user index </span><span class="si">{</span><span class="n">updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'summarised_till'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="n">internal_cursor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">progress</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" and internal index </span><span class="si">{</span><span class="n">internal_cursor</span><span class="si">}</span><span class="s2">"</span>
         <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
             <span class="n">heading</span><span class="o">=</span><span class="s2">"Memory"</span><span class="p">,</span>
-            <span class="n">summary</span><span class="o">=</span><span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Summarised the memory window up to index "</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'summarised_till'</span><span class="p">)</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="si">}</span><span class="s2"> chars)"</span>
-            <span class="p">),</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Summarised memory up to </span><span class="si">{</span><span class="n">progress</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">summary</span><span class="p">)</span><span class="si">}</span><span class="s2"> chars)"</span><span class="p">,</span>
             <span class="n">details</span><span class="o">=</span><span class="p">{</span>
                 <span class="s2">"summary"</span><span class="p">:</span> <span class="n">summary</span><span class="p">,</span>
                 <span class="s2">"summarised_till"</span><span class="p">:</span> <span class="n">updates</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summarised_till"</span><span class="p">),</span>
+                <span class="s2">"summarised_internal_till"</span><span class="p">:</span> <span class="n">internal_cursor</span><span class="p">,</span>
                 <span class="s2">"summary_chars"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">summary</span><span class="p">),</span>
             <span class="p">},</span>
         <span class="p">)</span>

@@ -383,16 +383,18 @@
 <span class="k">class</span><span class="w"> </span><span class="nc">MessageData</span><span class="p">(</span><span class="n">TypedDict</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">"""A single rendered chat message.</span>
 
-<span class="sd">    ``role`` is ``"user"``, ``"agent"`` or ``"tool"``; ``header`` is an</span>
-<span class="sd">    optional small title (used by tool blocks).  Tool messages add the</span>
-<span class="sd">    mime/display/data/meta fields used by the chat-bubble renderer, plus</span>
-<span class="sd">    ``is_error`` for an errored tool result (styled by the renderer).</span>
+<span class="sd">    ``role`` is ``"user"``, ``"agent"``, ``"tool"`` or ``"notice"``; ``header``</span>
+<span class="sd">    is an optional small title (used by tool blocks and notices).  Tool</span>
+<span class="sd">    messages add the mime/display/data/meta fields used by the chat-bubble</span>
+<span class="sd">    renderer, plus ``is_error`` for an errored tool result (styled by the</span>
+<span class="sd">    renderer).  Notices carry an optional ``kind`` for future styling.</span>
 <span class="sd">    """</span>
 
     <span class="n">text</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">stamp</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">role</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">header</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">mime</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">data</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
     <span class="n">meta</span><span class="p">:</span> <span class="n">NotRequired</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
