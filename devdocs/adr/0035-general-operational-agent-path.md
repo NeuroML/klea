@@ -361,12 +361,14 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan;
   3 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->
-  replan), Planner entries (`automated_plan_revisions` -> `unplannable`), and
-  the plan length (`Planner.max_plan_steps`, default 30 -> `unplannable`).
+  replan), Planner entries (`automated_plan_revisions` -> `unplannable`).
+  The plan length itself is deliberately unbounded: long-horizon research
+  tasks may need many focused steps, and the per-step/replan budgets bound the
+  execution loop.
   *(Amended 2026-09-29: the earlier global `tool_rounds` -> `abort` cap on
   total picker+caller rounds was removed - it false-aborted legitimate
-  long/deep or multi-replan plans - and replaced by the fail-closed plan-size
-  guard, which bounds the only genuinely unbounded input.)*  Consecutive empty
+  long/deep or multi-replan plans.  Amended 2026-10-20: the fixed 30-step
+  plan-size cap was also removed for long-horizon tasks.)*  Consecutive empty
   picker selections are bounded in the picker node itself (`picker_attempts`,
   reset on a successful pick or a step change); after the budget the empty
   round proceeds to the Evaluator.
@@ -667,3 +669,22 @@ The agent uses `ToolCallBinder`, a `ToolsPicker` subclass configured with
   contract is enforced before dispatch.
 
 See `devdocs/system/agent-general-path-control-flow.md`.
+
+## Update (2026-10-20): granular plans, no step cap
+
+The Planner prompt now defines a step as one action with one observable
+outcome.  It names one tool identity per tool step (several only as genuine
+alternatives), splits independent reads/actions, and requires a reasoning step
+to answer one bounded question rather than produce a report or the final
+answer.  "Fewest steps" now means fewest *focused* steps, not fewest by
+merging independent work.
+
+`Planner.max_plan_steps` is removed: long-horizon research plans may have many
+steps.  Runaway execution is still guarded by the per-step attempt budget and
+the automated replan budget, which are independent of plan length.  A single
+over-large plan can still cost tokens, so the granularity rules are the
+quality guard, not a hard length limit.
+
+The Reasoning node also starts with the full output-token ceiling (65536,
+provider-clamped) because reasoning models spend most of the completion budget
+on hidden reasoning tokens before emitting the conclusion.

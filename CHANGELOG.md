@@ -190,7 +190,8 @@
 - Plan execution follows the dependency DAG (ADR-0041): per-step `depends_on` defines a frontier, work is bound in same-kind frontier batches (cap 8 steps/16 calls), the binder tags each call with its originating step, the Evaluator returns a per-step verdict map, and same-resource calls are serialised at dispatch. Reasoning steps remain serial.
 - `klea_agent` graph and nodes synced to `BaseLangGraph`/`BaseLLMNode` contracts (shared `ToolsPicker`/`ToolsCaller`, the `ToolCallBinder` subclass, lifecycle parity).
 - The agent runs without a JSON config file: with no `--profile` (and no `KLEA_AGENT_APP_CONFIG_FILE`) it starts from built-in defaults plus the environment, instead of requiring `klea_agent.json`.
-- The global tool-round cap was removed; a runaway plan is now bounded by a fail-closed plan-size limit (`Planner.max_plan_steps`, 30 steps). Tool-error re-picks per step increased from 2 to 3 (ADaPT).
+- The global tool-round cap and the fixed plan-size limit were removed: long-horizon plans may have as many focused steps as needed, while the per-step and replan budgets still bound execution. Tool-error re-picks per step increased from 2 to 3 (ADaPT).
+- Planner steps are now defined as one action with one observable outcome; the prompt splits independent work and requires bounded reasoning conclusions. The Reasoning node starts with the 65536 output-token ceiling (provider-clamped), since hidden reasoning tokens previously truncated the 32768 first attempt before the conclusion.
 
 ### Fixed
 

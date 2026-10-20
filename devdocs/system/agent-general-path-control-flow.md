@@ -442,7 +442,7 @@ level 2 verifier with provenance.
 | step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
 | plan cannot be revised usefully | failure answer | ``automated_plan_revisions`` cap -> ``unplannable`` |
-| plan over ``Planner.max_plan_steps`` (30) | failure answer | Planner fails closed as ``unplannable`` (runaway guard) |
+| long plan | run continues | no step-count cap; the per-step/replan budgets bound execution |
 
 Failure is attributed per call, not per round: successful calls in a round are
 kept and failed calls are re-picked.  Once a call succeeds, the step's earlier
@@ -532,12 +532,17 @@ The deterministic guards bound every loop and mirror RAG's ``RouteEvaluator``:
 counters live in state (incremented by the acting nodes) and the caps are
 enforced deterministically in the Evaluator/Planner ``_update_state`` (not by
 the LLM).  ``tool_retry_counts`` (triage), ``step_attempt_counts`` and
-``automated_plan_revisions`` escalate to a replan/``unplannable``, and
-``Planner.max_plan_steps`` (30) fails an oversized plan closed as
-``unplannable``, so the act/eval loop
-always terminates.  The
-Evaluator prompt uses ``step_incomplete`` only when a specific further call is
-expected, ``need_replan`` when the observations show no progress toward the
+``automated_plan_revisions`` escalate to a replan/``unplannable``, so the
+act/eval loop always terminates.
+
+The plan length is deliberately **not capped**: long-horizon research tasks may
+need many focused steps.  A single oversized plan can still consume tokens, so
+the Planner prompt requires one action/observable outcome per step and forbids
+compressing independent work into a giant step.  The execution loop is bounded
+by the per-step and replan budgets, not by the number of steps.
+
+The Evaluator prompt uses ``step_incomplete`` only when a specific further call
+is expected, ``need_replan`` when the observations show no progress toward the
 criterion, and ``abort`` when they show the goal is unreachable (above).
 
 ## Fault tolerance and resume
