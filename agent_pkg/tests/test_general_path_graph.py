@@ -74,7 +74,7 @@ async def test_general_path_work_loop(monkeypatch):
         "Awaiting review",
         "Awaiting input",
         "Cancelled",
-        "Selecting tools",
+        "Binding tool calls",
         "Running tools",
         "Reasoning",
         "Evaluating",
@@ -93,7 +93,7 @@ async def test_general_path_work_loop(monkeypatch):
     # Planner routing on plan.status and step kind.
     assert ("Planning", "Composing answer") in edges  # unplannable -> failure
     assert ("Planning", "Preparing review") in edges  # review step at the frontier
-    assert ("Planning", "Selecting tools") in edges  # in_progress, tool step
+    assert ("Planning", "Binding tool calls") in edges  # in_progress, tool step
     assert ("Planning", "Reasoning") in edges  # in_progress, reasoning step
     assert ("Planning", "Deciding route") in edges  # chat -> forced router re-entry
 
@@ -113,14 +113,23 @@ async def test_general_path_work_loop(monkeypatch):
     assert ("Awaiting input", "Cancelled") in edges
 
     # Work loop (ADR-0035): act batch -> deterministic triage -> evaluator.
-    assert ("Selecting tools", "Running tools") in edges  # dispatch (incl. empty round)
-    assert ("Selecting tools", "Selecting tools") in edges  # empty pick -> retry
-    assert ("Selecting tools", "Planning") in edges  # deliberate/exhausted pick failure
-    assert ("Running tools", "Selecting tools") in edges  # retry
+    assert (
+        "Binding tool calls",
+        "Running tools",
+    ) in edges  # dispatch (incl. empty round)
+    assert ("Binding tool calls", "Binding tool calls") in edges  # empty pick -> retry
+    assert (
+        "Binding tool calls",
+        "Planning",
+    ) in edges  # deliberate/exhausted pick failure
+    assert ("Running tools", "Binding tool calls") in edges  # retry
     assert ("Running tools", "Evaluating") in edges  # evaluate
     assert ("Running tools", "Planning") in edges  # replan
     assert ("Reasoning", "Evaluating") in edges  # reasoning step judged
-    assert ("Evaluating", "Selecting tools") in edges  # step_incomplete/step_done, tool
+    assert (
+        "Evaluating",
+        "Binding tool calls",
+    ) in edges  # step_incomplete/step_done, tool
     assert ("Evaluating", "Reasoning") in edges  # step_incomplete/step_done, reasoning
     assert ("Evaluating", "Preparing review") in edges  # next frontier head is review
     assert ("Evaluating", "Planning") in edges  # need_replan
@@ -180,6 +189,28 @@ async def test_picker_router_retries_bad_names(monkeypatch):
     state.tool_calls = [ToolCallSchema(tool="", reason="no tool can do this")]
     state.picker_attempts = 0
     assert await agent._picker_router(state) == "replan"
+
+
+@pytest.mark.asyncio
+async def test_binder_router_binds_groups_before_dispatch(monkeypatch):
+    """A usable group routes back to the binder until the batch is bound."""
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+    state.plan = PlanSchema(
+        step_list=[
+            StepSchema(step_number=1, description="read a"),
+            StepSchema(step_number=2, description="read b"),
+        ],
+        status="in_progress",
+    )
+    first = ToolCallSchema(tool="read_file", step=1)
+    state.tool_calls = [first]
+    state.binding_calls = [first]
+
+    assert await agent._picker_router(state) == "bind_next"
+
+    state.binding_calls.append(ToolCallSchema(tool="read_file", step=2))
+    assert await agent._picker_router(state) == "dispatch"
 
 
 def _plan_with_step(

@@ -13,7 +13,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from pathlib import Path
 from typing import Any, final, override
 
 from fastmcp.client.client import CallToolResult
@@ -28,7 +27,7 @@ from klea_utils.nodes.guard import GuardNode
 from klea_utils.nodes.guard_router import GuardRouterNode
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from klea_utils.nodes.tools_caller import ToolsCallerNode
-from klea_utils.nodes.tools_picker import ToolsPicker
+from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from klea_utils.tools import last_tool_error_text
 from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
@@ -44,6 +43,7 @@ from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.reasoning import ReasoningNode
 from klea_agent.nodes.review_progress import ReviewProgress
 from klea_agent.nodes.route_decision import RouteDecision
+from klea_agent.nodes.tool_call_binder import ToolCallBinder
 from klea_agent.nodes.triage_router import (
     TriageRouter,
     current_step_key,
@@ -322,23 +322,46 @@ class KleaAgent(BaseLangGraph):
             return "need_replan"
         return self._next_dispatch(state)
 
-    async def _picker_router(self, state: KleaAgentState) -> str:
-        """Route after the tools picker (ADR-0035).
+    @staticmethod
+    def _has_unbound_batch_steps(state: KleaAgentState) -> bool:
+        """Return whether the current batch still has a step to bind.
 
-        A usable selection is dispatched.  A *deliberate* failure -- no usable
-        call but an explicit reason (a single empty-name call carrying
-        ``reason``) -- goes straight to the Planner; the picker node has
-        already recorded the synthetic observation and ``replan_reason``.  An
+        :param state: Current graph state.
+        :returns: True when a pending batch step has no bound call yet.
+        """
+        plan = getattr(state, "plan", None)
+        if plan is None or not hasattr(plan, "next_batch"):
+            return False
+        batch = plan.next_batch(MAX_BATCH_STEPS)
+        if not batch:
+            return False
+        bound = {
+            int(getattr(call, "step", 0) or 0)
+            for call in (getattr(state, "binding_calls", None) or [])
+            if str(getattr(call, "tool", "") or "").strip()
+        }
+        return any(step.step_number not in bound for step in batch)
+
+    async def _picker_router(self, state: KleaAgentState) -> str:
+        """Route after the tool-call binder (ADR-0035/ADR-0041).
+
+        A usable selection either binds the next tool-set group or is
+        dispatched once every batch step is bound.  A *deliberate* failure --
+        no usable call but an explicit reason (a single empty-name call carrying
+        ``reason``) -- goes straight to the Planner; the binder has already
+        recorded the synthetic observation and ``replan_reason``.  An
         empty/malformed selection with no reason is an emission glitch: it is
         retried a bounded number of times, then escalated to the Planner.
 
         Unknown-but-non-empty names are not retried here: they reach dispatch,
         which reports a clear error that Triage acts on.
 
-        :returns: ``dispatch`` | ``replan`` | ``retry_picker``.
+        :returns: ``bind_next`` | ``dispatch`` | ``replan`` | ``retry_picker``.
         """
         usable = any(tc.tool.strip() for tc in state.tool_calls)
         if usable:
+            if self._has_unbound_batch_steps(state):
+                return "bind_next"
             return "dispatch"
         deliberate = any(
             tc.reason.strip() for tc in state.tool_calls if not tc.tool.strip()
@@ -646,20 +669,15 @@ class KleaAgent(BaseLangGraph):
             memory=self.memory,
             tools_info=self.tools_info,
         )
-        # ToolsPicker/Caller are the shared nodes from ``klea_utils`` (ADR-0020).
-        # ``tools_info`` is the per-domain description map built by
-        # ``BaseLangGraph._build_tools_info`` before ``_create_graph``; the
-        # explicit ``prompt_registry_location`` is required  ---  the shared
-        # class would otherwise resolve ``prompts/`` relative to
-        # ``klea_utils``.  ``model_role="tool_picker"`` gives argument binding
-        # its own role.
-        self._tools_picker_node = ToolsPicker(
+        # The binder narrows the shared picker to the Planner's chosen tools
+        # (ADR-0035/ADR-0041).  ``tools_info`` is the per-domain description
+        # map built by ``BaseLangGraph._build_tools_info`` before
+        # ``_create_graph``; the subclass resolves its sibling ``prompts/``.
+        self._tool_call_binder_node = ToolCallBinder(
             logger=self.logger,
-            label="Selecting tools",
+            label="Binding tool calls",
             llm_models=self.llm_models,
             tools_info=self.tools_info,
-            model_role="tool_picker",
-            prompt_registry_location=Path(__file__).parent / "nodes" / "prompts",
             on_unusable=self._record_picker_failure,
         )
         self._tools_caller_node = ToolsCallerNode(
@@ -731,7 +749,7 @@ class KleaAgent(BaseLangGraph):
         # ``asyncio.gather``.
         self.workflow.add_node(self._planner_node.label, self._planner_node.execute)
         self.workflow.add_node(
-            self._tools_picker_node.label, self._tools_picker_node.execute
+            self._tool_call_binder_node.label, self._tool_call_binder_node.execute
         )
         self.workflow.add_node(
             self._tools_caller_node.label, self._tools_caller_node.execute
@@ -858,7 +876,7 @@ class KleaAgent(BaseLangGraph):
                 "needs_input": self._await_input_node.label,
                 "plan_done": self._answer_from_results_node.label,
                 "chat": self._route_decision_node.label,
-                "tool": self._tools_picker_node.label,
+                "tool": self._tool_call_binder_node.label,
                 "reasoning": self._reasoning_node.label,
             },
         )
@@ -878,7 +896,7 @@ class KleaAgent(BaseLangGraph):
             self._review_router,
             {
                 "planner": self._planner_node.label,
-                "tool": self._tools_picker_node.label,
+                "tool": self._tool_call_binder_node.label,
                 "reasoning": self._reasoning_node.label,
                 "review": self._review_progress_node.label,
                 "plan_done": self._answer_from_results_node.label,
@@ -894,15 +912,18 @@ class KleaAgent(BaseLangGraph):
             },
         )
         self.workflow.add_edge(self._cancelled_answer_node.label, END)
-        # The picker binds arguments; a deliberate failure (no usable call but
-        # a reason) or an exhausted empty-selection retry escalates to the
+        # The binder binds one tool-set group per invocation; `bind_next`
+        # loops until every batch step is bound, then dispatch runs the
+        # accumulated calls in parallel.  A deliberate failure (no usable call
+        # but a reason) or an exhausted empty-selection retry escalates to the
         # Planner, bypassing the caller (which would dispatch nothing).
         self.workflow.add_conditional_edges(
-            self._tools_picker_node.label,
+            self._tool_call_binder_node.label,
             self._picker_router,
             {
+                "bind_next": self._tool_call_binder_node.label,
                 "dispatch": self._tools_caller_node.label,
-                "retry_picker": self._tools_picker_node.label,
+                "retry_picker": self._tool_call_binder_node.label,
                 "replan": self._planner_node.label,
             },
         )
@@ -910,7 +931,7 @@ class KleaAgent(BaseLangGraph):
             self._tools_caller_node.label,
             self._triage_router_node.execute,
             {
-                "retry": self._tools_picker_node.label,
+                "retry": self._tool_call_binder_node.label,
                 "evaluate": self._op_evaluator_node.label,
                 "replan": self._planner_node.label,
             },
@@ -924,7 +945,7 @@ class KleaAgent(BaseLangGraph):
             self._op_evaluator_node.label,
             self._evaluation_router,
             {
-                "tool": self._tools_picker_node.label,
+                "tool": self._tool_call_binder_node.label,
                 "reasoning": self._reasoning_node.label,
                 "review": self._review_progress_node.label,
                 "need_replan": self._planner_node.label,
