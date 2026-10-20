@@ -160,6 +160,10 @@ Instead:
   ``depends_on`` referencing only in-plan and strictly-earlier steps, an
   acyclic graph via ``graphlib``); ``Planner._validate_result`` surfaces any
   error;
+* every ``tool`` step names only tools disclosed at the run's
+  ``access_level``; a tool step is rejected when the catalogue is empty
+  (nothing to bind or dispatch) or when a named tool is unknown or filtered
+  out by ``read_only``;
 * a validation failure triggers a bounded re-invoke through the generic
   ``AbstractLLMNode`` validation-retry loop (``max_validation_retries``;
   the error is exposed to the prompt as ``validation_feedback``).  The loop

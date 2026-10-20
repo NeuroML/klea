@@ -21,7 +21,7 @@ from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
-from klea_agent.schemas import KleaAgentState, PlannerOutput, PlanSchema
+from klea_agent.schemas import KleaAgentState, PlannerOutput, PlanSchema, StepSchema
 
 
 class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
@@ -95,6 +95,24 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         self.max_plan_steps = max_plan_steps
         self._tools_info: dict[str, dict[str, ToolInfo]] = tools_info or {}
 
+    def _disclosed_tools(self, state: KleaAgentState) -> dict[str, dict[str, ToolInfo]]:
+        """Return the tool catalogue filtered by the run's access level.
+
+        Access-level filtering (ADR-0037) is the single source for both the
+        prompt descriptions and the validation of a step's suggested tools.
+
+        :param state: Current graph state (supplies the access level).
+        :returns: Per-domain ``{name: ToolInfo}`` map of disclosed tools.
+        """
+        access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+        tools_info = filter_tools_info(self._tools_info, access_level)
+        self.logger.debug(
+            f"{access_level = }\n"
+            f"disclosed_tools = "
+            f"{[name for domain in tools_info.values() for name in domain]}"
+        )
+        return tools_info
+
     def _get_tool_descriptions(self, state: KleaAgentState) -> str:
         """Return combined compact tool descriptions from ``_tools_info``.
 
@@ -108,13 +126,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :param state: Current graph state (supplies the access level).
         :returns: Compact descriptions joined into one block.
         """
-        access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
-        tools_info = filter_tools_info(self._tools_info, access_level)
-        self.logger.debug(
-            f"{access_level = }\n"
-            f"disclosed_tools = "
-            f"{[name for domain in tools_info.values() for name in domain]}"
-        )
+        tools_info = self._disclosed_tools(state)
         parts = [
             info.short_description or info.description or ""
             for domain_tools in tools_info.values()
@@ -165,6 +177,49 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "tools_description": self._get_tool_descriptions(state),
         }
 
+    def _tool_availability_errors(
+        self,
+        step: StepSchema,
+        available: set[str],
+        configured: set[str],
+        access_level: str,
+    ) -> list[str]:
+        """Return errors for a tool step that names unavailable tools.
+
+        A tool step is only executable when its named tools are disclosed at
+        the run's access level.  With no catalogue at all the picker cannot
+        bind or dispatch anything (and would retry forever after skipping), so
+        the step is rejected before it reaches the picker.
+
+        :param step: The tool step to check.
+        :param available: Names disclosed at the run's access level.
+        :param configured: All configured tool names (before filtering).
+        :param access_level: The active access level (for the message).
+        :returns: Human-readable errors; empty when every tool is available.
+        """
+        if not self._tools_info:
+            return [
+                (
+                    f"step {step.step_number} is a tool step but no tools are "
+                    "available; plan a reasoning step or return unplannable"
+                )
+            ]
+        errors: list[str] = []
+        for tool in step.suggested_tools:
+            if tool in available:
+                continue
+            if tool in configured:
+                errors.append(
+                    f"step {step.step_number} names tool '{tool}', which "
+                    f"access level '{access_level}' does not permit"
+                )
+            else:
+                errors.append(
+                    f"step {step.step_number} names unknown tool '{tool}'; "
+                    "use only tools from the available tools list"
+                )
+        return errors
+
     @override
     def _validate_result(
         self, result: PlannerOutput, state: KleaAgentState, ctx: Any
@@ -182,6 +237,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
           a ``reasoning`` step names none -- unless the step is **blocked** (it
           has ``needs_input`` questions), since a blocked step is a draft that
           is not executed and need not yet be runnable;
+        * every named tool must be disclosed at the run's ``access_level``.  A
+          tool step is invalid when the catalogue is empty (no tools are
+          available to bind or dispatch) or when it names a tool that is
+          unknown or filtered out by ``read_only``;
         * a ``review`` step must gate pending work: it must have at least one
           pending non-review step after it (a trailing review gates nothing);
         * ``needs_input`` status must be accompanied by at least one blocked
@@ -222,6 +281,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 f"{self.max_plan_steps} are allowed - reduce the plan"
             )
         if plan.step_list:
+            access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
+            disclosed = self._disclosed_tools(state)
+            available = {name for domain in disclosed.values() for name in domain}
+            configured = {
+                name for domain in self._tools_info.values() for name in domain
+            }
             errors.extend(plan.validate_plan())
             for step in plan.step_list:
                 if step.needs_input:
@@ -257,9 +322,15 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                             "work it should gate"
                         )
                     continue
-                if step.kind == "tool" and not step.suggested_tools:
-                    errors.append(
-                        f"step {step.step_number} is a tool step but names no tool"
+                if step.kind == "tool":
+                    if self._tools_info and not step.suggested_tools:
+                        errors.append(
+                            f"step {step.step_number} is a tool step but names no tool"
+                        )
+                    errors.extend(
+                        self._tool_availability_errors(
+                            step, available, configured, access_level
+                        )
                     )
                 if step.kind == "reasoning" and step.suggested_tools:
                     errors.append(

@@ -142,7 +142,10 @@ is explicitly `read_only` and not `destructive`; a tool with no
 annotation fails closed.  Enforcement mirrors the path gate:
 
 - **Disclosure:** the Planner and `ToolsPicker` filter `tools_info` by the
-  level, so disallowed tools are never shown to the model.
+  level, so disallowed tools are never shown to the model.  The Planner also
+  validates each step's `suggested_tools` against this disclosed set, so an
+  unknown or access-filtered tool (or any tool step when no tools are
+  available) is rejected and retried before it reaches the picker.
 - **Dispatch:** `dispatch_tool_calls` rejects a disallowed call with the
   same synthetic `is_error` result used for a `checkpaths` denial, before
   it reaches the server.

@@ -32,6 +32,7 @@ class TestPlannerState(unittest.TestCase):
             logger=logging.getLogger("test"),
             label="Planning",
             llm_models={"plan": object()},
+            tools_info={"code": {"read_file": ToolInfo(read_only=True)}},
         )
 
     def test_plan_writes_goal_and_in_progress(self):
@@ -563,11 +564,14 @@ class TestPlannerState(unittest.TestCase):
 class TestPlannerValidation(unittest.TestCase):
     """Kind/tool validation and the unplannable contract (ADR-0035 2026-09-19)."""
 
-    def _planner(self) -> Planner:
+    def _planner(self, tools_info=None) -> Planner:
+        if tools_info is None:
+            tools_info = {"code": {"read_file": ToolInfo(read_only=True)}}
         return Planner(
             logger=logging.getLogger("test"),
             label="Planning",
             llm_models={"plan": object()},
+            tools_info=tools_info,
         )
 
     @staticmethod
@@ -757,6 +761,108 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertIsNotNone(error)
         assert error is not None
         self.assertIn("names no tool", error)
+
+    def test_rejects_tool_step_when_no_tools_available(self):
+        """A tool step is invalid when there is nothing to bind or dispatch."""
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[StepSchema(description="s", suggested_tools=["read_file"])]
+            )
+        )
+        error = self._planner(tools_info={})._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("no tools are available", error)
+
+    def test_rejects_tool_excluded_by_access_level(self):
+        planner = self._planner(
+            tools_info={
+                "code": {
+                    "read_file": ToolInfo(read_only=True),
+                    "write_file": ToolInfo(read_only=False),
+                }
+            }
+        )
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[
+                    StepSchema(description="write", suggested_tools=["write_file"])
+                ]
+            )
+        )
+        error = planner._validate_result(
+            output,
+            KleaAgentState(access_level="read_only"),
+            LLMNodeContext(),
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("does not permit", error)
+        self.assertIn("read_only", error)
+
+    def test_rejects_unknown_tool(self):
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[StepSchema(description="s", suggested_tools=["not_a_tool"])]
+            )
+        )
+        error = self._planner()._validate_result(
+            output, KleaAgentState(), LLMNodeContext()
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("unknown tool", error)
+
+    def test_accepts_disclosed_read_only_tool(self):
+        planner = self._planner(
+            tools_info={
+                "code": {
+                    "read_file": ToolInfo(read_only=True),
+                    "write_file": ToolInfo(read_only=False),
+                }
+            }
+        )
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[
+                    StepSchema(description="read", suggested_tools=["read_file"])
+                ]
+            )
+        )
+        self.assertIsNone(
+            planner._validate_result(
+                output,
+                KleaAgentState(access_level="read_only"),
+                LLMNodeContext(),
+            )
+        )
+
+    def test_blocked_step_skips_tool_name_check(self):
+        """A blocked draft need not name an available tool yet."""
+        planner = self._planner(
+            tools_info={"code": {"write_file": ToolInfo(read_only=False)}}
+        )
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                status="needs_input",
+                step_list=[
+                    StepSchema(
+                        description="write",
+                        needs_input=["which file?"],
+                        suggested_tools=["write_file"],
+                    )
+                ],
+            )
+        )
+        self.assertIsNone(
+            planner._validate_result(
+                output,
+                KleaAgentState(access_level="read_only"),
+                LLMNodeContext(),
+            )
+        )
 
     def test_rejects_reasoning_step_with_tools(self):
         output = PlannerOutput(

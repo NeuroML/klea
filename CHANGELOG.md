@@ -194,6 +194,7 @@
 ### Fixed
 
 - The Planner no longer accepts an invalid plan after the validation-retry budget is exhausted: it now fails closed as `unplannable`, with the validation error in the failure reason, instead of writing and executing the last invalid plan.
+- Plan steps may name only tools disclosed at the run's access level: an unknown or `read_only`-filtered tool, or any tool step when no tools are available, is now rejected and retried, then fails closed as `unplannable` instead of reaching the picker.
 - `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).
 - A conversational turn that the entry router classified as a task is now handed back to the router instead of being answered by the answer-composer (which has no conversation history): the Planner returns a new `chat` status, and the router is forced to reply as chat.
 - The final delivery node never emits a blank reply: an empty `message_for_user` (e.g. a `chat` route whose inline answer was empty) falls back to a clear "please retry" message.
