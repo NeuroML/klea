@@ -456,7 +456,7 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(update["binding_calls"], [])
 
-    def test_plan_recorded_in_messages(self):
+    def test_plan_recorded_in_internal_history(self):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
@@ -468,8 +468,8 @@ class TestPlannerState(unittest.TestCase):
             KleaAgentState(query="q"),
             LLMNodeContext(),
         )
-        self.assertEqual(len(update["messages"]), 1)
-        self.assertIn("Plan (in_progress)", update["messages"][0].content)
+        self.assertEqual(len(update["messages_internal"]), 1)
+        self.assertIn("Plan (in_progress)", update["messages_internal"][0].content)
 
     def test_revision_budget_exhausted_is_unplannable(self):
         planner = Planner(
@@ -654,7 +654,7 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertEqual(update["plan"].step_list, [])
         self.assertIn("plan validation failed", update["failure_reason"])
         self.assertIn(ctx.validation_feedback, update["failure_reason"])
-        self.assertIn("Planning failed", update["messages"][-1].content)
+        self.assertIn("Planning failed", update["messages_internal"][-1].content)
 
     def test_rejects_unplannable_with_steps(self):
         output = PlannerOutput(
@@ -943,7 +943,7 @@ class TestPlannerValidation(unittest.TestCase):
             KleaAgentState(query="q"),
             LLMNodeContext(),
         )
-        content = update["messages"][0].content
+        content = update["messages_internal"][0].content
         self.assertIn("Plan (in_progress)", content)
         self.assertIn("Reason: single read step", content)
 

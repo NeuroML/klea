@@ -112,8 +112,10 @@ class TestSharedStateInheritance:
         state = KleaAgentState()
         assert state.query == ""
         assert state.messages == []
+        assert state.messages_internal == []
         assert state.guard_decision == "safe"
         assert state.summarised_till == 0
+        assert state.summarised_internal_till == 0
         assert state.message_for_user == ""
         assert state.tool_calls == []
         assert state.tool_results == []

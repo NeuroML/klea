@@ -84,13 +84,13 @@ class TestReasoningNode(unittest.TestCase):
         assert "H1" in observations
         assert "Rationale: grounded in obs" in observations
 
-    def test_appends_ai_message_with_rationale(self):
+    def test_appends_internal_message_with_rationale(self):
         update = self._node()._update_state(
             ReasoningSchema(conclusion="H1", rationale="because obs"),
             self._state(),
             LLMNodeContext(),
         )
-        content = update["messages"][-1].content
+        content = update["messages_internal"][-1].content
         assert "Reasoning (step 1): H1" in content
         assert "Rationale: because obs" in content
 

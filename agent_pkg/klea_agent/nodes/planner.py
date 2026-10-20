@@ -402,8 +402,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             )
             update["plan"] = PlanSchema(status="unplannable")
             update["failure_reason"] = reason
-            update["messages"] = [
-                *state.messages,
+            update["messages_internal"] = [
+                *state.messages_internal,
                 AIMessage(content=f"Planning failed: {reason}"),
             ]
             return update
@@ -452,8 +452,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 automated_plan_revisions=revisions,
             )
             update["failure_reason"] = "plan revision budget exhausted"
-            update["messages"] = [
-                *state.messages,
+            update["messages_internal"] = [
+                *state.messages_internal,
                 AIMessage(content="Planning failed: plan revision budget exhausted"),
             ]
             return update
@@ -482,8 +482,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             update["failure_reason"] = (
                 f"plan exceeds the maximum of {self.max_plan_steps} steps"
             )
-            update["messages"] = [
-                *state.messages,
+            update["messages_internal"] = [
+                *state.messages_internal,
                 AIMessage(content=f"Planning failed: {update['failure_reason']}"),
             ]
             self.logger.debug(f"{update = }")
@@ -509,8 +509,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     automated_plan_revisions=revisions,
                 )
                 update["failure_reason"] = "planner returned chat status with steps"
-                update["messages"] = [
-                    *state.messages,
+                update["messages_internal"] = [
+                    *state.messages_internal,
                     AIMessage(content=f"Planning failed: {update['failure_reason']}"),
                 ]
                 self.logger.debug(f"{update = }")
@@ -537,8 +537,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 result.reason
                 or "planner could not produc a plan with the available information"
             )
-            update["messages"] = [
-                *state.messages,
+            update["messages_internal"] = [
+                *state.messages_internal,
                 AIMessage(content=f"Planning failed: {update['failure_reason']}"),
             ]
             self.logger.debug(f"{update = }")
@@ -577,7 +577,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 for question in step.needs_input
             )
             message = f"Plan (needs_input):\n{plan.render()}\nQuestions:\n{lines}"
-            update["messages"] = [*state.messages, AIMessage(content=message)]
+            update["messages_internal"] = [
+                *state.messages_internal,
+                AIMessage(content=message),
+            ]
             self.logger.debug(f"{update = }")
             return update
 
@@ -610,7 +613,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         message = f"Plan ({status}):\n{plan.render()}"
         if result.reason:
             message += f"\nReason: {result.reason}"
-        update["messages"] = [*state.messages, AIMessage(content=message)]
+        update["messages_internal"] = [
+            *state.messages_internal,
+            AIMessage(content=message),
+        ]
         self.logger.debug(f"{update = }")
         return update
 

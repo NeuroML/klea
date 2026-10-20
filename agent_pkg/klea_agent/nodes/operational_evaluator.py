@@ -385,8 +385,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
         if result.overall:
             summary = f"{summary}; overall {result.overall}".strip("; ")
-        update["messages"] = [
-            *state.messages,
+        update["messages_internal"] = [
+            *state.messages_internal,
             AIMessage(content=f"Evaluation: {summary or 'no verdict'}"),
         ]
         self.logger.debug(f"{update = }")

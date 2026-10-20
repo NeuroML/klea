@@ -132,7 +132,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
             "step_outputs": outputs,
             "tool_calls": [],
             "tool_results": [],
-            "messages": [*state.messages, AIMessage(content=message)],
+            "messages_internal": [*state.messages_internal, AIMessage(content=message)],
         }
         self.logger.debug(f"{step = }\n{conclusion = }\n{len(outputs[step]) = }")
         return update

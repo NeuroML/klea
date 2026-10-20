@@ -277,8 +277,8 @@ class TestOperationalEvaluator(unittest.TestCase):
         update = self._evaluator()._update_state(
             _verdict(1, "need_replan", "no progress"), self._state(), LLMNodeContext()
         )
-        self.assertIn("need_replan", update["messages"][-1].content)
-        self.assertIn("no progress", update["messages"][-1].content)
+        self.assertIn("need_replan", update["messages_internal"][-1].content)
+        self.assertIn("no progress", update["messages_internal"][-1].content)
 
     def test_step_incomplete_escalates_at_attempt_budget(self):
         """Repeated ``step_incomplete`` on a step escalates to a replan."""

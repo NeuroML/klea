@@ -15,6 +15,7 @@ from fastmcp.client.client import CallToolResult
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
+from langchain_core.messages import AnyMessage
 from pydantic import BaseModel, Field
 
 
@@ -711,6 +712,13 @@ class KleaAgentState(BaseGraphSchema):
     mode: Mode = Mode()
     route: RouteSchema = RouteSchema()
     evaluation: EvaluationSchema = EvaluationSchema()
+
+    #: Internal run history: plan versions, evaluation verdicts and reasoning
+    #: conclusions.  Not user-visible; retained for provenance and fed to the
+    #: summariser alongside ``messages``.  Checkpointed across turns.
+    messages_internal: list[AnyMessage] = Field(default_factory=list)
+    #: Cursor for ``messages_internal``, parallel to ``summarised_till``.
+    summarised_internal_till: int = 0
 
     # code string if any
     code: CodeSchema = CodeSchema()

@@ -21,7 +21,7 @@ from klea_agent.schemas import (
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 
 @pytest.mark.asyncio
@@ -48,6 +48,8 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
         tool_retry_counts={0: 2},
         step_attempt_counts={0: 1},
         binding_calls=[ToolCallSchema(tool="read_file", step=1)],
+        messages_internal=[AIMessage(content="Plan v1")],
+        summarised_internal_till=7,
         failure_reason="boom",
         evaluation=EvaluationSchema(overall="abort"),
         replan_reason="tool failed",
@@ -64,6 +66,9 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert update["tool_retry_counts"] == {}
     assert update["step_attempt_counts"] == {}
     assert update["binding_calls"] == []
+    # Internal run history is session-scoped and must survive a new turn.
+    assert "messages_internal" not in update
+    assert "summarised_internal_till" not in update
     assert update["failure_reason"] == ""
     assert update["replan_reason"] == ""
     assert update["human_input"] == {}
