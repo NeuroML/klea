@@ -681,6 +681,38 @@ def test_tool_error_adds_its_text_to_feedback():
     assert feedback.startswith("## Feedback on your previous selection")
 
 
+def test_binder_feedback_lists_failed_calls_and_paths():
+    """Binder feedback carries every failed call, not just the last error."""
+    picker = _make_picker(bind_planned_steps=True)
+    state = AgentLikeState(
+        plan=BatchPlan(step_list=[Step(suggested_tools=["web_fetch", "read_file"])]),
+        tool_calls=[
+            ToolCallSchema(
+                tool="web_fetch",
+                args={"url": "https://example.com/194021.json", "content": "free"},
+            ),
+            ToolCallSchema(
+                tool="read_file",
+                args={"path": "/tmp/a.txt", "old_string": "x" * 50},
+            ),
+        ],
+        tool_results=[
+            _error_result("HTTP 404"),
+            _error_result("permission denied"),
+        ],
+    )
+
+    feedback = picker._get_prompt_variables(state, LLMNodeContext())["picker_feedback"]
+
+    assert "https://example.com/194021.json" in feedback
+    assert "/tmp/a.txt" in feedback
+    assert "HTTP 404" in feedback
+    assert "permission denied" in feedback
+    assert "free" not in feedback
+    assert "old_string" not in feedback
+    assert "Do not repeat" in feedback
+
+
 def test_no_error_keeps_empty_selection_feedback():
     """Without a tool error, only the empty-selection message is used."""
     picker = _make_picker()

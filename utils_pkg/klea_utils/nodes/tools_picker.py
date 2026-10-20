@@ -26,7 +26,7 @@ from klea_utils.mcp.schemas import ToolCallSchema, ToolCallsSchema, ToolInfo
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext, NodeContext
-from klea_utils.tools import last_tool_error_text
+from klea_utils.tools import tool_call_errors
 
 #: Maximum plan steps bound in one picker invocation (ADR-0041 batch cap).
 MAX_BATCH_STEPS = 8
@@ -347,7 +347,10 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
         # Derived from the incoming state (thread-isolated), not instance
         # fields (ADR-0033).
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
-        last_error = last_tool_error_text(getattr(state, "tool_results", None))
+        tool_errors = tool_call_errors(
+            getattr(state, "tool_calls", None),
+            getattr(state, "tool_results", None),
+        )
         validation = str(getattr(ctx, "validation_feedback", "") or "").strip()
         allowed_names = (
             sorted(self._binding_allowed_tools(state))
@@ -362,25 +365,28 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 "return a single entry with an empty `tool` and the reason in "
                 "`reason`."
             )
-        elif last_error and self._binding_enabled():
+        elif tool_errors and self._binding_enabled():
             suggested = ", ".join(allowed_names) or "(no suggested tool available)"
             feedback = (
-                "Your previous tool call failed. The error was:\n"
-                f"{last_error}\n"
-                "Fix the arguments of the suggested tool(s) and do not choose "
-                "a different tool. If none can carry out the step, return a "
-                "single entry with an empty `tool` and the reason in `reason`.\n"
+                "Your previous tool call(s) failed. The failed call(s) were:\n"
+                f"{tool_errors}\n"
+                "Correct the arguments of the suggested tool(s). Do not repeat "
+                "any call listed above with identical arguments: it cannot "
+                "succeed. Do not choose a different tool. If none can carry "
+                "out the step, return a single entry with an empty `tool` and "
+                "the reason in `reason`.\n"
                 f"The current step suggests: {suggested}."
             )
-        elif last_error:
+        elif tool_errors:
             feedback = (
-                "Your previous tool call failed. The error was:\n"
-                f"{last_error}\n"
+                "Your previous tool call(s) failed. The failed call(s) were:\n"
+                f"{tool_errors}\n"
                 "Fix the arguments of the same tool so the call can succeed. "
-                "Do not switch to a different tool and do not add new calls. "
-                "If the error shows the step cannot be completed with this "
-                "tool, return a single entry with an empty `tool` and the "
-                "reason in `reason`."
+                "Do not repeat any call listed above with identical arguments: "
+                "it cannot succeed. Do not switch to a different tool and do "
+                "not add new calls. If the error shows the step cannot be "
+                "completed with this tool, return a single entry with an empty "
+                "`tool` and the reason in `reason`."
             )
         elif attempts > 0 and self._binding_enabled():
             suggested = ", ".join(allowed_names) or "(no suggested tool available)"

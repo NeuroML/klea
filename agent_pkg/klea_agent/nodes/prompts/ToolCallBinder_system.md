@@ -52,8 +52,10 @@ different tool.
 * You may return several calls of a suggested tool if a step requires them
   to run in parallel.
 * If your previous call failed, fix the arguments of a suggested tool; do not
-  switch to a different tool.  If the error shows the step cannot be completed,
-  do not invent a workaround.
+  switch to a different tool.  Never repeat a failed call with identical
+  arguments: it cannot succeed.  If no corrected arguments are available, or
+  the error shows the step cannot be completed, return `no_tool` instead of
+  inventing a workaround.
 * Keep your JSON valid and include all required fields for the chosen actions.
 * Output all reasoning, justifications, and text strictly in English.
 
