@@ -249,10 +249,33 @@ def _permission_key(request: Mapping[str, Any]) -> str:
     return str(request.get("directory", ""))
 
 
+def _permission_path_display(request: Mapping[str, Any]) -> str:
+    """Return the bounded target path for a permission request."""
+    return str(
+        request.get("path_display")
+        or request.get("path")
+        or request.get("directory", "")
+    )
+
+
+def _permission_directory_display(request: Mapping[str, Any]) -> str:
+    """Return the bounded approval directory for a permission request."""
+    return str(request.get("directory_display") or request.get("directory", ""))
+
+
+def _permission_scope(request: Mapping[str, Any]) -> str:
+    """Return the session-approval scope when it differs from the target path."""
+    path = str(request.get("path", ""))
+    directory = str(request.get("directory", ""))
+    if request.get("kind") != "sensitive" and path and directory and path != directory:
+        return f"Session approval covers: {_permission_directory_display(request)}"
+    return ""
+
+
 class PermissionPanel(HitlDecisionPanel):
     """An inline ask collecting a once/session/deny decision per requested path.
 
-    Each request (a sensitive file or an outside-project directory, ADR-0007)
+    Each request (a sensitive file or an outside-project path, ADR-0007)
     gets a :class:`~textual.widgets.RadioSet` defaulting to ``deny``; Submit
     posts the per-key decisions, Cancel (or Escape) cancels the ask.
     """
@@ -275,9 +298,10 @@ class PermissionPanel(HitlDecisionPanel):
     @staticmethod
     def _title(request: Mapping[str, Any]) -> str:
         """Return the row title for a request."""
+        path = _permission_path_display(request)
         if request.get("kind") == "sensitive":
-            return f"Sensitive file: {request.get('path', '')}"
-        return f"Outside project: {request.get('directory', '')}"
+            return f"Sensitive file: {path}"
+        return f"Outside project path: {path}"
 
     @staticmethod
     def _hint(request: Mapping[str, Any]) -> str:
@@ -285,10 +309,20 @@ class PermissionPanel(HitlDecisionPanel):
         tool = str(request.get("tool", ""))
         argument = str(request.get("argument", ""))
         confidence = str(request.get("confidence", ""))
-        raw = str(request.get("raw", ""))
+        value = str(request.get("argument_preview") or request.get("raw", ""))
+        raw = str(request.get("raw_preview") or request.get("raw", ""))
+        source = str(request.get("source", ""))
         detail = (
-            f"{tool}: {argument} = {raw} ({confidence})" if tool or argument else ""
+            f"{tool}: {argument} = {value} ({confidence})" if tool or argument else ""
         )
+        if raw and raw not in value:
+            detail = (
+                f"{detail}\nDetected token: {raw}"
+                if detail
+                else f"Detected token: {raw}"
+            )
+        if source:
+            detail = f"{detail}\nSource: {source}" if detail else f"Source: {source}"
         if request.get("kind") == "sensitive":
             note = "Commonly holds credentials."
             return f"{detail} - {note}" if detail else note
@@ -315,6 +349,9 @@ class PermissionPanel(HitlDecisionPanel):
             yield Static(str(question), id="perm-question")
         for index, request in enumerate(self._requests()):
             yield Static(self._title(request))
+            scope = _permission_scope(request)
+            if scope:
+                yield Static(scope)
             hint = self._hint(request)
             if hint:
                 yield Static(hint)

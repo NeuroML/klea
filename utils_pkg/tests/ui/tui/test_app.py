@@ -287,6 +287,80 @@ async def test_permission_interrupt_panel(fake_backend, make_app):
     }
 
 
+async def test_permission_panel_shows_full_path_and_scope(fake_backend, make_app):
+    """The permission panel shows the target path, scope and call context."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "permission",
+                    "requests": [
+                        {
+                            "kind": "outside",
+                            "tool": "read_file",
+                            "argument": "path",
+                            "path": "/tmp/x/file.txt",
+                            "directory": "/tmp/x",
+                            "argument_preview": "read /tmp/x/file.txt",
+                            "confidence": "declared",
+                            "source": "checkpaths:path",
+                        }
+                    ],
+                    "interrupt_id": "p1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(PermissionPanel)
+        texts = [str(widget.render()) for widget in panel.query(Static)]
+        assert any("Outside project path: /tmp/x/file.txt" in text for text in texts)
+        assert any("Session approval covers: /tmp/x" in text for text in texts)
+        assert any("read /tmp/x/file.txt" in text for text in texts)
+        assert any("Source: checkpaths:path" in text for text in texts)
+        app.screen.query_one("#perm-submit", Button).press()
+        await _settle(pilot, app)
+
+
+async def test_permission_panel_uses_bounded_path_preview(fake_backend, make_app):
+    """A bounded path_display is used when the payload carries one."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "permission",
+                    "requests": [
+                        {
+                            "kind": "outside",
+                            "path": "/tmp/" + ("a" * 500) + "/file.txt",
+                            "path_display": "/tmp/aaa... [500 chars omitted] .../file.txt",
+                            "directory": "/tmp",
+                            "confidence": "guess",
+                        }
+                    ],
+                    "interrupt_id": "p1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(PermissionPanel)
+        texts = [str(widget.render()) for widget in panel.query(Static)]
+        assert any("chars omitted" in text for text in texts)
+        app.screen.query_one("#perm-submit", Button).press()
+        await _settle(pilot, app)
+
+
 async def test_permission_panel_with_many_requests_scrolls(fake_backend, make_app):
     """A permission ask with many paths scrolls so Submit stays reachable."""
     requests = [

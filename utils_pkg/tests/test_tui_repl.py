@@ -110,6 +110,39 @@ def test_permission_outside_once(monkeypatch):
     assert cancel is False
 
 
+def test_permission_prompt_shows_path_scope_and_context(monkeypatch, capsys):
+    def fake_input(prompt="", *args, **kwargs):
+        print(prompt, end="")
+        return "o"
+
+    monkeypatch.setattr(builtins, "input", fake_input)
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "permission",
+            "requests": [
+                {
+                    "kind": "outside",
+                    "tool": "read_file",
+                    "argument": "path",
+                    "path": "/etc/hosts",
+                    "directory": "/etc",
+                    "argument_preview": "read /etc/hosts",
+                    "confidence": "declared",
+                    "source": "checkpaths:path",
+                }
+            ],
+        },
+        "klea",
+    )
+    printed = capsys.readouterr().out
+    assert "outside project path /etc/hosts" in printed
+    assert "[session covers /etc]" in printed
+    assert "read /etc/hosts" in printed
+    assert "[source: checkpaths:path]" in printed
+    assert response == {"decisions": [{"key": "/etc", "decision": "once"}]}
+    assert cancel is False
+
+
 def test_permission_guess_offers_not_a_path(monkeypatch):
     """A guessed value lets the user dismiss it as "not a path"."""
     monkeypatch.setattr(builtins, "input", lambda *a, **k: "n")

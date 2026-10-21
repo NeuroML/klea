@@ -28,7 +28,7 @@ def _permission_target(request: dict) -> str:
 def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
     """Prompt for a path-permission ask, one decision per request.
 
-    Each request is shown as an outside-project directory or a sensitive file
+    Each request is shown as an outside-project path or a sensitive file
     with the tool call behind it; the user chooses once / session / deny, or
     cancels the whole ask.  A guessed (heuristic) value also offers
     ``not a path`` to dismiss it.  ``(None, True)`` means cancel.
@@ -46,16 +46,30 @@ def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
         if not isinstance(request, dict):
             continue
         target = _permission_target(request)
-        label = (
-            f"sensitive file {target}"
-            if request.get("kind") == "sensitive"
-            else f"outside project {target}"
+        path = str(
+            request.get("path_display")
+            or request.get("path")
+            or request.get("directory", "")
         )
-        tool = request.get("tool", "")
-        argument = request.get("argument", "")
-        raw = request.get("raw", "")
+        directory = str(
+            request.get("directory_display") or request.get("directory", "")
+        )
+        if request.get("kind") == "sensitive":
+            label = f"sensitive file {path}"
+        else:
+            label = f"outside project path {path}"
+            full_path = str(request.get("path", ""))
+            full_directory = str(request.get("directory", ""))
+            if full_path and full_directory and full_path != full_directory:
+                label += f" [session covers {directory}]"
+        tool = str(request.get("tool", ""))
+        argument = str(request.get("argument", ""))
+        value = str(request.get("argument_preview") or request.get("raw", ""))
+        source = str(request.get("source", ""))
         if tool or argument:
-            label = f"{label} [{tool}: {argument}={raw}]"
+            label = f"{label} [{tool}: {argument}={value}]"
+        if source:
+            label = f"{label} [source: {source}]"
         # "Not a path" is offered only for a guessed (heuristic) value.
         guess = request.get("confidence") == "guess"
         options = "[o]nce / [s]ession / "
