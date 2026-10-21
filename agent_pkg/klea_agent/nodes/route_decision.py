@@ -29,7 +29,7 @@ from klea_agent.schemas import KleaAgentState, RouteSchema
 # answered inline from the (lossy) conversation instead of routed to ``task``,
 # revisit this line.
 class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
-    """Narrow entry router: ``chat`` or ``task`` (ADR-0035).
+    """Narrow entry router: ``chat``, ``task`` or ``continue`` (ADR-0035/0054).
 
     ``chat`` is a self-contained conversational/general-knowledge reply that
     the router answers inline (``answer``); the graph then goes straight to
@@ -37,7 +37,9 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     environment/workspace/session, **or** that derives a result from earlier
     work or turns (summarising, compiling, comparing, synthesising); the Planner
     plans and the tool loop runs (a synthesis needing no environment work is
-    planned as a ``reasoning`` step).
+    planned as a ``reasoning`` step).  ``continue`` is an explicit request to
+    implement or continue the immediately preceding work; it re-plans for the
+    new goal using the retained continuation evidence (ADR-0054).
 
     The decision is **fail-closed**: the default is ``task``, so the router
     answers inline only when it is clearly general conversation/knowledge.
@@ -103,7 +105,7 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
                     "it as `chat`: a conversational reply that needs the "
                     "conversation history, not the task path. Answer it now. Set "
                     "`route` to `chat` and put the reply in `answer`. Do not "
-                    "choose `task`."
+                    "choose `task` or `continue`."
                 )
             ]
             feedback = str(getattr(ctx, "validation_feedback", "")).strip()
@@ -149,8 +151,8 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         """Store the route; write the inline answer for ``chat``.
 
         For ``chat`` the reply is written to ``message_for_user`` and the graph
-        routes to ``AnswerUser``.  For ``task`` nothing else is written and the
-        Planner takes over.
+        routes to ``AnswerUser``.  For ``task`` and ``continue`` nothing else is
+        written; the task boundary and Planner take over.
 
         On a forced re-entry (``state.plan.status == "chat"``) the Planner has
         already decided the request is conversational, so the route is forced to

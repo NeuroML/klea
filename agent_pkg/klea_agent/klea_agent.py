@@ -208,7 +208,7 @@ class KleaAgent(BaseLangGraph):
         return self.graph
 
     async def _route_decision_router(self, state: KleaAgentState) -> str:
-        """Return the entry route (``chat`` or ``task``).
+        """Return the entry route (``chat``, ``task`` or ``continue``).
 
         A Planner ``chat`` status is a forced re-entry: the router's first pass
         called the request ``task`` but the Planner recognised it as
@@ -871,6 +871,7 @@ class KleaAgent(BaseLangGraph):
             {
                 "chat": self._answer_user_node.label,
                 "task": self._planner_node.label,
+                "continue": self._planner_node.label,
             },
         )
         # Planner routing (ADR-0035/ADR-0041): route on ``plan.status``; when

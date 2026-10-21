@@ -17,7 +17,7 @@ from klea_utils.nodes.context import LLMNodeContext
 
 
 class TestRouteDecisionState:
-    """Routing writes: inline chat answer, or task only."""
+    """Routing writes: inline chat answer, or task/continue only."""
 
     def _node(self) -> RouteDecision:
         return RouteDecision(
@@ -42,6 +42,15 @@ class TestRouteDecisionState:
             LLMNodeContext(),
         )
         assert update["route"].route == "task"
+        assert "message_for_user" not in update
+
+    def test_continue_writes_no_message(self):
+        update = self._node()._update_state(
+            RouteSchema(route="continue"),
+            KleaAgentState(query="ok, implement"),
+            LLMNodeContext(),
+        )
+        assert update["route"].route == "continue"
         assert "message_for_user" not in update
 
     def test_chat_without_answer_is_not_delivered(self):

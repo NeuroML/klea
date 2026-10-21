@@ -46,7 +46,7 @@ class TestRouteSchema:
     def test_defaults_to_task(self):
         assert RouteSchema().route == "task"
 
-    @pytest.mark.parametrize("route", ["chat", "task"])
+    @pytest.mark.parametrize("route", ["chat", "task", "continue"])
     def test_accepts_routes(self, route):
         assert RouteSchema(route=route).route == route
 

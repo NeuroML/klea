@@ -6,4 +6,4 @@
 
 ---
 
-Classify the request and, for `chat`, answer it.
+Classify the request as `chat`, `task`, or `continue`; for `chat`, answer it.
