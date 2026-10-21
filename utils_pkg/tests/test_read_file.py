@@ -16,7 +16,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import os
 
 import pytest
-from klea_utils.mcp.tool_impls.read_file import read_file
+from klea_utils.mcp.tool_impls.read_file import _slice_segments, read_file
 from klea_utils.mcp.tool_result import to_result
 
 
@@ -418,6 +418,87 @@ def test_mid_file_offset_pages_lazily(tmp_path):
     assert result["line_start"] == 1500
     assert result["line_end"] == 1502
     assert result["total_lines"] is None
+
+
+def test_slice_segments_forward_returns_effective_offset():
+    """A forward slice keeps the requested offset as the effective offset."""
+    segments, total, effective = _slice_segments("a\nb\nc", 2, 1, 0)
+
+    assert segments == ["b"]
+    assert total == 3
+    assert effective == 2
+
+
+def test_slice_segments_tail_last_line():
+    """Offset -1 returns the last line and a negative line number."""
+    segments, total, effective = _slice_segments("a\nb\nc", -1, None, 0)
+
+    assert segments == ["c"]
+    assert total == 3
+    assert effective == -1
+
+
+def test_slice_segments_tail_last_n_lines():
+    """A negative offset with a limit pages forward from the tail start."""
+    segments, total, effective = _slice_segments("a\nb\nc\nd", -3, 2, 0)
+
+    assert segments == ["b", "c"]
+    assert total == 4
+    assert effective == -3
+
+
+def test_slice_segments_tail_clamps_to_start():
+    """A tail offset beyond the start returns from the first line."""
+    segments, total, effective = _slice_segments("a\nb\nc", -10, None, 0)
+
+    assert segments == ["a", "b", "c"]
+    assert total == 3
+    assert effective == -3
+
+
+def test_slice_segments_tail_empty_content():
+    """An empty file has no tail line; the offset stays as requested."""
+    segments, total, effective = _slice_segments("", -1, None, 0)
+
+    assert segments == []
+    assert total == 0
+    assert effective == -1
+
+
+def test_slice_segments_tail_char_offset():
+    """A tail page can resume inside its first line."""
+    segments, total, effective = _slice_segments("abc\nxyz", -1, None, 1)
+
+    assert segments == ["yz"]
+    assert total == 2
+    assert effective == -1
+
+
+def test_slice_segments_tail_trailing_newline():
+    """A trailing newline does not add an empty tail line."""
+    segments, total, effective = _slice_segments("a\nb\n", -1, None, 0)
+
+    assert segments == ["b"]
+    assert total == 2
+    assert effective == -1
+
+
+def test_slice_segments_tail_crlf():
+    """CRLF content slices by logical lines in a tail read."""
+    segments, total, effective = _slice_segments("a\r\nb\r\n", -1, None, 0)
+
+    assert segments == ["b"]
+    assert total == 2
+    assert effective == -1
+
+
+def test_slice_segments_tail_clamped_with_limit():
+    """A clamped tail limited to two lines starts at the first line."""
+    segments, total, effective = _slice_segments("a\nb\nc", -10, 2, 0)
+
+    assert segments == ["a", "b"]
+    assert total == 3
+    assert effective == -3
 
 
 def test_scan_cap_before_offset_gives_grep_hint(tmp_path):

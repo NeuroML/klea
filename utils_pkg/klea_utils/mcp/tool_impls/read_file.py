@@ -218,8 +218,6 @@ def read_file(
         max_chars = 1
 
     suffix = the_path.suffix.lower()
-    start = offset - 1
-    line_start = start + 1
     had_bom = False
     delimited_raw = False
     streamed = False
@@ -236,7 +234,7 @@ def read_file(
             if data is None:
                 return _too_large_result(the_path, max_bytes)
             html, had_bom = split_bom(data.decode("utf-8", errors="replace"))
-            segments, total_lines = _slice_segments(
+            segments, total_lines, offset = _slice_segments(
                 _html_to_text(html), offset, limit, char_offset
             )
         elif _should_convert(suffix):
@@ -244,7 +242,7 @@ def read_file(
             # guard: a huge document is refused rather than pulled into memory.
             if size is not None and size > max_bytes:
                 return _too_large_result(the_path, max_bytes)
-            segments, total_lines = _slice_segments(
+            segments, total_lines, offset = _slice_segments(
                 _converted_text(the_path), offset, limit, char_offset
             )
         else:
@@ -324,6 +322,10 @@ def read_file(
             "error": str(exc),
         }
 
+    start = offset - 1
+    line_start = start + 1
+    from_end = offset < 0
+
     if line_numbers:
         rendered = [
             f"{line_no}: {segment}"
@@ -353,6 +355,9 @@ def read_file(
     if streamed:
         # A streamed page knows the total only when it reaches EOF.
         truncated = char_limited or not reached_eof
+    elif from_end:
+        # For a tail read, EOF is line -1; an empty file has no line to reach.
+        truncated = char_limited or (bool(total_lines) and line_end != -1)
     else:
         truncated = char_limited or (total_lines is not None and line_end < total_lines)
     if truncated and next_offset is None and kept:
@@ -534,28 +539,41 @@ def _too_large_result(path: Path, max_bytes: int) -> dict[str, Any]:
 
 def _slice_segments(
     content: str, offset: int, limit: int | None, char_offset: int
-) -> tuple[list[str], int]:
-    """Return the raw page lines of *content* and its total line count.
+) -> tuple[list[str], int, int]:
+    """Return the raw page lines of *content*, its total, and the effective offset.
 
-    The first segment may be a suffix of ``offset``'s line when continuing
-    inside an over-long line (``char_offset`` > 0); the rest are whole lines.
+    The first segment may be a suffix of the start line when continuing inside
+    an over-long line (``char_offset`` > 0); the rest are whole lines.
+
+    A negative *offset* counts from the end (``-1`` is the last line).  The
+    returned effective offset is then negative relative to EOF and clamped to
+    the first line when the request reaches past the start.
 
     :param content: Decoded/converted file text.
-    :param offset: 1-indexed line to start from.
-    :param limit: Maximum number of lines, or ``None`` for "to the end".
-    :param char_offset: 0-indexed character within ``offset``'s line.
-    :returns: ``(segments, total_lines)``.
+    :param offset: 1-indexed line to start from; negative counts from the end.
+    :param limit: Maximum number of lines, or ``None`` for no line limit.
+    :param char_offset: 0-indexed character within the start line.
+    :returns: ``(segments, total_lines, effective_offset)``.  For a forward
+        read ``effective_offset`` equals *offset*; for a tail read it is the
+        clamped signed line number (``-total_lines`` at the earliest).
     """
     lines = split_lines(content)
     total_lines = len(lines)
-    start = offset - 1
+    if offset < 0:
+        if total_lines == 0:
+            return [], 0, offset
+        start = max(0, total_lines + offset)
+        effective_offset = start - total_lines
+    else:
+        start = offset - 1
+        effective_offset = offset
     end = None if limit is None else start + limit
     sliced = lines[start:end]
     segments: list[str] = []
     if sliced:
         first = sliced[0][char_offset:] if char_offset else sliced[0]
         segments = [first, *sliced[1:]]
-    return segments, total_lines
+    return segments, total_lines, effective_offset
 
 
 class _BinaryFileError(Exception):
