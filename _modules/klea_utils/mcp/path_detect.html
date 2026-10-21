@@ -350,6 +350,69 @@
 <span class="c1">#: Confidence that a discovered string really is a path, strongest first.</span>
 <span class="n">Confidence</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"declared"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">,</span> <span class="s2">"guess"</span><span class="p">]</span>
 
+<span class="c1">#: Display caps for permission prompts.  The full path and approval key stay in</span>
+<span class="c1">#: the request; only the rendered labels are bounded so a pathological guessed</span>
+<span class="c1">#: string cannot flood the ask.</span>
+<span class="n">MAX_PATH_DISPLAY_CHARS</span> <span class="o">=</span> <span class="mi">240</span>
+<span class="n">MAX_RAW_DISPLAY_CHARS</span> <span class="o">=</span> <span class="mi">160</span>
+<span class="n">MAX_ARGUMENT_PREVIEW_CHARS</span> <span class="o">=</span> <span class="mi">300</span>
+
+
+<div class="viewcode-block" id="truncate_middle">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.truncate_middle">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">truncate_middle</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MAX_PATH_DISPLAY_CHARS</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Truncate *text* in the middle, keeping its start and end.</span>
+
+<span class="sd">    Used for display only.  The start (root/directory) and the end (filename)</span>
+<span class="sd">    are the useful parts of a path; the omitted span is replaced with an</span>
+<span class="sd">    explicit marker so a pathological guessed value is recognisable.</span>
+
+<span class="sd">    :param text: The text to bound.</span>
+<span class="sd">    :param max_chars: Maximum number of visible characters to keep.</span>
+<span class="sd">    :returns: The text unchanged when short, otherwise a middle-truncated</span>
+<span class="sd">        preview with an omission marker.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">max_chars</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text</span>
+    <span class="n">head</span> <span class="o">=</span> <span class="p">(</span><span class="n">max_chars</span> <span class="o">*</span> <span class="mi">2</span><span class="p">)</span> <span class="o">//</span> <span class="mi">3</span>
+    <span class="n">tail</span> <span class="o">=</span> <span class="n">max_chars</span> <span class="o">-</span> <span class="n">head</span>
+    <span class="n">omitted</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">-</span> <span class="n">head</span> <span class="o">-</span> <span class="n">tail</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">text</span><span class="p">[:</span><span class="n">head</span><span class="p">]</span><span class="si">}</span><span class="s2">...[</span><span class="si">{</span><span class="n">omitted</span><span class="si">}</span><span class="s2"> chars omitted]...</span><span class="si">{</span><span class="n">text</span><span class="p">[</span><span class="o">-</span><span class="n">tail</span><span class="p">:]</span><span class="si">}</span><span class="s2">"</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_preview_context</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">MAX_ARGUMENT_PREVIEW_CHARS</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return a bounded window of *value* around *token*.</span>
+
+<span class="sd">    Keeps the detected token in view when it occurs in a long command or file</span>
+<span class="sd">    content string, so the user can tell whether it is a path or ordinary</span>
+<span class="sd">    text.  Falls back to middle truncation when the token cannot be located.</span>
+
+<span class="sd">    :param value: The full argument value.</span>
+<span class="sd">    :param token: The detected path-like token within it.</span>
+<span class="sd">    :param max_chars: Maximum number of visible characters to keep.</span>
+<span class="sd">    :returns: The bounded preview.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">max_chars</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">""</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">max_chars</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">token</span><span class="p">)</span> <span class="k">if</span> <span class="n">token</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+    <span class="k">if</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">truncate_middle</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">max_chars</span><span class="p">)</span>
+    <span class="n">window</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">token</span><span class="p">),</span> <span class="n">max_chars</span><span class="p">)</span>
+    <span class="n">before</span> <span class="o">=</span> <span class="p">(</span><span class="n">max_chars</span> <span class="o">-</span> <span class="n">window</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">index</span> <span class="o">-</span> <span class="n">before</span><span class="p">)</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">),</span> <span class="n">start</span> <span class="o">+</span> <span class="n">max_chars</span><span class="p">)</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="s2">"... "</span> <span class="k">if</span> <span class="n">start</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="n">suffix</span> <span class="o">=</span> <span class="s2">" ..."</span> <span class="k">if</span> <span class="n">end</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">text</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="si">}{</span><span class="n">suffix</span><span class="si">}</span><span class="s2">"</span>
+
 
 <div class="viewcode-block" id="PathRequest">
 <a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.PathRequest">[docs]</a>
@@ -365,6 +428,11 @@
 <span class="sd">    :attr:`kind` is ``outside`` (the path is outside the permitted roots) or</span>
 <span class="sd">    ``sensitive`` (a credential-bearing file inside them).  ``outside`` is</span>
 <span class="sd">    approved per directory, ``sensitive`` per file (:attr:`approval_key`).</span>
+
+<span class="sd">    :attr:`argument_preview` is a bounded, token-centred preview of the full</span>
+<span class="sd">    argument value, used by the approval UI.  :attr:`path` and</span>
+<span class="sd">    :attr:`directory` remain full values for decisions and auditing; use the</span>
+<span class="sd">    display helpers when rendering them.</span>
 <span class="sd">    """</span>
 
     <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span>
@@ -375,6 +443,7 @@
     <span class="n">confidence</span><span class="p">:</span> <span class="n">Confidence</span>
     <span class="n">source</span><span class="p">:</span> <span class="nb">str</span>
     <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"outside"</span><span class="p">,</span> <span class="s2">"sensitive"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"outside"</span>
+    <span class="n">argument_preview</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">approval_key</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -383,7 +452,28 @@
 <span class="sd">        The resolved file for a ``sensitive`` request, the resolved directory</span>
 <span class="sd">        for an ``outside`` one.</span>
 <span class="sd">        """</span>
-        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"sensitive"</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span></div>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"sensitive"</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">directory</span>
+
+<div class="viewcode-block" id="PathRequest.path_display">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.PathRequest.path_display">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">path_display</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a bounded display label for the resolved path."""</span>
+        <span class="k">return</span> <span class="n">truncate_middle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PathRequest.directory_display">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.PathRequest.directory_display">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">directory_display</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a bounded display label for the approval directory."""</span>
+        <span class="k">return</span> <span class="n">truncate_middle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">directory</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="PathRequest.raw_preview">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.PathRequest.raw_preview">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">raw_preview</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a bounded display label for the discovered token."""</span>
+        <span class="k">return</span> <span class="n">truncate_middle</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">raw</span><span class="p">,</span> <span class="n">MAX_RAW_DISPLAY_CHARS</span><span class="p">)</span></div>
+</div>
 
 
 
@@ -598,7 +688,14 @@
     <span class="p">}</span>
     <span class="n">requests</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">PathRequest</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">consider</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">argument</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">confidence</span><span class="p">:</span> <span class="n">Confidence</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">consider</span><span class="p">(</span>
+        <span class="n">raw</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">argument</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">confidence</span><span class="p">:</span> <span class="n">Confidence</span><span class="p">,</span>
+        <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">argument_value</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">resolved</span> <span class="o">=</span> <span class="n">_resolve_against</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">),</span> <span class="n">root</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">resolved</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">return</span>
@@ -630,6 +727,7 @@
             <span class="n">confidence</span><span class="o">=</span><span class="n">confidence</span><span class="p">,</span>
             <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
             <span class="n">kind</span><span class="o">=</span><span class="n">kind</span><span class="p">,</span>
+            <span class="n">argument_preview</span><span class="o">=</span><span class="n">_preview_context</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">argument_value</span><span class="p">),</span> <span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">)),</span>
         <span class="p">)</span>
 
     <span class="n">declared</span> <span class="o">=</span> <span class="n">declared_checkpaths</span><span class="p">(</span><span class="n">tool_info</span><span class="p">)</span>
@@ -639,19 +737,37 @@
     <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">declared</span><span class="p">:</span>
         <span class="n">value</span> <span class="o">=</span> <span class="n">arguments</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)):</span>
-            <span class="n">consider</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"declared"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"checkpaths:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">consider</span><span class="p">(</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"declared"</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">"checkpaths:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">argument_value</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">),</span>
+            <span class="p">)</span>
 
     <span class="c1"># 2. Paths the picker declared for the call.</span>
     <span class="k">for</span> <span class="n">raw</span> <span class="ow">in</span> <span class="n">picker_paths</span> <span class="ow">or</span> <span class="p">[]:</span>
         <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">raw</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
-            <span class="n">consider</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="s2">"paths"</span><span class="p">,</span> <span class="s2">"expected"</span><span class="p">,</span> <span class="s2">"picker"</span><span class="p">)</span>
+            <span class="n">consider</span><span class="p">(</span>
+                <span class="n">raw</span><span class="p">,</span>
+                <span class="s2">"paths"</span><span class="p">,</span>
+                <span class="s2">"expected"</span><span class="p">,</span>
+                <span class="s2">"picker"</span><span class="p">,</span>
+                <span class="n">argument_value</span><span class="o">=</span><span class="n">raw</span><span class="p">,</span>
+            <span class="p">)</span>
 
     <span class="c1"># 3. Argument names that look path-ish.</span>
     <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">arguments</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="n">declared_values</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
             <span class="k">continue</span>
         <span class="k">if</span> <span class="n">is_path_argument_name</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
-            <span class="n">consider</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"guess"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"name:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">consider</span><span class="p">(</span>
+                <span class="n">value</span><span class="p">,</span>
+                <span class="n">name</span><span class="p">,</span>
+                <span class="s2">"guess"</span><span class="p">,</span>
+                <span class="sa">f</span><span class="s2">"name:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">argument_value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+            <span class="p">)</span>
 
     <span class="c1"># 4. Path-like values, including tokens of shell command strings.  A bare</span>
     <span class="c1">#    sensitive filename (``cat .env``) is not path-like but is considered.</span>
@@ -663,7 +779,13 @@
             <span class="k">if</span> <span class="n">_looks_pathlike</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span>
                 <span class="n">include_sensitive</span> <span class="ow">and</span> <span class="n">is_sensitive</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
             <span class="p">):</span>
-                <span class="n">consider</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="s2">"guess"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"value:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                <span class="n">consider</span><span class="p">(</span>
+                    <span class="n">candidate</span><span class="p">,</span>
+                    <span class="n">name</span><span class="p">,</span>
+                    <span class="s2">"guess"</span><span class="p">,</span>
+                    <span class="sa">f</span><span class="s2">"value:</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                    <span class="n">argument_value</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+                <span class="p">)</span>
 
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Detected path requests</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">requests</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span></div>

@@ -416,7 +416,10 @@
 <span class="sd">    The payload is a plain mapping (the stream/interrupt convention): ``kind``</span>
 <span class="sd">    is ``"permission"``, ``question`` is the prompt text, and ``requests`` is</span>
 <span class="sd">    the list of serialized :class:`~klea_utils.mcp.path_detect.PathRequest`</span>
-<span class="sd">    objects for the client to render.</span>
+<span class="sd">    objects for the client to render.  Each request carries the full ``path``</span>
+<span class="sd">    and ``directory`` for decisions plus bounded ``path_display``,</span>
+<span class="sd">    ``directory_display``, ``raw_preview`` and ``argument_preview`` fields for</span>
+<span class="sd">    the UI; the payload's ``raw`` value is capped to ``raw_preview``.</span>
 
 <span class="sd">    :param requests: The outside-path requests to ask about.</span>
 <span class="sd">    :param question: Custom prompt text; defaults to :data:`DEFAULT_QUESTION`.</span>
@@ -426,10 +429,21 @@
         <span class="sa">f</span><span class="s2">"Building permission payload</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">request</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">requests</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
     <span class="p">)</span>
+    <span class="n">payload_requests</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="n">item</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+        <span class="n">item</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+            <span class="n">raw</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">raw_preview</span><span class="p">(),</span>
+            <span class="n">raw_preview</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">raw_preview</span><span class="p">(),</span>
+            <span class="n">raw_length</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">raw</span><span class="p">),</span>
+            <span class="n">path_display</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">path_display</span><span class="p">(),</span>
+            <span class="n">directory_display</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">directory_display</span><span class="p">(),</span>
+        <span class="p">)</span>
+        <span class="n">payload_requests</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
     <span class="k">return</span> <span class="p">{</span>
         <span class="s2">"kind"</span><span class="p">:</span> <span class="s2">"permission"</span><span class="p">,</span>
         <span class="s2">"question"</span><span class="p">:</span> <span class="n">question</span> <span class="ow">or</span> <span class="n">DEFAULT_QUESTION</span><span class="p">,</span>
-        <span class="s2">"requests"</span><span class="p">:</span> <span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">],</span>
+        <span class="s2">"requests"</span><span class="p">:</span> <span class="n">payload_requests</span><span class="p">,</span>
     <span class="p">}</span></div>
 
 
