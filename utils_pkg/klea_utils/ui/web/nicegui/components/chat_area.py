@@ -210,19 +210,51 @@ def _permission_key(request: dict[str, Any]) -> str:
     return str(request.get("directory", ""))
 
 
+def _permission_path_display(request: dict[str, Any]) -> str:
+    """Return the bounded target path for a permission request."""
+    return str(
+        request.get("path_display")
+        or request.get("path")
+        or request.get("directory", "")
+    )
+
+
+def _permission_directory_display(request: dict[str, Any]) -> str:
+    """Return the bounded approval directory for a permission request."""
+    return str(request.get("directory_display") or request.get("directory", ""))
+
+
+def _permission_scope(request: dict[str, Any]) -> str:
+    """Return the session-approval scope when it differs from the target path."""
+    path = str(request.get("path", ""))
+    directory = str(request.get("directory", ""))
+    if request.get("kind") != "sensitive" and path and directory and path != directory:
+        return f"Session approval covers: {_permission_directory_display(request)}"
+    return ""
+
+
 def _permission_hint(request: dict[str, Any]) -> str:
     """Return the tool-call context for a request (tool, argument, value).
 
     Gives the user the tool call behind the ask so they can judge it.  Includes
     the confidence tier: a ``guess`` is a heuristic path-like value (e.g. a
     regex fragment), which is also the only tier offered the "Not a path"
-    choice.
+    choice.  The argument value is a bounded preview; the full target path is
+    shown in the row title.
     """
     tool = str(request.get("tool", ""))
     argument = str(request.get("argument", ""))
     confidence = str(request.get("confidence", ""))
-    raw = str(request.get("raw", ""))
-    detail = f"{tool}: {argument} = {raw} ({confidence})" if tool or argument else ""
+    value = str(request.get("argument_preview") or request.get("raw", ""))
+    raw = str(request.get("raw_preview") or request.get("raw", ""))
+    source = str(request.get("source", ""))
+    detail = f"{tool}: {argument} = {value} ({confidence})" if tool or argument else ""
+    if raw and raw not in value:
+        detail = (
+            f"{detail}\nDetected token: {raw}" if detail else f"Detected token: {raw}"
+        )
+    if source:
+        detail = f"{detail}\nSource: {source}" if detail else f"Source: {source}"
     if request.get("kind") == "sensitive":
         note = "Commonly holds credentials."
         return f"{detail} - {note}" if detail else note
@@ -276,10 +308,12 @@ def _render_permission_form(
             for request in requests:
                 if not isinstance(request, dict):
                     continue
+                path = _permission_path_display(request)
                 if request.get("kind") == "sensitive":
-                    title = f"Sensitive file: {request.get('path', '')}"
+                    title = f"Sensitive file: {path}"
                 else:
-                    title = f"Outside project: {request.get('directory', '')}"
+                    title = f"Outside project path: {path}"
+                scope = _permission_scope(request)
                 hint = _permission_hint(request)
                 key = _permission_key(request)
 
@@ -296,8 +330,12 @@ def _render_permission_form(
                     label_width="20ch",
                     group_width="16rem",
                 )
+                if scope:
+                    ui.label(scope).classes("text-xs text-grey-6")
                 if hint:
-                    ui.label(hint).classes("text-xs text-grey-6")
+                    ui.label(hint).classes("text-xs text-grey-6").style(
+                        "white-space: pre-line"
+                    )
 
         _rows()
 

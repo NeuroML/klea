@@ -242,6 +242,9 @@ async def test_permission_interrupt_outside_renders_and_submits(
             {
                 "kind": "outside",
                 "tool": "read_file",
+                "argument": "path",
+                "raw": "/etc/hosts",
+                "argument_preview": "/etc/hosts",
                 "path": "/etc/hosts",
                 "directory": "/etc",
                 "confidence": "declared",
@@ -253,7 +256,8 @@ async def test_permission_interrupt_outside_renders_and_submits(
     await agent_user.should_not_see("Backend is starting")
     _send(agent_user, "Hello")
     await agent_user.should_see("Permission required", retries=50)
-    await agent_user.should_see("/etc")
+    await agent_user.should_see("Outside project path: /etc/hosts")
+    await agent_user.should_see("Session approval covers: /etc")
 
     agent_user.find("Session").click()
     await asyncio.sleep(0.1)
@@ -279,6 +283,36 @@ async def test_permission_interrupt_outside_renders_and_submits(
     ]
 
 
+async def test_permission_long_path_is_truncated(fake_backend, agent_user):
+    """A pathological guessed path is middle-truncated in the ask."""
+    long_path = "/home/user/" + ("a" * 400) + "/file.txt"
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "outside",
+                "tool": "read_file",
+                "argument": "path",
+                "raw": long_path,
+                "raw_preview": "... " + long_path[:80] + " ...",
+                "argument_preview": "... " + long_path[:80] + " ...",
+                "path": long_path,
+                "path_display": "/home/user/aaa... [400 chars omitted] .../file.txt",
+                "directory": "/home/user",
+                "directory_display": "/home/user",
+                "confidence": "guess",
+                "source": "name:path",
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    await agent_user.should_see("Outside project path: /home/user/aaa")
+    await agent_user.should_see("chars omitted")
+    await agent_user.should_see("Session approval covers: /home/user")
+
+
 async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     """A guessed path value offers a "Not a path" dismissal that submits."""
     fake_backend.stream_events = [
@@ -288,6 +322,8 @@ async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
                 "tool": "run_command",
                 "argument": "command",
                 "raw": "/tmp/",
+                "raw_preview": "/tmp/",
+                "argument_preview": "echo /tmp/",
                 "path": "/tmp",
                 "directory": "/tmp",
                 "confidence": "guess",
@@ -301,6 +337,8 @@ async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     await agent_user.should_see("Permission required", retries=50)
     # The tool call is shown for context, and the guess offers "Not a path".
     await agent_user.should_see("run_command")
+    await agent_user.should_see("echo /tmp/")
+    await agent_user.should_see("Source: value:command")
     await agent_user.should_see("Not a path")
 
     agent_user.find("Not a path").click()
