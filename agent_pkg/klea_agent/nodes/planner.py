@@ -21,7 +21,15 @@ from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
-from klea_agent.schemas import KleaAgentState, PlannerOutput, PlanSchema, StepSchema
+from klea_agent.schemas import (
+    EvaluationSchema,
+    KleaAgentState,
+    PlannerOutput,
+    PlanRevision,
+    PlanSchema,
+    StepSchema,
+    trim_plan_history,
+)
 
 
 class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
@@ -394,6 +402,40 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             status="pending",
         )
 
+    @staticmethod
+    def _plan_history_with_prior(state: KleaAgentState) -> list[PlanRevision]:
+        """Return plan history with the incoming runnable plan appended.
+
+        The active plan is recorded only when it is a real execution attempt
+        being superseded.  Synthetic ``needs_input`` guidance drafts are not
+        recorded: they are a pause mechanism, not an approach that failed.
+
+        :param state: The incoming state, before its transient feedback is
+            cleared.
+        :returns: The FIFO-trimmed history including the prior plan.
+        """
+        history = list(state.plan_history)
+        prior = state.plan
+        if (
+            prior.status != "in_progress"
+            or prior.plan_version <= 0
+            or not prior.step_list
+        ):
+            return history
+        reason = state.replan_reason.strip()
+        if not reason and state.human_feedback.strip():
+            reason = f"Human review: {state.human_feedback.strip()}"
+        if not reason and state.human_input:
+            reason = "Human supplied answers to blocked steps"
+        history.append(
+            PlanRevision(
+                version=prior.plan_version,
+                steps=[step.model_copy(deep=True) for step in prior.step_list],
+                abandoned_reason=reason or "plan superseded",
+            )
+        )
+        return trim_plan_history(history)
+
     @override
     def _update_state(
         self, result: PlannerOutput, state: KleaAgentState, ctx: Any
@@ -424,6 +466,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         ``result.reason`` is also recorded with the plan in ``messages`` for
         continuity.
 
+        The incoming runnable plan is appended to ``plan_history`` with the
+        reason it was abandoned (replan reason, human review feedback, or
+        supplied answers), so later replans can see what already failed.  The
+        last evaluator verdict is cleared: it described the plan being
+        replaced, and keeping it would leak stale step feedback into the new
+        plan.
+
         ``chat`` is the one status that writes neither a goal nor a plan step:
         it hands the request back to ``RouteDecision`` (which has memory) with
         no plan-history message, so the router's conversation context is not
@@ -440,6 +489,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "replan_reason": "",
             "review_progress": "",
             "binding_calls": [],
+            "plan_history": self._plan_history_with_prior(state),
+            "evaluation": EvaluationSchema(),
         }
 
         # --- Plan-history counters (durable run signal) -------------------

@@ -13,10 +13,12 @@ import unittest
 
 from klea_agent.nodes.planner import Planner
 from klea_agent.schemas import (
+    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlannerOutput,
     PlannerPlanSchema,
+    PlanRevision,
     PlanSchema,
     StepSchema,
 )
@@ -440,6 +442,137 @@ class TestPlannerState(unittest.TestCase):
             LLMNodeContext(),
         )
         self.assertEqual(update["replan_reason"], "")
+
+    def test_automated_replan_records_prior_plan(self):
+        """The superseded runnable plan is kept with its replan reason."""
+        prior = PlanSchema(
+            step_list=[
+                StepSchema(
+                    step_number=1,
+                    description="read the old file",
+                    suggested_tools=["read_file"],
+                )
+            ],
+            status="in_progress",
+            plan_version=1,
+            automated_plan_revisions=1,
+        )
+        state = KleaAgentState(
+            plan=prior,
+            replan_reason="tool failed",
+            evaluation=EvaluationSchema(overall="abort"),
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            state,
+            LLMNodeContext(),
+        )
+        self.assertEqual(len(update["plan_history"]), 1)
+        self.assertEqual(update["plan_history"][0].version, 1)
+        self.assertEqual(update["plan_history"][0].abandoned_reason, "tool failed")
+        self.assertEqual(
+            update["plan_history"][0].steps[0].description, "read the old file"
+        )
+        self.assertEqual(update["evaluation"], EvaluationSchema())
+
+    def test_review_revision_records_prior_plan_with_human_reason(self):
+        state = KleaAgentState(
+            human_feedback="please revise step 1",
+            plan=PlanSchema(
+                step_list=[StepSchema(description="s")],
+                status="in_progress",
+                plan_version=1,
+            ),
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            state,
+            LLMNodeContext(),
+        )
+        self.assertEqual(
+            update["plan_history"][0].abandoned_reason,
+            "Human review: please revise step 1",
+        )
+
+    def test_needs_input_draft_is_not_recorded_as_a_failed_plan(self):
+        """A blocked draft is a pause, not an approach that failed."""
+        prior = PlanSchema(
+            status="needs_input",
+            plan_version=2,
+            step_list=[StepSchema(step_number=1, needs_input=["which file?"])],
+        )
+        state = KleaAgentState(
+            plan=prior,
+            plan_history=[PlanRevision(version=1, abandoned_reason="old")],
+            human_input={1: ["models/cell.nml"]},
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            state,
+            LLMNodeContext(),
+        )
+        self.assertEqual([item.version for item in update["plan_history"]], [1])
+
+    def test_plan_history_is_fifo_capped(self):
+        prior = PlanSchema(
+            step_list=[
+                StepSchema(
+                    step_number=1,
+                    description="latest attempt",
+                    suggested_tools=["read_file"],
+                )
+            ],
+            status="in_progress",
+            plan_version=10,
+        )
+        history = [PlanRevision(version=index) for index in range(1, 10)]
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(plan=prior, plan_history=history),
+            LLMNodeContext(),
+        )
+        self.assertEqual(
+            [item.version for item in update["plan_history"]],
+            list(range(2, 11)),
+        )
+
+    def test_first_plan_clears_stale_evaluation(self):
+        update = self._planner()._update_state(
+            PlannerOutput(
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ]
+                )
+            ),
+            KleaAgentState(evaluation=EvaluationSchema(overall="abort")),
+            LLMNodeContext(),
+        )
+        self.assertEqual(update["evaluation"], EvaluationSchema())
 
     def test_plan_write_resets_binding_calls(self):
         """A new plan invalidates any calls bound for the previous one."""
