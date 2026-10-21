@@ -392,9 +392,19 @@
         <span class="n">details</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{})</span>
         <span class="n">usage</span> <span class="o">=</span> <span class="n">chat</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span>
             <span class="s2">"token_usage"</span><span class="p">,</span>
-            <span class="p">{</span><span class="s2">"input_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">"total_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
+            <span class="p">{</span>
+                <span class="s2">"input_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                <span class="s2">"total_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                <span class="s2">"cached_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+            <span class="p">},</span>
         <span class="p">)</span>
-        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"input_tokens"</span><span class="p">,</span> <span class="s2">"output_tokens"</span><span class="p">,</span> <span class="s2">"total_tokens"</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">"input_tokens"</span><span class="p">,</span>
+            <span class="s2">"output_tokens"</span><span class="p">,</span>
+            <span class="s2">"total_tokens"</span><span class="p">,</span>
+            <span class="s2">"cached_tokens"</span><span class="p">,</span>
+        <span class="p">):</span>
             <span class="n">usage</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">+=</span> <span class="n">details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
         <span class="k">return</span> <span class="s2">"usage"</span>
 

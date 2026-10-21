@@ -451,7 +451,28 @@
 
     <span class="n">input_tokens</span><span class="p">:</span> <span class="nb">int</span>
     <span class="n">output_tokens</span><span class="p">:</span> <span class="nb">int</span>
-    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span></div>
+    <span class="n">total_tokens</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">cached_tokens</span><span class="p">:</span> <span class="nb">int</span></div>
+
+
+
+<div class="viewcode-block" id="format_token_usage">
+<a class="viewcode-back" href="../../../api/utils/ui-nicegui.html#klea_utils.ui.state.format_token_usage">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">format_token_usage</span><span class="p">(</span><span class="n">usage</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Format accumulated token usage for the web/TUI status line.</span>
+
+<span class="sd">    ``cached_tokens`` is a subset of ``input_tokens`` (cache reads), so it is</span>
+<span class="sd">    shown parenthetically only when non-zero rather than added to the totals.</span>
+
+<span class="sd">    :param usage: The chat's ``token_usage`` mapping.</span>
+<span class="sd">    :returns: ``"&lt;in&gt; in (&lt;cached&gt; cached) / &lt;out&gt; out"``, or</span>
+<span class="sd">        ``"&lt;in&gt; in / &lt;out&gt; out"`` when no tokens were cached.</span>
+<span class="sd">    """</span>
+    <span class="n">input_tokens</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"input_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">output_tokens</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"output_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">cached_tokens</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cached_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">cached</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" (</span><span class="si">{</span><span class="n">cached_tokens</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> cached)"</span> <span class="k">if</span> <span class="n">cached_tokens</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">input_tokens</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> in</span><span class="si">{</span><span class="n">cached</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">output_tokens</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> out"</span></div>
 
 
 
@@ -579,6 +600,7 @@
                 <span class="s2">"input_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
                 <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
                 <span class="s2">"total_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                <span class="s2">"cached_tokens"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
             <span class="p">},</span>
         <span class="p">}</span>
     <span class="k">else</span><span class="p">:</span>

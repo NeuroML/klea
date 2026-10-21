@@ -336,7 +336,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span><span class="p">,</span> <span class="n">parse_model_name</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.inspect_format</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_details</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.model_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">role_label</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_token_usage</span><span class="p">,</span> <span class="n">missing_credentials</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">TuiContext</span>
@@ -348,11 +348,9 @@
 <span class="w">    </span><span class="sd">"""Format the token usage totals.</span>
 
 <span class="sd">    :param usage: The chat's ``token_usage`` dict.</span>
-<span class="sd">    :returns: ``"&lt;in&gt; in / &lt;out&gt; out"`` with thousands separators.</span>
+<span class="sd">    :returns: The shared usage line, including cached reads when present.</span>
 <span class="sd">    """</span>
-    <span class="k">return</span> <span class="p">(</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'input_tokens'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> in / </span><span class="si">{</span><span class="n">usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'output_tokens'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> out"</span>
-    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">format_token_usage</span><span class="p">(</span><span class="n">usage</span><span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>

@@ -869,7 +869,8 @@
 <span class="sd">        ``usage_metadata`` (LangChain-normalised) and</span>
 <span class="sd">        ``response_metadata['token_usage']`` (raw provider payload) use</span>
 <span class="sd">        different key names; return a common shape so callers do not care which</span>
-<span class="sd">        the provider populated.</span>
+<span class="sd">        the provider populated.  ``cached_tokens`` is the cache-read count</span>
+<span class="sd">        only; cache-creation/write tokens remain part of the input count.</span>
 
 <span class="sd">        :param output: The raw ``AIMessage``.</span>
 <span class="sd">        :returns: ``(counts, source)``, or ``(None, "")`` when neither shape</span>
@@ -878,8 +879,10 @@
         <span class="n">meta</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">usage_metadata</span>
         <span class="k">if</span> <span class="n">meta</span><span class="p">:</span>
             <span class="n">output_details</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"output_token_details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
-            <span class="c1"># langchain-anthropic nests cache counters under ``input_token_details``;</span>
-            <span class="c1"># other providers expose them at the top level.</span>
+            <span class="c1"># langchain-anthropic nests cache counters under</span>
+            <span class="c1"># ``input_token_details``; other providers expose them at the top</span>
+            <span class="c1"># level.  ``cached_tokens`` means cache-read (served-from-cache)</span>
+            <span class="c1"># tokens only; cache-creation/write tokens are normal input.</span>
             <span class="n">input_details</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"input_token_details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
             <span class="k">return</span> <span class="p">(</span>
                 <span class="p">{</span>
@@ -887,7 +890,6 @@
                     <span class="s2">"output_tokens"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"output_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">),</span>
                     <span class="s2">"cached_tokens"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
                         <span class="n">input_details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cache_read"</span><span class="p">)</span>
-                        <span class="ow">or</span> <span class="n">input_details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cache_creation"</span><span class="p">)</span>
                         <span class="ow">or</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cache_read_input_tokens"</span><span class="p">)</span>
                         <span class="ow">or</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cached_tokens"</span><span class="p">)</span>
                         <span class="ow">or</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"prompt_cache_hit_tokens"</span><span class="p">)</span>
@@ -901,6 +903,7 @@
         <span class="n">raw</span> <span class="o">=</span> <span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">response_metadata</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"token_usage"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">raw</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">""</span>
+        <span class="n">raw_details</span> <span class="o">=</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"prompt_tokens_details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
         <span class="k">return</span> <span class="p">(</span>
             <span class="p">{</span>
                 <span class="s2">"input_tokens"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
@@ -910,7 +913,10 @@
                     <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"completion_tokens"</span><span class="p">,</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"output_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span> <span class="ow">or</span> <span class="mi">0</span>
                 <span class="p">),</span>
                 <span class="s2">"cached_tokens"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>
-                    <span class="p">(</span><span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"prompt_tokens_details"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cached_tokens"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+                    <span class="n">raw_details</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cached_tokens"</span><span class="p">)</span>
+                    <span class="ow">or</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cache_read_input_tokens"</span><span class="p">)</span>
+                    <span class="ow">or</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"cached_tokens"</span><span class="p">)</span>
+                    <span class="ow">or</span> <span class="n">raw</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"prompt_cache_hit_tokens"</span><span class="p">)</span>
                     <span class="ow">or</span> <span class="mi">0</span>
                 <span class="p">),</span>
                 <span class="s2">"reasoning_tokens"</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span>

@@ -329,7 +329,12 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span><span class="p">,</span> <span class="n">parse_model_name</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.linkify</span><span class="w"> </span><span class="kn">import</span> <span class="n">linkify_md</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatData</span><span class="p">,</span> <span class="n">chats</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ChatData</span><span class="p">,</span>
+    <span class="n">chats</span><span class="p">,</span>
+    <span class="n">format_token_usage</span><span class="p">,</span>
+    <span class="n">missing_credentials</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -500,10 +505,7 @@
 
                 <span class="n">token_usage</span> <span class="o">=</span> <span class="n">current_chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"token_usage"</span><span class="p">,</span> <span class="p">{})</span>
                 <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">token_usage</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
-                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">token_usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'input_tokens'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> in / "</span>
-                        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">token_usage</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'output_tokens'</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="si">:</span><span class="s2">,</span><span class="si">}</span><span class="s2"> out"</span>
-                    <span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs mb-0"</span><span class="p">)</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">format_token_usage</span><span class="p">(</span><span class="n">token_usage</span><span class="p">))</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs mb-0"</span><span class="p">)</span>
                 <span class="n">ui</span><span class="o">.</span><span class="n">separator</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"my-0.5"</span><span class="p">)</span>
 
             <span class="c1"># The state sections scroll under the sticky header.</span>

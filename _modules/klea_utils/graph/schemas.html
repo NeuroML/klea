@@ -336,7 +336,8 @@
     <span class="c1">#: Hidden reasoning/thinking tokens reported by the provider (subset of</span>
     <span class="c1">#: ``output_tokens`` when the provider exposes them).</span>
     <span class="n">reasoning_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="c1">#: Prompt tokens served from the provider's prompt cache.</span>
+    <span class="c1">#: Prompt tokens served from the provider's prompt cache (cache reads</span>
+    <span class="c1">#: only; cache-creation/write tokens remain part of ``input_tokens``).</span>
     <span class="n">cached_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="c1">#: Model role that produced this usage (e.g. ``chat``, ``plan``, ``guard``).</span>
     <span class="n">role</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span></div>
