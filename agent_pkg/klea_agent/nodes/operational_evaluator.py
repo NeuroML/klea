@@ -390,7 +390,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
         if result.overall:
             summary = f"{summary}\n- overall {result.overall}".strip("\n")
-        self._emit_notice(f"Evaluating:\n{summary or 'no verdict'}")
+        # no label required since emit_notice adds the node label already
+        self._emit_notice(f"\n{summary or 'no verdict'}")
         update["messages_internal"] = [
             *state.messages_internal,
             AIMessage(content=f"Evaluation: {summary or 'no verdict'}"),
