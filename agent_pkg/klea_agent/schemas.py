@@ -407,6 +407,46 @@ class PlanSchema(PlannerPlanSchema):
         )
 
 
+#: Maximum number of superseded plan versions retained for the Planner and the
+#: guidance HITL ask.  The active plan is shown separately, so this keeps the
+#: visible total at 10 plan versions.  The cap is independent of the automated
+#: replan budget, which resets when a human supplies input.
+MAX_PREVIOUS_PLANS = 9
+
+
+class PlanRevision(BaseModel):
+    """One superseded plan version and why it was abandoned.
+
+    Stored in :attr:`KleaAgentState.plan_history` as a bounded FIFO.  It lets a
+    replan see the approaches that already failed and lets the human at a
+    guidance interrupt see what has been tried.  The active plan stays in
+    :attr:`KleaAgentState.plan` and is not stored here.
+    """
+
+    version: int = 0
+    steps: list[StepSchema] = Field(default_factory=list)
+    abandoned_reason: str = ""
+
+    def render_body(self) -> str:
+        """Render the abandonment reason and steps as a prompt/UI body."""
+        reason = self.abandoned_reason.strip() or "(no reason recorded)"
+        steps = "\n".join(step.render() for step in self.steps) or "(no steps)"
+        return f"Abandoned: {reason}\nSteps:\n{steps}"
+
+    def render(self) -> str:
+        """Render the version with its heading for the Planner prompt."""
+        return f"### Plan version {self.version}\n{self.render_body()}"
+
+
+def trim_plan_history(history: list[PlanRevision]) -> list[PlanRevision]:
+    """Return the FIFO-capped history of superseded plan versions.
+
+    :param history: The full append-ordered history.
+    :returns: The most recent :data:`MAX_PREVIOUS_PLANS` entries.
+    """
+    return history[-MAX_PREVIOUS_PLANS:]
+
+
 class GoalSchema(BaseModel):
     goal: str = ""
     success_criteria: str = ""
@@ -729,6 +769,10 @@ class KleaAgentState(BaseGraphSchema):
     # planning related
     goal: GoalSchema = GoalSchema()
     plan: PlanSchema = PlanSchema()
+    #: Superseded plan versions, newest last, capped by
+    #: :data:`MAX_PREVIOUS_PLANS`.  Reset per turn; survives human input and
+    #: review revisions so a later replan can see what already failed.
+    plan_history: list[PlanRevision] = Field(default_factory=list)
     step_outputs: dict[int, list[StepOutput]] = Field(default_factory=dict)
     # per-step re-pick counter for the ADaPT tool-error escalation policy
     tool_retry_counts: dict[int, int] = Field(default_factory=dict)
@@ -783,6 +827,43 @@ class KleaAgentState(BaseGraphSchema):
 
     # { id -> artefact }
     artefacts: dict[str, ArtefactSchema] = Field(default_factory=dict)
+
+    def previous_plans_text(self) -> str:
+        """Render the superseded plan versions for the Planner prompt.
+
+        :returns: The rendered versions, or ``""`` when none were superseded.
+        """
+        return "\n\n".join(revision.render() for revision in self.plan_history)
+
+    def plan_history_sections(
+        self, *, include_current: bool = True
+    ) -> list[dict[str, str]]:
+        """Return previous (and optionally active) plans as HITL sections.
+
+        The same rendering feeds the guidance ask so the user can see what was
+        already tried and why it was abandoned.
+
+        :param include_current: Include the active plan as a final section.
+        :returns: ``{"title": ..., "body": ...}`` sections in plan order.
+        """
+        sections = [
+            {
+                "title": f"Plan version {revision.version} (abandoned)",
+                "body": revision.render_body(),
+            }
+            for revision in self.plan_history
+        ]
+        if include_current and self.plan.step_list:
+            body = (
+                "\n".join(step.render() for step in self.plan.step_list) or "(no steps)"
+            )
+            sections.append(
+                {
+                    "title": f"Current plan version {self.plan.plan_version}",
+                    "body": body,
+                }
+            )
+        return sections
 
     def observations_text(self) -> str:
         """Render all recorded step outputs as one text block.

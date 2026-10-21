@@ -16,6 +16,7 @@ from klea_agent.schemas import (
     EvaluationSchema,
     KleaAgentState,
     Mode,
+    PlanRevision,
     PlanSchema,
     RouteSchema,
     StepSchema,
@@ -45,6 +46,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
             human_feedback_rounds=1,
             automated_plan_revisions=1,
         ),
+        plan_history=[PlanRevision(version=1, abandoned_reason="old plan")],
         tool_retry_counts={0: 2},
         step_attempt_counts={0: 1},
         binding_calls=[ToolCallSchema(tool="read_file", step=1)],
@@ -62,6 +64,7 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     assert update["plan"].plan_version == 0
     assert update["plan"].human_feedback_rounds == 0
     assert update["plan"].automated_plan_revisions == 0
+    assert update["plan_history"] == []
     assert update["goal"].goal == ""
     assert update["tool_retry_counts"] == {}
     assert update["step_attempt_counts"] == {}

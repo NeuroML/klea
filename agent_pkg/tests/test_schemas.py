@@ -13,17 +13,20 @@ from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.nodes.answer_from_results import AnswerSchema
 from klea_agent.schemas import (
+    MAX_PREVIOUS_PLANS,
     EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlannerOutput,
     PlannerPlanSchema,
+    PlanRevision,
     PlanSchema,
     ReasoningSchema,
     RouteSchema,
     StepEvaluation,
     StepOutput,
     StepSchema,
+    trim_plan_history,
 )
 from klea_utils.graph.schemas import TokenUsage
 from klea_utils.graph.state import BaseGraphSchema
@@ -52,6 +55,44 @@ class TestPlanSchema:
     @pytest.mark.parametrize("status", ["in_progress", "unplannable"])
     def test_entry_statuses_accepted(self, status):
         assert PlanSchema(status=status).status == status
+
+
+class TestPlanRevision:
+    """Superseded plan versions render and stay FIFO-bounded."""
+
+    def test_render_includes_reason_and_steps(self):
+        revision = PlanRevision(
+            version=2,
+            steps=[StepSchema(step_number=1, description="read the input")],
+            abandoned_reason="tool failed",
+        )
+        rendered = revision.render()
+        assert "Plan version 2" in rendered
+        assert "Abandoned: tool failed" in rendered
+        assert "read the input" in rendered
+
+    def test_previous_plans_text_and_sections(self):
+        history = [PlanRevision(version=1, abandoned_reason="first attempt")]
+        state = KleaAgentState(
+            plan_history=history,
+            plan=PlanSchema(
+                step_list=[StepSchema(step_number=1, description="try again")],
+                plan_version=2,
+            ),
+        )
+        assert "Plan version 1" in state.previous_plans_text()
+        sections = state.plan_history_sections()
+        assert [section["title"] for section in sections] == [
+            "Plan version 1 (abandoned)",
+            "Current plan version 2",
+        ]
+        assert len(state.plan_history_sections(include_current=False)) == 1
+
+    def test_trim_plan_history_keeps_the_most_recent(self):
+        history = [PlanRevision(version=index) for index in range(12)]
+        trimmed = trim_plan_history(history)
+        assert len(trimmed) == MAX_PREVIOUS_PLANS
+        assert [revision.version for revision in trimmed] == list(range(3, 12))
 
 
 class TestEvaluationSchema:
@@ -656,6 +697,13 @@ class TestCheckpointMsgpack:
                 human_feedback_rounds=1,
                 automated_plan_revisions=1,
             ),
+            "plan_history": [
+                PlanRevision(
+                    version=1,
+                    steps=[StepSchema(description="old")],
+                    abandoned_reason="old plan failed",
+                )
+            ],
             "tool_calls": [ToolCallSchema(tool="list_files", args={"path": "."})],
             "step_outputs": {
                 1: [

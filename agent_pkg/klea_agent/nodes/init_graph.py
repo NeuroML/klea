@@ -73,6 +73,7 @@ class InitGraphState(
             "message_for_user": "",
             "command_route": "",
             "plan": PlanSchema(),
+            "plan_history": [],
             "goal": GoalSchema(),
             "route": RouteSchema(),
             "evaluation": EvaluationSchema(),
