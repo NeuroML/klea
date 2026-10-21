@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
         <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.1 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
         <title>klea_utils.nodes.tools_picker - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -378,6 +378,9 @@
     <span class="c1">#: Binder mode retries an off-contract selection before failing closed.</span>
     <span class="c1">#: Picker mode does not validate selections, so this is inert for RAG.</span>
     <span class="n">max_validation_retries</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="c1">#: Prompt variable and heading for the conditional feedback section.</span>
+    <span class="n">feedback_key</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"picker_feedback"</span>
+    <span class="n">feedback_title</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"Feedback on your previous selection"</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -649,11 +652,19 @@
                 <span class="k">if</span> <span class="n">steps</span>
                 <span class="k">else</span> <span class="s2">"(no plan)"</span>
             <span class="p">)</span>
-        <span class="c1"># A conditional user-prompt section, composed whole and omitted</span>
-        <span class="c1"># entirely on a normal pick (prompt conventions).  The volatile</span>
-        <span class="c1"># content belongs in the user prompt, not the cacheable system prefix.</span>
-        <span class="c1"># Derived from the incoming state (thread-isolated), not instance</span>
-        <span class="c1"># fields (ADR-0033).</span>
+        <span class="n">variables</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">feedback_key</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">feedback_title</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_feedback_body</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">variables</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_feedback_body</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the picker/binder feedback body, or ``""`` when there is none.</span>
+
+<span class="sd">        A conditional user-prompt section, composed whole and omitted entirely</span>
+<span class="sd">        on a normal pick.  The volatile content belongs in the user prompt,</span>
+<span class="sd">        not the cacheable system prefix.  Derived from the incoming state</span>
+<span class="sd">        (thread-isolated), not instance fields (ADR-0033).</span>
+<span class="sd">        """</span>
         <span class="n">attempts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"picker_attempts"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
         <span class="n">tool_errors</span> <span class="o">=</span> <span class="n">tool_call_errors</span><span class="p">(</span>
             <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
@@ -713,10 +724,7 @@
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">feedback</span> <span class="o">=</span> <span class="s2">""</span>
-        <span class="n">variables</span><span class="p">[</span><span class="s2">"picker_feedback"</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_optional_section</span><span class="p">(</span>
-            <span class="s2">"Feedback on your previous selection"</span><span class="p">,</span> <span class="n">feedback</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="n">variables</span>
+        <span class="k">return</span> <span class="n">feedback</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_selection_key</span><span class="p">(</span><span class="n">call</span><span class="p">:</span> <span class="n">ToolCallSchema</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>

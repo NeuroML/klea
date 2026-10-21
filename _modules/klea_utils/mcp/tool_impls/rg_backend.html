@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html"><link rel="search" title="Search" href="../../../../search.html">
         <link rel="prefetch" href="../../../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.1 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
         <title>klea_utils.mcp.tool_impls.rg_backend - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=7bdb33bb" />
@@ -322,6 +322,12 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.grep_hunks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_CONTEXT_LINES</span><span class="p">,</span>
+    <span class="n">DEFAULT_MAX_CHARS</span><span class="p">,</span>
+    <span class="n">build_hunk</span><span class="p">,</span>
+    <span class="n">clamp_context_lines</span><span class="p">,</span>
+<span class="p">)</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">_terminate_process_group</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.walk</span><span class="w"> </span><span class="kn">import</span> <span class="n">SKIP_DIRECTORIES</span>
 
@@ -521,12 +527,13 @@
     <span class="k">return</span> <span class="n">lines</span><span class="p">,</span> <span class="n">stderr</span><span class="p">,</span> <span class="n">returncode</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="s2">""</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_parse_match_line</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Parse one ``rg --json`` line into a match dict, or ``None``.</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_parse_record_line</span><span class="p">(</span><span class="n">raw</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Parse one ``rg --json`` line into a match/context record, or ``None``.</span>
 
 <span class="sd">    :param raw: A single raw stdout line from ripgrep.</span>
-<span class="sd">    :returns: ``{path, line_number, line}`` for a ``match`` record; ``None``</span>
-<span class="sd">        for other record types, oversized, or malformed lines.</span>
+<span class="sd">    :returns: ``{type, path, line_number, line}`` for a ``match`` or</span>
+<span class="sd">        ``context`` record; ``None`` for other record types, oversized, or</span>
+<span class="sd">        malformed lines.</span>
 <span class="sd">    """</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">_MAX_RECORD_BYTES</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping oversized ripgrep record (</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="si">}</span><span class="s2"> bytes)"</span><span class="p">)</span>
@@ -536,7 +543,10 @@
     <span class="k">except</span> <span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">JSONDecodeError</span><span class="p">,</span> <span class="ne">UnicodeDecodeError</span><span class="p">):</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Skipping unparseable ripgrep record"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"match"</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">record</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">kind</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"type"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">"match"</span><span class="p">,</span> <span class="s2">"context"</span><span class="p">}:</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="n">data</span> <span class="o">=</span> <span class="n">record</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
@@ -546,9 +556,10 @@
         <span class="n">line</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="s2">"lines"</span><span class="p">][</span><span class="s2">"text"</span><span class="p">]</span>
         <span class="n">line_number</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"line_number"</span><span class="p">])</span>
     <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">"Skipping malformed ripgrep match record"</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping malformed ripgrep </span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2"> record"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"type"</span><span class="p">:</span> <span class="n">kind</span><span class="p">,</span>
         <span class="s2">"path"</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span>
         <span class="s2">"line_number"</span><span class="p">:</span> <span class="n">line_number</span><span class="p">,</span>
         <span class="s2">"line"</span><span class="p">:</span> <span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s2">"</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">),</span>
@@ -567,7 +578,7 @@
 
 <span class="sd">    :param pattern: The pattern searched for.</span>
 <span class="sd">    :param path: The directory searched.</span>
-<span class="sd">    :param matches: Matching lines.</span>
+<span class="sd">    :param matches: Hunks, each a ``{path, start_line, end_line, lines}`` dict.</span>
 <span class="sd">    :param truncated: Whether results were cut short by a cap.</span>
 <span class="sd">    :param error: Empty on success; a message otherwise.</span>
 <span class="sd">    :returns: The result dict.</span>
@@ -582,6 +593,88 @@
     <span class="p">}</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_hunks</span><span class="p">(</span>
+    <span class="n">records</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Group parsed ripgrep records into hunks and apply the result caps.</span>
+
+<span class="sd">    :param records: Parsed ``match``/``context`` records in output order.</span>
+<span class="sd">    :param max_results: Maximum number of matching lines to return.</span>
+<span class="sd">    :param max_chars: Maximum total characters of lines to return.</span>
+<span class="sd">    :returns: ``(hunks, truncated, matched_lines)``.</span>
+<span class="sd">    """</span>
+    <span class="n">groups</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">:</span>
+        <span class="n">path</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="s2">"path"</span><span class="p">]</span>
+        <span class="n">line_number</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="s2">"line_number"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="n">groups</span>
+            <span class="ow">or</span> <span class="n">groups</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"path"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">path</span>
+            <span class="ow">or</span> <span class="n">line_number</span> <span class="o">&gt;</span> <span class="n">groups</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"end_line"</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="p">):</span>
+            <span class="n">groups</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="s2">"path"</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span>
+                    <span class="s2">"start_line"</span><span class="p">:</span> <span class="n">line_number</span><span class="p">,</span>
+                    <span class="s2">"end_line"</span><span class="p">:</span> <span class="n">line_number</span><span class="p">,</span>
+                    <span class="s2">"lines"</span><span class="p">:</span> <span class="p">{</span><span class="n">line_number</span><span class="p">:</span> <span class="n">record</span><span class="p">[</span><span class="s2">"line"</span><span class="p">]},</span>
+                    <span class="s2">"match_lines"</span><span class="p">:</span> <span class="nb">set</span><span class="p">(),</span>
+                <span class="p">}</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">group</span> <span class="o">=</span> <span class="n">groups</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">group</span><span class="p">[</span><span class="s2">"end_line"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="s2">"end_line"</span><span class="p">],</span> <span class="n">line_number</span><span class="p">)</span>
+            <span class="n">group</span><span class="p">[</span><span class="s2">"lines"</span><span class="p">][</span><span class="n">line_number</span><span class="p">]</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="s2">"line"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">record</span><span class="p">[</span><span class="s2">"type"</span><span class="p">]</span> <span class="o">==</span> <span class="s2">"match"</span><span class="p">:</span>
+            <span class="n">groups</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"match_lines"</span><span class="p">]</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">line_number</span><span class="p">)</span>
+
+    <span class="n">total_matches</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">group</span><span class="p">[</span><span class="s2">"match_lines"</span><span class="p">])</span> <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">)</span>
+    <span class="n">truncated</span> <span class="o">=</span> <span class="n">total_matches</span> <span class="o">&gt;</span> <span class="n">max_results</span>
+    <span class="n">remaining</span> <span class="o">=</span> <span class="n">max_results</span>
+    <span class="n">hunks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">chars</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">matched_lines</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">stop</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">for</span> <span class="n">group</span> <span class="ow">in</span> <span class="n">groups</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">stop</span><span class="p">:</span>
+            <span class="k">break</span>
+        <span class="n">group_matches</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="s2">"match_lines"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">group_matches</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">remaining</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">break</span>
+        <span class="n">end_line</span> <span class="o">=</span> <span class="n">group</span><span class="p">[</span><span class="s2">"end_line"</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_matches</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">remaining</span><span class="p">:</span>
+            <span class="c1"># Do not emit trailing context that may contain matches beyond the</span>
+            <span class="c1"># result cap: they would be mislabelled as context lines.</span>
+            <span class="n">group_matches</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">group_matches</span><span class="p">)[:</span><span class="n">remaining</span><span class="p">])</span>
+            <span class="n">end_line</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end_line</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">group_matches</span><span class="p">))</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">hunk</span><span class="p">,</span> <span class="n">chars</span><span class="p">,</span> <span class="n">cut</span> <span class="o">=</span> <span class="n">build_hunk</span><span class="p">(</span>
+            <span class="n">group</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span>
+            <span class="n">group</span><span class="p">[</span><span class="s2">"start_line"</span><span class="p">],</span>
+            <span class="n">end_line</span><span class="p">,</span>
+            <span class="n">group</span><span class="p">[</span><span class="s2">"lines"</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">,</span>
+            <span class="n">group_matches</span><span class="p">,</span>
+            <span class="n">chars_used</span><span class="o">=</span><span class="n">chars</span><span class="p">,</span>
+            <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">hunk</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">hunks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hunk</span><span class="p">)</span>
+        <span class="n">matched_lines</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_matches</span><span class="p">)</span>
+        <span class="n">remaining</span> <span class="o">-=</span> <span class="nb">len</span><span class="p">(</span><span class="n">group_matches</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">cut</span><span class="p">:</span>
+            <span class="n">truncated</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">stop</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">return</span> <span class="n">hunks</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">matched_lines</span>
+
+
 <div class="viewcode-block" id="rg_grep">
 <a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.tool_impls.rg_backend.rg_grep">[docs]</a>
 <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">rg_grep</span><span class="p">(</span>
@@ -591,7 +684,9 @@
     <span class="n">include</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">case_sensitive</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">include_ignored</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">context_lines</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_CONTEXT_LINES</span><span class="p">,</span>
     <span class="n">max_results</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_CHARS</span><span class="p">,</span>
     <span class="n">timeout_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">DEFAULT_SEARCH_TIMEOUT_SECONDS</span><span class="p">,</span>
     <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
@@ -603,13 +698,19 @@
 <span class="sd">    :param include: Space separated glob patterns restricting files searched.</span>
 <span class="sd">    :param case_sensitive: Whether matching is case sensitive.</span>
 <span class="sd">    :param include_ignored: When ``True``, search ``.gitignore``-ignored files.</span>
-<span class="sd">    :param max_results: Maximum number of matching lines to return.</span>
+<span class="sd">    :param context_lines: Lines of context before and after each match,</span>
+<span class="sd">        clamped to ``0..7``.</span>
+<span class="sd">    :param max_results: Maximum number of matching lines to return.  Context</span>
+<span class="sd">        lines do not count toward this cap.</span>
+<span class="sd">    :param max_chars: Maximum total characters of matching and context lines</span>
+<span class="sd">        to return.</span>
 <span class="sd">    :param timeout_seconds: Wall-clock cap for the invocation.</span>
 <span class="sd">    :param project_root: Retained for callers; the boundary is enforced by</span>
 <span class="sd">        the client-side gate, not here (ADR-0007 update 2026-10-08).</span>
-<span class="sd">    :returns: dict with pattern, path, matches, truncated, files_scanned,</span>
+<span class="sd">    :returns: dict with pattern, path, match hunks, truncated, files_scanned,</span>
 <span class="sd">        error.</span>
 <span class="sd">    """</span>
+    <span class="n">context_lines</span> <span class="o">=</span> <span class="n">clamp_context_lines</span><span class="p">(</span><span class="n">context_lines</span><span class="p">)</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"ripgrep search</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">pattern</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
@@ -617,7 +718,9 @@
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">include</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">case_sensitive</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">include_ignored</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
-        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_results</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">context_lines</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_results</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_chars</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
     <span class="p">)</span>
 
     <span class="k">if</span> <span class="ow">not</span> <span class="n">pattern</span><span class="p">:</span>
@@ -631,20 +734,25 @@
     <span class="n">args</span> <span class="o">=</span> <span class="n">_base_command</span><span class="p">(</span><span class="n">rg</span><span class="p">,</span> <span class="n">include_ignored</span><span class="o">=</span><span class="n">include_ignored</span><span class="p">)</span>
     <span class="n">args</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">"--json"</span><span class="p">,</span> <span class="s2">"--max-columns"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">_MAX_COLUMNS</span><span class="p">)]</span>
     <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"--case-sensitive"</span> <span class="k">if</span> <span class="n">case_sensitive</span> <span class="k">else</span> <span class="s2">"-i"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">context_lines</span><span class="p">:</span>
+        <span class="n">args</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">"-C"</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">context_lines</span><span class="p">)]</span>
     <span class="k">if</span> <span class="n">include</span><span class="p">:</span>
         <span class="k">for</span> <span class="n">glob</span> <span class="ow">in</span> <span class="n">include</span><span class="o">.</span><span class="n">split</span><span class="p">():</span>
             <span class="n">args</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">"--glob"</span><span class="p">,</span> <span class="n">glob</span><span class="p">]</span>
     <span class="n">args</span> <span class="o">+=</span> <span class="p">[</span><span class="s2">"-e"</span><span class="p">,</span> <span class="n">pattern</span><span class="p">,</span> <span class="s2">"."</span><span class="p">]</span>
 
-    <span class="n">lines</span><span class="p">,</span> <span class="n">stderr</span><span class="p">,</span> <span class="n">returncode</span><span class="p">,</span> <span class="n">truncated</span><span class="p">,</span> <span class="n">run_error</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_run_rg</span><span class="p">(</span>
+    <span class="c1"># Context records count against the stdout cap, so allow enough headroom</span>
+    <span class="c1"># for every returned match plus its surrounding lines and file markers.</span>
+    <span class="n">max_records</span> <span class="o">=</span> <span class="n">max_results</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">context_lines</span> <span class="o">+</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span> <span class="mi">16</span>
+    <span class="n">lines</span><span class="p">,</span> <span class="n">stderr</span><span class="p">,</span> <span class="n">returncode</span><span class="p">,</span> <span class="n">record_truncated</span><span class="p">,</span> <span class="n">run_error</span> <span class="o">=</span> <span class="k">await</span> <span class="n">_run_rg</span><span class="p">(</span>
         <span class="n">args</span><span class="p">,</span>
         <span class="n">cwd</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
         <span class="n">timeout_seconds</span><span class="o">=</span><span class="n">timeout_seconds</span><span class="p">,</span>
-        <span class="n">max_records</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+        <span class="n">max_records</span><span class="o">=</span><span class="n">max_records</span><span class="p">,</span>
     <span class="p">)</span>
     <span class="k">if</span> <span class="n">run_error</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">_grep_result</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">run_error</span><span class="p">)</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">record_truncated</span> <span class="ow">and</span> <span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
         <span class="c1"># rg exit codes: 0 = matches, 1 = no matches, 2 = error.</span>
         <span class="k">if</span> <span class="n">returncode</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
             <span class="k">return</span> <span class="n">_grep_result</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
@@ -652,9 +760,17 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ripgrep failed: </span><span class="si">{</span><span class="n">message</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">_grep_result</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="n">message</span><span class="p">)</span>
 
-    <span class="n">matches</span> <span class="o">=</span> <span class="p">[</span><span class="n">match</span> <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="nb">map</span><span class="p">(</span><span class="n">_parse_match_line</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span> <span class="k">if</span> <span class="n">match</span><span class="p">]</span>
-    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ripgrep search done</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">truncated</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">_grep_result</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">matches</span><span class="o">=</span><span class="n">matches</span><span class="p">,</span> <span class="n">truncated</span><span class="o">=</span><span class="n">truncated</span><span class="p">)</span></div>
+    <span class="n">records</span> <span class="o">=</span> <span class="p">[</span><span class="n">record</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="nb">map</span><span class="p">(</span><span class="n">_parse_record_line</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span> <span class="k">if</span> <span class="n">record</span><span class="p">]</span>
+    <span class="n">hunks</span><span class="p">,</span> <span class="n">cap_truncated</span><span class="p">,</span> <span class="n">matched_lines</span> <span class="o">=</span> <span class="n">_build_hunks</span><span class="p">(</span>
+        <span class="n">records</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+        <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">truncated</span> <span class="o">=</span> <span class="n">record_truncated</span> <span class="ow">or</span> <span class="n">cap_truncated</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"ripgrep search done</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">hunks</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">matched_lines</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">truncated</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_grep_result</span><span class="p">(</span><span class="n">pattern</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">matches</span><span class="o">=</span><span class="n">hunks</span><span class="p">,</span> <span class="n">truncated</span><span class="o">=</span><span class="n">truncated</span><span class="p">)</span></div>
 
 
 

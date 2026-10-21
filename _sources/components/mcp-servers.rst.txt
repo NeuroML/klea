@@ -147,7 +147,9 @@ search gitignored files too.  The in-house fallback has no ``.gitignore``
 support, so it searches those files regardless.  Both backends skip
 version-control internals and tool caches (``.git``, ``.venv``,
 ``node_modules``, ``__pycache__``, ...) and never follow symlinks out of the
-project.
+project.  ``grep`` returns grouped per-file hunks with two lines of context
+by default (``context_lines``, 0-7); overlapping windows are merged and
+context lines count toward the result character budget.
 
 ``write_file`` and ``edit_file`` modify files and are therefore marked
 ``destructive``: like ``run_command`` they are full-mode only, and never

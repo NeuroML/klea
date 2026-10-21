@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../genindex.html"><link rel="search" title="Search" href="../search.html"><link rel="next" title="Tools" href="tools.html"><link rel="prev" title="Klea RAG" href="rag.html">
         <link rel="prefetch" href="../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.1 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
         <title>MCP servers - Klea</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=7bdb33bb" />
@@ -448,7 +448,9 @@ search gitignored files too.  The in-house fallback has no <code class="docutils
 support, so it searches those files regardless.  Both backends skip
 version-control internals and tool caches (<code class="docutils literal notranslate"><span class="pre">.git</span></code>, <code class="docutils literal notranslate"><span class="pre">.venv</span></code>,
 <code class="docutils literal notranslate"><span class="pre">node_modules</span></code>, <code class="docutils literal notranslate"><span class="pre">__pycache__</span></code>, …) and never follow symlinks out of the
-project.</p>
+project.  <code class="docutils literal notranslate"><span class="pre">grep</span></code> returns grouped per-file hunks with two lines of context
+by default (<code class="docutils literal notranslate"><span class="pre">context_lines</span></code>, 0-7); overlapping windows are merged and
+context lines count toward the result character budget.</p>
 <p><code class="docutils literal notranslate"><span class="pre">write_file</span></code> and <code class="docutils literal notranslate"><span class="pre">edit_file</span></code> modify files and are therefore marked
 <code class="docutils literal notranslate"><span class="pre">destructive</span></code>: like <code class="docutils literal notranslate"><span class="pre">run_command</span></code> they are full-mode only, and never
 offered or run under <code class="docutils literal notranslate"><span class="pre">read_only</span></code>.  <code class="docutils literal notranslate"><span class="pre">write_file</span></code> creates a file or

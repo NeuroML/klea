@@ -49,7 +49,8 @@ These only read; they are available at every access level.
        large files are read a page at a time.
      - ``local``, ``files``
    * - ``grep``
-     - Search the contents of the project's files with a regular expression.
+     - Search the contents of the project's files with a regular expression,
+       returning matching lines with surrounding context.
      - ``local``, ``files``
 
 Destructive tools

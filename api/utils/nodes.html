@@ -6,7 +6,7 @@
 <link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="Optional-dependency imports" href="imports.html"><link rel="prev" title="UI — store creation CLI" href="ui-stores-create.html">
         <link rel="prefetch" href="../../_static/klea-logo.png" as="image">
 
-    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.1.1 and Furo 2025.12.19 -->
+    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
         <title>Nodes - Klea</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
     <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
@@ -937,6 +937,12 @@ one contiguous group of plan steps that share the same suggested-tool set,
 exposes only those tools, and accumulates calls in <code class="docutils literal notranslate"><span class="pre">binding_calls</span></code> until
 the batch is fully bound.  RAG keeps the default picker behavior.</p>
 <dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.nodes.tools_picker.ToolsPicker.feedback_key">
+<span class="sig-name descname"><span class="pre">feedback_key</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.15)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'picker_feedback'</span></span><a class="headerlink" href="#klea_utils.nodes.tools_picker.ToolsPicker.feedback_key" title="Link to this definition">¶</a></dt>
+<dd><p>Prompt variable and heading for the conditional feedback section.</p>
+</dd></dl>
+
+<dl class="py attribute">
 <dt class="sig sig-object py" id="klea_utils.nodes.tools_picker.ToolsPicker.max_validation_retries">
 <span class="sig-name descname"><span class="pre">max_validation_retries</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.15)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#klea_utils.nodes.tools_picker.ToolsPicker.max_validation_retries" title="Link to this definition">¶</a></dt>
 <dd><p>Binder mode retries an off-contract selection before failing closed.
@@ -1252,6 +1258,7 @@ a command’s actual effect, not for rejections.</p>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.MAX_BATCH_STEPS"><code class="docutils literal notranslate"><span class="pre">MAX_BATCH_STEPS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.MAX_BIND_GROUP"><code class="docutils literal notranslate"><span class="pre">MAX_BIND_GROUP</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.ToolsPicker"><code class="docutils literal notranslate"><span class="pre">ToolsPicker</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.nodes.tools_picker.ToolsPicker.feedback_key"><code class="docutils literal notranslate"><span class="pre">ToolsPicker.feedback_key</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.ToolsPicker.max_validation_retries"><code class="docutils literal notranslate"><span class="pre">ToolsPicker.max_validation_retries</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.ToolsPicker.model_defaults"><code class="docutils literal notranslate"><span class="pre">ToolsPicker.model_defaults</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.tools_picker.ToolsPicker.model_role"><code class="docutils literal notranslate"><span class="pre">ToolsPicker.model_role</span></code></a></li>
