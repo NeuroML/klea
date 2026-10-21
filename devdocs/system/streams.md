@@ -38,7 +38,7 @@ exception.
 | `ping` | `chat_core` (heartbeat) | `{type}` | ignored (keeps the SSE alive) | ignored |
 | `inspect` | node (custom) | `{type, node, data{heading, summary, details}}` | inspection pane entry (summary shown, `details` collapsed) | inspector view entry (chat-panel toggle) |
 | `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | status-panel section |
-| `usage` | node (custom) | `{type, node, data{...tokens}}` | token totals | token totals |
+| `usage` | node (custom) | `{type, node, data{details{input_tokens, output_tokens, total_tokens, cached_tokens, reasoning_tokens, role}}}` | token totals | token totals |
 | `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | transcript block (MIME-aware) |
 | `notice` | node (custom) | `{type, node, data{heading, summary, details{content, kind}}}` | compact chat progress note | muted transcript line |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
@@ -119,8 +119,10 @@ persisted server-side and rehydrated on load:
 * **Session context and token totals** - checkpointed state, projected by
   `GET /chat/{user_id}/{chat_id}/context`: the app `context_snapshot` hook
   plus the cumulative `usage_metrics` (the frontends seed `token_usage` from
-  it).  `usage` events are therefore **not** stored: they are a projection of
-  checkpointed state (same reasoning as `context`; see ADR-0032).
+  it).  `cached_tokens` is the cache-read subset of `input_tokens`, not an
+  additional quantity; the status lines show it as `(<n> cached)` only when
+  non-zero.  `usage` events are therefore **not** stored: they are a projection
+  of checkpointed state (same reasoning as `context`; see ADR-0032).
 
 Only these UI-relevant events are persisted; `progress`/`ping`/`token` are
 transient, and `complete`/`tool`/`notice`/`interrupt` are covered by the
