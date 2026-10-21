@@ -23,7 +23,12 @@ from nicegui import ui
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.linkify import linkify_md
-from klea_utils.ui.state import ChatData, chats, missing_credentials
+from klea_utils.ui.state import (
+    ChatData,
+    chats,
+    format_token_usage,
+    missing_credentials,
+)
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
@@ -192,10 +197,7 @@ def attach_status_pane(ctx: PageContext) -> None:
 
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
-                    ui.label(
-                        f"{token_usage.get('input_tokens', 0):,} in / "
-                        f"{token_usage.get('output_tokens', 0):,} out"
-                    ).classes("text-xs mb-0")
+                    ui.label(format_token_usage(token_usage)).classes("text-xs mb-0")
                 ui.separator().classes("my-0.5")
 
             # The state sections scroll under the sticky header.

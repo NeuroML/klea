@@ -129,6 +129,23 @@ class TokenUsage(TypedDict):
     cached_tokens: int
 
 
+def format_token_usage(usage: Mapping[str, Any]) -> str:
+    """Format accumulated token usage for the web/TUI status line.
+
+    ``cached_tokens`` is a subset of ``input_tokens`` (cache reads), so it is
+    shown parenthetically only when non-zero rather than added to the totals.
+
+    :param usage: The chat's ``token_usage`` mapping.
+    :returns: ``"<in> in (<cached> cached) / <out> out"``, or
+        ``"<in> in / <out> out"`` when no tokens were cached.
+    """
+    input_tokens = int(usage.get("input_tokens", 0) or 0)
+    output_tokens = int(usage.get("output_tokens", 0) or 0)
+    cached_tokens = int(usage.get("cached_tokens", 0) or 0)
+    cached = f" ({cached_tokens:,} cached)" if cached_tokens else ""
+    return f"{input_tokens:,} in{cached} / {output_tokens:,} out"
+
+
 class TurnStatus(TypedDict):
     """Per-chat turn status content (the chat-pane region under the transcript).
 

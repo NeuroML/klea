@@ -30,7 +30,7 @@ from textual.widgets import Collapsible, Static
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.inspect_format import format_details
 from klea_utils.ui.model_config import role_label
-from klea_utils.ui.state import missing_credentials
+from klea_utils.ui.state import format_token_usage, missing_credentials
 
 if TYPE_CHECKING:
     from klea_utils.ui.tui.context import TuiContext
@@ -42,11 +42,9 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     """Format the token usage totals.
 
     :param usage: The chat's ``token_usage`` dict.
-    :returns: ``"<in> in / <out> out"`` with thousands separators.
+    :returns: The shared usage line, including cached reads when present.
     """
-    return (
-        f"{usage.get('input_tokens', 0):,} in / {usage.get('output_tokens', 0):,} out"
-    )
+    return format_token_usage(usage)
 
 
 def _model_name(raw: str) -> str:

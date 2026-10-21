@@ -167,6 +167,11 @@ class TestStatusPanelHelpers:
         assert _usage_line({"input_tokens": 123456, "output_tokens": 7890}) == (
             "123,456 in / 7,890 out"
         )
+        # Cached reads are a subset of input and shown only when present.
+        assert (
+            _usage_line({"input_tokens": 10, "output_tokens": 5, "cached_tokens": 4})
+            == "10 in (4 cached) / 5 out"
+        )
 
     def test_section_widget_uses_heading(self):
         widget = _section_widget("Planner", {"heading": "Plan", "display": "a\nb"})

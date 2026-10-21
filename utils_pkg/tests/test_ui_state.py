@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from klea_utils.ui.state import (
     chat_indicator,
+    format_token_usage,
     missing_credentials,
     resolve_chat_choice,
     resolve_choice,
@@ -208,3 +209,26 @@ def test_missing_credentials_ignores_unset_model():
 def test_missing_credentials_without_credential_block():
     """A config without a credential block is treated as not missing."""
     assert missing_credentials({"chat": {"model": "openai:gpt-4o"}}) == []
+
+
+def test_format_token_usage_without_cached_tokens():
+    assert format_token_usage({"input_tokens": 10, "output_tokens": 5}) == (
+        "10 in / 5 out"
+    )
+
+
+def test_format_token_usage_shows_cached_subset():
+    assert (
+        format_token_usage(
+            {
+                "input_tokens": 123456,
+                "output_tokens": 7890,
+                "cached_tokens": 1000,
+            }
+        )
+        == "123,456 in (1,000 cached) / 7,890 out"
+    )
+    assert (
+        format_token_usage({"input_tokens": 10, "output_tokens": 5, "cached_tokens": 0})
+        == "10 in / 5 out"
+    )

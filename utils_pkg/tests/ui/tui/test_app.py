@@ -967,7 +967,13 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
             {
                 "type": "usage",
                 "node": "n",
-                "data": {"details": {"input_tokens": 3, "output_tokens": 1}},
+                "data": {
+                    "details": {
+                        "input_tokens": 3,
+                        "output_tokens": 1,
+                        "cached_tokens": 2,
+                    }
+                },
             },
             {"type": "complete", "message_for_user": "done"},
         ]
@@ -981,7 +987,7 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         statics = [str(static.render()) for static in panel.query(Static)]
         assert "Plan" in titles
         assert "context" not in titles
-        assert any("3 in / 1 out" in text for text in statics)
+        assert any("3 in (2 cached) / 1 out" in text for text in statics)
 
 
 async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_app):
