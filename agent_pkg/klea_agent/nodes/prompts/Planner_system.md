@@ -16,6 +16,8 @@
 * `query`: the original user request
 * `goal` (optional): the fixed goal already set for this run (do not change it)
 * `plan` (optional): the current plan with per-step status markers
+* `previous_plans` (optional): earlier abandoned plan versions and their
+  reasons.
 * `discovery`: project information (the project instruction file and other
   stable context)
 * `tools`: the tools you may use
@@ -121,6 +123,9 @@
 * Replanning: on failure or unexpected output, adjust the remaining steps using
   `replan_reason` and `observations`.  If `validation_feedback` is present, fix
   exactly that and return the complete plan again.
+* Do not repeat an abandoned approach from `previous_plans`; change the
+  approach and state what changed in `reason`.  If no workable alternative
+  exists, return `unplannable` or a blocked `needs_input` step.
 
 ---
 

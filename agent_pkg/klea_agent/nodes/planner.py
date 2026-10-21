@@ -154,7 +154,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
 
         The conditional feedback fields are composed into one optional
         ``feedback_block`` so the prompt omits them entirely when there is
-        nothing to say (prompt conventions).
+        nothing to say (prompt conventions).  Superseded plan versions are
+        rendered separately as ``previous_plans_block`` so a replan can see
+        and avoid approaches that already failed.
         """
         goal_text = state.goal.goal or "(not set)"
         if state.goal.success_criteria:
@@ -173,6 +175,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "query": state.query,
             "goal": goal_text,
             "plan": state.plan.render(),
+            "previous_plans_block": self._optional_section(
+                "Previous plan versions (abandoned)", state.previous_plans_text()
+            ),
             "feedback_block": feedback_block,
             "discovery": state.discovery_persistent.render(),
             "observations": state.observations_text(),

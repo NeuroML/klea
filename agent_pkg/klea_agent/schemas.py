@@ -833,7 +833,9 @@ class KleaAgentState(BaseGraphSchema):
 
         :returns: The rendered versions, or ``""`` when none were superseded.
         """
-        return "\n\n".join(revision.render() for revision in self.plan_history)
+        return "\n\n".join(
+            revision.render() for revision in trim_plan_history(self.plan_history)
+        )
 
     def plan_history_sections(
         self, *, include_current: bool = True
@@ -851,7 +853,7 @@ class KleaAgentState(BaseGraphSchema):
                 "title": f"Plan version {revision.version} (abandoned)",
                 "body": revision.render_body(),
             }
-            for revision in self.plan_history
+            for revision in trim_plan_history(self.plan_history)
         ]
         if include_current and self.plan.step_list:
             body = (

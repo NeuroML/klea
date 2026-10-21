@@ -421,6 +421,57 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(variables["feedback_block"], "")
 
+    def test_previous_plans_block_is_empty_by_default(self):
+        variables = self._planner()._get_prompt_variables(
+            KleaAgentState(), LLMNodeContext()
+        )
+        self.assertEqual(variables["previous_plans_block"], "")
+
+    def test_previous_plans_block_renders_versions_and_reasons(self):
+        state = KleaAgentState(
+            plan=PlanSchema(
+                step_list=[StepSchema(description="current approach")],
+                plan_version=2,
+            ),
+            plan_history=[
+                PlanRevision(
+                    version=1,
+                    steps=[
+                        StepSchema(
+                            step_number=1,
+                            description="old approach",
+                            suggested_tools=["read_file"],
+                        )
+                    ],
+                    abandoned_reason="tool failed",
+                )
+            ],
+        )
+        variables = self._planner()._get_prompt_variables(state, LLMNodeContext())
+        block = variables["previous_plans_block"]
+        self.assertIn("## Previous plan versions (abandoned)", block)
+        self.assertIn("Plan version 1", block)
+        self.assertIn("tool failed", block)
+        self.assertIn("old approach", block)
+        self.assertNotIn("current approach", block)
+        self.assertIn("current approach", variables["plan"])
+
+    def test_previous_plans_block_is_bounded_to_nine(self):
+        history = [
+            PlanRevision(version=index, abandoned_reason=f"reason {index}")
+            for index in range(1, 13)
+        ]
+        state = KleaAgentState(plan_history=history)
+        block = self._planner()._get_prompt_variables(state, LLMNodeContext())[
+            "previous_plans_block"
+        ]
+        versions = [
+            line for line in block.splitlines() if line.startswith("### Plan version ")
+        ]
+        self.assertEqual(
+            versions, [f"### Plan version {index}" for index in range(4, 13)]
+        )
+
     def test_discovery_is_rendered(self):
         """Project context (AGENTS.md) is rendered into the prompt variable."""
         state = KleaAgentState()
