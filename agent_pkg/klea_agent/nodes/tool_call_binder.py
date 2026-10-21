@@ -17,10 +17,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 import logging
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar, override
 
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.nodes.tools_picker import ToolsPicker
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,39 @@ class ToolCallBinder(ToolsPicker):
 
     RAG keeps the shared :class:`ToolsPicker` and its full domain tool set.
     """
+
+    feedback_key: ClassVar[str] = "step_feedback"
+    feedback_title: ClassVar[str] = "Feedback for the current step"
+
+    @override
+    def _feedback_body(self, state: BaseModel, ctx: Any) -> str:
+        """Combine evaluator step feedback with the picker's call feedback.
+
+        The evaluator's ``step_incomplete`` reason explains why the current
+        step did not meet its criteria; the picker body adds mechanical
+        failures (rejected selection, failed calls, empty picks).  Both are
+        presented in one conditional block in the binder prompt.
+        """
+        parts: list[str] = []
+        steps = self._binding_group(state) or self._batch_steps(state)
+        step_numbers = {
+            number
+            for step in steps
+            if (number := int(getattr(step, "step_number", 0) or 0)) > 0
+        }
+        evaluation = getattr(state, "evaluation", None)
+        if evaluation is not None and step_numbers:
+            evaluator_feedback = evaluation.step_incomplete_feedback(step_numbers)
+            if evaluator_feedback:
+                parts.append(
+                    f"{evaluator_feedback}\n"
+                    "Use this to bind a call that advances the step; do not "
+                    "repeat the previous call unchanged."
+                )
+        picker_feedback = super()._feedback_body(state, ctx)
+        if picker_feedback:
+            parts.append(picker_feedback)
+        return "\n\n".join(parts)
 
     def __init__(
         self,

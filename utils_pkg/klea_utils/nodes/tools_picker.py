@@ -70,6 +70,9 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     #: Binder mode retries an off-contract selection before failing closed.
     #: Picker mode does not validate selections, so this is inert for RAG.
     max_validation_retries: ClassVar[int] = 2
+    #: Prompt variable and heading for the conditional feedback section.
+    feedback_key: ClassVar[str] = "picker_feedback"
+    feedback_title: ClassVar[str] = "Feedback on your previous selection"
 
     def __init__(
         self,
@@ -341,11 +344,19 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
                 if steps
                 else "(no plan)"
             )
-        # A conditional user-prompt section, composed whole and omitted
-        # entirely on a normal pick (prompt conventions).  The volatile
-        # content belongs in the user prompt, not the cacheable system prefix.
-        # Derived from the incoming state (thread-isolated), not instance
-        # fields (ADR-0033).
+        variables[self.feedback_key] = self._optional_section(
+            self.feedback_title, self._feedback_body(state, ctx)
+        )
+        return variables
+
+    def _feedback_body(self, state: BaseModel, ctx: Any) -> str:
+        """Return the picker/binder feedback body, or ``""`` when there is none.
+
+        A conditional user-prompt section, composed whole and omitted entirely
+        on a normal pick.  The volatile content belongs in the user prompt,
+        not the cacheable system prefix.  Derived from the incoming state
+        (thread-isolated), not instance fields (ADR-0033).
+        """
         attempts = int(getattr(state, "picker_attempts", 0) or 0)
         tool_errors = tool_call_errors(
             getattr(state, "tool_calls", None),
@@ -405,10 +416,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
             )
         else:
             feedback = ""
-        variables["picker_feedback"] = self._optional_section(
-            "Feedback on your previous selection", feedback
-        )
-        return variables
+        return feedback
 
     @staticmethod
     def _selection_key(call: ToolCallSchema) -> tuple[str, str]:

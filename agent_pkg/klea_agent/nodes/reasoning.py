@@ -93,11 +93,24 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         current = state.plan.current_step()
+        step_feedback = ""
+        if current is not None:
+            evaluator_feedback = state.evaluation.step_incomplete_feedback(
+                {current.step_number}
+            )
+            if evaluator_feedback:
+                step_feedback = self._optional_section(
+                    "Evaluator feedback for this step",
+                    f"{evaluator_feedback}\n"
+                    "Revise the conclusion so it satisfies the step's success "
+                    "criteria; do not repeat the same conclusion unchanged.",
+                )
         variables = {
             "query": state.query,
             "goal": goal_text,
             "plan": state.plan.render(),
             "current_step": current.render(current=True) if current else "(no step)",
+            "step_feedback": step_feedback,
             "observations": state.observations_text(),
         }
         self.logger.debug(f"{variables = }")

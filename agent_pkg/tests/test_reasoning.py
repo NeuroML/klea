@@ -13,10 +13,12 @@ import unittest
 
 from klea_agent.nodes.reasoning import NO_CONCLUSION_FALLBACK, ReasoningNode
 from klea_agent.schemas import (
+    EvaluationSchema,
     GoalSchema,
     KleaAgentState,
     PlanSchema,
     ReasoningSchema,
+    StepEvaluation,
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema
@@ -123,6 +125,39 @@ class TestReasoningNode(unittest.TestCase):
         assert "form a hypothesis" in variables["current_step"]
         assert "generate a hypothesis" in variables["goal"]
         assert "observations" in variables
+        assert variables["step_feedback"] == ""
+
+    def test_prompt_variables_include_step_incomplete_feedback(self):
+        state = self._state()
+        state.evaluation = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(
+                    step_number=1,
+                    verdict="step_incomplete",
+                    reason="state the causal mechanism",
+                )
+            ]
+        )
+        variables = self._node()._get_prompt_variables(state, LLMNodeContext())
+
+        assert "state the causal mechanism" in variables["step_feedback"]
+        assert "do not repeat" in variables["step_feedback"].lower()
+
+    def test_step_feedback_ignores_other_steps_and_verdicts(self):
+        state = self._state()
+        state.evaluation = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(step_number=1, verdict="step_done", reason="ok"),
+                StepEvaluation(
+                    step_number=2,
+                    verdict="step_incomplete",
+                    reason="another step",
+                ),
+            ]
+        )
+        variables = self._node()._get_prompt_variables(state, LLMNodeContext())
+
+        assert variables["step_feedback"] == ""
 
     def test_emits_a_progress_notice_with_the_conclusion(self):
         """The reasoning conclusion is surfaced without opening the inspector."""

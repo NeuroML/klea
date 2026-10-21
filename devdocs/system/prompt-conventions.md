@@ -53,7 +53,8 @@ entirely, heading included** - never rendered as a label with an empty value.
   `observations`, `goal`, `plan`, `query`).
 * **Conditional input** - present only when applicable; omitted (heading and
   body) otherwise.  For example `failure_reason`, `human_input`,
-  `replan_reason`, `human_feedback`, `validation_feedback`, `picker_feedback`.
+  `replan_reason`, `human_feedback`, `validation_feedback`, `picker_feedback`,
+  `step_feedback`.
 
 ## Rule 3 - Mechanics: `_optional_section`
 

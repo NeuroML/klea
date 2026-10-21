@@ -642,6 +642,28 @@ class EvaluationSchema(BaseModel):
     review_readiness: Literal["", "ready", "not_ready"] = ""
     review_reason: str = ""
 
+    def step_incomplete_feedback(self, step_numbers: set[int]) -> str:
+        """Render ``step_incomplete`` reasons for the given step numbers.
+
+        Used by the actor that re-runs those steps (binder or reasoning) so it
+        can address the evaluator's specific objection.  Verdicts for other
+        steps or other outcomes are ignored; an empty result means the section
+        should be omitted.
+
+        :param step_numbers: Step numbers to include (the current binding
+            group or the current reasoning step).
+        :returns: A prompt-ready block, or ``""`` when no matching step was
+            judged incomplete.
+        """
+        lines = [
+            f"- Step {item.step_number}: {item.reason.strip() or 'not yet complete'}"
+            for item in self.evaluations
+            if item.verdict == "step_incomplete" and item.step_number in step_numbers
+        ]
+        if not lines:
+            return ""
+        return "The evaluator judged these step(s) incomplete:\n" + "\n".join(lines)
+
 
 #: Cap the length of a progress-summary line: the review modal is compact and
 #: the full result is available in the inspection pane.

@@ -8,4 +8,4 @@
 
 {current_step}
 
-{picker_feedback}
+{step_feedback}

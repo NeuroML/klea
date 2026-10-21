@@ -15,7 +15,9 @@ different tool.
   suggested tools)
 * `observations`: outputs of earlier tool calls, including any error you must
   correct
-* `picker_feedback`: feedback on your previous selection, if any
+* `step_feedback`: feedback on the current step, if any (an evaluator
+  `step_incomplete` reason, a failed call, a rejected selection, or an empty
+  pick)
 
 ---
 
@@ -56,6 +58,9 @@ different tool.
   arguments: it cannot succeed.  If no corrected arguments are available, or
   the error shows the step cannot be completed, return `no_tool` instead of
   inventing a workaround.
+* If `step_feedback` says the evaluator judged the step incomplete, address
+  its reason and bind a call that advances the step.  Do not repeat the
+  previous call unchanged.
 * Keep your JSON valid and include all required fields for the chosen actions.
 * Output all reasoning, justifications, and text strictly in English.
 

@@ -116,6 +116,29 @@ class TestEvaluationSchema:
         )
         assert evaluation.evaluations[0].verdict == "step_skipped"
 
+    def test_step_incomplete_feedback_filters_steps_and_verdicts(self):
+        evaluation = EvaluationSchema(
+            evaluations=[
+                StepEvaluation(
+                    step_number=1,
+                    verdict="step_incomplete",
+                    reason="state the mechanism",
+                ),
+                StepEvaluation(step_number=2, verdict="step_done", reason="ok"),
+                StepEvaluation(
+                    step_number=3,
+                    verdict="step_incomplete",
+                    reason="another step",
+                ),
+            ]
+        )
+        feedback = evaluation.step_incomplete_feedback({1, 2})
+        assert "Step 1: state the mechanism" in feedback
+        assert "Step 2" not in feedback
+        assert "Step 3" not in feedback
+        assert evaluation.step_incomplete_feedback({2}) == ""
+        assert evaluation.step_incomplete_feedback(set()) == ""
+
 
 class TestStepStatus:
     """The distinct ``skipped`` status resolves a step that is not needed."""

@@ -14,6 +14,8 @@
 
 {current_step}
 
+{step_feedback}
+
 ---
 
 ## Observations
