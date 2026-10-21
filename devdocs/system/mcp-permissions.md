@@ -6,9 +6,10 @@ second round), and the annotation-driven tool access level are implemented
 (ADR-0007 update 2026-10-08).  Updates to this note should be reflected in
 the permission layer as it evolves.
 
-Last updated: 2026-10-08 (layered path discovery, interactive approval, and
-the sensitive-file second round implemented; invocation axis / tool access
-level at ADR-0037; path layers decision at ADR-0007).
+Last updated: 2026-10-21 (path approval asks show the full target path, the
+session approval directory, and bounded argument/context previews; layered
+path discovery, interactive approval, and the sensitive-file second round at
+ADR-0007; invocation axis / tool access level at ADR-0037).
 
 See also `file-tools.md` for the file-tool text/binary/encoding contract and
 the `read_file` paging contract, which sit on top of this boundary.
@@ -37,16 +38,24 @@ The single enforcement point is the pre-dispatch gate in
   HITL interrupt (ADR-0046); a request left unapproved blocks the call -- it
   never reaches the server and becomes a synthetic, non-halting error result
   so the LLM can adapt.  With no resolver, every outside path is denied (the
-  pre-ADR-0007 behaviour).  The ask shows the tool call behind each request
-  (`tool: argument = raw (confidence)`); *not a path* is offered only for a
-  `guess`-tier value and keeps no memory (a genuine path is never silently
-  ungated).  The gate runs in the shared `ToolsCallerNode`
+  pre-ADR-0007 behaviour).  The ask shows the full target path (`path`) and,
+  separately, the session approval directory (`directory`) when it differs; a
+  long pathological value is middle-truncated for display with an omission
+  marker (`path_display`/`directory_display`).  It also shows the tool call
+  context (`tool: argument = argument_preview (confidence)`), the detected
+  token when distinct, and the discovery source.  Full path/directory values
+  remain the decision keys; previews are display-only.  *not a path* is offered
+  only for a `guess`-tier value and keeps no memory (a genuine path is never
+  silently ungated); `session` remains available for guesses because a
+  third-party server may have no declared/expected path.  The gate runs in the
+  shared `ToolsCallerNode`
   (`klea_utils/nodes/tools_caller.py`) used by both Klea Agent and Klea RAG;
   the agent opts into `permission_policy="ask"`, RAG keeps `"deny"`.  A
   resolved ask is also emitted as an `inspect` entry (heading "Path
-  permission": the requested keys, tool/argument/raw, and the resolution) so
-  the inspection pane keeps an audit of the decision after the chat form is
-  gone.  The transcript renders the four outcomes distinctly
+  permission": the requested keys, full path/directory, bounded previews,
+  tool/argument/confidence/source, and the resolution) so the inspection pane
+  keeps an audit of the decision after the chat form is gone.  The transcript
+  renders the four outcomes distinctly
   (`Allowed once`, `Allowed for session`, `Denied`, `Not a path`), so a
   dismissed guess is never shown as a denial.
 
@@ -77,7 +86,13 @@ Only paths that resolve outside `project_root` plus any session-approved
 `allowed_dirs` become requests; they are de-duplicated by resolved directory,
 keeping the strongest tier, and sorted.  Each request carries its tier and
 source so the approval prompt can show a guess differently from a declared
-path.  Discovery is advisory (a tool can ignore its arguments and touch any
+path.  It also carries a bounded, token-centred `argument_preview` of the full
+argument value; the UI shows the full resolved path when short, or a
+middle-truncated preview with an omission marker when pathological, while the
+full values remain available as the decision keys.  A bare `/` guessed from a
+shell command is still a request (the gate is deliberately defensive): the
+command context and the `not a path` option let the user judge or dismiss it.
+Discovery is advisory (a tool can ignore its arguments and touch any
 path at runtime); OS sandboxing remains the only hard boundary.
 
 ### Sensitive files (second round)

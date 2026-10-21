@@ -61,6 +61,7 @@
 
 ### Changed
 
+- Path approval asks now show the full target path and the session approval directory separately, with bounded previews for pathological values, plus the tool-call context, detected token and discovery source. Full values remain the decision keys; guessed values keep session approval and the "Not a path" dismissal.
 - `grep` now returns grouped per-file hunks with two lines of context by default (`context_lines`, 0-7) instead of bare matching lines, so callers usually have the surrounding code without a follow-up `read_file`; overlapping windows are merged and context counts toward the character budget.
 - LLM output budgets: the first-attempt max output tokens for `chat`, `plan` and `tool_picker` are now 32768 (up from 16384), and the truncation-retry ceiling is 65536, so long or reasoning-heavy completions usually finish on the first call instead of paying a retry round-trip. HuggingFace keeps a 16384 default because its total-budget accounting penalises large reservations (ADR-0017).
 - Web UI: the user's own messages are rendered verbatim (no Markdown decoration), so literal underscores, `#`, lists, line breaks and pasted code are preserved; bare URLs stay clickable. Agent and system messages remain Markdown.

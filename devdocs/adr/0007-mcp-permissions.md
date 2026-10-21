@@ -16,6 +16,16 @@ informed: ""
 > follows the per-session project root (ADR-0053) instead of a fixed cwd, and
 > relative path arguments are resolved to absolute against it before dispatch.
 
+> **Update (2026-10-21):** the permission ask now shows the full target path
+> (`path`) and the session approval directory (`directory`) separately, plus a
+> bounded `argument_preview`/`raw_preview` and the discovery source for the
+> tool-call context.  Full `path`/`directory` values remain the decision keys;
+> only the display is bounded (`path_display`/`directory_display`, middle
+> truncation with an omission marker) so a pathological guessed string cannot
+> flood the ask.  A guessed `/` is still a request, and `session` approval
+> remains available for guesses because a third-party server may have no
+> declared/expected path.
+
 ## Context and Problem Statement
 
 MCP tools can read/write the filesystem and fetch URLs.  Klea must

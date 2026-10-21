@@ -267,7 +267,10 @@ Notes:
 * **Path permission**: a tool call that would touch a path outside the
   project root, or a sensitive file inside it, pauses with
   `kind="permission"`; the answer carries
-  `decisions: [{key, decision}]` (`once` / `session` / `deny`).  The gate is
+  `decisions: [{key, decision}]` (`once` / `session` / `deny`).  The request
+  payload carries the full `path`/`directory` keys plus bounded display and
+  argument-context previews (`path_display`, `directory_display`,
+  `raw_preview`, `argument_preview`).  The gate is
   the shared `ToolsCallerNode` + `dispatch_tool_calls` (ADR-0007); a deny
   yields a non-halting result and the run continues.
 * **Cancelling an interrupt**: `interrupt_cancel: true` resumes with

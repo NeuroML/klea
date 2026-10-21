@@ -68,10 +68,17 @@ frontends render the sections the same way, and both show the ask in place of
 the composer (the input is hidden while an ask is active, so the transcript
 stays scrollable).  A review step must gate pending work; a *trailing*
 review is rejected by the Planner's validator and resolved defensively by the
-router.  A permission ask shows the tool call
-(`tool: argument = raw (confidence)`) and its per-path decisions are
-`once`/`session`/`deny`, plus `not_a_path` (a per-dispatch dismissal for a
-guessed value; ADR-0007 update 2026-10-14).  See ADR-0051 for review steps.
+router.  A permission ask shows the full target path (`path`, or a
+middle-truncated `path_display` for pathological values), the session
+approval directory separately (`directory`/`directory_display`) when it
+differs, and the tool-call context (`tool: argument = argument_preview
+(confidence)`) plus the detected token/source when useful.  Each request
+carries the full `path`/`directory` and decision `key` plus bounded
+`path_display`, `directory_display`, `raw_preview`, and `argument_preview`
+fields.  Its per-path decisions are `once`/`session`/`deny`, plus
+`not_a_path` (a per-dispatch dismissal for a guessed value; ADR-0007 update
+2026-10-14); guessed values keep the `session` option.  See ADR-0051 for
+review steps.
 
 An `input` ask normally carries only `questions`; when the Planner has
 exhausted its automated replan budget it may also carry `sections` with the
