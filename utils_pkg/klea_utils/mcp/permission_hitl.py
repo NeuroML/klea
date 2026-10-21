@@ -96,7 +96,10 @@ def build_permission_payload(
     The payload is a plain mapping (the stream/interrupt convention): ``kind``
     is ``"permission"``, ``question`` is the prompt text, and ``requests`` is
     the list of serialized :class:`~klea_utils.mcp.path_detect.PathRequest`
-    objects for the client to render.
+    objects for the client to render.  Each request carries the full ``path``
+    and ``directory`` for decisions plus bounded ``path_display``,
+    ``directory_display``, ``raw_preview`` and ``argument_preview`` fields for
+    the UI; the payload's ``raw`` value is capped to ``raw_preview``.
 
     :param requests: The outside-path requests to ask about.
     :param question: Custom prompt text; defaults to :data:`DEFAULT_QUESTION`.
@@ -106,10 +109,21 @@ def build_permission_payload(
         f"Building permission payload\n{len(requests) = }\n"
         f"{[request.approval_key for request in requests] = }"
     )
+    payload_requests: list[dict[str, Any]] = []
+    for request in requests:
+        item = request.model_dump()
+        item.update(
+            raw=request.raw_preview(),
+            raw_preview=request.raw_preview(),
+            raw_length=len(request.raw),
+            path_display=request.path_display(),
+            directory_display=request.directory_display(),
+        )
+        payload_requests.append(item)
     return {
         "kind": "permission",
         "question": question or DEFAULT_QUESTION,
-        "requests": [request.model_dump() for request in requests],
+        "requests": payload_requests,
     }
 
 

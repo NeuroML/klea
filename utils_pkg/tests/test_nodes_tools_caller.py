@@ -970,8 +970,17 @@ async def test_ask_policy_emits_permission_inspect(tmp_path, monkeypatch):
     assert len(permission) == 1
     details = permission[0]["data"]["details"]
     assert details["resolution"]["allowed_session"] == [str(outside)]
-    assert details["requests"][0]["key"] == str(outside)
-    assert details["requests"][0]["kind"] == "outside"
+    request = details["requests"][0]
+    assert request["key"] == str(outside)
+    assert request["kind"] == "outside"
+    assert request["path"] == str(outside)
+    assert request["directory"] == str(outside)
+    assert request["path_display"] == str(outside)
+    assert request["directory_display"] == str(outside)
+    assert request["raw_preview"] == str(outside)
+    assert request["path_length"] == len(str(outside))
+    assert request["directory_length"] == len(str(outside))
+    assert request["source"] == "checkpaths:path"
 
 
 async def test_ask_policy_not_a_path_is_reported_as_dismissed(tmp_path, monkeypatch):

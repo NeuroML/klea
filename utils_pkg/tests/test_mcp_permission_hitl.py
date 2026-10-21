@@ -34,9 +34,43 @@ def test_payload_shape():
     payload = build_permission_payload([_request("/etc")])
     assert payload["kind"] == "permission"
     assert payload["question"] == DEFAULT_QUESTION
-    assert payload["requests"][0]["directory"] == "/etc"
-    assert payload["requests"][0]["confidence"] == "declared"
-    assert payload["requests"][0]["source"] == "checkpaths:path"
+    request = payload["requests"][0]
+    assert request["directory"] == "/etc"
+    assert request["path"] == "/etc/x"
+    assert request["directory_display"] == "/etc"
+    assert request["path_display"] == "/etc/x"
+    assert request["raw_preview"] == "/etc/x"
+    assert request["argument_preview"] == ""
+    assert request["confidence"] == "declared"
+    assert request["source"] == "checkpaths:path"
+
+
+def test_payload_bounds_long_display_values():
+    long_path = "/" + ("a" * 500)
+    long_directory = "/" + ("b" * 400)
+    request = PathRequest(
+        tool="run_command",
+        argument="command",
+        raw=long_path,
+        path=long_path,
+        directory=long_directory,
+        confidence="guess",
+        source="value:command",
+        argument_preview="..." + long_path[:100],
+    )
+    payload = build_permission_payload([request])
+    item = payload["requests"][0]
+
+    assert item["path"] == long_path
+    assert item["directory"] == long_directory
+    assert len(item["path_display"]) < len(long_path)
+    assert "chars omitted" in item["path_display"]
+    assert len(item["directory_display"]) < len(long_directory)
+    assert "chars omitted" in item["directory_display"]
+    assert len(item["raw_preview"]) < len(long_path)
+    assert "chars omitted" in item["raw_preview"]
+    assert item["raw"] == item["raw_preview"]
+    assert item["raw_length"] == len(long_path)
 
 
 def test_payload_custom_question():

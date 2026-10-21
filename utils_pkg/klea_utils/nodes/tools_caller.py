@@ -245,7 +245,15 @@ class ToolsCallerNode(
                     "source": request.source,
                     "tool": request.tool,
                     "argument": request.argument,
-                    "raw": request.raw,
+                    "path": request.path,
+                    "directory": request.directory,
+                    "path_display": request.path_display(),
+                    "directory_display": request.directory_display(),
+                    "path_length": len(request.path),
+                    "directory_length": len(request.directory),
+                    "raw_preview": request.raw_preview(),
+                    "raw_length": len(request.raw),
+                    "argument_preview": request.argument_preview,
                 }
                 for request in requests
             ],
