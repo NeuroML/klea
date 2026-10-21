@@ -16,6 +16,13 @@ from klea_utils.mcp.tool_impls.grep import grep, grep_inhouse
 logger = logging.getLogger(__name__)
 
 
+def _matched_lines(result: dict) -> list[dict]:
+    """Return the matching lines across all hunks."""
+    return [
+        line for hunk in result["matches"] for line in hunk["lines"] if line["match"]
+    ]
+
+
 def test_grep_finds_matching_lines(tmp_path):
     (tmp_path / "a.txt").write_text("alpha\nneedle here\ngamma")
 
@@ -26,9 +33,17 @@ def test_grep_finds_matching_lines(tmp_path):
     logger.debug(f"{result = }")
     assert result["error"] == ""
     assert len(result["matches"]) == 1
-    assert result["matches"][0]["line_number"] == 2
-    assert result["matches"][0]["line"] == "needle here"
-    assert result["matches"][0]["path"] == "a.txt"
+    hunk = result["matches"][0]
+    assert hunk["path"] == "a.txt"
+    assert hunk["start_line"] == 1
+    assert hunk["end_line"] == 3
+    assert [line["line"] for line in hunk["lines"]] == [
+        "alpha",
+        "needle here",
+        "gamma",
+    ]
+    assert [line["match"] for line in hunk["lines"]] == [False, True, False]
+    assert _matched_lines(result)[0]["line_number"] == 2
     assert result["files_scanned"] == 1
 
 
@@ -39,7 +54,7 @@ def test_grep_multiple_files_and_lines(tmp_path):
     result = grep_inhouse(pattern="hit", path=str(tmp_path), project_root=str(tmp_path))
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 3
+    assert len(_matched_lines(result)) == 3
     assert result["truncated"] is False
 
 
@@ -51,8 +66,9 @@ def test_grep_regex_pattern(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
-    assert "def main" in result["matches"][0]["line"]
+    matched = _matched_lines(result)
+    assert len(matched) == 1
+    assert "def main" in matched[0]["line"]
 
 
 def test_grep_no_match(tmp_path):
@@ -97,7 +113,8 @@ def test_grep_include_filter(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
+    matched = _matched_lines(result)
+    assert len(matched) == 1
     assert result["matches"][0]["path"] == "a.py"
 
 
@@ -116,8 +133,8 @@ def test_grep_case_sensitive_default(tmp_path):
 
     logger.debug(f"{sensitive['matches'] = }")
     logger.debug(f"{insensitive['matches'] = }")
-    assert len(sensitive["matches"]) == 1
-    assert len(insensitive["matches"]) == 2
+    assert len(_matched_lines(sensitive)) == 1
+    assert len(_matched_lines(insensitive)) == 2
 
 
 def test_grep_truncates_at_max_results(tmp_path):
@@ -131,8 +148,11 @@ def test_grep_truncates_at_max_results(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 3
+    assert len(_matched_lines(result)) == 3
     assert result["truncated"] is True
+    hunk = result["matches"][0]
+    assert hunk["end_line"] == 3
+    assert all(line["match"] for line in hunk["lines"])
 
 
 def test_grep_skips_binary_files(tmp_path):
@@ -144,7 +164,8 @@ def test_grep_skips_binary_files(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
+    matched = _matched_lines(result)
+    assert len(matched) == 1
     assert result["matches"][0]["path"] == "text.txt"
 
 
@@ -159,7 +180,8 @@ def test_grep_skips_skip_dirs(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
+    matched = _matched_lines(result)
+    assert len(matched) == 1
     assert result["matches"][0]["path"] == "keep.txt"
 
 
@@ -175,7 +197,8 @@ def test_grep_skips_large_files(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
+    matched = _matched_lines(result)
+    assert len(matched) == 1
     assert result["matches"][0]["path"] == "small.txt"
 
 
@@ -190,7 +213,7 @@ def test_grep_max_chars_truncates_early(tmp_path):
     )
 
     logger.debug(f"{result = }")
-    assert len(result["matches"]) == 1
+    assert len(_matched_lines(result)) == 1
     assert result["truncated"] is True
 
 
@@ -203,6 +226,112 @@ def test_grep_not_a_directory(tmp_path):
     logger.debug(f"{result = }")
     assert result["matches"] == []
     assert "not a directory" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Context hunks
+# ---------------------------------------------------------------------------
+
+
+def test_grep_default_context_lines(tmp_path):
+    (tmp_path / "a.py").write_text("l1\nl2\nl3\nMATCH\nl5\nl6\nl7\n")
+
+    result = grep_inhouse(
+        pattern="MATCH", path=str(tmp_path), project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result = }")
+    assert len(result["matches"]) == 1
+    hunk = result["matches"][0]
+    assert hunk["start_line"] == 2
+    assert hunk["end_line"] == 6
+    assert [line["line_number"] for line in hunk["lines"]] == [2, 3, 4, 5, 6]
+    assert [line["line"] for line in hunk["lines"] if line["match"]] == ["MATCH"]
+
+
+def test_grep_context_clamped_at_file_boundaries(tmp_path):
+    (tmp_path / "start.txt").write_text("MATCH\na\nb\n")
+    (tmp_path / "end.txt").write_text("a\nb\nc\nMATCH\n")
+
+    result = grep_inhouse(
+        pattern="MATCH", path=str(tmp_path), project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result = }")
+    by_path = {hunk["path"]: hunk for hunk in result["matches"]}
+    assert by_path["start.txt"]["start_line"] == 1
+    assert by_path["start.txt"]["end_line"] == 3
+    assert by_path["end.txt"]["start_line"] == 2
+    assert by_path["end.txt"]["end_line"] == 4
+
+
+def test_grep_context_lines_zero(tmp_path):
+    (tmp_path / "a.txt").write_text("x\nhit\nhit\ny")
+
+    result = grep_inhouse(
+        pattern="hit",
+        path=str(tmp_path),
+        context_lines=0,
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    assert len(result["matches"]) == 1
+    hunk = result["matches"][0]
+    assert hunk["start_line"] == 2
+    assert hunk["end_line"] == 3
+    assert [line["line_number"] for line in hunk["lines"]] == [2, 3]
+    assert all(line["match"] for line in hunk["lines"])
+
+
+def test_grep_overlapping_context_merges(tmp_path):
+    (tmp_path / "a.txt").write_text("l1\nhit\nl3\nhit\nl5")
+
+    result = grep_inhouse(pattern="hit", path=str(tmp_path), project_root=str(tmp_path))
+
+    logger.debug(f"{result = }")
+    assert len(result["matches"]) == 1
+    hunk = result["matches"][0]
+    assert hunk["start_line"] == 1
+    assert hunk["end_line"] == 5
+    assert [line["line_number"] for line in hunk["lines"] if line["match"]] == [2, 4]
+
+
+def test_grep_context_lines_clamped_to_max(tmp_path):
+    lines = ["x"] * 20
+    lines[9] = "MATCH"
+    (tmp_path / "a.txt").write_text("\n".join(lines))
+
+    result = grep_inhouse(
+        pattern="MATCH",
+        path=str(tmp_path),
+        context_lines=99,
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    hunk = result["matches"][0]
+    assert hunk["start_line"] == 3
+    assert hunk["end_line"] == 17
+    assert len(hunk["lines"]) == 15
+
+
+def test_grep_context_counts_toward_char_budget(tmp_path):
+    (tmp_path / "a.txt").write_text("aa\nbb\nhit\ncc\ndd")
+
+    result = grep_inhouse(
+        pattern="hit",
+        path=str(tmp_path),
+        context_lines=1,
+        max_chars=5,
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    hunk = result["matches"][0]
+    assert hunk["end_line"] == 3
+    assert [line["line"] for line in hunk["lines"]] == ["bb", "hit"]
+    assert result["truncated"] is True
 
 
 # ---------------------------------------------------------------------------

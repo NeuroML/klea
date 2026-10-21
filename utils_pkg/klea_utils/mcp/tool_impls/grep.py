@@ -15,6 +15,12 @@ from pathlib import Path
 from typing import Any
 
 from klea_utils.mcp.tool_impls.file_ops import is_binary, split_lines
+from klea_utils.mcp.tool_impls.grep_hunks import (
+    DEFAULT_CONTEXT_LINES,
+    build_hunk,
+    clamp_context_lines,
+    merge_windows,
+)
 from klea_utils.mcp.tool_impls.rg_backend import resolve_rg, rg_grep
 from klea_utils.mcp.tool_impls.walk import iter_files
 
@@ -46,7 +52,8 @@ def _result(
 
     :param pattern: The pattern that was searched for.
     :param path: The directory that was searched.
-    :param matches: Matching lines, each a ``{path, line_number, line}`` dict.
+    :param matches: Hunks, each a ``{path, start_line, end_line, lines}`` dict
+        where every line is ``{line_number, line, match}``.
     :param truncated: Whether scanning stopped before covering everything.
     :param files_scanned: Number of files that were searched.
     :param error: Empty on success; a message otherwise.
@@ -67,6 +74,7 @@ def grep_inhouse(
     path: str = ".",
     include: str | None = None,
     case_sensitive: bool = True,
+    context_lines: int = DEFAULT_CONTEXT_LINES,
     max_results: int = DEFAULT_MAX_RESULTS,
     max_files: int = DEFAULT_MAX_FILES,
     max_file_bytes: int = DEFAULT_MAX_FILE_BYTES,
@@ -93,21 +101,27 @@ def grep_inhouse(
     :param include: Optional space separated glob patterns; when given, only
         files whose path (relative to *path*) matches one are searched.
     :param case_sensitive: Whether matching is case sensitive.
-    :param max_results: Maximum number of matching lines to return.
+    :param context_lines: Lines of context before and after each match,
+        clamped to ``0..7``.
+    :param max_results: Maximum number of matching lines to return.  Context
+        lines do not count toward this cap.
     :param max_files: Maximum number of files to scan.
     :param max_file_bytes: Maximum size of a file considered for searching.
-    :param max_chars: Maximum total characters of matching lines to return.
+    :param max_chars: Maximum total characters of matching and context lines
+        to return.
     :param project_root: Retained for callers; the boundary is enforced
         by the client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with pattern, path, matches, truncated, files_scanned,
+    :returns: dict with pattern, path, match hunks, truncated, files_scanned,
         error.
     """
+    context_lines = clamp_context_lines(context_lines)
     logger.debug(
         f"Searching files\n"
         f"{pattern = }\n"
         f"{path = }\n"
         f"{include = }\n"
         f"{case_sensitive = }\n"
+        f"{context_lines = }\n"
         f"{max_results = }\n"
         f"{max_files = }\n"
         f"{max_file_bytes = }\n"
@@ -141,9 +155,13 @@ def grep_inhouse(
     truncated = False
     files_scanned = 0
     chars = 0
+    matched_lines = 0
+    stop = False
 
     try:
         for candidate in iter_files(the_path, project_root=project_root):
+            if stop:
+                break
             if files_scanned >= max_files:
                 truncated = True
                 break
@@ -174,33 +192,57 @@ def grep_inhouse(
                 continue
 
             text = data.decode("utf-8", errors="replace")
-            for line_number, line in enumerate(split_lines(text), start=1):
+            lines = split_lines(text)
+            remaining_matches = max_results - matched_lines
+            file_match_lines: list[int] = []
+            file_capped = False
+            for line_number, line in enumerate(lines, start=1):
                 if not regex.search(line):
                     continue
-                display = line
-                remaining = max_chars - chars
-                if len(display) > remaining:
-                    display = display[: max(remaining, 0)]
+                file_match_lines.append(line_number)
+                if len(file_match_lines) >= remaining_matches:
                     truncated = True
-                matches.append(
-                    {
-                        "path": rel,
-                        "line_number": line_number,
-                        "line": display,
-                    }
-                )
-                chars += len(display)
-                if len(matches) >= max_results or chars >= max_chars:
-                    truncated = True
+                    stop = True
+                    file_capped = True
                     break
-            if len(matches) >= max_results or chars >= max_chars:
+
+            if not file_match_lines:
+                continue
+
+            match_lines = set(file_match_lines)
+            windows = merge_windows(file_match_lines, len(lines), context_lines)
+            if file_capped:
+                # Do not emit trailing context that may contain matches beyond
+                # the result cap: they would be mislabelled as context lines.
+                last_match = file_match_lines[-1]
+                windows[-1] = (windows[-1][0], min(windows[-1][1], last_match))
+            for start_line, end_line in windows:
+                hunk, chars, cut = build_hunk(
+                    rel,
+                    start_line,
+                    end_line,
+                    lambda line_number, lines=lines: lines[line_number - 1],
+                    match_lines,
+                    chars_used=chars,
+                    max_chars=max_chars,
+                )
+                if hunk is not None:
+                    matches.append(hunk)
+                if cut:
+                    truncated = True
+                    stop = True
+                    break
+
+            matched_lines += len(file_match_lines)
+            if stop:
                 break
     except OSError as exc:
         logger.warning(f"Could not search {path}: {exc}")
         return _result(pattern, path, error=f"Could not search {path}: {exc}")
 
     logger.debug(
-        f"Searched files\n{len(matches) = }\n{files_scanned = }\n{truncated = }"
+        f"Searched files\n{len(matches) = }\n{matched_lines = }\n"
+        f"{files_scanned = }\n{truncated = }"
     )
     return _result(
         pattern,
