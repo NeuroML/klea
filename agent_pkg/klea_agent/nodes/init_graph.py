@@ -21,10 +21,7 @@ from klea_agent.discovery import refresh_project_files
 from klea_agent.schemas import (
     CodeSchema,
     Discovery,
-    EvaluationSchema,
-    GoalSchema,
     KleaAgentState,
-    PlanSchema,
     RouteSchema,
 )
 
@@ -32,16 +29,14 @@ from klea_agent.schemas import (
 class InitGraphState(
     AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]
 ):
-    """Initialise/reset graph state before each iteration.
+    """Initialise per-turn state before routing.
 
-    Mirrors ``rag_pkg/klea_rag/nodes/init_rag.py``: resets per-turn
-    ephemeral fields while preserving ``messages``,
-    ``context_summary``/``summarised_till``, ``discovery_persistent``
-    (project-wide discovery that only changes when files change),
-    ``artefacts`` (session-scoped durable results, ADR-0035 update
-    2026-09-19), and ``mode`` (session-scoped, ADR-0030).  ``usage_metrics`` is
-    intentionally not reset -- it uses the ``add_token_usage`` reducer and
-    accumulates across turns.
+    Mirrors ``rag_pkg/klea_rag/nodes/init_rag.py`` for the non-task fields.
+    Task/plan state is deliberately left intact here so ``RouteDecision`` can
+    choose ``task`` (full reset via ``ResetState``) or ``continue`` (re-plan
+    using prior evidence).  ``messages``,
+    ``context_summary``/``summarised_till``, ``discovery_persistent``,
+    session ``artefacts``, ``mode`` and ``usage_metrics`` are preserved.
     """
 
     def __init__(self, logger: logging.Logger, label: str):
@@ -50,9 +45,14 @@ class InitGraphState(
 
     @override
     async def execute(self, state: KleaAgentState) -> dict[str, Any]:
-        """Reset state fields to their initial values.
+        """Initialise per-turn fields and append the current query.
 
-        Also appends the current query to ``messages`` (run history), which is
+        Task/plan state (``plan``, ``goal``, ``step_outputs``, retry counters,
+        feedback and transient tool fields) is not reset here; ``ResetState``
+        applies the task boundary after ``RouteDecision``.  This preserves the
+        previous run for a ``continue`` intent (ADR-0054).
+
+        The current query is appended to ``messages`` (run history), which is
         preserved across turns so the Planner's memory and summarisation see
         the conversation.  A HITL resume does not re-run this node, so the
         query is recorded once per turn.
@@ -72,24 +72,7 @@ class InitGraphState(
             "guard_decision": "safe",
             "message_for_user": "",
             "command_route": "",
-            "plan": PlanSchema(),
-            "plan_history": [],
-            "goal": GoalSchema(),
             "route": RouteSchema(),
-            "evaluation": EvaluationSchema(),
-            "tool_retry_counts": {},
-            "step_attempt_counts": {},
-            "picker_attempts": 0,
-            "picker_step": -1,
-            "binding_calls": [],
-            "failure_reason": "",
-            "human_feedback": "",
-            "human_input": {},
-            "replan_reason": "",
-            "review_progress": "",
-            "tool_calls": [],
-            "tool_results": [],
-            "step_outputs": {},
             "discovery_persistent": refresh_project_files(
                 state.discovery_persistent,
                 project_root=state.project_root or None,

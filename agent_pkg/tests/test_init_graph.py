@@ -27,10 +27,8 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 
 @pytest.mark.asyncio
-async def test_init_resets_ephemeral_and_preserves_session_fields(
-    monkeypatch, tmp_path
-):
-    """Per-turn fields reset; session-scoped fields are left untouched."""
+async def test_init_preserves_task_state_for_route_decision(monkeypatch, tmp_path):
+    """Per-turn fields reset; task state survives for RouteDecision."""
     monkeypatch.chdir(tmp_path)
     (tmp_path / "AGENTS.md").write_text("project rules")
     node = InitGraphState(logging.getLogger("test"), "Initializing")
@@ -62,27 +60,28 @@ async def test_init_resets_ephemeral_and_preserves_session_fields(
     )
     update = await node.execute(state)
 
-    assert update["plan"].step_list == []
-    assert update["plan"].plan_version == 0
-    assert update["plan"].human_feedback_rounds == 0
-    assert update["plan"].automated_plan_revisions == 0
-    assert update["plan_history"] == []
-    # Continuation evidence is session-scoped: the active task reset does not
-    # clear it.
-    assert "continuation_evidence" not in update
-    assert update["goal"].goal == ""
-    assert update["tool_retry_counts"] == {}
-    assert update["step_attempt_counts"] == {}
-    assert update["binding_calls"] == []
+    # Task state survives for RouteDecision; ResetState applies the boundary.
+    for preserved in (
+        "plan",
+        "plan_history",
+        "goal",
+        "evaluation",
+        "tool_retry_counts",
+        "step_attempt_counts",
+        "binding_calls",
+        "failure_reason",
+        "replan_reason",
+        "human_input",
+        "continuation_evidence",
+        "step_outputs",
+        "tool_calls",
+        "tool_results",
+    ):
+        assert preserved not in update
     # Internal run history is session-scoped and must survive a new turn.
     assert "messages_internal" not in update
     assert "summarised_internal_till" not in update
-    assert update["failure_reason"] == ""
-    assert update["replan_reason"] == ""
-    assert update["human_input"] == {}
     assert update["route"] == RouteSchema()
-    assert update["evaluation"].overall == ""
-    assert update["evaluation"].evaluations == []
     # The project instruction file is loaded into session-scoped discovery.
     assert update["discovery_persistent"].items[0].source == "AGENTS.md"
     assert update["discovery_persistent"].items[0].content == "project rules"

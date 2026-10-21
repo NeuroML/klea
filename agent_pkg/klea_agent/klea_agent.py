@@ -41,6 +41,7 @@ from klea_agent.nodes.mode_router import ModeDecision, ModeInformer
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.nodes.planner import Planner
 from klea_agent.nodes.reasoning import ReasoningNode
+from klea_agent.nodes.reset_state import ResetState
 from klea_agent.nodes.review_progress import ReviewProgress
 from klea_agent.nodes.route_decision import RouteDecision
 from klea_agent.nodes.tool_call_binder import ToolCallBinder
@@ -669,6 +670,13 @@ class KleaAgent(BaseLangGraph):
         self.workflow.add_node(
             self._route_decision_node.label, self._route_decision_node.execute
         )
+        self._reset_state_node = ResetState(
+            logger=self.logger,
+            label="Resetting state",
+        )
+        self.workflow.add_node(
+            self._reset_state_node.label, self._reset_state_node.execute
+        )
 
         # Task path brain (ADR-0035): writes the immutable goal and the plan.
         # It reads conversation history so follow-ups and earlier failed plans
@@ -870,10 +878,11 @@ class KleaAgent(BaseLangGraph):
             self._route_decision_router,
             {
                 "chat": self._answer_user_node.label,
-                "task": self._planner_node.label,
-                "continue": self._planner_node.label,
+                "task": self._reset_state_node.label,
+                "continue": self._reset_state_node.label,
             },
         )
+        self.workflow.add_edge(self._reset_state_node.label, self._planner_node.label)
         # Planner routing (ADR-0035/ADR-0041): route on ``plan.status``; when
         # running, dispatch the next runnable step by its kind (tool -> picker,
         # reasoning -> ReasoningNode).  A ``chat`` status returns to the entry

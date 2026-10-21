@@ -69,6 +69,7 @@ async def test_general_path_work_loop(monkeypatch):
 
     for expected in (
         "Deciding route",
+        "Resetting state",
         "Planning",
         "Preparing review",
         "Awaiting review",
@@ -85,10 +86,12 @@ async def test_general_path_work_loop(monkeypatch):
 
     assert "Setting goal" not in node_names
 
-    # Entry: guard -> route decision; chat -> answer, task -> planner.
+    # Entry: guard -> route decision; chat -> answer, task/continue -> reset
+    # state -> planner.
     assert ("Checking safety", "Deciding route") in edges
     assert ("Deciding route", "Preparing response") in edges  # chat
-    assert ("Deciding route", "Planning") in edges  # task
+    assert ("Deciding route", "Resetting state") in edges  # task/continue
+    assert ("Resetting state", "Planning") in edges
 
     # Planner routing on plan.status and step kind.
     assert ("Planning", "Composing answer") in edges  # unplannable -> failure

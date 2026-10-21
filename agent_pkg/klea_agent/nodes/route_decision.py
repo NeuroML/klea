@@ -18,7 +18,7 @@ from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 
-from klea_agent.schemas import KleaAgentState, RouteSchema
+from klea_agent.schemas import KleaAgentState, PlanSchema, RouteSchema
 
 
 # NOTE: ``chat`` deliberately also covers direct conversational edits (for
@@ -163,6 +163,10 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
             answer = result.answer.strip()
             state_update: dict[str, Any] = {
                 "route": RouteSchema(route="chat", answer=answer),
+                # A forced-chat plan status is a routing signal, not task
+                # state; clear it so the next turn's RouteDecision is not
+                # forced to chat again (ADR-0054).
+                "plan": PlanSchema(),
             }
             if answer:
                 state_update["message_for_user"] = answer
