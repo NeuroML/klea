@@ -84,9 +84,19 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
         details = data.get("details", {})
         usage = chat.setdefault(
             "token_usage",
-            {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+            {
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+                "cached_tokens": 0,
+            },
         )
-        for key in ("input_tokens", "output_tokens", "total_tokens"):
+        for key in (
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "cached_tokens",
+        ):
             usage[key] += details.get(key, 0)
         return "usage"
 

@@ -589,7 +589,12 @@ async def test_hydration_rebuilds_panes_and_token_usage(fake_backend, make_app):
     fake_backend.chat_context = {
         "context": None,
         "pending_interrupt": None,
-        "usage": {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+        "usage": {
+            "input_tokens": 5,
+            "output_tokens": 3,
+            "total_tokens": 8,
+            "cached_tokens": 2,
+        },
     }
     app = make_app()
     async with app.run_test() as pilot:
@@ -600,6 +605,7 @@ async def test_hydration_rebuilds_panes_and_token_usage(fake_backend, make_app):
         assert [e["type"] for e in chat["inspector_entries"]] == ["query", "inspect"]
         assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
         assert chat["token_usage"]["total_tokens"] == 8
+        assert chat["token_usage"]["cached_tokens"] == 2
 
 
 async def test_active_chat_is_keyed_by_user(fake_backend, make_app):

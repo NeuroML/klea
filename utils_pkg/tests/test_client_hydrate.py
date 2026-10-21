@@ -42,7 +42,12 @@ _EVENTS = [
 ]
 
 #: Checkpointed cumulative token totals the fake server projects.
-_USAGE = {"input_tokens": 5, "output_tokens": 3, "total_tokens": 8}
+_USAGE = {
+    "input_tokens": 5,
+    "output_tokens": 3,
+    "total_tokens": 8,
+    "cached_tokens": 2,
+}
 
 
 @pytest.fixture(autouse=True)

@@ -126,6 +126,7 @@ class TokenUsage(TypedDict):
     input_tokens: int
     output_tokens: int
     total_tokens: int
+    cached_tokens: int
 
 
 class TurnStatus(TypedDict):
@@ -241,6 +242,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
                 "input_tokens": 0,
                 "output_tokens": 0,
                 "total_tokens": 0,
+                "cached_tokens": 0,
             },
         }
     else:

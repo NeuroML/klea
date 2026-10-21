@@ -51,6 +51,7 @@ class TestApplyStreamEvent:
         assert result is None
         assert chat["messages"] == []
         assert chat["token_usage"]["total_tokens"] == 0
+        assert chat["token_usage"]["cached_tokens"] == 0
 
     def test_progress_with_heading_ignored(self, chat):
         """A retry progress (heading payload) still mutates nothing."""
@@ -106,6 +107,7 @@ class TestApplyStreamEvent:
                             "input_tokens": 10,
                             "output_tokens": 5,
                             "total_tokens": 15,
+                            "cached_tokens": 4,
                         }
                     },
                 },
@@ -123,6 +125,7 @@ class TestApplyStreamEvent:
                             "input_tokens": 2,
                             "output_tokens": 8,
                             "total_tokens": 10,
+                            "cached_tokens": 1,
                         }
                     },
                 },
@@ -133,6 +136,7 @@ class TestApplyStreamEvent:
             "input_tokens": 12,
             "output_tokens": 13,
             "total_tokens": 25,
+            "cached_tokens": 5,
         }
 
     def test_state_section_stored(self, chat):

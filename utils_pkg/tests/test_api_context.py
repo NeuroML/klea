@@ -166,6 +166,7 @@ class TestContextProjection:
                 "input_tokens": 5,
                 "output_tokens": 3,
                 "total_tokens": 8,
+                "cached_tokens": 2,
             },
         }
         app.state.graph = self._fake(values=values)
@@ -176,6 +177,7 @@ class TestContextProjection:
             "input_tokens": 5,
             "output_tokens": 3,
             "total_tokens": 8,
+            "cached_tokens": 2,
         }
 
     async def test_pydantic_values_normalised_before_hook(self, app, client):

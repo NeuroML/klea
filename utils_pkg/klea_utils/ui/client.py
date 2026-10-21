@@ -271,6 +271,7 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                                     "input_tokens": usage.get("input_tokens", 0),
                                     "output_tokens": usage.get("output_tokens", 0),
                                     "total_tokens": usage.get("total_tokens", 0),
+                                    "cached_tokens": usage.get("cached_tokens", 0),
                                 }
                         # A paused thread re-presents its HITL ask (ADR-0046),
                         # so a reload renders the form instead of a dead chat.

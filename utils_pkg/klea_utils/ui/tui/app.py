@@ -560,6 +560,7 @@ class KleaTuiApp(App[None]):
                 "input_tokens": usage.get("input_tokens", 0),
                 "output_tokens": usage.get("output_tokens", 0),
                 "total_tokens": usage.get("total_tokens", 0),
+                "cached_tokens": usage.get("cached_tokens", 0),
             }
         pending = body.get("pending_interrupt")
         if pending:
