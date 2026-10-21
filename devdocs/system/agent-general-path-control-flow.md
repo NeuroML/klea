@@ -352,6 +352,12 @@ deferred ADR-0041 open item.
   plan or last review; the budget counter, reset on review).  These counters
   are a context-free signal for the answer synthesis (ADR-0035 update
   2026-09-21).
+* ``plan_history: list[PlanRevision]`` (superseded plan versions, newest last,
+  capped at 9; each carries the full steps and the reason it was abandoned.
+  The active plan remains in ``plan``, so the Planner and guidance HITL see
+  1 active + 9 previous versions.  Reset per turn; retained across automated
+  replans, human input and review revisions.  The cap is independent of the
+  automated-replan budget, which resets on human input.)
 * ``step_outputs: dict[int, list[StepOutput]]`` (per-step results; a
   ``StepOutput.result`` is either a ``CallToolResult`` or, for a reasoning
   step, a plain ``str`` conclusion).  Plan-scoped: cleared each turn and on a
@@ -368,7 +374,9 @@ deferred ADR-0041 open item.
   batch; accumulated one tool-set group at a time and cleared after dispatch).
 * ``failure_reason: str`` (why the run failed or could not be planned).
 * ``evaluation: EvaluationSchema`` (latest per-step verdict map plus the
-  ``overall`` outcome and a reason; ADR-0041).
+  ``overall`` outcome and a reason; ADR-0041).  ``step_incomplete`` reasons are
+  read by the re-running actor as ``step_feedback``; the Planner clears the
+  snapshot when it writes a new plan, so it cannot leak into the next one.
 * ``artefacts: dict[str, ArtefactSchema]`` (session-scoped durable results; the
   completed task's deliverable is persisted here, see Persistence below).
 * ``messages`` (user-visible conversation: query, HITL notes, final answer).
@@ -390,7 +398,8 @@ the run; not rendered into downstream prompts):
 * ``replan_reason: str`` -- the unified automated-replan trigger, set by the
   Evaluator on ``need_replan`` and by the tool-round recorder from the failed
   batch digest (every failed call with its tool, path/URI arguments and error);
-  read and cleared by the Planner.
+  read by the Planner, recorded on the superseded plan's ``plan_history``
+  entry, then cleared.
 * ``review_progress: str`` -- the synthesized digest of work since the last
   review, written by ``ReviewProgress`` and read by the review ask; cleared when
   a review is resolved and on a new plan.
@@ -403,6 +412,9 @@ only curated results cross into later tasks:
 * **Plan-scoped working memory** (`step_outputs`, the retry/attempt counters)
   is visible to later steps and cleared by ``InitGraphState`` each turn and by
   the Planner when it authors a new plan.
+* **Run-scoped plan history** (`plan_history`) is reset by ``InitGraphState``
+  each turn but retained across plans, human input and review revisions within
+  the run; the Planner does not clear it when authoring a new plan.
 * **Session-scoped** (`artefacts`, plus ``messages``/``messages_internal``
   for continuity and provenance, ``mode`` and ``discovery_persistent``)
   survives across tasks in the same session.  ``InitGraphState`` refreshes
@@ -464,9 +476,11 @@ Failed-batch feedback uses ``klea_utils.tools.tool_call_errors``: one line per
 failed call with its step/tool, path/URI-named arguments (plus the picker's
 declared ``paths``) and error.  URI credentials/secrets are redacted and the
 digest is bounded; free-text arguments (contents, edit strings, code, shell
-commands) are omitted.  The binder's ``picker_feedback``, the Planner's
+commands) are omitted.  The binder's ``step_feedback``, the Planner's
 ``replan_reason``, and the Evaluator's ``recent_tool_failures`` block all use
-this same digest.
+this same digest.  The binder's block also carries the evaluator's
+``step_incomplete`` reasons; RAG's picker keeps the equivalent
+``picker_feedback`` variable.
 
 The memory summariser consumes both streams: user-visible ``messages`` (minus
 its bounded recent window) and ``messages_internal`` from its own cursor.  It
@@ -496,7 +510,9 @@ Per-step verdicts:
 * ``step_done`` -> the step is marked ``done`` and the frontier advances;
 * ``step_skipped`` -> the step is marked ``skipped`` (not needed) and the
   frontier advances; a skipped dependency satisfies its dependents;
-* ``step_incomplete`` -> the step stays ``pending``; its attempt counter grows;
+* ``step_incomplete`` -> the step stays ``pending``; its attempt counter grows,
+  and its reason is passed to the next binder/reasoning invocation as
+  ``step_feedback`` so the re-run can address it;
 * ``need_replan`` -> the step is marked ``failed`` and its reason becomes the
   Planner's ``replan_reason``.
 
@@ -545,6 +561,30 @@ is no deterministic way to tell whether two plans are "the same" (wording, step
 count and tool choice vary between calls), so no such heuristic is used.  The
 Evaluator's ``abort`` reason is carried into ``failure_reason`` so the failure
 answer explains the real cause.
+
+## Plan history and replan feedback
+
+``plan_history`` is a bounded FIFO of the last 9 superseded plans.  Each entry
+stores the full steps and the reason the plan was abandoned: the automated
+``replan_reason``, human review feedback, or supplied answers.  The active plan
+is not duplicated in the list; the Planner prompt renders the previous versions
+and explicitly tells the model not to repeat an abandoned approach and to state
+what changed.  The history is independent of ``automated_plan_revisions``,
+which resets when a human supplies input.
+
+There is no deterministic repeat detector.  Two differently worded plans can
+describe the same failed approach, and exact text/structure comparison would
+either miss that or reject legitimate revisions, so the system does not pretend
+to judge semantic similarity.  It gives the Planner the history, bounds the
+loop with the automated-replan budget, and hands the decision to a human at
+exhaustion.
+
+On exhaustion the Planner preserves the plan and writes ``needs_input`` with a
+blocked guidance step.  The ordinary input HITL ask includes sections for the
+previous and current plan versions, so the user can see what was tried and why
+it failed.  The answer re-enters the Planner as ``human_input``; the automated
+budget resets, while ``plan_history`` is retained.  Routing stays on the normal
+``needs_input`` path; the run is not marked ``unplannable``.
 
 ## Termination and budgets
 

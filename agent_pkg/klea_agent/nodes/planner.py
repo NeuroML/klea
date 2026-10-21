@@ -396,7 +396,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         question = (
             "The automated replan budget is exhausted. "
             f"Last reason: {reason.strip() or 'the plan could not be revised automatically'}. "
-            "How should I proceed?"
+            "How should I proceed? "
             "Previous plan versions are noted for your information."
         )
         return StepSchema(

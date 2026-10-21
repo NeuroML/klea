@@ -312,10 +312,10 @@ graph TD;
 |-----------|------|------|---------------|
 | KleaAgent orchestrator | ``klea_agent/klea_agent.py`` | ``BaseLangGraph`` subclass: ``_create_graph``, the conditional-edge routers, the tool-round/picker callbacks, ``context_snapshot`` | ``env_prefix``/config discovery (ADR-0015); graph exported as ``klea-agent-lang-graph.{png,mmd}`` (ADR-0016/0032/0035) |
 | AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``general.commands``, ``general.memory``, ``mcp_servers``, ``providers`` (ADR-0015/0037/0047) |
-| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
+| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``plan_history``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
 | Agent API | ``klea_agent/api/{main,chat,server}.py`` | FastAPI app via ``make_app`` + the agent ``ChatPayload`` chat router | ``POST /query``, ``/query/stream``; ``mode``/``access_level`` in the payload; generic routers from ``klea_utils.api`` (ADR-0031) |
 | Client UI / CLI | ``klea_agent/ui/cli.py`` + ``ui/web/*`` | Typer CLI (``klea``, ``klea-serve``) and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037) |
-| Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: seeds/resets plan-scoped state each turn | Non-LLM; resets ``goal``/``plan``/``step_outputs``/counters (ADR-0035) |
+| Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: seeds/resets plan-scoped state each turn | Non-LLM; resets ``goal``/``plan``/``plan_history``/``step_outputs``/counters (ADR-0035) |
 | Determining mode / Informing | ``klea_agent/nodes/mode_router.py`` | ``ModeDecision`` resolves requested -> resolved; ``ModeInformer`` is terminal | Non-LLM; ``mode.note`` routes to inform instead of downgrading (ADR-0030) |
 | Checking safety | ``klea_utils/nodes/guard.py`` | ``GuardNode`` (``guard`` role, shared) | ``guard_decision`` ``safe``/``unsafe`` (ADR-0010) |
 | Routing safety | ``klea_utils/nodes/guard_router.py`` | ``GuardRouterNode`` (shared router) | reads ``guard_decision`` -> ``safe``/``unsafe`` edge |
@@ -355,7 +355,8 @@ graph TD;
 * ``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the
   agent uses ``ToolCallBinder``, a ``ToolsPicker`` subclass that binds one
   suggested-tool group at a time and accumulates calls until the batch is
-  bound (``on_unusable`` -> synthetic error + ``replan_reason``), plus the
+  bound (``on_unusable`` -> synthetic error + ``replan_reason``), and passes
+  evaluator ``step_incomplete`` reasons back as ``step_feedback``, plus the
   ADaPT retry counter.
 * ``KleaAgent`` is the composition point for the whole container: it
   creates the nodes, wires the conditional edges (the routers are methods

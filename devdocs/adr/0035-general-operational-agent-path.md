@@ -542,7 +542,9 @@ so it does not claim the plan was executed unilaterally, but it is not given the
 raw feedback or earlier plan versions: feedback is only meaningful attached to
 the plan version it refers to, which the answer does not receive.  A future
 verifier that needs the full path (e.g. scientific mode, ADR-0029) would require
-a retained plan-revision journal; that is deferred.
+a retained plan-revision journal; that was added in the 2026-10-21 update below
+for the Planner and guidance HITL, but is still not given to the answer
+synthesis.
 
 ``human_feedback`` and ``replan_reason`` remain separate **transient** state
 fields: node-to-node signals consumed (cleared) within the run, not durable
@@ -706,3 +708,31 @@ plan is a `needs_input` draft with no `replan_reason`, the automated revision
 counter resets.  A cancel keeps the steps and marks the plan
 `user_cancelled`.  This reuses `needs_input` rather than adding a new status or
 HITL kind.
+
+## Update (2026-10-21): retained plan-revision journal and step feedback
+
+The deferred plan-revision journal now exists as `plan_history`: a FIFO of the
+last 9 superseded plan versions (full steps plus the reason each was abandoned),
+with the active plan kept separately in `plan`.  It is reset per turn but
+retained across automated replans, human input and review revisions.  The
+Planner prompt renders the previous versions and instructs the model not to
+repeat an abandoned approach and to state what changed.  The answer synthesis
+still receives only the context-free revision counters.
+
+There is deliberately no deterministic repeat detector.  Differently worded
+plans can describe the same failed approach, and exact text/structure
+comparison would miss that or reject legitimate revisions.  The system relies
+on giving the Planner the history, bounds the loop with the automated-replan
+budget, and hands the decision to a human at exhaustion.
+
+On budget exhaustion the input HITL ask includes the previous and active plan
+sections so the user can see what was tried and failed; the answer re-enters
+the Planner as `human_input`, resets the automated budget, and keeps
+`plan_history`.  Routing stays on `needs_input`; it does not become
+`unplannable`.
+
+`step_incomplete` now also carries the Evaluator's reason back to the actor
+that re-runs the step.  The binder and reasoning node render it as
+`step_feedback` (the binder combines it with validation, failed-call and empty-
+pick feedback).  The Planner clears the `evaluation` snapshot when it writes a
+new plan, so feedback from the abandoned plan cannot leak into the next one.

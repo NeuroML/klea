@@ -202,8 +202,10 @@ the ask is mounted below the transcript and replaces the composer (the input
 row is hidden while it is active), so the transcript stays scrollable.  A
 review ask offers approve / request changes / cancel, an input ask one field
 per question, and a permission ask allow-once / allow-session / deny per
-requested path; the key-hints line shows the ask's actions.  Decisions are
-shown in the transcript via
+requested path; the key-hints line shows the ask's actions.  Input asks may
+also carry plan-history sections (when the automated replan budget is
+exhausted), rendered above the questions.  Decisions are shown in the
+transcript via
 `klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded text
 cannot drift.  A pending interrupt is re-presented on load/switch from
 `GET /chat/{user_id}/{chat_id}/context` (`pending_interrupt`), matching the web

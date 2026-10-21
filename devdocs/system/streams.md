@@ -73,6 +73,12 @@ router.  A permission ask shows the tool call
 `once`/`session`/`deny`, plus `not_a_path` (a per-dispatch dismissal for a
 guessed value; ADR-0007 update 2026-10-14).  See ADR-0051 for review steps.
 
+An `input` ask normally carries only `questions`; when the Planner has
+exhausted its automated replan budget it may also carry `sections` with the
+abandoned plan versions and the active plan, rendered above the questions so
+the user can see what was already tried.  The resume payload is unchanged
+(`answers` / `action`).
+
 `context` carries the checkpointed session context (e.g. the agent operating
 mode / tool access, ADR-0030/0032).  The web frontend stores it on the chat and
 runs the page's `context_hooks`, so a context control reconciles its per-chat

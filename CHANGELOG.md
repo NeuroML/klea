@@ -6,6 +6,8 @@
 
 ### Added
 
+- Agent task planning: the Planner is shown the last 9 abandoned plan versions with the reason each failed, and the guidance HITL ask displays them so the user can see what was tried. The Planner is told not to repeat an abandoned approach; there is no deterministic semantic repeat detector.
+- Agent step execution: an Evaluator `step_incomplete` reason is passed to the tool binder and reasoning node as `step_feedback`, so a re-run can address the specific gap instead of repeating the same call or conclusion.
 - User-facing answer nodes report the effective model that produced the reply in their system prompt, so questions like "which model are you running" are answerable: `AnswerFromContext` (RAG), the shared `AnswerGeneral`, and the agent's `RouteDecision`/`AnswerFromResults`.
 - Terminal UI: `klea tui` / `klea-rag tui` launch a full-screen Textual client over the same backend as the web UI. It renders a MIME-aware transcript with an inspector view, lists / switches / renames / deletes sessions, edits per-role models and provider credentials, presents HITL review / input / permission modals, and blocks a send until the required models and API keys are set (ADR-0050). Requires the new optional `tui` extra.
 - TUI: the client `/new` command starts a fresh chat (refused while a run is streaming), matching the web frontend.

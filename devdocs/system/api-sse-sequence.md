@@ -259,6 +259,11 @@ Notes:
   `interrupt_response` (and `interrupt_id`); `chat_core` validates it against
   the thread's paused state and resumes with `Command(resume=...)`.  A plain
   query while paused is rejected with 409.
+* **Input ask with plan history**: an input interrupt may carry `sections`
+  (the abandoned plan versions and the active plan) when the Planner exhausted
+  its automated replan budget.  Renderers show them before the questions and
+  the transcript rendering includes them; the resume payload is unchanged
+  (`answers` / `action`).
 * **Path permission**: a tool call that would touch a path outside the
   project root, or a sensitive file inside it, pauses with
   `kind="permission"`; the answer carries
