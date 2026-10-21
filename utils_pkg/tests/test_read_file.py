@@ -16,7 +16,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import os
 
 import pytest
-from klea_utils.mcp.tool_impls.read_file import _slice_segments, read_file
+from klea_utils.mcp.tool_impls.read_file import (
+    _locate_tail_start,
+    _slice_segments,
+    read_file,
+)
 from klea_utils.mcp.tool_result import to_result
 
 
@@ -499,6 +503,166 @@ def test_slice_segments_tail_clamped_with_limit():
     assert segments == ["a", "b"]
     assert total == 3
     assert effective == -3
+
+
+def test_locate_tail_start_last_line_with_trailing_newline(tmp_path):
+    """Trailing newlines are stripped before counting the tail."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == 4
+    assert start.line_number == -1
+    assert start.total_lines is None
+    assert start.truncated is False
+
+
+def test_locate_tail_start_last_two_lines(tmp_path):
+    """The second-from-last line start is returned for n=2."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    start = _locate_tail_start(f, 2, max_bytes=10_000)
+
+    assert start.byte_offset == 2
+    assert start.line_number == -2
+    assert start.total_lines is None
+    assert start.truncated is False
+
+
+def test_locate_tail_start_reaches_the_file_start(tmp_path):
+    """A tail request past the start clamps to line -total and reports total."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    start = _locate_tail_start(f, 10, max_bytes=10_000)
+
+    assert start.byte_offset == 0
+    assert start.line_number == -3
+    assert start.total_lines == 3
+    assert start.truncated is False
+
+
+def test_locate_tail_start_without_a_trailing_newline(tmp_path):
+    """The last line is still the last line when the file has no final LF."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == 4
+    assert start.line_number == -1
+    assert start.total_lines is None
+
+
+def test_locate_tail_start_empty_file(tmp_path):
+    """An empty file has no tail line."""
+    f = tmp_path / "t.txt"
+    f.write_text("")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == 0
+    assert start.line_number is None
+    assert start.total_lines == 0
+    assert start.truncated is False
+
+
+def test_locate_tail_start_only_a_newline(tmp_path):
+    """A file containing just a newline has one empty line."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"\n")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == 0
+    assert start.line_number == -1
+    assert start.total_lines == 1
+
+
+def test_locate_tail_start_crlf(tmp_path):
+    """CRLF is one terminator, not two."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"a\r\nb\r\nc\r\n")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+    assert start.byte_offset == 6
+    assert start.line_number == -1
+
+    start = _locate_tail_start(f, 2, max_bytes=10_000)
+    assert start.byte_offset == 3
+    assert start.line_number == -2
+
+    start = _locate_tail_start(f, 3, max_bytes=10_000)
+    assert start.byte_offset == 0
+    assert start.total_lines == 3
+
+
+def test_locate_tail_start_lone_cr(tmp_path):
+    """A lone CR is a line terminator."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"a\rb\rc\r")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+    assert start.byte_offset == 4
+    assert start.line_number == -1
+
+    start = _locate_tail_start(f, 2, max_bytes=10_000)
+    assert start.byte_offset == 2
+    assert start.line_number == -2
+
+    start = _locate_tail_start(f, 3, max_bytes=10_000)
+    assert start.byte_offset == 0
+    assert start.total_lines == 3
+
+
+def test_locate_tail_start_crlf_across_chunks(tmp_path):
+    """A CRLF split across chunk boundaries is counted once."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"a\r\nb\r\nc\r\n")
+
+    start = _locate_tail_start(f, 2, max_bytes=10_000, chunk_size=2)
+
+    assert start.byte_offset == 3
+    assert start.line_number == -2
+    assert start.truncated is False
+
+
+def test_locate_tail_start_is_safe_after_multibyte_text(tmp_path):
+    """The located offset is a line boundary after multibyte characters."""
+    f = tmp_path / "t.txt"
+    f.write_bytes("caf\u00e9\nx\n".encode())
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == len("caf\u00e9\n".encode())
+    assert start.line_number == -1
+
+
+def test_locate_tail_start_bom_does_not_affect_the_count(tmp_path):
+    """A UTF-8 BOM is content for the backward scan."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"\xef\xbb\xbfx\n")
+
+    start = _locate_tail_start(f, 1, max_bytes=10_000)
+
+    assert start.byte_offset == 0
+    assert start.line_number == -1
+    assert start.total_lines == 1
+
+
+def test_locate_tail_start_scan_cap(tmp_path):
+    """The backward scan is bounded by max_bytes."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\nd\n")
+
+    start = _locate_tail_start(f, 3, max_bytes=2)
+
+    assert start.byte_offset is None
+    assert start.line_number is None
+    assert start.total_lines is None
+    assert start.truncated is True
 
 
 def test_scan_cap_before_offset_gives_grep_hint(tmp_path):

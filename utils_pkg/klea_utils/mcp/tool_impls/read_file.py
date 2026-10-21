@@ -13,6 +13,7 @@ import logging
 import threading
 from collections import OrderedDict
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO
 
@@ -574,6 +575,100 @@ def _slice_segments(
         first = sliced[0][char_offset:] if char_offset else sliced[0]
         segments = [first, *sliced[1:]]
     return segments, total_lines, effective_offset
+
+
+@dataclass(frozen=True)
+class _TailStart:
+    """Result of locating the start of a tail line."""
+
+    #: Byte offset of the first byte of the start line (``None`` on scan cap).
+    byte_offset: int | None
+    #: Signed line number of the start line (``None`` on scan cap/empty file).
+    line_number: int | None
+    #: Exact total line count when the scan reached byte 0, else ``None``.
+    total_lines: int | None
+    #: Whether ``max_bytes`` was hit before the requested line was found.
+    truncated: bool
+
+
+def _locate_tail_start(
+    path: Path,
+    n: int,
+    max_bytes: int,
+    chunk_size: int = _STREAM_CHUNK_BYTES,
+) -> _TailStart:
+    """Locate the byte offset of the *n*th line from the end of *path*.
+
+    Scans backwards in chunks, counting ``\\n`` and lone ``\\r`` terminators
+    (a CRLF is one terminator) and mirroring :func:`file_ops.split_lines`
+    semantics: a single trailing line ending does not add an empty line.  The
+    scan stops as soon as the requested line is found or when *max_bytes* have
+    been read, so it is O(tail) I/O and O(chunk) memory.
+
+    :param path: Text file to inspect.
+    :param n: Number of lines from the end (``1`` is the last line).
+    :param max_bytes: Per-call scan cap, counted backwards from EOF.
+    :param chunk_size: Read granularity in bytes.
+    :returns: A :class:`_TailStart`.  Reaching byte 0 also reports the exact
+        ``total_lines``; hitting the cap first sets ``truncated`` and leaves
+        the byte/line fields ``None``.
+    """
+    n = max(1, n)
+    chunk_size = max(1, chunk_size)
+    size = path.stat().st_size
+    if size == 0:
+        return _TailStart(0, None, 0, False)
+
+    with path.open("rb") as handle:
+        # Strip one trailing line ending so it does not count as an extra line.
+        handle.seek(max(0, size - 2))
+        tail = handle.read(2)
+        if tail.endswith(b"\r\n"):
+            effective_end = size - 2
+        elif tail.endswith((b"\n", b"\r")):
+            effective_end = size - 1
+        else:
+            effective_end = size
+        if effective_end == 0:
+            # The file is a single line ending, i.e. one empty line.
+            return _TailStart(0, -1, 1, False)
+
+        pos = effective_end
+        terminators = 0
+        bytes_scanned = 0
+        # The line-ending bytes stripped above are not counted against the
+        # scan budget; the overage is at most two bytes.
+        right_byte: int | None = None
+        while pos > 0:
+            remaining = max_bytes - bytes_scanned
+            if remaining <= 0:
+                return _TailStart(None, None, None, True)
+            read_len = min(chunk_size, pos, remaining)
+            read_start = pos - read_len
+            handle.seek(read_start)
+            chunk = handle.read(read_len)
+            if len(chunk) != read_len:
+                # The file shrank under us; the region is no longer complete.
+                return _TailStart(None, None, None, True)
+            bytes_scanned += read_len
+            for index in range(read_len - 1, -1, -1):
+                byte = chunk[index]
+                if byte == 0x0A:  # final byte of an LF or CRLF terminator
+                    terminators += 1
+                    if terminators == n:
+                        return _TailStart(read_start + index + 1, -n, None, False)
+                elif byte == 0x0D:  # lone CR unless followed by LF
+                    next_byte = chunk[index + 1] if index + 1 < read_len else right_byte
+                    if next_byte == 0x0A:
+                        continue
+                    terminators += 1
+                    if terminators == n:
+                        return _TailStart(read_start + index + 1, -n, None, False)
+            right_byte = chunk[0]
+            pos = read_start
+
+    total_lines = terminators + 1
+    return _TailStart(0, -total_lines, total_lines, False)
 
 
 class _BinaryFileError(Exception):
