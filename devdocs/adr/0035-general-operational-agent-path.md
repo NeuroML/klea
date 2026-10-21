@@ -306,7 +306,7 @@ prompting alone cannot reliably prevent.  The final shape is a **narrow,
 fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 `RouteDecision`/`RouteSchema` are reinstated with a smaller job.
 
-* `RouteDecision` runs after the Guard and decides only `chat` vs `task`; it is
+* `RouteDecision` runs after the Guard and decides `chat`, `task`, or `continue`; it is
   tool-free, reads conversation history for follow-ups, answers `chat` inline,
   and **defaults to `task` when unsure** (fail-closed).  It is the only place a
   model may answer the user directly, and it must not answer world-facts.
@@ -713,8 +713,9 @@ HITL kind.
 
 The deferred plan-revision journal now exists as `plan_history`: a FIFO of the
 last 9 superseded plan versions (full steps plus the reason each was abandoned),
-with the active plan kept separately in `plan`.  It is reset per turn but
-retained across automated replans, human input and review revisions.  The
+with the active plan kept separately in `plan`.  It is retained across automated
+replans, human input and review revisions within a run, and cleared by the
+task/continue boundary (`ResetState`, ADR-0054).  The
 Planner prompt renders the previous versions and instructs the model not to
 repeat an abandoned approach and to state what changed.  The answer synthesis
 still receives only the context-free revision counters.
@@ -736,3 +737,11 @@ that re-runs the step.  The binder and reasoning node render it as
 `step_feedback` (the binder combines it with validation, failed-call and empty-
 pick feedback).  The Planner clears the `evaluation` snapshot when it writes a
 new plan, so feedback from the abandoned plan cannot leak into the next one.
+
+The per-turn task boundary has since moved out of `InitGraphState`:
+`RouteDecision` distinguishes `task`, `chat`, and `continue`, and `ResetState`
+applies the full task reset or the continuation-oriented reset.  A
+`continuation_evidence` record carries a bounded, feedback-style summary of
+the previous run across graph invocations; `continue` re-plans for a new goal
+from that evidence.  See ADR-0054.  `InitGraphState` now only seeds per-turn
+fields and appends the query, leaving task state intact for routing.

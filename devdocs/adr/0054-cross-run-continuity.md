@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-10-21
 decision-makers: Ankur Sinha
 consulted: ""

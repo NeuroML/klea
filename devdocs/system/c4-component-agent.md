@@ -66,13 +66,14 @@ flowchart TD
     subgraph AGENT ["klea_agent container (agent_pkg/klea_agent/klea_agent.py:422, WIP)"]
         direction TB
 
-        init["Initializing<br/>InitGraphState (non-LLM)<br/>resets plan-scoped memory; ADR-0035"]
+        init["Initializing<br/>InitGraphState (non-LLM)<br/>per-turn fields; task state retained; ADR-0054"]
         modeDec["Determining mode<br/>ModeDecision (non-LLM)<br/>requested to resolved mode + note; ADR-0030"]
         modeInf["Informing about mode<br/>ModeInformer<br/>terminal: requested mode cannot run"]
         guard["Checking safety<br/>GuardNode (guard, shared)<br/>guard_decision safe/unsafe; ADR-0010"]
         guardR["Routing safety<br/>GuardRouterNode (shared router)<br/>safe vs unsafe"]
         decline["Declining query<br/>FixedAnswer (shared)<br/>I cannot respond..."]
-        route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat vs task (fail-closed)"]
+        route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat/task/continue (fail-closed)"]
+        reset["Resetting state<br/>ResetState (non-LLM)<br/>task reset or continuation evidence; ADR-0054"]
         planner["Planning<br/>Planner (plan)<br/>sole author of goal + plan; ADR-0035"]
         reviewProgress["Preparing review<br/>ReviewProgress (chat)<br/>synthesizes the since-last-review digest; ADR-0051"]
         review["Awaiting review<br/>AwaitHuman (non-LLM)<br/>a review step: approve/revise; ADR-0046/0051"]
@@ -94,7 +95,7 @@ flowchart TD
         direction TB
         orchestrator["KleaAgent orchestrator<br/>klea_agent.py:_create_graph, _*_router,<br/>_record_tool_round / _record_picker_failure,<br/>context_snapshot; ADR-0016/0032/0035"]
         config["AppConfig + config loader<br/>config.py: bundled_tools, access_level,<br/>tool_access; env file + profile JSON; ADR-0015"]
-        state["KleaAgentState + schemas<br/>schemas.py: goal, plan, step_outputs,<br/>artefacts, internal history, retry budgets; ADR-0032"]
+        state["KleaAgentState + schemas<br/>schemas.py: goal, plan, plan_history,<br/>continuation_evidence, step_outputs, artefacts,<br/>internal history, retry budgets; ADR-0032/0054"]
         api["Agent API<br/>api/main.py make_app + api/chat.py ChatPayload<br/>POST /query, /query/stream; ADR-0031"]
         ui["Client UI / CLI<br/>ui/cli.py (klea, klea-serve) + ui/web/*<br/>mode + access selectors; ADR-0030/0037"]
     end
@@ -107,8 +108,9 @@ flowchart TD
     guard --> guardR
     guardR -. safe .-> route
     guardR -. unsafe .-> decline
-    route -. task .-> planner
+    route -. task/continue .-> reset
     route -. chat .-> prepare
+    reset --> planner
     planner -. chat .-> route
     planner -. review .-> reviewProgress
     planner -. failure .-> compose
@@ -227,7 +229,7 @@ are normalised to it (``Summarizing history`` not ``Summarizing_history``).
 
 ## Auto-generated LangGraph topology (faithful to code, for drift check)
 
-This is the verbatim ``draw_mermaid()`` output from ``klea_agent.py:893``
+This is the verbatim ``draw_mermaid()`` output from ``klea_agent.py``
 (``agent_pkg/example-configs/klea-agent-lang-graph.mmd``, also writes
 ``.mmd`` alongside ``.png`` via ``BaseLangGraph._export_graph_png``). Keep
 the explicit diagram above in sync with it; do not edit this block by
@@ -244,9 +246,11 @@ graph TD;
 	Initializing(Initializing)
 	Determining\20mode(Determining mode)
 	Informing\20about\20mode(Informing about mode)
+	Running\20command(Running command)
 	Checking\20safety(Checking safety)
 	Declining\20query(Declining query)
 	Deciding\20route(Deciding route)
+	Resetting\20state(Resetting state)
 	Planning(Planning)
 	Binding\20tool\20calls(Binding tool calls)
 	Running\20tools(Running tools)
@@ -259,48 +263,55 @@ graph TD;
 	Awaiting\20input(Awaiting input)
 	Cancelled(Cancelled)
 	Summarizing\20history(Summarizing history)
+	Compacting\20memory(Compacting memory)
 	__end__([<p>__end__</p>]):::last
 	Awaiting\20input -. &nbsp;cancelled&nbsp; .-> Cancelled;
 	Awaiting\20input -. &nbsp;planner&nbsp; .-> Planning;
+	Awaiting\20review -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
 	Awaiting\20review -. &nbsp;cancelled&nbsp; .-> Cancelled;
 	Awaiting\20review -. &nbsp;plan_done&nbsp; .-> Composing\20answer;
 	Awaiting\20review -. &nbsp;planner&nbsp; .-> Planning;
+	Awaiting\20review -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Awaiting\20review -. &nbsp;reasoning&nbsp; .-> Reasoning;
-	Awaiting\20review -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
+	Binding\20tool\20calls -. &nbsp;replan&nbsp; .-> Planning;
+	Binding\20tool\20calls -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	Checking\20safety -. &nbsp;safe&nbsp; .-> Deciding\20route;
 	Checking\20safety -. &nbsp;unsafe&nbsp; .-> Declining\20query;
 	Composing\20answer --> Preparing\20response;
-	Deciding\20route -. &nbsp;task&nbsp; .-> Planning;
 	Deciding\20route -. &nbsp;chat&nbsp; .-> Preparing\20response;
+	Deciding\20route -. &nbsp;continue&nbsp; .-> Resetting\20state;
 	Determining\20mode -. &nbsp;proceed&nbsp; .-> Checking\20safety;
 	Determining\20mode -. &nbsp;inform&nbsp; .-> Informing\20about\20mode;
-	Evaluating -. &nbsp;review&nbsp; .-> Preparing\20review;
+	Evaluating -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
 	Evaluating -. &nbsp;abort&nbsp; .-> Composing\20answer;
 	Evaluating -. &nbsp;need_replan&nbsp; .-> Planning;
+	Evaluating -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Evaluating -. &nbsp;reasoning&nbsp; .-> Reasoning;
-	Evaluating -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
-	Initializing --> Determining\20mode;
+	Initializing -. &nbsp;continue&nbsp; .-> Determining\20mode;
+	Initializing -. &nbsp;command&nbsp; .-> Running\20command;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
-	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;
-	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
-	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Planning -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
+	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
+	Planning -. &nbsp;chat&nbsp; .-> Deciding\20route;
+	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;
+	Planning -. &nbsp;reasoning&nbsp; .-> Reasoning;
 	Preparing\20response --> Summarizing\20history;
 	Preparing\20review --> Awaiting\20review;
 	Reasoning --> Evaluating;
+	Resetting\20state --> Planning;
+	Running\20command -. &nbsp;compact&nbsp; .-> Compacting\20memory;
+	Running\20command -. &nbsp;init&nbsp; .-> Determining\20mode;
+	Running\20command -. &nbsp;&nbsp; .-> __end__;
+	Running\20tools -. &nbsp;retry&nbsp; .-> Binding\20tool\20calls;
 	Running\20tools -. &nbsp;evaluate&nbsp; .-> Evaluating;
 	Running\20tools -. &nbsp;replan&nbsp; .-> Planning;
-	Running\20tools -. &nbsp;retry&nbsp; .-> Binding\20tool\20calls;
-	Binding\20tool\20calls -. &nbsp;replan&nbsp; .-> Planning;
-	Binding\20tool\20calls -. &nbsp;dispatch&nbsp; .-> Running\20tools;
 	__start__ --> Initializing;
 	Cancelled --> __end__;
+	Compacting\20memory --> __end__;
 	Declining\20query --> __end__;
 	Informing\20about\20mode --> __end__;
 	Summarizing\20history --> __end__;
-	Awaiting\20review -. &nbsp;review&nbsp; .-> Preparing\20review;
 	Binding\20tool\20calls -. &nbsp;bind_next&nbsp; .-> Binding\20tool\20calls;
-	Binding\20tool\20calls -. &nbsp;retry_picker&nbsp; .-> Binding\20tool\20calls;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0
 	classDef last fill:#bfb6fc
@@ -316,16 +327,17 @@ field-level details.
 |-----------|------|------|---------------|
 | KleaAgent orchestrator | ``klea_agent/klea_agent.py`` | ``BaseLangGraph`` subclass: ``_create_graph``, the conditional-edge routers, the tool-round/picker callbacks, ``context_snapshot`` | ``env_prefix``/config discovery (ADR-0015); graph exported as ``klea-agent-lang-graph.{png,mmd}`` (ADR-0016/0032/0035) |
 | AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``general.commands``, ``general.memory``, ``mcp_servers``, ``providers`` (ADR-0015/0037/0047) |
-| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``plan_history``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035) |
+| KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``plan_history``, ``continuation_evidence``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035/0054) |
 | Agent API | ``klea_agent/api/{main,chat,server}.py`` | FastAPI app via ``make_app`` + the agent ``ChatPayload`` chat router | ``POST /query``, ``/query/stream``; ``mode``/``access_level`` in the payload; generic routers from ``klea_utils.api`` (ADR-0031) |
 | Client UI / CLI | ``klea_agent/ui/cli.py`` + ``ui/web/*`` | Typer CLI (``klea``, ``klea-serve``) and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037) |
-| Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: seeds/resets plan-scoped state each turn | Non-LLM; resets ``goal``/``plan``/``plan_history``/``step_outputs``/counters (ADR-0035) |
+| Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: per-turn fields and query history; task state retained | Non-LLM; no plan-scoped reset; task boundary moves to ``ResetState`` (ADR-0054) |
+| Resetting state | ``klea_agent/nodes/reset_state.py`` | ``ResetState``: applies the ``task``/``continue`` boundary before planning | Non-LLM; ``task`` full reset; ``continue`` clears goal/active plan/transients but keeps ``continuation_evidence`` (ADR-0054) |
 | Determining mode / Informing | ``klea_agent/nodes/mode_router.py`` | ``ModeDecision`` resolves requested -> resolved; ``ModeInformer`` is terminal | Non-LLM; ``mode.note`` routes to inform instead of downgrading (ADR-0030) |
 | Checking safety | ``klea_utils/nodes/guard.py`` | ``GuardNode`` (``guard`` role, shared) | ``guard_decision`` ``safe``/``unsafe`` (ADR-0010) |
 | Routing safety | ``klea_utils/nodes/guard_router.py`` | ``GuardRouterNode`` (shared router) | reads ``guard_decision`` -> ``safe``/``unsafe`` edge |
 | Declining query | ``klea_utils/nodes/fixed_answer.py`` | ``FixedAnswer``: canned refusal | terminal; writes ``message_for_user`` |
-| Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow entry router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task``; no tool list (ADR-0035) |
-| Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035) |
+| Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow intent router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task`` (new goal/plan) / ``continue`` (re-plan from prior evidence); no tool list (ADR-0035/0054) |
+| Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; ``previous_work`` evidence on continuations; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035/0054) |
 | Preparing review | ``klea_agent/nodes/review_progress.py`` | ``ReviewProgress`` (``chat``): synthesizes the human-facing digest of work since the last review, immediately before each review gate | ``ReviewProgressSchema``; no tools; reads ``step_outputs`` since the last approved gate; skips with no new work (ADR-0051) |
 | Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; presents the digest + all pending steps; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
 | Binding tool calls | ``klea_agent/nodes/tool_call_binder.py`` | ``ToolCallBinder`` (``tool_picker``): a ``ToolsPicker`` subclass that binds arguments for one contiguous group of steps sharing ``suggested_tools`` | ``ToolCallBinder_*`` prompts; only the group's tools are disclosed; accumulates ``binding_calls`` until the batch is bound; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034/0035) |

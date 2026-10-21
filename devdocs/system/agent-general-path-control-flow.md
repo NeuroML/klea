@@ -23,15 +23,15 @@ base plus the ADR-0029 correctness layer (ADR-0036).
 ```
 START
   |
-InitGraphState
+InitGraphState (per-turn fields only; task state retained)
   |
 ModeDecision --(cannot run)--> ModeInformer -> END
   |
 Guard --(unsafe)--> DecliningQuery -> END
   |
-RouteDecision (narrow, fail-closed: chat | task; answers chat inline)
+RouteDecision (narrow, fail-closed: chat | task | continue; answers chat inline)
   |-- chat --> AnswerUser -> END
-  '-- task --> Planner
+  '-- task/continue --> ResetState -> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
                  |-- status chat ---------> RouteDecision (forced chat) -> AnswerUser -> END
                  |-- status completed -----> AnswerFromResults (all steps already done) -> AnswerUser -> END
@@ -97,10 +97,11 @@ remains the source for workflow topology and failure policy.
 
 | Node | Role | LLM |
 |------|------|-----|
-| InitGraphState | seed/reset state | no |
+| InitGraphState | seed per-turn state; append query; refresh discovery; task/plan state retained | no |
+| ResetState | apply the task boundary selected by RouteDecision: full task reset, or continued planning with evidence | no |
 | ModeDecision / ModeInformer | resolve mode (ADR-0030) | no |
 | Guard | safety classification (ADR-0010) | yes (guard role) |
-| RouteDecision | narrow entry router: ``chat`` (answer inline) vs ``task`` (fail-closed) | yes (chat role) |
+| RouteDecision | narrow entry router: ``chat`` (answer inline), ``task`` (new goal/plan), or ``continue`` (re-plan using prior evidence); fail-closed | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan (ADR-0035); never answers the user | yes (plan role) |
 | ReviewProgress | synthesise a human-facing digest of the work since the last review, immediately before a review gate; calls no tools (ADR-0051) | yes (chat role) |
 | AwaitHuman | HITL pause/resume (ADR-0046/ADR-0051): a review step (approve/revise) or a blocked step's questions; no LLM | no |
@@ -119,7 +120,13 @@ answer the user directly:
 | route | meaning | edge |
 |-------|---------|------|
 | ``chat`` | self-contained conversational/general-knowledge reply (greeting, clarification, general fact, direct conversational edit); the router wrote ``answer``.  Does not derive from session work | ``AnswerUser`` |
-| ``task`` | needs the environment/workspace/session, **or** derives a result from earlier work/turns (summarise, compile, compare, synthesise) | ``Planner`` |
+| ``task`` | a new result or change of direction; may use earlier findings as context but needs a fresh goal/plan (summarise, compile, compare, synthesise, or new work) | ``ResetState`` -> ``Planner`` |
+| ``continue`` | an explicit request to implement or continue the immediately preceding work ("implement", "go ahead", "continue"); re-plans for the new goal using bounded prior evidence (ADR-0054) | ``ResetState`` -> ``Planner`` |
+
+The ``task``/``continue`` difference is intent, not data reuse: both may use
+prior context, but ``continue`` tells the agent to proceed with the previous
+work.  ``continue`` is not a HITL review decision; the same-run approve/execute
+flow remains a ``review`` plan step.
 
 The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``plan.status`` is the post-Planner routing source:
@@ -270,7 +277,7 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 
 | Node | Tool info | Rationale |
 |------|-----------|-----------|
-| RouteDecision | no tool list | narrow chat|task routing; tools would only tempt capability guessing |
+| RouteDecision | no tool list | narrow chat/task/continue intent routing; tools would only tempt capability guessing |
 | Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
 | ToolCallBinder | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` for the group's suggested tools |
 
@@ -339,8 +346,9 @@ deferred ADR-0041 open item.
 
 ## State (relevant fields)
 
-* ``route: RouteSchema`` (entry routing: ``chat`` | ``task``, with the inline
-  chat answer).
+* ``route: RouteSchema`` (entry routing: ``chat`` | ``task`` | ``continue``,
+  with the inline chat answer).  ``task`` and ``continue`` both proceed through
+  ``ResetState`` to the Planner; the latter preserves bounded evidence.
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
 * ``plan: PlanSchema`` (steps with their ``success_criteria``/``status``/
@@ -359,13 +367,20 @@ deferred ADR-0041 open item.
 * ``plan_history: list[PlanRevision]`` (superseded plan versions, newest last,
   capped at 9; each carries the full steps and the reason it was abandoned.
   The active plan remains in ``plan``, so the Planner and guidance HITL see
-  1 active + 9 previous versions.  Reset per turn; retained across automated
-  replans, human input and review revisions.  The cap is independent of the
-  automated-replan budget, which resets on human input.)
+  1 active + 9 previous versions.  Retained across automated replans, human
+  input and review revisions; cleared by ``ResetState`` at a ``task`` or
+  ``continue`` boundary.  The cap is independent of the automated-replan
+  budget, which resets on human input.)
+* ``continuation_evidence: ContinuationEvidence | None`` (bounded evidence
+  from the previous terminal run: prior goal/plan/statuses, per-step summary,
+  abandoned-plan reasons, final answer/artefact ids, project root and
+  timestamp).  Session-scoped: preserved by a ``continue``, cleared by a
+  ``task`` reset; never includes full ``step_outputs`` or raw tool payloads
+  (ADR-0054).
 * ``step_outputs: dict[int, list[StepOutput]]`` (per-step results; a
   ``StepOutput.result`` is either a ``CallToolResult`` or, for a reasoning
-  step, a plain ``str`` conclusion).  Plan-scoped: cleared each turn and on a
-  new plan.
+  step, a plain ``str`` conclusion).  Plan-scoped: cleared by ``ResetState``
+  at a task boundary and by the Planner when it authors a new plan.
 * ``tool_calls`` / ``tool_results`` (current batch; shared with RAG).
 * ``tool_retry_counts: dict[int, int]`` (consecutive tool-error batches per
   step; ADaPT re-pick budget).
@@ -414,11 +429,15 @@ State lifetime is split so a bounded working set carries across a run while
 only curated results cross into later tasks:
 
 * **Plan-scoped working memory** (`step_outputs`, the retry/attempt counters)
-  is visible to later steps and cleared by ``InitGraphState`` each turn and by
-  the Planner when it authors a new plan.
-* **Run-scoped plan history** (`plan_history`) is reset by ``InitGraphState``
-  each turn but retained across plans, human input and review revisions within
-  the run; the Planner does not clear it when authoring a new plan.
+  is visible to later steps and cleared by ``ResetState`` at a task boundary
+  and by the Planner when it authors a new plan.
+* **Run-scoped plan history** (`plan_history`) is retained across plans, human
+  input and review revisions within the run; ``ResetState`` clears it at a new
+  task/continue boundary.
+* **Cross-run continuation evidence** (`continuation_evidence`) is
+  session-scoped: written by ``AnswerFromResults`` at a terminal run, preserved
+  by a ``continue``, and cleared by a ``task`` reset.  It is a bounded summary,
+  not a copy of `step_outputs` (ADR-0054).
 * **Session-scoped** (`artefacts`, plus ``messages``/``messages_internal``
   for continuity and provenance, ``mode`` and ``discovery_persistent``)
   survives across tasks in the same session.  ``InitGraphState`` refreshes
@@ -438,6 +457,31 @@ only curated results cross into later tasks:
   bounded (the most recently written 20 entries and 12,000 characters, with a
   note when older entries are omitted); the checkpoint still retains all
   artefacts.
+
+## Cross-run continuity (ADR-0054)
+
+`RouteDecision` distinguishes `task` (new result/direction) from `continue`
+(implement or continue the previous work).  `InitGraphState` now leaves task
+state intact; after routing, `ResetState` applies the boundary:
+
+- `task`: full plan-scoped reset, including clearing
+  `continuation_evidence`.
+- `continue`: clears the active goal/plan and transient execution fields, but
+  preserves `continuation_evidence`.
+- `chat`: no task reset; prior evidence remains available for a later
+  `continue`.
+
+`continue` is **re-planning for a new goal using prior evidence**, not resuming
+the previous plan.  The Planner receives the bounded evidence as
+`previous_work`, sets a new goal, and must not carry old statuses or plan
+structure forward blindly.  Same-run plan approval/execution stays a `review`
+plan step and HITL interrupt.
+
+Evidence is deliberately a feedback-style execution summary, not the full
+`step_outputs`: prior goal and plan/statuses, per-step outcome summaries,
+abandoned-plan reasons, final answer/artefact ids, project root and timestamp.
+It is a snapshot and must not be treated as live truth; file/URL-dependent
+claims need revalidation before implementation.
 
 ## Failure signals (levels)
 
@@ -497,9 +541,11 @@ history is never injected verbatim.
 The Planner is the sole writer of ``state.goal`` (the goal plus task-level
 success criteria).  ``_update_state`` writes it only while it is unset, so a
 replan or a review revision within the same execution cannot move the success
-reference.  Immutability is per execution, not per session:
-``InitGraphState`` resets ``goal`` (and ``plan``) at the start of every turn,
-so a new request gets a fresh goal without a new session.
+reference.  Immutability is per execution, not per session: ``ResetState``
+clears ``goal`` (and the active plan) for both ``task`` and ``continue``
+entries, so a new request gets a fresh goal.  A ``continue`` is a *new* goal
+(e.g. "implement it") that uses prior evidence; the previous goal lives only in
+``continuation_evidence``.
 
 ## Evaluator verdicts and routing
 
