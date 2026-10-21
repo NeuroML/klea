@@ -102,6 +102,21 @@ def _interrupt_ask(ctx: PageContext) -> dict[str, Any]:
     return (chat or {}).get("interrupt") or {}
 
 
+def _render_ask_sections(ask: dict[str, Any]) -> None:
+    """Render optional HITL sections (review plan/progress, input plan history).
+
+    The sections are rendered monospace so tool names and paths stay literal;
+    full results remain in the inspection pane.
+    """
+    for section in ask.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        if title := section.get("title"):
+            ui.label(title).classes("text-xs font-bold")
+        if body := section.get("body"):
+            ui.code(body, language=None).classes("text-xs w-full nicegui-code-noformat")
+
+
 def _render_interrupt_form(ctx: PageContext) -> None:
     """Render the HITL ask form in the turn status region (ADR-0046).
 
@@ -130,15 +145,7 @@ def _render_interrupt_form(ctx: PageContext) -> None:
                 ui.label(headline).classes("text-sm font-bold")
             if question := ask.get("question"):
                 ui.label(question).classes("text-sm")
-            for section in ask.get("sections") or []:
-                if not isinstance(section, dict):
-                    continue
-                if title := section.get("title"):
-                    ui.label(title).classes("text-xs font-bold")
-                if body := section.get("body"):
-                    ui.code(body, language=None).classes(
-                        "text-xs w-full nicegui-code-noformat"
-                    )
+            _render_ask_sections(ask)
             feedback = (
                 ui.textarea(placeholder="Feedback (required to request changes)")
                 .props("outlined autogrow")
@@ -165,7 +172,9 @@ def _render_interrupt_form(ctx: PageContext) -> None:
                 ).props("flat color=negative")
             return
 
-        # input kind: one text field per question.
+        # input kind: plan history (when present), then one text field per
+        # question.
+        _render_ask_sections(ask)
         questions = ask.get("questions")
         if not isinstance(questions, list) or not questions:
             fallback = ask.get("question") or "More information is needed to continue."

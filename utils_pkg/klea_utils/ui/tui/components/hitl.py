@@ -149,19 +149,8 @@ class HitlPanel(HitlDecisionPanel):
         else:
             yield from self._compose_input()
 
-    def _compose_review(self) -> ComposeResult:
-        """Compose the review form (headline, sections, feedback, buttons).
-
-        The payload's ``headline`` and ``sections`` adapt to the review's
-        position (a plan approval or a progress checkpoint; ADR-0051); both
-        frontends render the same sections.
-        """
-        headline = self.ask.get("headline")
-        if headline:
-            yield Static(str(headline), id="hitl-headline", markup=False)
-        question = self.ask.get("question")
-        if question:
-            yield Static(str(question), id="hitl-question", markup=False)
+    def _compose_sections(self) -> ComposeResult:
+        """Compose optional ask sections (review plan/progress, input history)."""
         for index, section in enumerate(self.ask.get("sections") or []):
             if not isinstance(section, Mapping):
                 continue
@@ -179,6 +168,21 @@ class HitlPanel(HitlDecisionPanel):
                 classes="hitl-section-body",
                 markup=False,
             )
+
+    def _compose_review(self) -> ComposeResult:
+        """Compose the review form (headline, sections, feedback, buttons).
+
+        The payload's ``headline`` and ``sections`` adapt to the review's
+        position (a plan approval or a progress checkpoint; ADR-0051); both
+        frontends render the same sections.
+        """
+        headline = self.ask.get("headline")
+        if headline:
+            yield Static(str(headline), id="hitl-headline", markup=False)
+        question = self.ask.get("question")
+        if question:
+            yield Static(str(question), id="hitl-question", markup=False)
+        yield from self._compose_sections()
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )
@@ -188,7 +192,8 @@ class HitlPanel(HitlDecisionPanel):
             yield Button("Cancel", id="hitl-cancel", variant="error")
 
     def _compose_input(self) -> ComposeResult:
-        """Compose the input form (one field per question, buttons)."""
+        """Compose the input form (plan history, questions, buttons)."""
+        yield from self._compose_sections()
         questions = self.ask.get("questions")
         if not isinstance(questions, list) or not questions:
             fallback = self.ask.get("question") or "More information is needed."

@@ -55,6 +55,28 @@ def test_input_answers_each_question(monkeypatch):
     assert cancel is False
 
 
+def test_input_prints_plan_history_sections(monkeypatch, capsys):
+    monkeypatch.setattr(builtins, "input", lambda *a, **k: "proceed")
+    response, cancel = repl._prompt_interrupt(
+        {
+            "kind": "input",
+            "sections": [
+                {
+                    "title": "Plan version 1 (abandoned)",
+                    "body": "Abandoned: tool failed",
+                }
+            ],
+            "questions": [{"question": "How should I proceed?"}],
+        },
+        "klea",
+    )
+    printed = capsys.readouterr().out
+    assert "Plan version 1 (abandoned)" in printed
+    assert "Abandoned: tool failed" in printed
+    assert response == {"answers": ["proceed"]}
+    assert cancel is False
+
+
 def test_input_cancel(monkeypatch):
     monkeypatch.setattr(builtins, "input", lambda *a, **k: "cancel")
     response, cancel = repl._prompt_interrupt(

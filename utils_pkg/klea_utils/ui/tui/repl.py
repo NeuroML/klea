@@ -87,6 +87,19 @@ def _prompt_permission(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
     return {"decisions": decisions}, False
 
 
+def _print_ask_sections(ask: dict, app_prefix: str) -> None:
+    """Print optional input-ask sections, such as abandoned plan versions."""
+    for section in ask.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        title = str(section.get("title", "")).strip()
+        body = str(section.get("body", "")).strip()
+        if title:
+            print(f"{app_prefix}: {title}")
+        if body:
+            print(body)
+
+
 def _prompt_interrupt(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
     """Prompt for a HITL ask and return ``(interrupt_response, cancel)``.
 
@@ -123,6 +136,7 @@ def _prompt_interrupt(ask: dict, app_prefix: str) -> tuple[dict | None, bool]:
                 return None, True
             print("Please choose a, r, or c.")
 
+    _print_ask_sections(ask, app_prefix)
     questions = ask.get("questions")
     if not isinstance(questions, list) or not questions:
         questions = [{"question": ask.get("question") or "More information is needed."}]

@@ -398,6 +398,46 @@ async def test_input_ask_mounts_inline_panel(fake_backend, make_app):
     assert fake_backend.calls[-1]["interrupt_response"] == {"answers": ["a.txt"]}
 
 
+async def test_input_ask_renders_plan_history_sections(fake_backend, make_app):
+    """An input ask renders abandoned plan versions above the questions."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "input",
+                    "sections": [
+                        {
+                            "title": "Plan version 1 (abandoned)",
+                            "body": "Abandoned: tool failed\nSteps:\n[FAILED] 1. read",
+                        }
+                    ],
+                    "questions": [
+                        {"step_number": 2, "question": "How should I proceed?"}
+                    ],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one(HitlPanel)
+        title = app.screen.query_one("#hitl-section-0-title", Static)
+        assert str(title.render()) == "Plan version 1 (abandoned)"
+        body = app.screen.query_one("#hitl-section-0-body", Static)
+        assert "Abandoned: tool failed" in str(body.render())
+        assert app.screen.query_one("#hitl-answer-0", Input)
+        app.screen.query_one("#hitl-answer-0", Input).value = "try again"
+        app.screen.query_one("#hitl-answer", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {"answers": ["try again"]}
+
+
 async def test_inline_panel_swaps_the_composer(fake_backend, make_app):
     """The ask replaces the composer while active and restores it on a decision."""
     fake_backend.scripts = [
