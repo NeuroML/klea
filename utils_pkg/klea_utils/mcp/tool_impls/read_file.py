@@ -225,6 +225,7 @@ def read_file(
     streamed = False
     reached_eof = True
     scan_capped = False
+    stop_reason = ""
     total_lines: int | None = 0
     segments: list[str] = []
     try:
@@ -258,6 +259,7 @@ def read_file(
                 reached_eof,
                 scan_capped,
                 had_bom,
+                stop_reason,
             ) = _read_streamed_page(
                 the_path,
                 offset=offset,
@@ -360,13 +362,13 @@ def read_file(
 
     if not truncated:
         truncation_reason = ""
-    elif char_limited:
+    elif char_limited or stop_reason == "chars":
+        # Also covers a page that filled the budget exactly and has a
+        # continuation: ``_cap_segments`` did not trim it, but the budget is
+        # still what stopped the read.
         truncation_reason = "char_budget"
-    elif scan_capped:
+    elif scan_capped or stop_reason == "cap":
         truncation_reason = "scan_cap"
-    elif streamed and not reached_eof and limit is None:
-        # ``limit=None`` can only stop on the character budget.
-        truncation_reason = "char_budget"
     else:
         truncation_reason = "line_limit"
 
@@ -572,6 +574,101 @@ class _StreamState:
         self.had_bom = False
 
 
+def _peek_for_eof(lines: Iterator[tuple[str, bool]]) -> None:
+    """Consume one line so the reader can set ``state.exhausted`` at EOF.
+
+    The page collector breaks as soon as it is full (line limit or character
+    budget).  Without this peek, a page that ended exactly at EOF would still
+    report ``reached_eof=False`` and be mislabelled as truncated.
+
+    :param lines: The line iterator being collected from.
+    """
+    try:
+        next(lines)
+    except StopIteration:
+        pass
+
+
+def _collect_page(
+    handle: BinaryIO,
+    *,
+    first_line_no: int,
+    skip_lines: int,
+    limit: int | None,
+    char_offset: int,
+    max_chars: int,
+    max_bytes: int,
+    strip_bom: bool = True,
+) -> tuple[list[str], int, bool, bool, bool, str]:
+    """Collect one page of lines from an already-positioned *handle*.
+
+    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once
+    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the
+    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.
+    Both the forward and tail readers use this so their cap and EOF behaviour
+    cannot diverge.
+
+    :param handle: Open binary handle positioned at the first byte to read.
+    :param first_line_no: Line number assigned to the first line yielded.
+        Positive for a forward read, negative (relative to EOF) for a tail.
+    :param skip_lines: Lines to discard before collecting (used by a forward
+        read to reach ``offset``).
+    :param limit: Maximum number of lines to collect, or ``None`` for no line
+        limit.
+    :param char_offset: 0-indexed character within the first collected line.
+    :param max_chars: Character budget for the page (bounds the scan too).
+    :param max_bytes: Per-call scan cap in bytes.
+    :param strip_bom: Strip a leading BOM (only when reading from byte 0).
+    :returns: ``(segments, last_line_no, reached_eof, scan_capped, had_bom,
+        stop_reason)``, where ``stop_reason`` is ``"eof"``, ``"limit"``,
+        ``"chars"`` or ``"cap"``.  It says which bound stopped the page, so the
+        caller can report an accurate truncation reason even when the rendered
+        text happens to fit the character budget exactly.
+    """
+    state = _StreamState()
+    max_line_chars = char_offset + max_chars + _PREFIX_ALLOWANCE
+    segments: list[str] = []
+    line_no = first_line_no - 1
+    skipped = 0
+    collected = 0
+    accumulated = 0
+    stop_reason = "eof"
+    lines = _iter_capped_lines(
+        handle,
+        state,
+        max_line_chars=max_line_chars,
+        max_bytes=max_bytes,
+        strip_bom=strip_bom,
+    )
+    for text, _truncated in lines:
+        line_no += 1
+        if skipped < skip_lines:
+            skipped += 1
+            continue
+        segment = text[char_offset:] if collected == 0 and char_offset else text
+        segments.append(segment)
+        collected += 1
+        accumulated += len(segment) + (1 if collected > 1 else 0)
+        if limit is not None and collected >= limit:
+            stop_reason = "limit"
+            _peek_for_eof(lines)
+            break
+        if accumulated >= max_chars:
+            stop_reason = "chars"
+            _peek_for_eof(lines)
+            break
+    else:
+        stop_reason = "eof" if state.exhausted else "cap"
+    return (
+        segments,
+        line_no,
+        state.exhausted,
+        state.capped,
+        state.had_bom,
+        stop_reason,
+    )
+
+
 def _read_streamed_page(
     path: Path,
     *,
@@ -580,54 +677,50 @@ def _read_streamed_page(
     char_offset: int,
     max_chars: int,
     max_bytes: int,
-) -> tuple[list[str], int | None, bool, bool, bool]:
+) -> tuple[list[str], int | None, bool, bool, bool, str]:
     """Collect one page of lines from *path* without loading the whole file.
 
-    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once
-    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the
-    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.
+    This is the forward-read wrapper around :func:`_collect_page`; it opens the
+    file at byte 0, skips to ``offset`` and reports the absolute total only when
+    the scan reached EOF.
 
     :param path: Text file to read.
     :param offset: 1-indexed line to start from.
-    :param limit: Maximum number of lines, or ``None`` for "to the end".
+    :param limit: Maximum number of lines, or ``None`` for no line limit.
     :param char_offset: 0-indexed character within ``offset``'s line.
     :param max_chars: Character budget for the page (bounds the scan too).
     :param max_bytes: Per-call scan cap in bytes.
-    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom)``.
-        ``total_lines`` is ``None`` unless the scan reached EOF.
+    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom,
+        stop_reason)``.  ``total_lines`` is ``None`` unless the scan reached
+        EOF.
     """
-    state = _StreamState()
-    max_line_chars = char_offset + max_chars + _PREFIX_ALLOWANCE
-    segments: list[str] = []
-    line_no = 0
-    collected = 0
-    accumulated = 0
     with path.open("rb") as handle:
-        lines = _iter_capped_lines(
+        (
+            segments,
+            line_no,
+            reached_eof,
+            scan_capped,
+            had_bom,
+            stop_reason,
+        ) = _collect_page(
             handle,
-            state,
-            max_line_chars=max_line_chars,
+            first_line_no=1,
+            skip_lines=offset - 1,
+            limit=limit,
+            char_offset=char_offset,
+            max_chars=max_chars,
             max_bytes=max_bytes,
+            strip_bom=True,
         )
-        for text, _truncated in lines:
-            line_no += 1
-            if line_no < offset:
-                continue
-            segment = text[char_offset:] if line_no == offset and char_offset else text
-            segments.append(segment)
-            collected += 1
-            accumulated += len(segment) + (1 if collected > 1 else 0)
-            if limit is not None and collected >= limit:
-                # Peek once to tell EOF from a real continuation.
-                try:
-                    next(lines)
-                except StopIteration:
-                    pass
-                break
-            if accumulated >= max_chars:
-                break
-    total_lines = line_no if state.exhausted else None
-    return segments, total_lines, state.exhausted, state.capped, state.had_bom
+    total_lines = line_no if reached_eof else None
+    return (
+        segments,
+        total_lines,
+        reached_eof,
+        scan_capped,
+        had_bom,
+        stop_reason,
+    )
 
 
 def _iter_capped_lines(
@@ -637,6 +730,7 @@ def _iter_capped_lines(
     max_line_chars: int,
     max_bytes: int,
     chunk_size: int = _STREAM_CHUNK_BYTES,
+    strip_bom: bool = True,
 ) -> Iterator[tuple[str, bool]]:
     """Yield ``(line, truncated)`` pairs read lazily from a binary *handle*.
 
@@ -652,6 +746,9 @@ def _iter_capped_lines(
     :param max_line_chars: Maximum characters kept per line.
     :param max_bytes: Per-call scan cap in bytes.
     :param chunk_size: Read granularity in bytes.
+    :param strip_bom: Strip a leading UTF-8 BOM from the first decoded chunk.
+        Set ``False`` when reading from a mid-file seek, where a leading
+        U+FEFF is real content rather than a BOM.
     :yields: ``(line_text, truncated)`` for each line, without its newline.
     """
     decoder = codecs.getincrementaldecoder("utf-8")()
@@ -679,7 +776,7 @@ def _iter_capped_lines(
                 pending_cr = False
         if first and text:
             first = False
-            if text.startswith("\ufeff"):
+            if strip_bom and text.startswith("\ufeff"):
                 text = text[1:]
                 state.had_bom = True
         if pending_cr:

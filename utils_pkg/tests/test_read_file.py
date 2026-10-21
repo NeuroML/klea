@@ -64,6 +64,37 @@ def test_everything_fits_reports_no_truncation(tmp_path):
     assert result["error"] == ""
 
 
+def test_character_budget_at_eof_is_not_reported_as_truncated(tmp_path):
+    """A page that exactly fills the budget at EOF is complete, not truncated."""
+    f = tmp_path / "exact.txt"
+    f.write_text("abc\nxyz")
+
+    result = read_file(
+        str(f), max_chars=7, line_numbers=False, project_root=str(tmp_path)
+    )
+
+    assert result["content"] == "abc\nxyz"
+    assert result["truncated"] is False
+    assert result["truncation_reason"] == ""
+    assert result["total_lines"] == 2
+    assert result["next_offset"] is None
+
+
+def test_character_budget_with_a_continuation_is_truncated(tmp_path):
+    """Filling the budget is still a truncation when another line follows."""
+    f = tmp_path / "exact.txt"
+    f.write_text("abc\nxyz\nmore")
+
+    result = read_file(
+        str(f), max_chars=7, line_numbers=False, project_root=str(tmp_path)
+    )
+
+    assert result["content"] == "abc\nxyz"
+    assert result["truncated"] is True
+    assert result["truncation_reason"] == "char_budget"
+    assert result["next_offset"] == 3
+
+
 def test_limit_truncation_reports_next_offset(tmp_path):
     """A line-``limit`` truncation also carries a continuation offset."""
     f = _write(tmp_path, 10)
@@ -459,6 +490,31 @@ def test_stream_reader_splits_multibyte_across_chunks():
     )
 
     assert [text for text, _ in lines] == ["caf\u00e9"]
+    assert state.exhausted is True
+
+
+def test_stream_reader_can_preserve_a_bom_after_a_seek():
+    """A mid-file seek treats a leading U+FEFF as content, not a BOM."""
+    import io
+
+    from klea_utils.mcp.tool_impls.read_file import (
+        _iter_capped_lines,
+        _StreamState,
+    )
+
+    state = _StreamState()
+    lines = list(
+        _iter_capped_lines(
+            io.BytesIO(b"\xef\xbb\xbfx\n"),
+            state,
+            max_line_chars=10,
+            max_bytes=10_000,
+            strip_bom=False,
+        )
+    )
+
+    assert [text for text, _ in lines] == ["\ufeffx"]
+    assert state.had_bom is False
     assert state.exhausted is True
 
 
