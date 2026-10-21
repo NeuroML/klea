@@ -45,15 +45,20 @@ originally written without an enumerated edge-case contract, which let
 
 ## `read_file` paging contract
 
-* `offset` (1-indexed line), `limit` (lines; default 500, `None` = to the end),
+* `offset` (1-indexed line), `limit` (lines; default 500),
   `char_offset` (0-indexed character within the start line, default 0).
-* The character budget is **server-owned** (`_MAX_CHARS`, ~20k) and not exposed
-  to the model, so a large file is read by paging rather than in one call.
+  `limit=None` removes only the line cap; the server character budget still
+  applies, so a `None` read can still be truncated with `next_offset`.
+* The character budget is **server-owned** (`_MAX_CHARS`, ~20k), not an input
+  to the tool, so a large file is read by paging rather than in one call.  The
+  effective value is reported as `char_budget`.
 * A page normally ends on a line boundary.  A single line longer than the
   budget is paged by characters.
 * A truncated read is a **success** (`error` empty) carrying `truncated`,
-  `next_offset`, `next_char_offset` and a `note` telling the caller how to
-  continue.  It is not an MCP error.
+  `truncation_reason`, `next_offset`, `next_char_offset` and a `note` telling
+  the caller how to continue.  `truncation_reason` is `char_budget`,
+  `line_limit` or `scan_cap` when truncated, and empty otherwise.  It is not an
+  MCP error.
 * Error results (`isError: true`): missing / not-a-file (with `nearby` +
   `note`), binary, invalid UTF-8, and unreadable (a symlink loop reports as
   not-a-file).  Path-permission denials come from the client-side gate before
@@ -112,6 +117,7 @@ originally written without an enumerated edge-case contract, which let
 | Many short lines | Paged by `limit`; `next_offset`. |
 | Few long lines | Line-boundary cap; a single over-long line paged by `char_offset`. |
 | Many long lines | Both bounds apply; page ends on a line boundary. |
+| `limit=None` with more content than the budget | Character-capped page; `truncation_reason: char_budget`; continue with `next_offset`. |
 | Empty file | `total_lines: 0`, empty content. |
 | `offset` past EOF | Empty content + a "past the end" `note`. |
 | Non-positive `limit` | Coerced to one line (never reads the whole file). |
