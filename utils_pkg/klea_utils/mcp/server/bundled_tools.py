@@ -20,6 +20,10 @@ from klea_utils.mcp.tool_impls.download_file import download_file as download_fi
 from klea_utils.mcp.tool_impls.edit_file import edit_file as edit_file_impl
 from klea_utils.mcp.tool_impls.find_files import find_files as find_files_impl
 from klea_utils.mcp.tool_impls.grep import grep as grep_impl
+from klea_utils.mcp.tool_impls.grep_hunks import (
+    DEFAULT_CONTEXT_LINES,
+    MAX_CONTEXT_LINES,
+)
 from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
 from klea_utils.mcp.tool_impls.papers.search import (
     DEFAULT_MAX_RESULTS as PAPERS_DEFAULT_MAX_RESULTS,
@@ -621,6 +625,18 @@ async def grep(
             )
         ),
     ] = False,
+    context_lines: Annotated[
+        int,
+        Field(
+            description=(
+                "Lines of context before and after each match (0-7). The "
+                "default of 2 usually shows enough surrounding code to avoid a "
+                "follow-up read_file; raise it for denser blocks"
+            ),
+            ge=0,
+            le=MAX_CONTEXT_LINES,
+        ),
+    ] = DEFAULT_CONTEXT_LINES,
     max_results: Annotated[
         int,
         Field(description="Maximum number of matching lines to return", ge=1, le=1000),
@@ -651,11 +667,14 @@ async def grep(
             searched.
         case_sensitive: Whether the search is case sensitive.
         include_ignored: Also search .gitignore-ignored files.
+        context_lines: Lines of context before and after each match (0-7).
         max_results: Maximum number of matching lines to return.
 
     Returns:
-        Dictionary with pattern, path, matches (path, line_number, line),
-        truncated, files_scanned, error.
+        Dictionary with pattern, path, match hunks, truncated, files_scanned,
+        error.  Each hunk is ``{path, start_line, end_line, lines}`` with one
+        ``{line_number, line, match}`` entry per line, so callers get the
+        surrounding code without a separate read.
     """
     result = await grep_impl(
         pattern=pattern,
@@ -663,6 +682,7 @@ async def grep(
         include=include,
         case_sensitive=case_sensitive,
         include_ignored=include_ignored,
+        context_lines=context_lines,
         max_results=max_results,
     )
     return to_result(result)

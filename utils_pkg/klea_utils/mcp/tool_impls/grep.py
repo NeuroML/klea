@@ -257,6 +257,7 @@ async def grep(
     include: str | None = None,
     case_sensitive: bool = True,
     include_ignored: bool = False,
+    context_lines: int = DEFAULT_CONTEXT_LINES,
     max_results: int = DEFAULT_MAX_RESULTS,
     project_root: str | None = None,
 ) -> dict[str, Any]:
@@ -276,10 +277,13 @@ async def grep(
     :param case_sensitive: Whether matching is case sensitive.
     :param include_ignored: When ``True``, also search ``.gitignore``-ignored
         files (ripgrep backend only).
-    :param max_results: Maximum number of matching lines to return.
+    :param context_lines: Lines of context before and after each match,
+        clamped to ``0..7``.
+    :param max_results: Maximum number of matching lines to return.  Context
+        lines do not count toward this cap.
     :param project_root: Retained for callers; the boundary is enforced
         by the client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with pattern, path, matches, truncated, files_scanned,
+    :returns: dict with pattern, path, match hunks, truncated, files_scanned,
         error.
     """
     rg = resolve_rg()
@@ -292,6 +296,7 @@ async def grep(
             include=include,
             case_sensitive=case_sensitive,
             include_ignored=include_ignored,
+            context_lines=context_lines,
             max_results=max_results,
             project_root=project_root,
         )
@@ -301,6 +306,7 @@ async def grep(
         path=path,
         include=include,
         case_sensitive=case_sensitive,
+        context_lines=context_lines,
         max_results=max_results,
         project_root=project_root,
     )

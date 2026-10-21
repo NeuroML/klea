@@ -363,6 +363,7 @@ async def test_grep_dispatches_to_rg(monkeypatch, tmp_path):
         path=str(tmp_path),
         include="*.py",
         include_ignored=True,
+        context_lines=4,
         max_results=5,
         project_root=str(tmp_path),
     )
@@ -372,18 +373,27 @@ async def test_grep_dispatches_to_rg(monkeypatch, tmp_path):
     assert calls["pattern"] == "needle"
     assert calls["kwargs"]["include"] == "*.py"
     assert calls["kwargs"]["include_ignored"] is True
+    assert calls["kwargs"]["context_lines"] == 4
     assert calls["kwargs"]["max_results"] == 5
     assert result["matches"] == [{"path": "x.py", "line_number": 1, "line": "hit"}]
 
 
 async def test_grep_falls_back_to_inhouse(monkeypatch, tmp_path):
-    (tmp_path / "a.txt").write_text("needle")
+    (tmp_path / "a.txt").write_text("before\nneedle\nafter")
     monkeypatch.setattr(grep_module, "resolve_rg", lambda: None)
 
-    result = await grep("needle", path=str(tmp_path), project_root=str(tmp_path))
+    result = await grep(
+        "needle",
+        path=str(tmp_path),
+        context_lines=0,
+        project_root=str(tmp_path),
+    )
 
     logger.debug(f"{result = }")
     assert result["matches"][0]["path"] == "a.txt"
+    assert result["matches"][0]["lines"] == [
+        {"line_number": 2, "line": "needle", "match": True}
+    ]
     assert result["files_scanned"] == 1
 
 

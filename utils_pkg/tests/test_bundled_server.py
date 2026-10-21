@@ -117,6 +117,15 @@ def test_grep_tags_and_checkpaths():
     assert _tool_info(bundled_tools.grep).checkpaths == ["path"]
 
 
+def test_grep_context_lines_default_and_bounds():
+    parameters = Tool.from_function(bundled_tools.grep).parameters
+    assert "context_lines" not in (parameters.get("required") or [])
+    prop = parameters["properties"]["context_lines"]
+    assert prop["default"] == 2
+    assert prop["minimum"] == 0
+    assert prop["maximum"] == 7
+
+
 def test_download_file_tags_and_checkpaths():
     assert _tags(bundled_tools.download_file) == {BUNDLED, "web", "download"}
     assert _tool_info(bundled_tools.download_file).checkpaths == ["file_path"]
