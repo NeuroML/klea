@@ -17,6 +17,7 @@ from typing import Any
 from klea_utils.mcp.tool_impls.file_ops import is_binary, split_lines
 from klea_utils.mcp.tool_impls.grep_hunks import (
     DEFAULT_CONTEXT_LINES,
+    DEFAULT_MAX_CHARS,
     build_hunk,
     clamp_context_lines,
     merge_windows,
@@ -34,9 +35,6 @@ DEFAULT_MAX_FILES = 5000
 
 #: Default cap on the size of an individual file considered for searching.
 DEFAULT_MAX_FILE_BYTES = 5_000_000
-
-#: Default cap on the total characters of matching lines returned.
-DEFAULT_MAX_CHARS = 100_000
 
 
 def _result(

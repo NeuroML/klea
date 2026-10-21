@@ -16,6 +16,12 @@ from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.tool_impls.grep_hunks import (
+    DEFAULT_CONTEXT_LINES,
+    DEFAULT_MAX_CHARS,
+    build_hunk,
+    clamp_context_lines,
+)
 from klea_utils.mcp.tool_impls.run_command import _terminate_process_group
 from klea_utils.mcp.tool_impls.walk import SKIP_DIRECTORIES
 
@@ -212,12 +218,13 @@ async def _run_rg(
     return lines, stderr, returncode, truncated, ""
 
 
-def _parse_match_line(raw: bytes) -> dict[str, Any] | None:
-    """Parse one ``rg --json`` line into a match dict, or ``None``.
+def _parse_record_line(raw: bytes) -> dict[str, Any] | None:
+    """Parse one ``rg --json`` line into a match/context record, or ``None``.
 
     :param raw: A single raw stdout line from ripgrep.
-    :returns: ``{path, line_number, line}`` for a ``match`` record; ``None``
-        for other record types, oversized, or malformed lines.
+    :returns: ``{type, path, line_number, line}`` for a ``match`` or
+        ``context`` record; ``None`` for other record types, oversized, or
+        malformed lines.
     """
     if len(raw) > _MAX_RECORD_BYTES:
         logger.warning(f"Skipping oversized ripgrep record ({len(raw)} bytes)")
@@ -227,7 +234,10 @@ def _parse_match_line(raw: bytes) -> dict[str, Any] | None:
     except (json.JSONDecodeError, UnicodeDecodeError):
         logger.warning("Skipping unparseable ripgrep record")
         return None
-    if not isinstance(record, dict) or record.get("type") != "match":
+    if not isinstance(record, dict):
+        return None
+    kind = record.get("type")
+    if kind not in {"match", "context"}:
         return None
     data = record.get("data")
     if not isinstance(data, dict):
@@ -237,9 +247,10 @@ def _parse_match_line(raw: bytes) -> dict[str, Any] | None:
         line = data["lines"]["text"]
         line_number = int(data["line_number"])
     except (KeyError, TypeError, ValueError):
-        logger.warning("Skipping malformed ripgrep match record")
+        logger.warning(f"Skipping malformed ripgrep {kind} record")
         return None
     return {
+        "type": kind,
         "path": path,
         "line_number": line_number,
         "line": line.rstrip("\r\n"),
@@ -258,7 +269,7 @@ def _grep_result(
 
     :param pattern: The pattern searched for.
     :param path: The directory searched.
-    :param matches: Matching lines.
+    :param matches: Hunks, each a ``{path, start_line, end_line, lines}`` dict.
     :param truncated: Whether results were cut short by a cap.
     :param error: Empty on success; a message otherwise.
     :returns: The result dict.
@@ -273,6 +284,88 @@ def _grep_result(
     }
 
 
+def _build_hunks(
+    records: list[dict[str, Any]],
+    *,
+    max_results: int,
+    max_chars: int,
+) -> tuple[list[dict[str, Any]], bool, int]:
+    """Group parsed ripgrep records into hunks and apply the result caps.
+
+    :param records: Parsed ``match``/``context`` records in output order.
+    :param max_results: Maximum number of matching lines to return.
+    :param max_chars: Maximum total characters of lines to return.
+    :returns: ``(hunks, truncated, matched_lines)``.
+    """
+    groups: list[dict[str, Any]] = []
+    for record in records:
+        path = record["path"]
+        line_number = record["line_number"]
+        if (
+            not groups
+            or groups[-1]["path"] != path
+            or line_number > groups[-1]["end_line"] + 1
+        ):
+            groups.append(
+                {
+                    "path": path,
+                    "start_line": line_number,
+                    "end_line": line_number,
+                    "lines": {line_number: record["line"]},
+                    "match_lines": set(),
+                }
+            )
+        else:
+            group = groups[-1]
+            group["end_line"] = max(group["end_line"], line_number)
+            group["lines"][line_number] = record["line"]
+        if record["type"] == "match":
+            groups[-1]["match_lines"].add(line_number)
+
+    total_matches = sum(len(group["match_lines"]) for group in groups)
+    truncated = total_matches > max_results
+    remaining = max_results
+    hunks: list[dict[str, Any]] = []
+    chars = 0
+    matched_lines = 0
+    stop = False
+
+    for group in groups:
+        if stop:
+            break
+        group_matches = group["match_lines"]
+        if not group_matches:
+            continue
+        if remaining <= 0:
+            stop = True
+            break
+        end_line = group["end_line"]
+        if len(group_matches) > remaining:
+            # Do not emit trailing context that may contain matches beyond the
+            # result cap: they would be mislabelled as context lines.
+            group_matches = set(sorted(group_matches)[:remaining])
+            end_line = min(end_line, max(group_matches))
+            stop = True
+        hunk, chars, cut = build_hunk(
+            group["path"],
+            group["start_line"],
+            end_line,
+            group["lines"].get,
+            group_matches,
+            chars_used=chars,
+            max_chars=max_chars,
+        )
+        if hunk is not None:
+            hunks.append(hunk)
+        matched_lines += len(group_matches)
+        remaining -= len(group_matches)
+        if cut:
+            truncated = True
+            stop = True
+
+    return hunks, truncated, matched_lines
+
+
 async def rg_grep(
     rg: str,
     pattern: str,
@@ -280,7 +373,9 @@ async def rg_grep(
     include: str | None = None,
     case_sensitive: bool = True,
     include_ignored: bool = False,
+    context_lines: int = DEFAULT_CONTEXT_LINES,
     max_results: int = 100,
+    max_chars: int = DEFAULT_MAX_CHARS,
     timeout_seconds: float = DEFAULT_SEARCH_TIMEOUT_SECONDS,
     project_root: str | None = None,
 ) -> dict[str, Any]:
@@ -292,13 +387,19 @@ async def rg_grep(
     :param include: Space separated glob patterns restricting files searched.
     :param case_sensitive: Whether matching is case sensitive.
     :param include_ignored: When ``True``, search ``.gitignore``-ignored files.
-    :param max_results: Maximum number of matching lines to return.
+    :param context_lines: Lines of context before and after each match,
+        clamped to ``0..7``.
+    :param max_results: Maximum number of matching lines to return.  Context
+        lines do not count toward this cap.
+    :param max_chars: Maximum total characters of matching and context lines
+        to return.
     :param timeout_seconds: Wall-clock cap for the invocation.
     :param project_root: Retained for callers; the boundary is enforced by
         the client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with pattern, path, matches, truncated, files_scanned,
+    :returns: dict with pattern, path, match hunks, truncated, files_scanned,
         error.
     """
+    context_lines = clamp_context_lines(context_lines)
     logger.debug(
         f"ripgrep search\n"
         f"{pattern = }\n"
@@ -306,7 +407,9 @@ async def rg_grep(
         f"{include = }\n"
         f"{case_sensitive = }\n"
         f"{include_ignored = }\n"
-        f"{max_results = }"
+        f"{context_lines = }\n"
+        f"{max_results = }\n"
+        f"{max_chars = }"
     )
 
     if not pattern:
@@ -320,20 +423,25 @@ async def rg_grep(
     args = _base_command(rg, include_ignored=include_ignored)
     args += ["--json", "--max-columns", str(_MAX_COLUMNS)]
     args.append("--case-sensitive" if case_sensitive else "-i")
+    if context_lines:
+        args += ["-C", str(context_lines)]
     if include:
         for glob in include.split():
             args += ["--glob", glob]
     args += ["-e", pattern, "."]
 
-    lines, stderr, returncode, truncated, run_error = await _run_rg(
+    # Context records count against the stdout cap, so allow enough headroom
+    # for every returned match plus its surrounding lines and file markers.
+    max_records = max_results * (2 * context_lines + 3) + 16
+    lines, stderr, returncode, record_truncated, run_error = await _run_rg(
         args,
         cwd=str(the_path),
         timeout_seconds=timeout_seconds,
-        max_records=max_results,
+        max_records=max_records,
     )
     if run_error:
         return _grep_result(pattern, path, error=run_error)
-    if not truncated and returncode != 0:
+    if not record_truncated and returncode != 0:
         # rg exit codes: 0 = matches, 1 = no matches, 2 = error.
         if returncode == 1:
             return _grep_result(pattern, path)
@@ -341,9 +449,17 @@ async def rg_grep(
         logger.warning(f"ripgrep failed: {message}")
         return _grep_result(pattern, path, error=message)
 
-    matches = [match for match in map(_parse_match_line, lines) if match]
-    logger.debug(f"ripgrep search done\n{len(matches) = }\n{truncated = }")
-    return _grep_result(pattern, path, matches=matches, truncated=truncated)
+    records = [record for record in map(_parse_record_line, lines) if record]
+    hunks, cap_truncated, matched_lines = _build_hunks(
+        records,
+        max_results=max_results,
+        max_chars=max_chars,
+    )
+    truncated = record_truncated or cap_truncated
+    logger.debug(
+        f"ripgrep search done\n{len(hunks) = }\n{matched_lines = }\n{truncated = }"
+    )
+    return _grep_result(pattern, path, matches=hunks, truncated=truncated)
 
 
 async def rg_files(

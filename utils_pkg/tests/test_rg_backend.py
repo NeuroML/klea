@@ -177,10 +177,10 @@ def _fixture(tmp_path: Path, **spec) -> Path:
     return path
 
 
-def _match(path: str, line_number: int, text: str) -> str:
+def _record(kind: str, path: str, line_number: int, text: str) -> str:
     return json.dumps(
         {
-            "type": "match",
+            "type": kind,
             "data": {
                 "path": {"text": path},
                 "lines": {"text": text + "\n"},
@@ -188,6 +188,14 @@ def _match(path: str, line_number: int, text: str) -> str:
             },
         }
     )
+
+
+def _match(path: str, line_number: int, text: str) -> str:
+    return _record("match", path, line_number, text)
+
+
+def _context(path: str, line_number: int, text: str) -> str:
+    return _record("context", path, line_number, text)
 
 
 async def test_rg_grep_parses_matches(monkeypatch, tmp_path):
@@ -208,7 +216,12 @@ async def test_rg_grep_parses_matches(monkeypatch, tmp_path):
     assert result["truncated"] is False
     assert result["files_scanned"] is None
     assert result["matches"] == [
-        {"path": "sub/a.py", "line_number": 3, "line": "needle"}
+        {
+            "path": "sub/a.py",
+            "start_line": 3,
+            "end_line": 3,
+            "lines": [{"line_number": 3, "line": "needle", "match": True}],
+        }
     ]
 
 
@@ -230,7 +243,14 @@ async def test_rg_grep_ignores_non_match_records(monkeypatch, tmp_path):
         str(script), "hit", path=str(tmp_path), project_root=str(tmp_path)
     )
 
-    assert result["matches"] == [{"path": "a.py", "line_number": 1, "line": "hit"}]
+    assert result["matches"] == [
+        {
+            "path": "a.py",
+            "start_line": 1,
+            "end_line": 1,
+            "lines": [{"line_number": 1, "line": "hit", "match": True}],
+        }
+    ]
 
 
 async def test_rg_grep_skips_malformed_records(monkeypatch, tmp_path):
@@ -313,6 +333,148 @@ async def test_rg_grep_truncates_at_max_results(monkeypatch, tmp_path):
     assert result["truncated"] is True
 
 
+async def test_rg_grep_groups_context_records(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    fixture = _fixture(
+        tmp_path,
+        stdout=[
+            _context("a.py", 3, "before"),
+            _match("a.py", 4, "hit"),
+            _context("a.py", 5, "after"),
+        ],
+        exit=0,
+    )
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    result = await rg_backend.rg_grep(
+        str(script), "hit", path=str(tmp_path), project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result = }")
+    assert result["matches"] == [
+        {
+            "path": "a.py",
+            "start_line": 3,
+            "end_line": 5,
+            "lines": [
+                {"line_number": 3, "line": "before", "match": False},
+                {"line_number": 4, "line": "hit", "match": True},
+                {"line_number": 5, "line": "after", "match": False},
+            ],
+        }
+    ]
+
+
+async def test_rg_grep_merges_contiguous_records(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    fixture = _fixture(
+        tmp_path,
+        stdout=[
+            _context("a.py", 1, "c1"),
+            _match("a.py", 2, "hit"),
+            _context("a.py", 3, "c3"),
+            _match("a.py", 4, "hit"),
+            _context("a.py", 5, "c5"),
+        ],
+        exit=0,
+    )
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    result = await rg_backend.rg_grep(
+        str(script), "hit", path=str(tmp_path), project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result = }")
+    assert len(result["matches"]) == 1
+    hunk = result["matches"][0]
+    assert hunk["start_line"] == 1
+    assert hunk["end_line"] == 5
+    assert [line["line_number"] for line in hunk["lines"] if line["match"]] == [2, 4]
+
+
+async def test_rg_grep_separates_non_contiguous_hunks(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    fixture = _fixture(
+        tmp_path,
+        stdout=[
+            _match("a.py", 2, "hit"),
+            _context("a.py", 3, "c3"),
+            _context("a.py", 10, "c10"),
+            _match("a.py", 11, "hit"),
+        ],
+        exit=0,
+    )
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    result = await rg_backend.rg_grep(
+        str(script), "hit", path=str(tmp_path), project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result = }")
+    assert [(hunk["start_line"], hunk["end_line"]) for hunk in result["matches"]] == [
+        (2, 3),
+        (10, 11),
+    ]
+
+
+async def test_rg_grep_drops_trailing_context_at_match_cap(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    fixture = _fixture(
+        tmp_path,
+        stdout=[
+            _match("a.py", 1, "hit"),
+            _match("a.py", 2, "hit"),
+            _context("a.py", 3, "after"),
+        ],
+        exit=0,
+    )
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    result = await rg_backend.rg_grep(
+        str(script),
+        "hit",
+        path=str(tmp_path),
+        max_results=1,
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    assert result["truncated"] is True
+    hunk = result["matches"][0]
+    assert hunk["end_line"] == 1
+    assert [line["line_number"] for line in hunk["lines"]] == [1]
+    assert all(line["match"] for line in hunk["lines"])
+
+
+async def test_rg_grep_context_counts_toward_char_budget(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    fixture = _fixture(
+        tmp_path,
+        stdout=[
+            _context("a.py", 2, "bb"),
+            _match("a.py", 3, "hit"),
+            _context("a.py", 4, "cc"),
+        ],
+        exit=0,
+    )
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    result = await rg_backend.rg_grep(
+        str(script),
+        "hit",
+        path=str(tmp_path),
+        context_lines=1,
+        max_chars=5,
+        project_root=str(tmp_path),
+    )
+
+    logger.debug(f"{result = }")
+    assert result["truncated"] is True
+    hunk = result["matches"][0]
+    assert hunk["end_line"] == 3
+    assert [line["line"] for line in hunk["lines"]] == ["bb", "hit"]
+
+
 async def test_rg_grep_timeout(monkeypatch, tmp_path):
     script = _write_fake_rg(tmp_path)
     fixture = _fixture(tmp_path, sleep=5, exit=0)
@@ -357,10 +519,32 @@ async def test_rg_grep_builds_expected_args(monkeypatch, tmp_path):
     assert "--no-messages" in args
     assert "--no-ignore" in args
     assert "-i" in args
+    assert "-C" in args
+    assert args[args.index("-C") + 1] == "2"
     assert "!**/.git/**" in args
     assert "*.py" in args
     assert "*.md" in args
     assert args[-3:] == ["-e", "pat", "."]
+
+
+async def test_rg_grep_context_zero_omits_flag(monkeypatch, tmp_path):
+    script = _write_fake_rg(tmp_path)
+    args_out = tmp_path / "args.json"
+    fixture = _fixture(tmp_path, stdout=[], exit=1)
+    monkeypatch.setenv("FAKE_RG_ARGS_OUT", str(args_out))
+    monkeypatch.setenv("FAKE_RG_FIXTURE", str(fixture))
+
+    await rg_backend.rg_grep(
+        str(script),
+        "pat",
+        path=str(tmp_path),
+        context_lines=0,
+        project_root=str(tmp_path),
+    )
+
+    args = json.loads(args_out.read_text())
+    logger.debug(f"{args = }")
+    assert "-C" not in args
 
 
 async def test_rg_grep_case_sensitive_default(monkeypatch, tmp_path):

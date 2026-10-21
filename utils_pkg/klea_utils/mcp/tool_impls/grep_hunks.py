@@ -25,6 +25,9 @@ DEFAULT_CONTEXT_LINES = 2
 #: Hard upper bound on context lines per side of a match.
 MAX_CONTEXT_LINES = 7
 
+#: Default cap on the total characters of matching and context lines returned.
+DEFAULT_MAX_CHARS = 100_000
+
 
 def clamp_context_lines(context_lines: int) -> int:
     """Clamp *context_lines* to the supported range.
