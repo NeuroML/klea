@@ -83,7 +83,12 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                 for step in state.plan.step_list
                 for question in step.needs_input
             ]
-            return {"kind": "input", "questions": questions}
+            payload: dict[str, Any] = {"kind": "input", "questions": questions}
+            if getattr(state, "plan_history", None):
+                # A guidance ask follows automated replans: show the attempts
+                # that already failed so the user can give informed direction.
+                payload["sections"] = state.plan_history_sections()
+            return payload
         # A review is either a whole-plan approval (before any work) or a
         # progress checkpoint (after work); ``review_sections`` adapts the
         # headline and content to the review's position (ADR-0051).  Every

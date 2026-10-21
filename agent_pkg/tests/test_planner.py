@@ -691,6 +691,7 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(guidance.description, "Provide guidance to continue")
         self.assertIn("automated replan budget", guidance.needs_input[0])
         self.assertIn("tool failed", guidance.needs_input[0])
+        self.assertIn("previous plan versions", guidance.needs_input[0])
         self.assertNotIn("failure_reason", update)
         self.assertEqual(update["replan_reason"], "")
 

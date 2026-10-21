@@ -12,7 +12,12 @@ import logging
 from typing import Literal
 
 from klea_agent.nodes.await_human import AwaitHuman
-from klea_agent.schemas import PlanSchema, StepSchema
+from klea_agent.schemas import (
+    KleaAgentState,
+    PlanRevision,
+    PlanSchema,
+    StepSchema,
+)
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
@@ -81,6 +86,50 @@ async def test_input_batches_step_questions_and_writes_answers():
     assert result["human_input"] == {2: ["a.txt", "fast"]}
     assert isinstance(result["messages"][-1], HumanMessage)
     assert (await graph.aget_state(config)).next == ()
+
+
+def test_input_ask_includes_abandoned_plan_sections():
+    """A guidance input ask carries the failed plan versions for context."""
+    node = AwaitHuman(logging.getLogger("test"), "Awaiting", kind="input")
+    state = KleaAgentState(
+        plan=PlanSchema(
+            status="needs_input",
+            plan_version=2,
+            step_list=[
+                StepSchema(
+                    step_number=2,
+                    description="Provide guidance to continue",
+                    needs_input=["How should I proceed?"],
+                )
+            ],
+        ),
+        plan_history=[
+            PlanRevision(
+                version=1,
+                steps=[
+                    StepSchema(
+                        step_number=1,
+                        description="old approach",
+                        suggested_tools=["read_file"],
+                    )
+                ],
+                abandoned_reason="tool failed",
+            )
+        ],
+    )
+
+    payload = node._ask(state)
+
+    assert payload["kind"] == "input"
+    assert payload["questions"] == [
+        {"step_number": 2, "question": "How should I proceed?"}
+    ]
+    assert [section["title"] for section in payload["sections"]] == [
+        "Plan version 1 (abandoned)",
+        "Current plan version 2",
+    ]
+    assert "tool failed" in payload["sections"][0]["body"]
+    assert "old approach" in payload["sections"][0]["body"]
 
 
 async def test_review_approve_runs_the_plan():
