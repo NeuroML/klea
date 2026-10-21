@@ -44,6 +44,66 @@ logger = logging.getLogger(__name__)
 #: Confidence that a discovered string really is a path, strongest first.
 Confidence = Literal["declared", "expected", "guess"]
 
+#: Display caps for permission prompts.  The full path and approval key stay in
+#: the request; only the rendered labels are bounded so a pathological guessed
+#: string cannot flood the ask.
+MAX_PATH_DISPLAY_CHARS = 240
+MAX_RAW_DISPLAY_CHARS = 160
+MAX_ARGUMENT_PREVIEW_CHARS = 300
+
+
+def truncate_middle(text: str, max_chars: int = MAX_PATH_DISPLAY_CHARS) -> str:
+    """Truncate *text* in the middle, keeping its start and end.
+
+    Used for display only.  The start (root/directory) and the end (filename)
+    are the useful parts of a path; the omitted span is replaced with an
+    explicit marker so a pathological guessed value is recognisable.
+
+    :param text: The text to bound.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The text unchanged when short, otherwise a middle-truncated
+        preview with an omission marker.
+    """
+    if max_chars <= 0:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    head = (max_chars * 2) // 3
+    tail = max_chars - head
+    omitted = len(text) - head - tail
+    return f"{text[:head]}...[{omitted} chars omitted]...{text[-tail:]}"
+
+
+def _preview_context(
+    value: str, token: str, max_chars: int = MAX_ARGUMENT_PREVIEW_CHARS
+) -> str:
+    """Return a bounded window of *value* around *token*.
+
+    Keeps the detected token in view when it occurs in a long command or file
+    content string, so the user can tell whether it is a path or ordinary
+    text.  Falls back to middle truncation when the token cannot be located.
+
+    :param value: The full argument value.
+    :param token: The detected path-like token within it.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The bounded preview.
+    """
+    if max_chars <= 0:
+        return ""
+    text = value.strip()
+    if len(text) <= max_chars:
+        return text
+    index = text.find(token) if token else -1
+    if index < 0:
+        return truncate_middle(text, max_chars)
+    window = min(len(token), max_chars)
+    before = (max_chars - window) // 2
+    start = max(0, index - before)
+    end = min(len(text), start + max_chars)
+    prefix = "... " if start > 0 else ""
+    suffix = " ..." if end < len(text) else ""
+    return f"{prefix}{text[start:end]}{suffix}"
+
 
 class PathRequest(BaseModel):
     """One path a tool call would touch that needs approval.
@@ -57,6 +117,11 @@ class PathRequest(BaseModel):
     :attr:`kind` is ``outside`` (the path is outside the permitted roots) or
     ``sensitive`` (a credential-bearing file inside them).  ``outside`` is
     approved per directory, ``sensitive`` per file (:attr:`approval_key`).
+
+    :attr:`argument_preview` is a bounded, token-centred preview of the full
+    argument value, used by the approval UI.  :attr:`path` and
+    :attr:`directory` remain full values for decisions and auditing; use the
+    display helpers when rendering them.
     """
 
     tool: str
@@ -67,6 +132,7 @@ class PathRequest(BaseModel):
     confidence: Confidence
     source: str
     kind: Literal["outside", "sensitive"] = "outside"
+    argument_preview: str = ""
 
     @property
     def approval_key(self) -> str:
@@ -76,6 +142,18 @@ class PathRequest(BaseModel):
         for an ``outside`` one.
         """
         return self.path if self.kind == "sensitive" else self.directory
+
+    def path_display(self) -> str:
+        """Return a bounded display label for the resolved path."""
+        return truncate_middle(self.path)
+
+    def directory_display(self) -> str:
+        """Return a bounded display label for the approval directory."""
+        return truncate_middle(self.directory)
+
+    def raw_preview(self) -> str:
+        """Return a bounded display label for the discovered token."""
+        return truncate_middle(self.raw, MAX_RAW_DISPLAY_CHARS)
 
 
 def declared_checkpaths(tool_info: ToolInfo | None) -> list[str]:
@@ -284,7 +362,14 @@ def detect_path_requests(
     }
     requests: dict[str, PathRequest] = {}
 
-    def consider(raw: Any, argument: str, confidence: Confidence, source: str) -> None:
+    def consider(
+        raw: Any,
+        argument: str,
+        confidence: Confidence,
+        source: str,
+        *,
+        argument_value: str,
+    ) -> None:
         resolved = _resolve_against(str(raw), root)
         if resolved is None:
             return
@@ -316,6 +401,7 @@ def detect_path_requests(
             confidence=confidence,
             source=source,
             kind=kind,
+            argument_preview=_preview_context(str(argument_value), str(raw)),
         )
 
     declared = declared_checkpaths(tool_info)
@@ -325,19 +411,37 @@ def detect_path_requests(
     for name in declared:
         value = arguments.get(name)
         if isinstance(value, (str, os.PathLike)):
-            consider(value, name, "declared", f"checkpaths:{name}")
+            consider(
+                value,
+                name,
+                "declared",
+                f"checkpaths:{name}",
+                argument_value=str(value),
+            )
 
     # 2. Paths the picker declared for the call.
     for raw in picker_paths or []:
         if isinstance(raw, str) and raw.strip():
-            consider(raw, "paths", "expected", "picker")
+            consider(
+                raw,
+                "paths",
+                "expected",
+                "picker",
+                argument_value=raw,
+            )
 
     # 3. Argument names that look path-ish.
     for name, value in arguments.items():
         if name.lower() in declared_values or not isinstance(value, str):
             continue
         if is_path_argument_name(name):
-            consider(value, name, "guess", f"name:{name}")
+            consider(
+                value,
+                name,
+                "guess",
+                f"name:{name}",
+                argument_value=value,
+            )
 
     # 4. Path-like values, including tokens of shell command strings.  A bare
     #    sensitive filename (``cat .env``) is not path-like but is considered.
@@ -349,7 +453,13 @@ def detect_path_requests(
             if _looks_pathlike(candidate) or (
                 include_sensitive and is_sensitive(candidate)
             ):
-                consider(candidate, name, "guess", f"value:{name}")
+                consider(
+                    candidate,
+                    name,
+                    "guess",
+                    f"value:{name}",
+                    argument_value=value,
+                )
 
     logger.debug(f"Detected path requests\n{len(requests) = }\n{list(requests) = }")
     return sorted(requests.values(), key=lambda request: request.approval_key)

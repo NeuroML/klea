@@ -14,7 +14,13 @@ from pathlib import Path
 
 import pytest
 from klea_utils.mcp.errors import PermissionDeniedError
-from klea_utils.mcp.path_detect import detect_path_requests
+from klea_utils.mcp.path_detect import (
+    MAX_ARGUMENT_PREVIEW_CHARS,
+    MAX_PATH_DISPLAY_CHARS,
+    MAX_RAW_DISPLAY_CHARS,
+    detect_path_requests,
+    truncate_middle,
+)
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.tool_impls.permission import (
     check_path_access,
@@ -114,6 +120,64 @@ def _root_only(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
     return root
+
+
+def test_truncate_middle_keeps_short_text():
+    assert truncate_middle("/etc/hosts") == "/etc/hosts"
+
+
+def test_truncate_middle_preserves_head_and_tail():
+    text = "/home/user/" + ("a" * 500) + "/target.txt"
+    preview = truncate_middle(text)
+    assert len(preview) < len(text)
+    assert preview.startswith("/home/user/")
+    assert preview.endswith("/target.txt")
+    assert "chars omitted" in preview
+    assert len(preview) <= MAX_PATH_DISPLAY_CHARS + 40
+
+
+def test_detect_keeps_bare_root_guess(tmp_path):
+    """A genuine root token is still gated; guessing is deliberately defensive."""
+    root = _root_only(tmp_path)
+    requests = detect_path_requests(
+        "run_command", {"command": "ls /"}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].path == "/"
+    assert requests[0].directory == "/"
+    assert requests[0].confidence == "guess"
+    assert requests[0].source == "value:command"
+
+
+def test_detect_long_guess_has_bounded_display_context(tmp_path):
+    """A long guessed string keeps full values but bounded display previews."""
+    root, outside = _root_and_outside(tmp_path)
+    token = f"{outside}/{'a' * 1000}"
+    requests = detect_path_requests(
+        "run_command", {"command": f"echo {token}"}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    request = requests[0]
+    assert request.path == token
+    assert len(request.path) > MAX_PATH_DISPLAY_CHARS
+    assert len(request.path_display()) <= MAX_PATH_DISPLAY_CHARS + 40
+    assert "chars omitted" in request.path_display()
+    assert len(request.raw_preview()) <= MAX_RAW_DISPLAY_CHARS + 40
+    assert len(request.argument_preview) <= MAX_ARGUMENT_PREVIEW_CHARS + 10
+    assert "..." in request.argument_preview
+    assert token[:20] in request.argument_preview
+
+
+def test_detect_short_argument_preview_is_unchanged(tmp_path):
+    root, outside = _root_and_outside(tmp_path)
+    info = ToolInfo(checkpaths=["path"])
+    requests = detect_path_requests(
+        "t", {"path": str(outside / "f")}, info, project_root=root
+    )
+
+    assert requests[0].argument_preview == str(outside / "f")
 
 
 def test_detect_skips_unexpandable_guess(tmp_path, monkeypatch):
