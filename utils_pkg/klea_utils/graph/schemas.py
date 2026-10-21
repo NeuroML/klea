@@ -28,7 +28,8 @@ class TokenUsage(BaseModel):
     #: Hidden reasoning/thinking tokens reported by the provider (subset of
     #: ``output_tokens`` when the provider exposes them).
     reasoning_tokens: int = 0
-    #: Prompt tokens served from the provider's prompt cache.
+    #: Prompt tokens served from the provider's prompt cache (cache reads
+    #: only; cache-creation/write tokens remain part of ``input_tokens``).
     cached_tokens: int = 0
     #: Model role that produced this usage (e.g. ``chat``, ``plan``, ``guard``).
     role: str = ""

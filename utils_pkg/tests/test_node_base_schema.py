@@ -506,6 +506,72 @@ def test_extract_usage_from_usage_metadata():
     assert usage.role == "chat"
 
 
+def test_extract_usage_ignores_cache_creation_writes():
+    """Cache reads are reported as cached; creation writes are normal input."""
+    node = _node(AnswerSchema)
+    usage = node._extract_usage(
+        LLMNodeContext(
+            output=AIMessage(
+                content="ok",
+                usage_metadata={
+                    "input_tokens": 130,
+                    "output_tokens": 20,
+                    "total_tokens": 150,
+                    "input_token_details": {
+                        "cache_read": 64,
+                        "cache_creation": 30,
+                    },
+                },
+            )
+        )
+    )
+    assert usage is not None
+    assert usage.input_tokens == 130
+    assert usage.output_tokens == 20
+    assert usage.total_tokens == 150
+    assert usage.cached_tokens == 64
+
+
+def test_extract_usage_cache_creation_alone_is_not_cached():
+    """A cache creation-only call has no cache-read tokens yet."""
+    node = _node(AnswerSchema)
+    usage = node._extract_usage(
+        LLMNodeContext(
+            output=AIMessage(
+                content="ok",
+                usage_metadata={
+                    "input_tokens": 130,
+                    "output_tokens": 20,
+                    "total_tokens": 150,
+                    "input_token_details": {"cache_creation": 30},
+                },
+            )
+        )
+    )
+    assert usage is not None
+    assert usage.cached_tokens == 0
+
+
+def test_extract_usage_reads_top_level_cache_read_fallback():
+    """Providers exposing the cache read at the top level are still measured."""
+    node = _node(AnswerSchema)
+    usage = node._extract_usage(
+        LLMNodeContext(
+            output=AIMessage(
+                content="ok",
+                usage_metadata={
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "total_tokens": 120,
+                    "cache_read_input_tokens": 24,
+                },
+            )
+        )
+    )
+    assert usage is not None
+    assert usage.cached_tokens == 24
+
+
 def test_extract_usage_falls_back_to_response_metadata():
     """Gateways that leave ``usage_metadata`` empty are still measured."""
     node = _node(AnswerSchema)

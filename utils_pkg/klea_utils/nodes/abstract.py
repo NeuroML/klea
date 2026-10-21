@@ -543,7 +543,8 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         ``usage_metadata`` (LangChain-normalised) and
         ``response_metadata['token_usage']`` (raw provider payload) use
         different key names; return a common shape so callers do not care which
-        the provider populated.
+        the provider populated.  ``cached_tokens`` is the cache-read count
+        only; cache-creation/write tokens remain part of the input count.
 
         :param output: The raw ``AIMessage``.
         :returns: ``(counts, source)``, or ``(None, "")`` when neither shape
@@ -552,8 +553,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         meta = output.usage_metadata
         if meta:
             output_details = meta.get("output_token_details") or {}
-            # langchain-anthropic nests cache counters under ``input_token_details``;
-            # other providers expose them at the top level.
+            # langchain-anthropic nests cache counters under
+            # ``input_token_details``; other providers expose them at the top
+            # level.  ``cached_tokens`` means cache-read (served-from-cache)
+            # tokens only; cache-creation/write tokens are normal input.
             input_details = meta.get("input_token_details") or {}
             return (
                 {
@@ -561,7 +564,6 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                     "output_tokens": int(meta.get("output_tokens", 0) or 0),
                     "cached_tokens": int(
                         input_details.get("cache_read")
-                        or input_details.get("cache_creation")
                         or meta.get("cache_read_input_tokens")
                         or meta.get("cached_tokens")
                         or meta.get("prompt_cache_hit_tokens")
@@ -575,6 +577,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         raw = (output.response_metadata or {}).get("token_usage") or {}
         if not raw:
             return None, ""
+        raw_details = raw.get("prompt_tokens_details") or {}
         return (
             {
                 "input_tokens": int(
@@ -584,7 +587,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
                     raw.get("completion_tokens", raw.get("output_tokens", 0)) or 0
                 ),
                 "cached_tokens": int(
-                    (raw.get("prompt_tokens_details") or {}).get("cached_tokens", 0)
+                    raw_details.get("cached_tokens")
+                    or raw.get("cache_read_input_tokens")
+                    or raw.get("cached_tokens")
+                    or raw.get("prompt_cache_hit_tokens")
                     or 0
                 ),
                 "reasoning_tokens": int(
