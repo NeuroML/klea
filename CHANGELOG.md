@@ -110,6 +110,7 @@
 
 ### Fixed
 
+- `read_file` no longer implies that `limit=None` reads to the end of the file: `None` removes only the line limit, while the server character budget still caps the response. Results now report the effective `char_budget` and a `truncation_reason` (`char_budget`, `line_limit` or `scan_cap`), and a character-capped `limit=None` note explains how to continue.
 - The generic LLM-node validation retry loop now performs exactly `max_validation_retries` re-invokes (previously one extra) and leaves the final validation error in `ctx.validation_feedback` for `_update_state`, instead of clearing it, so a node can fail closed rather than accept an invalid result.
 - A path-permission decision of "not a path" now renders as `Not a path: <key>` in the transcript and is counted as dismissed in the audit summary, instead of being shown as `Denied`.
 - `DELETE /chat/{user_id}/{chat_id}` now cancels the chat's active run and purges its LangGraph checkpoint as well as the chat row, so re-creating a chat does not inherit stale run state.

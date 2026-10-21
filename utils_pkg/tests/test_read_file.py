@@ -281,7 +281,54 @@ def test_server_budget_caps_a_large_read(tmp_path):
 
     assert len(result["content"]) <= read_file_module._MAX_CHARS
     assert result["truncated"] is True
+    assert result["truncation_reason"] == "char_budget"
+    assert result["char_budget"] == read_file_module._MAX_CHARS
     assert result["next_offset"] is not None
+    assert "server character budget" in result["note"]
+    assert "limit=None" in result["note"]
+
+
+def test_truncation_reason_line_limit(tmp_path):
+    """A line-limited page reports why it stopped and the effective budget."""
+    from klea_utils.mcp.tool_impls import read_file as read_file_module
+
+    f = _write(tmp_path, 5000)
+    result = read_file(str(f), limit=5, project_root=str(tmp_path))
+
+    assert result["truncated"] is True
+    assert result["truncation_reason"] == "line_limit"
+    assert result["char_budget"] == read_file_module._MAX_CHARS
+
+
+def test_truncation_reason_empty_when_complete(tmp_path):
+    """A complete read reports an empty reason and the effective budget."""
+    from klea_utils.mcp.tool_impls import read_file as read_file_module
+
+    f = _write(tmp_path, 5)
+    result = read_file(str(f), project_root=str(tmp_path))
+
+    assert result["truncated"] is False
+    assert result["truncation_reason"] == ""
+    assert result["char_budget"] == read_file_module._MAX_CHARS
+
+
+def test_limit_none_pages_to_eof_without_a_line_cap(tmp_path):
+    """A ``limit=None`` read resumes by ``next_offset`` until it reaches EOF."""
+    f = _write(tmp_path, 5000)
+    offset = 1
+    for _ in range(10):
+        result = read_file(
+            str(f), offset=offset, limit=None, project_root=str(tmp_path)
+        )
+        assert result["error"] == ""
+        if not result["truncated"]:
+            assert result["total_lines"] == 5000
+            break
+        assert result["truncation_reason"] == "char_budget"
+        offset = result["next_offset"]
+        assert offset is not None
+    else:
+        pytest.fail("limit=None paging did not reach EOF")
 
 
 def test_tool_schema_hides_the_character_budget():
@@ -294,6 +341,8 @@ def test_tool_schema_hides_the_character_budget():
     assert "max_chars" not in params
     assert "char_offset" in params
     assert params["limit"].default == 500
+    assert "server character budget" in bundled_tools.read_file.__doc__
+    assert "truncation_reason" in bundled_tools.read_file.__doc__
 
 
 def test_file_larger_than_max_bytes_is_paged(tmp_path):
@@ -350,6 +399,7 @@ def test_scan_cap_before_offset_gives_grep_hint(tmp_path):
 
     assert result["content"] == ""
     assert result["truncated"] is True
+    assert result["truncation_reason"] == "scan_cap"
     assert "grep" in result["note"]
 
 

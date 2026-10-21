@@ -419,7 +419,11 @@ async def read_file(
     limit: Annotated[
         int | None,
         Field(
-            description="Maximum number of lines to return (>=1). 'None' for end of file",
+            description=(
+                "Maximum number of lines to return (>=1). ``None`` removes the "
+                "line limit, but the server character budget still caps the "
+                "response"
+            ),
             ge=1,
         ),
     ] = 500,
@@ -460,24 +464,31 @@ async def read_file(
         char_offset: 0-indexed character position within the start line; used
             only to continue inside a single line longer than the character
             cap (see ``next_char_offset`` in the result).
-        limit: Maximum number of lines to return. None reads to the end.
+        limit: Maximum number of lines to return. ``None`` removes only the line
+            limit; the server character budget still caps the response, so a
+            ``None`` read can still be truncated with ``next_offset``.
         line_numbers: Prefix each line with its line number; set false for raw
             text to copy into an edit.
 
-    The response size is capped server-side; a large file is read by paging
+    The response size is always capped by a server-side character budget,
+    reported as ``char_budget``; a large file is read by paging
     (``offset``/``limit``) rather than returned in one call.
 
     Returns:
         Dictionary with content, line range, total_lines, truncated,
-        next_offset, next_char_offset, error and note.  ``total_lines`` is
-        ``null`` when a streamed read stops before the end of the file.  A
-        truncated read is a success (empty ``error``) that normally ends on a
-        line boundary and carries ``next_offset`` (and an explanatory ``note``)
-        so the caller can continue.  A single line longer than the character
-        cap is paged by characters: continue with the same ``offset`` and the
-        returned ``next_char_offset``.  On a missing/not-a-file error,
-        ``nearby`` (entries in the nearest existing directory) and ``note`` are
-        populated so the caller can see what exists instead.
+        truncation_reason, char_budget, next_offset, next_char_offset, error
+        and note.  ``total_lines`` is ``null`` when a streamed read stops before
+        the end of the file.  ``char_budget`` is the effective server character
+        cap, and ``truncation_reason`` is ``char_budget``, ``line_limit`` or
+        ``scan_cap`` when truncated (empty otherwise), so a ``limit=None`` read
+        shows why it was cut.  A truncated read is a success (empty ``error``)
+        that normally ends on a line boundary and carries ``next_offset`` (and
+        an explanatory ``note``) so the caller can continue.  A single line
+        longer than the character cap is paged by characters: continue with the
+        same ``offset`` and the returned ``next_char_offset``.  On a
+        missing/not-a-file error, ``nearby`` (entries in the nearest existing
+        directory) and ``note`` are populated so the caller can see what exists
+        instead.
     """
     result = read_file_impl(
         path=path,

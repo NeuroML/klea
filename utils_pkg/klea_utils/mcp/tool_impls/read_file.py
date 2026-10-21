@@ -138,10 +138,12 @@ def read_file(
         start from (default 0).  Only needed to continue inside a single line
         longer than ``max_chars``: the returned ``next_char_offset`` gives the
         resume position.
-    :param limit: Maximum number of lines to return.  ``None`` reads to the
-        end of the file.
+    :param limit: Maximum number of lines to return.  ``None`` removes only
+        the line limit; the server-owned ``max_chars`` budget still applies, so
+        the result can still be truncated (with ``next_offset``).
     :param max_chars: Character budget for the response (server-owned backstop;
-        not exposed to the model), applied after the line slice.
+        not exposed to the model), applied after the line slice.  The effective
+        value is reported as ``char_budget``.
     :param max_bytes: Per-call scan cap in bytes (server-owned).  Plain text is
         streamed, so the scan stops after this many bytes and the page is
         returned truncated with a hint; HTML/office/PDF conversions and a
@@ -153,14 +155,18 @@ def read_file(
         target is missing; the boundary itself is enforced by the client-side
         gate (ADR-0007 update 2026-10-08).
     :returns: dict with path, content, line_start, line_end, total_lines,
-        truncated, next_offset, error, note (plus ``nearby`` on a missing-file
+        truncated, truncation_reason, char_budget, next_offset,
+        next_char_offset, error, note (plus ``nearby`` on a missing-file
         error).  A truncated result is a success (``error`` empty) that carries
         the line range actually returned and ``next_offset`` for continuing;
         ``nearby``/``note`` are populated on a missing/not-a-file error so the
         caller can see what exists instead.  ``total_lines`` is exact only when
         the streamed read reached EOF; a page that stops early reports it as
-        ``None``.  A truncated page of a large file also carries a note
-        suggesting ``grep`` to locate the region.
+        ``None``.  ``char_budget`` is the effective server character cap, and
+        ``truncation_reason`` is ``"char_budget"``, ``"line_limit"`` or
+        ``"scan_cap"`` when truncated (empty otherwise), so a ``limit=None``
+        read that still reports ``truncated`` shows why.  A truncated page of a
+        large file also carries a note suggesting ``grep`` to locate the region.
     """
     logger.debug(
         f"Reading file\n"
@@ -352,22 +358,38 @@ def read_file(
         next_offset = line_end + 1
         next_char_offset = 0
 
+    if not truncated:
+        truncation_reason = ""
+    elif char_limited:
+        truncation_reason = "char_budget"
+    elif scan_capped:
+        truncation_reason = "scan_cap"
+    elif streamed and not reached_eof and limit is None:
+        # ``limit=None`` can only stop on the character budget.
+        truncation_reason = "char_budget"
+    else:
+        truncation_reason = "line_limit"
+
     content = "\n".join(kept)
 
     total_suffix = f" of {total_lines}" if total_lines is not None else ""
+    budget_note = (
+        f" by the server character budget ({max_chars} chars)" if char_limited else ""
+    )
     note = ""
     if truncated and next_offset is not None:
         if next_char_offset:
             note = (
-                f"Output truncated mid-line: showing line {line_start} from "
-                f"char {char_offset} to line {line_end} char {next_char_offset}"
-                f"{total_suffix}. Continue with offset={next_offset}, "
-                f"char_offset={next_char_offset}."
+                f"Output truncated mid-line{budget_note}: showing line "
+                f"{line_start} from char {char_offset} to line {line_end} char "
+                f"{next_char_offset}{total_suffix}. Continue with "
+                f"offset={next_offset}, char_offset={next_char_offset}."
             )
         else:
             note = (
-                f"Output truncated: showing lines {line_start}-{line_end}"
-                f"{total_suffix}. Continue with offset={next_offset}."
+                f"Output truncated{budget_note}: showing lines "
+                f"{line_start}-{line_end}{total_suffix}. Continue with "
+                f"offset={next_offset}."
             )
     elif truncated and not reached_eof:
         note = (
@@ -382,12 +404,19 @@ def read_file(
     elif delimited_raw:
         note = "Delimited file read as physical lines; quoted fields may span lines."
 
+    if limit is None and char_limited and note:
+        note = (
+            f"{note} limit=None removes only the line limit, not the server "
+            "character budget."
+        )
+
     if truncated and size is not None and size > _LARGE_FILE_HINT_BYTES:
         note = (
             f"{note} Large file: prefer grep to find the region you need, then "
             "read around it with offset/limit."
         ).strip()
 
+    char_budget = max_chars
     logger.debug(
         f"Read file\n"
         f"{path = }\n"
@@ -396,6 +425,8 @@ def read_file(
         f"{total_lines = }\n"
         f"{len(content) = }\n"
         f"{truncated = }\n"
+        f"{truncation_reason = }\n"
+        f"{char_budget = }\n"
         f"{next_offset = }\n"
         f"{next_char_offset = }\n"
         f"{streamed = }\n"
@@ -408,6 +439,8 @@ def read_file(
         "line_end": line_end,
         "total_lines": total_lines,
         "truncated": truncated,
+        "truncation_reason": truncation_reason,
+        "char_budget": char_budget,
         "next_offset": next_offset,
         "next_char_offset": next_char_offset,
         "error": "",
