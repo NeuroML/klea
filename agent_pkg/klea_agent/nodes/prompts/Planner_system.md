@@ -18,6 +18,9 @@
 * `plan` (optional): the current plan with per-step status markers
 * `previous_plans` (optional): earlier abandoned plan versions and their
   reasons.
+* `previous_work` (optional): bounded evidence from the previous run when the
+  user asked to continue.  The goal is intentionally unset: set a new goal for
+  this request and use the evidence, not the old plan, as your starting point.
 * `discovery`: project information (the project instruction file and other
   stable context)
 * `tools`: the tools you may use
@@ -110,8 +113,9 @@
 * For read-only requests, do not add write/create/edit/delete steps or create
   resources, and do not fabricate.
 * Persistence: evidence is working memory for this plan only; earlier tasks'
-  results are available in the conversation history, and this task's result is
-  written by the answer-composer, not a plan step.
+  results are available in the conversation history (or in `previous_work` on a
+  continuation), and this task's result is written by the answer-composer, not
+  a plan step.
 * Return the **complete** plan every time (all steps, 1-based unique numbers,
   statuses, `depends_on`):
   * `depends_on` lists earlier steps this step needs and may reference only
@@ -126,6 +130,10 @@
 * Do not repeat an abandoned approach from `previous_plans`; change the
   approach and state what changed in `reason`.  If no workable alternative
   exists, return `unplannable` or a blocked `needs_input` step.
+* When `previous_work` is present, this is a continuation: set a new goal for
+  the current request and use the prior evidence to avoid repeating
+  investigation.  Do not carry old step statuses or the old plan structure
+  forward blindly; do not submit the previous plan unchanged.
 
 ---
 

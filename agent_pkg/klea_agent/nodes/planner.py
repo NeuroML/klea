@@ -156,7 +156,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         ``feedback_block`` so the prompt omits them entirely when there is
         nothing to say (prompt conventions).  Superseded plan versions are
         rendered separately as ``previous_plans_block`` so a replan can see
-        and avoid approaches that already failed.
+        and avoid approaches that already failed.  On a ``continue`` intent
+        the bounded ``continuation_evidence`` is rendered as ``previous_work``.
         """
         goal_text = state.goal.goal or "(not set)"
         if state.goal.success_criteria:
@@ -171,6 +172,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             )
             if section
         )
+        previous_work = ""
+        if state.route.route == "continue" and state.continuation_evidence is not None:
+            previous_work = self._optional_section(
+                "Previous work (evidence for this continuation)",
+                state.continuation_evidence.render(),
+            )
         return {
             "query": state.query,
             "goal": goal_text,
@@ -178,6 +185,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "previous_plans_block": self._optional_section(
                 "Previous plan versions (abandoned)", state.previous_plans_text()
             ),
+            "previous_work": previous_work,
             "feedback_block": feedback_block,
             "discovery": state.discovery_persistent.render(),
             "observations": state.observations_text(),

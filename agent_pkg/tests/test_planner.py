@@ -13,6 +13,7 @@ import unittest
 
 from klea_agent.nodes.planner import Planner
 from klea_agent.schemas import (
+    ContinuationEvidence,
     EvaluationSchema,
     GoalSchema,
     KleaAgentState,
@@ -20,6 +21,7 @@ from klea_agent.schemas import (
     PlannerPlanSchema,
     PlanRevision,
     PlanSchema,
+    RouteSchema,
     StepSchema,
 )
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
@@ -406,6 +408,53 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["human_input"], {})
         self.assertEqual(update["plan"].human_feedback_rounds, 0)
         self.assertEqual(update["plan"].automated_plan_revisions, 0)
+
+    def test_previous_work_is_rendered_only_for_continue(self):
+        state = KleaAgentState(
+            query="ok, implement",
+            route=RouteSchema(route="continue"),
+            continuation_evidence=ContinuationEvidence(
+                goal="old goal", final_answer="the old plan"
+            ),
+        )
+
+        variables = self._planner()._get_prompt_variables(state, LLMNodeContext())
+
+        assert (
+            "## Previous work (evidence for this continuation)"
+            in variables["previous_work"]
+        )
+        assert "the old plan" in variables["previous_work"]
+
+        state.route = RouteSchema(route="task")
+        assert (
+            self._planner()._get_prompt_variables(state, LLMNodeContext())[
+                "previous_work"
+            ]
+            == ""
+        )
+
+    def test_continuation_can_replace_the_goal(self):
+        state = KleaAgentState(
+            route=RouteSchema(route="continue"),
+            continuation_evidence=ContinuationEvidence(goal="old goal"),
+        )
+        update = self._planner()._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="implement the plan", success_criteria="done"),
+                plan=PlannerPlanSchema(
+                    step_list=[
+                        StepSchema(description="s", suggested_tools=["read_file"])
+                    ],
+                    status="in_progress",
+                ),
+            ),
+            state,
+            LLMNodeContext(),
+        )
+
+        assert update["goal"].goal == "implement the plan"
+        assert update["plan"].status == "in_progress"
 
     def test_replan_reason_is_exposed(self):
         """The unified replan reason reaches the Planner on a replan."""

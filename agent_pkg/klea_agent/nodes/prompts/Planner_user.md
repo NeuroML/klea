@@ -14,6 +14,8 @@
 
 {plan}
 
+{previous_work}
+
 {previous_plans_block}
 
 {feedback_block}
