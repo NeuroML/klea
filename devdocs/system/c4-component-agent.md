@@ -308,6 +308,10 @@ graph TD;
 
 ## Components
 
+Field-level node contracts are maintained in [Agent node contracts](agent-node-contracts.md).
+This component diagram intentionally shows component ownership and flow rather than
+field-level details.
+
 | Component | File | Role | Key contracts |
 |-----------|------|------|---------------|
 | KleaAgent orchestrator | ``klea_agent/klea_agent.py`` | ``BaseLangGraph`` subclass: ``_create_graph``, the conditional-edge routers, the tool-round/picker callbacks, ``context_snapshot`` | ``env_prefix``/config discovery (ADR-0015); graph exported as ``klea-agent-lang-graph.{png,mmd}`` (ADR-0016/0032/0035) |

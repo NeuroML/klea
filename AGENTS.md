@@ -179,6 +179,7 @@ When the code below changes, update the matching devdoc in the same change:
 | `utils_pkg/klea_utils/api/{chat_core,sse,chat_common,runs,hitl}.py`, `{agent,rag}_pkg/*/api/chat.py` | `system/api-sse-sequence.md`, `system/streams.md` |
 | `graph/base.py` (`run_graph_astream_events`, `context_snapshot`), `nodes/abstract.py`, `nodes/tools_caller.py` | `system/streams.md` |
 | graph wiring in `{agent,rag}_pkg/*/{klea_agent,rag}.py` | `system/c4-component-{agent,rag}.md` (+ regenerated `.mmd`) |
+| agent graph wiring and routing (`agent_pkg/klea_agent/klea_agent.py`), node implementations and prompt contracts (`agent_pkg/klea_agent/nodes/`), and state schemas (`agent_pkg/klea_agent/schemas.py`) | `devdocs/system/agent-node-contracts.md` |
 | node prompts / `_optional_section` | `system/prompt-conventions.md` |
 | `mcp/access.py` and MCP tool annotations | `system/mcp-permissions.md`, ADR-0037 |
 | `mcp/tool_impls/*.py` and `mcp/server/bundled_tools.py` | `system/file-tools.md`, `system/mcp-permissions.md` |

@@ -91,6 +91,10 @@ route field.
 
 ## Nodes
 
+Node field definitions, structured-output schemas, and state-update contracts
+are maintained in [Agent node contracts](agent-node-contracts.md). This document
+remains the source for workflow topology and failure policy.
+
 | Node | Role | LLM |
 |------|------|-----|
 | InitGraphState | seed/reset state | no |
