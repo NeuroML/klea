@@ -83,7 +83,7 @@ Last updated: 2026-10-16.
   0 to count newlines up to a line `offset`, so a late page costs O(offset) I/O
   even though memory is bounded.  Phase 2 adds true O(page) region reads:
   ripgrep already emits match byte offsets (currently ignored by
-  `_parse_match_line`), so grep could return them (the in-house fallback can
+  `_parse_record_line`), so grep could return them (the in-house fallback can
   compute them), and `read_file` gains a byte-offset/region mode that `seek()`s.
   Touches both grep backends, the read contract and tests.  Deferred until
   large-file reads prove painful.

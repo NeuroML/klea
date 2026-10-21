@@ -73,6 +73,37 @@ originally written without an enumerated edge-case contract, which let
 * A **large-file truncation** carries a `note` recommending `grep` to locate
   the region and then reading it with `offset`/`limit`.
 
+## `grep` context contract
+
+* `context_lines` (default 2, range `0..7`) controls how many lines are shown
+  before and after each match.  Out-of-range values are clamped (the MCP tool
+  schema rejects them during validation).
+* Results are grouped per file into hunks:
+  `{path, start_line, end_line, lines}` where each line is
+  `{line_number, line, match}`.  Line numbers are explicit, so a hunk can be
+  read directly or used to derive a `read_file` offset.
+* Windows that overlap or touch are merged into one hunk; shared lines are
+  emitted once.  Windows are clamped at the start and end of the file.
+* `max_results` counts **matching** lines only; context does not consume the
+  cap.  When the cap is reached mid-hunk, the hunk ends at the last returned
+  match and trailing context is dropped, so a match beyond the cap is never
+  mislabelled as `match: false`.
+* `max_chars` (server-owned, 100k) counts both match and context text.  A line
+  that does not fit is truncated and `end_line` reflects the last emitted
+  line; the result is `truncated: true`.
+* Reaching the match cap sets `truncated: true`.  The in-house backend stops
+  scanning when it fills the cap, so an exact-cap result may also report
+  `truncated: true` because it did not prove there were no further matches.
+* Both backends produce the same hunk shape.  Ripgrep is invoked with
+  `-C <n>` and its `context` JSON records are grouped by contiguous line
+  numbers; the in-house backend merges windows over
+  `file_ops.split_lines` output.  The ripgrep stdout record cap is sized for
+  the match cap plus context records and file markers.
+* `context_lines=0` returns only matching lines, but adjacent matches still
+  merge into one contiguous hunk (`match: true` on each).
+* `files_scanned` stays `null` for ripgrep and a count for the in-house
+  walker; the `.gitignore` divergence documented above is unchanged.
+
 ## Edge-case matrix
 
 | Case | Handling |
@@ -123,7 +154,8 @@ originally written without an enumerated edge-case contract, which let
 ## Pointers
 
 * Primitives: `klea_utils/mcp/tool_impls/file_ops.py`,
-  `klea_utils/mcp/tool_impls/permission.py`.
+  `klea_utils/mcp/tool_impls/grep_hunks.py` (shared hunk grouping and
+  character budget), `klea_utils/mcp/tool_impls/permission.py`.
 * Tools: `klea_utils/mcp/tool_impls/{read_file,write_file,edit_file,list_files,find_files,grep,run_command}.py`,
   wrappers in `klea_utils/mcp/server/bundled_tools.py`.
 * Permission model: `mcp-permissions.md`, ADR-0007, ADR-0037, ADR-0038,
