@@ -62,6 +62,17 @@ class TestAnswerFromResults(unittest.TestCase):
         )
         self.assertIn("list files", update["message_for_user"])
 
+    def test_writes_bounded_continuation_evidence(self):
+        update = self._node()._update_state(
+            AnswerSchema(answer="here you go"), self._state(), LLMNodeContext()
+        )
+
+        evidence = update["continuation_evidence"]
+        self.assertEqual(evidence.goal, "list files")
+        self.assertEqual(evidence.final_answer, "here you go")
+        self.assertEqual(evidence.steps[0].step_number, 1)
+        self.assertEqual(evidence.steps[0].status, "done")
+
     def test_prompt_variables_include_plan_and_goal(self):
         variables = self._node()._get_prompt_variables(self._state(), LLMNodeContext())
         self.assertIn("list files", variables["goal"])

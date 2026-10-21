@@ -8,7 +8,9 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+from datetime import UTC, datetime
 from graphlib import CycleError, TopologicalSorter
+from pathlib import Path
 from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
@@ -447,6 +449,112 @@ def trim_plan_history(history: list[PlanRevision]) -> list[PlanRevision]:
     return history[-MAX_PREVIOUS_PLANS:]
 
 
+#: Caps for the bounded continuation evidence record.  This is a feedback-style
+#: summary, not a copy of ``step_outputs`` or of raw tool payloads.
+MAX_CONTINUATION_STEPS = 30
+MAX_CONTINUATION_STEP_CHARS = 240
+MAX_CONTINUATION_GOAL_CHARS = 1000
+MAX_CONTINUATION_FINAL_ANSWER_CHARS = 3000
+MAX_CONTINUATION_ABANDONED_PLANS = 5
+MAX_CONTINUATION_ARTEFACT_IDS = 3
+MAX_CONTINUATION_RENDER_CHARS = 8000
+
+
+def _clip_text(text: str, max_chars: int) -> str:
+    """Return *text* stripped and clipped to *max_chars* with an ellipsis."""
+    value = str(text).strip()
+    if len(value) <= max_chars:
+        return value
+    return f"{value[:max_chars].rstrip()} ..."
+
+
+class ContinuationStepEvidence(BaseModel):
+    """One prior plan step's compact outcome for cross-run continuation."""
+
+    step_number: int = 0
+    description: str = ""
+    success_criteria: str = ""
+    kind: Literal["tool", "reasoning", "review"] = "tool"
+    status: Literal["pending", "done", "skipped", "failed"] = "pending"
+    tool: str = ""
+    summary: str = ""
+    is_error: bool = False
+
+
+class AbandonedPlanEvidence(BaseModel):
+    """A prior plan version that was abandoned, and why."""
+
+    version: int = 0
+    reason: str = ""
+
+
+class ContinuationEvidence(BaseModel):
+    """Bounded evidence from the previous terminal run for a later continue.
+
+    The record is a compact execution summary, not the full state.  It is
+    written at the end of a task and used to re-plan for a new goal; full
+    ``step_outputs`` and raw tool payloads are deliberately not retained here.
+    """
+
+    goal: str = ""
+    success_criteria: str = ""
+    plan_version: int = 0
+    plan_status: str = ""
+    steps: list[ContinuationStepEvidence] = Field(default_factory=list)
+    steps_omitted: int = 0
+    abandoned_plans: list[AbandonedPlanEvidence] = Field(default_factory=list)
+    final_answer: str = ""
+    artefact_ids: list[str] = Field(default_factory=list)
+    project_root: str = ""
+    captured_at: str = ""
+
+    def render(self) -> str:
+        """Render the evidence as a bounded prompt-ready text block."""
+        lines: list[str] = []
+        if self.goal:
+            lines.append(f"Goal: {self.goal}")
+        if self.success_criteria:
+            lines.append(f"Success criteria: {self.success_criteria}")
+        plan_line = f"Plan version {self.plan_version}"
+        if self.plan_status:
+            plan_line += f" ({self.plan_status})"
+        lines.append(plan_line)
+        if self.steps:
+            lines.append("Steps:")
+            for step in self.steps:
+                line = f"- Step {step.step_number} [{step.status}, {step.kind}]"
+                if step.tool:
+                    line += f" {step.tool}"
+                line += f": {step.description}"
+                if step.success_criteria:
+                    line += f" (criteria: {step.success_criteria})"
+                if step.summary:
+                    line += f" -- {step.summary}"
+                if step.is_error:
+                    line += " [error]"
+                lines.append(line)
+            if self.steps_omitted:
+                lines.append(f"- ... {self.steps_omitted} more step(s) omitted")
+        else:
+            lines.append("Steps: (none)")
+        if self.abandoned_plans:
+            lines.append("Abandoned plans:")
+            for item in self.abandoned_plans:
+                lines.append(
+                    f"- version {item.version}: {item.reason or '(no reason recorded)'}"
+                )
+        if self.final_answer:
+            lines.append("Final answer:")
+            lines.append(self.final_answer)
+        if self.artefact_ids:
+            lines.append(f"Artefacts: {', '.join(self.artefact_ids)}")
+        if self.project_root:
+            lines.append(f"Project root: {self.project_root}")
+        if self.captured_at:
+            lines.append(f"Captured at: {self.captured_at}")
+        return _clip_text("\n".join(lines), MAX_CONTINUATION_RENDER_CHARS)
+
+
 class GoalSchema(BaseModel):
     goal: str = ""
     success_criteria: str = ""
@@ -795,6 +903,10 @@ class KleaAgentState(BaseGraphSchema):
     #: :data:`MAX_PREVIOUS_PLANS`.  Reset per turn; survives human input and
     #: review revisions so a later replan can see what already failed.
     plan_history: list[PlanRevision] = Field(default_factory=list)
+    #: Bounded evidence from the previous terminal run, used by a later
+    #: ``continue`` intent to re-plan for a new goal.  Session-scoped: it is
+    #: not cleared with the active plan; a new task reset clears it.
+    continuation_evidence: ContinuationEvidence | None = None
     step_outputs: dict[int, list[StepOutput]] = Field(default_factory=dict)
     # per-step re-pick counter for the ADaPT tool-error escalation policy
     tool_retry_counts: dict[int, int] = Field(default_factory=dict)
@@ -888,6 +1000,81 @@ class KleaAgentState(BaseGraphSchema):
                 }
             )
         return sections
+
+    def build_continuation_evidence(
+        self,
+        final_answer: str,
+        *,
+        captured_at: str = "",
+        artefact_ids: list[str] | None = None,
+    ) -> ContinuationEvidence:
+        """Build the bounded evidence record for a later ``continue``.
+
+        Only compact per-step summaries and plan outcomes are retained; raw
+        tool outputs are not copied.  The final answer is included so a
+        plan-like deliverable remains available for the next goal.
+
+        :param final_answer: The terminal answer for this run.
+        :param captured_at: ISO timestamp; defaults to now (UTC).
+        :param artefact_ids: Artefact ids to record; defaults to the most
+            recent session artefacts.
+        :returns: The bounded :class:`ContinuationEvidence`.
+        """
+        steps: list[ContinuationStepEvidence] = []
+        for step in self.plan.step_list[:MAX_CONTINUATION_STEPS]:
+            entries = self.step_outputs.get(step.step_number, [])
+            tools = sorted({entry.tool for entry in entries if entry.tool})
+            summary = " | ".join(entry.summary() for entry in entries)
+            steps.append(
+                ContinuationStepEvidence(
+                    step_number=step.step_number,
+                    description=_clip_text(
+                        step.description, MAX_CONTINUATION_STEP_CHARS
+                    ),
+                    success_criteria=_clip_text(
+                        step.success_criteria, MAX_CONTINUATION_STEP_CHARS
+                    ),
+                    kind=step.kind,
+                    status=step.status,
+                    tool=_clip_text(", ".join(tools), MAX_CONTINUATION_STEP_CHARS),
+                    summary=_clip_text(
+                        summary or "(no recorded output)",
+                        MAX_CONTINUATION_STEP_CHARS,
+                    ),
+                    is_error=any(
+                        isinstance(entry.result, CallToolResult)
+                        and entry.result.is_error
+                        for entry in entries
+                    ),
+                )
+            )
+        history = [
+            AbandonedPlanEvidence(
+                version=item.version,
+                reason=_clip_text(item.abandoned_reason, MAX_CONTINUATION_STEP_CHARS),
+            )
+            for item in self.plan_history[-MAX_CONTINUATION_ABANDONED_PLANS:]
+        ]
+        ids = (
+            artefact_ids
+            if artefact_ids is not None
+            else list(self.artefacts)[-MAX_CONTINUATION_ARTEFACT_IDS:]
+        )
+        return ContinuationEvidence(
+            goal=_clip_text(self.goal.goal, MAX_CONTINUATION_GOAL_CHARS),
+            success_criteria=_clip_text(
+                self.goal.success_criteria, MAX_CONTINUATION_GOAL_CHARS
+            ),
+            plan_version=self.plan.plan_version,
+            plan_status=self.plan.status,
+            steps=steps,
+            steps_omitted=max(0, len(self.plan.step_list) - MAX_CONTINUATION_STEPS),
+            abandoned_plans=history,
+            final_answer=_clip_text(final_answer, MAX_CONTINUATION_FINAL_ANSWER_CHARS),
+            artefact_ids=list(ids)[-MAX_CONTINUATION_ARTEFACT_IDS:],
+            project_root=str(self.project_root or Path.cwd()),
+            captured_at=captured_at or datetime.now(UTC).isoformat(timespec="seconds"),
+        )
 
     def observations_text(self) -> str:
         """Render all recorded step outputs as one text block.

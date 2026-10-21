@@ -52,8 +52,11 @@ from klea_agent.nodes.triage_router import (
 
 from .config import AppConfig
 from .schemas import (
+    AbandonedPlanEvidence,
     ArtefactSchema,
     CodeSchema,
+    ContinuationEvidence,
+    ContinuationStepEvidence,
     Discovery,
     EvaluationSchema,
     GoalSchema,
@@ -155,6 +158,9 @@ class KleaAgent(BaseLangGraph):
             StepOutput,
             PlanSchema,
             PlanRevision,
+            AbandonedPlanEvidence,
+            ContinuationEvidence,
+            ContinuationStepEvidence,
             GoalSchema,
             ArtefactSchema,
             Discovery,

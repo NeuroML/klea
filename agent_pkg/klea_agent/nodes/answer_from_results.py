@@ -166,6 +166,10 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         in ``message_for_user`` and ``messages`` (lossy continuity); the
         artefact is the concise, addressable record.  On failure nothing is
         persisted -- there is no deliverable yet.
+
+        In both outcomes a bounded ``continuation_evidence`` record is written
+        from the goal, plan and StepOutput summaries, so a later ``continue``
+        intent can re-plan without repeating the investigation.
         """
         answer = result.answer.strip() or self._fallback_answer(state)
         update: dict[str, Any] = {"message_for_user": answer}
@@ -179,6 +183,10 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             artefacts.pop(artefact.id_, None)
             artefacts[artefact.id_] = artefact
             update["artefacts"] = artefacts
+        artefact_ids = list(update.get("artefacts") or state.artefacts)
+        update["continuation_evidence"] = state.build_continuation_evidence(
+            answer, artefact_ids=artefact_ids
+        )
         self.logger.debug(f"{answer = }\n{update.get('artefacts') = }")
         return update
 

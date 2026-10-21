@@ -13,7 +13,9 @@ from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.nodes.answer_from_results import AnswerSchema
 from klea_agent.schemas import (
+    MAX_CONTINUATION_STEPS,
     MAX_PREVIOUS_PLANS,
+    ContinuationEvidence,
     EvaluationSchema,
     GoalSchema,
     KleaAgentState,
@@ -93,6 +95,97 @@ class TestPlanRevision:
         trimmed = trim_plan_history(history)
         assert len(trimmed) == MAX_PREVIOUS_PLANS
         assert [revision.version for revision in trimmed] == list(range(3, 12))
+
+
+class TestContinuationEvidence:
+    """The cross-run evidence record is compact and bounded."""
+
+    def _state(self) -> KleaAgentState:
+        state = KleaAgentState(project_root="/tmp/project")
+        state.goal = GoalSchema(
+            goal="make a plan for X", success_criteria="plan produced"
+        )
+        state.plan = PlanSchema(
+            step_list=[
+                StepSchema(
+                    step_number=1,
+                    description="read the source",
+                    success_criteria="source read",
+                    suggested_tools=["read_file"],
+                    status="done",
+                ),
+                StepSchema(
+                    step_number=2,
+                    description="write the plan",
+                    success_criteria="plan written",
+                    kind="reasoning",
+                    status="done",
+                ),
+                StepSchema(step_number=3, description="implement", status="pending"),
+            ],
+            status="completed",
+            plan_version=2,
+        )
+        state.plan_history = [PlanRevision(version=1, abandoned_reason="tool failed")]
+        state.step_outputs = {
+            1: [
+                StepOutput(
+                    result=CallToolResult(
+                        content=[TextContent(type="text", text="SECRET " * 200)],
+                        structured_content=None,
+                        meta=None,
+                    ),
+                    tool="read_file",
+                )
+            ],
+            2: [
+                StepOutput(
+                    result="A plan for X: first do Y",
+                    rationale="because",
+                )
+            ],
+        }
+        return state
+
+    def test_builds_bounded_summary_without_raw_output(self):
+        evidence = self._state().build_continuation_evidence(
+            "Final plan answer",
+            captured_at="2026-10-21T00:00:00+00:00",
+            artefact_ids=["plan-x"],
+        )
+
+        assert evidence.goal == "make a plan for X"
+        assert evidence.success_criteria == "plan produced"
+        assert evidence.plan_version == 2
+        assert evidence.plan_status == "completed"
+        assert len(evidence.steps) == 3
+        assert evidence.steps[0].summary == "read_file: ok"
+        assert "SECRET" not in evidence.render()
+        assert evidence.steps[1].summary.startswith("reasoning:")
+        assert evidence.steps[2].summary == "(no recorded output)"
+        assert evidence.abandoned_plans[0].reason == "tool failed"
+        assert evidence.final_answer == "Final plan answer"
+        assert evidence.artefact_ids == ["plan-x"]
+        assert evidence.project_root == "/tmp/project"
+        assert evidence.captured_at == "2026-10-21T00:00:00+00:00"
+        rendered = evidence.render()
+        assert "Plan version 2" in rendered
+        assert "Abandoned plans" in rendered
+        assert "Final answer" in rendered
+
+    def test_evidence_caps_steps_and_final_answer(self):
+        state = KleaAgentState()
+        state.plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=index + 1)
+                for index in range(MAX_CONTINUATION_STEPS + 2)
+            ]
+        )
+        evidence = state.build_continuation_evidence("x" * 4000)
+
+        assert len(evidence.steps) == MAX_CONTINUATION_STEPS
+        assert evidence.steps_omitted == 2
+        assert len(evidence.final_answer) < 4000
 
 
 class TestEvaluationSchema:
@@ -727,6 +820,7 @@ class TestCheckpointMsgpack:
                     abandoned_reason="old plan failed",
                 )
             ],
+            "continuation_evidence": ContinuationEvidence(goal="g", final_answer="a"),
             "tool_calls": [ToolCallSchema(tool="list_files", args={"path": "."})],
             "step_outputs": {
                 1: [
