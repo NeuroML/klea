@@ -87,6 +87,12 @@ Last updated: 2026-10-16.
   compute them), and `read_file` gains a byte-offset/region mode that `seek()`s.
   Touches both grep backends, the read contract and tests.  Deferred until
   large-file reads prove painful.
+- Exact `total_lines` on a truncated forward `read_file` page: not computed,
+  because the page stops at the character budget and scanning the rest only to
+  count would cost O(file) I/O.  A huge negative offset (`offset=-1000000`)
+  forces the backward tail scan to byte 0 and reports the total when the file
+  fits within `max_bytes`; a dedicated count mode or cached line count is
+  deferred until agents need it often.
 - `run_command` whole-tree kill: the process-group kill (SIGTERM then SIGKILL)
   now drains the group, but a descendant that detaches (``setsid``/``setpgid``,
   e.g. `mock`/`systemd-nspawn`) escapes and survives.  Reaching it needs a
