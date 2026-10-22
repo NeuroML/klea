@@ -9,7 +9,7 @@ built and what it must preserve.  The shared `App`/`Screen` two-panel
 skeleton, the thin per-app entries, the single run worker (basic
 `progress`/`complete` streaming, turn-status states, and Stop/Retry), the
 MIME-aware transcript, the inspector view, the status pane, session commands,
-the HITL review/input and permission modals, pending-interrupt
+the HITL review/input, permission and state-edit panels, pending-interrupt
 re-presentation, the `resolve_user_id` identity seam,
 `--continue`/`--resume`, the session picker (rename/delete, via `Ctrl+S` and
 `/sessions`), the per-role model dialog (`Ctrl+M` / `/model`), its provider
@@ -103,7 +103,7 @@ I8); each app composes its own screen from them, mirroring the NiceGUI
 | Session picker | `ui/tui/components/sessions.py` | `ModalScreen` list / switch / rename / delete | `chat_list.py` |
 | Model dialog | `ui/tui/components/model_dialog.py` | `ModalScreen` per-role model editor (shared core in `ui/model_config.py`) | `model_dialog.py` |
 | Credentials dialog | `ui/tui/components/credentials_dialog.py` | `ModalScreen` masked provider API-key editor (shared scopes) | `model_dialog.py` (credentials) |
-| HITL | `ui/tui/components/hitl.py` | Review / input / permission modals | `choice.py` + status-region form |
+| HITL | `ui/tui/components/hitl.py` + `state_edit.py` | Review / input / permission / state-edit panels | `choice.py` + status-region form |
 | Commands | `ui/tui/components/commands.py` | Merged catalogue, dispatch, `/` autocomplete | `components/commands.py` |
 | Shared state | `ui/state.py` | `ChatData` store + helpers | `web/nicegui/state.py` (moved) |
 | Reducer | `ui/stream_events.py` | `apply_stream_event` | `web/nicegui/components/stream.py` (extracted) |
@@ -129,7 +129,7 @@ TUI must not reinterpret them.  Per event:
 | `notice` | Append a muted progress line (full content; collapsed until expanded) | collapsible transcript note |
 | `token` | Not consumed (no live typing; see streams.md) | ignored |
 | `context` | Store on the active chat; reconcile the status-panel mode/access/project-root slots | status pane + `context_hooks` |
-| `interrupt` | Open the HITL / permission modal; stop streaming until answered | chat ask form |
+| `interrupt` | Open the HITL / permission / state-edit panel; stop streaming until answered | chat ask form |
 | `complete` | Append the agent message; set turn status idle | chat bubble |
 | `error` | Turn status error; offer Retry when `resumable` | notification |
 

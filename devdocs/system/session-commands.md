@@ -92,6 +92,20 @@ node awaits an awaitable result), so a workflow command can call a model or
 tool (e.g. `/compact`); it may also set a `route` to hand off to another node
 before the run ends.
 
+## Generic state editor
+
+A session-state command can pause on a ``state_edit`` HITL interrupt to edit
+one or more state fields instead of taking them as command arguments.  The
+payload is ``{kind: "state_edit", title, description, fields[]}``; each field
+has ``key``, ``label``, ``kind`` (``path_list``, ``text``, ``bool`` or
+``select``), ``value``, and optional ``help``/``options``/``addable``/
+``removable``.  The reply is ``{action: "save", values: {<key>: ...}}`` or a
+cancel.  ``klea_utils.commands.state_edit.edit_state_fields()`` wraps
+``interrupt()`` and returns the values (or ``None`` on cancel/invalid reply,
+fail closed); the command validates and applies them.  Both frontends render
+the fields; ``/paths`` is the first user.  The response shape is generic so
+later commands can expose more state without a new form.
+
 ## Session workspace
 
 Session-scoped file content (uploads and session fetches) lives under the
@@ -123,6 +137,7 @@ and the menu (`CommandRegistry.available`).
 | `/mode [general\|scientific]` | session-state | checkpoint | block | show or set the operating mode |
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 | `/cwd [path]` | session-state | checkpoint | block | show or set the session project root |
+| `/paths [list\|add <dir>\|remove <path>]` | session-state | checkpoint | block | show or manage session path approvals |
 | `/compact` | workflow | checkpoint | block | summarise and shorten the conversation memory |
 | `/init` | workflow | message | block | generate project guidance (`AGENTS.md`) |
 
@@ -132,6 +147,13 @@ published yet): `/file`, `/webfetch`, `/run`.
 directory, ADR-0053); it must be an existing directory.  Setting it also
 reconciles discovery (`discovery_persistent`) against the new root in the same
 turn, so the previous root's `AGENTS.md`/`CLAUDE.md` does not persist.
+`/paths` manages the thread-scoped path approvals from ADR-0007: `list` shows
+the project root, allowed directories and allowed sensitive files; `add`
+requires an existing directory outside the project root; `remove` revokes an
+exact directory or sensitive-file approval (the project root changes with
+`/cwd`).  A bare `/paths` opens the generic `state_edit` editor with add/remove
+controls for directories and remove-only sensitive files.  The pure helpers
+live in ``klea_utils.mcp.path_approval``.
 `/compact` is registered only when conversation memory is enabled (it
 hands off to the compaction node); it forces a summarisation past the automatic
 threshold and reports the outcome in the inspection pane.  `/init` is a

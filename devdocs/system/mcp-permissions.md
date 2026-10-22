@@ -6,10 +6,11 @@ second round), and the annotation-driven tool access level are implemented
 (ADR-0007 update 2026-10-08).  Updates to this note should be reflected in
 the permission layer as it evolves.
 
-Last updated: 2026-10-21 (path approval asks show the full target path, the
-session approval directory, and bounded argument/context previews; layered
-path discovery, interactive approval, and the sensitive-file second round at
-ADR-0007; invocation axis / tool access level at ADR-0037).
+Last updated: 2026-10-22 (path approval asks show the paths covered by a
+directory approval and clean shell operators; `/paths` manages thread-scoped
+approvals; layered path discovery, interactive approval, and the
+sensitive-file second round at ADR-0007; invocation axis / tool access level
+at ADR-0037).
 
 See also `file-tools.md` for the file-tool text/binary/encoding contract and
 the `read_file` paging contract, which sit on top of this boundary.
@@ -107,6 +108,26 @@ cloud config, and the `KLEA_SENSITIVE_PATTERNS` extras.  These become
 It is best-effort: a renamed secret, a secret inline in source, or a
 directory scan can slip past a filename matcher, and approval is consent, not
 redaction of what reaches the model.
+
+### Managing session approvals
+
+`/paths` (ADR-0047) is the user-facing management surface for the
+thread-scoped approvals described above.  A bare `/paths` opens the generic
+`state_edit` HITL editor with the current `allowed_dirs` (add/remove) and
+`allowed_files` (remove-only); `/paths list` prints the same information;
+`/paths add <dir>` and `/paths remove <path>` are direct mutations.  Directory
+additions must exist and be outside the project root; removing the project
+root is refused (use `/cwd`), and a path covered by an approved directory is
+reported as such rather than removed individually.  The pure helpers
+(`normalise_directory`, `normalise_allowed_dirs`,
+`normalise_allowed_files`, `find_covering_dir`, `format_allowed_paths`, ...)
+live in `klea_utils.mcp.path_approval`.  The approvals remain session-scoped:
+the cross-thread/global allowlist is still a backlog item.
+
+The permission ask also lists every distinct path covered by a directory
+approval (`covered_paths`/`covered_paths_display`) so one session approval is
+transparent, and shell-command tokens are split with shlex punctuation mode so
+operators such as `;`, `&&` and `|` are not shown as part of a path.
 
 ```mermaid
 flowchart TD

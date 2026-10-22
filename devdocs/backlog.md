@@ -136,8 +136,9 @@ Last updated: 2026-10-16.
   have no path gate; there is no MCP standard that enforces path access
   (`roots`/`elicitation` are server-cooperative), so standalone containment
   would need a server-side middleware reusing the detector.  (b) "allow for
-  session" is thread-scoped in `BaseGraphSchema.allowed_dirs`; a
-  cross-thread/global allowlist is not implemented.  (c) Visibility filtering
+  session" is thread-scoped in `BaseGraphSchema.allowed_dirs`; `/paths` can
+  list, add and remove those entries, but a cross-thread/global allowlist is
+  not implemented.  (c) Visibility filtering
   that hides denied tools from the prompt (opencode `always` model) is still
   deferred.
 - Sensitive-file prompting (ADR-0007 update 2026-10-08) is implemented as the

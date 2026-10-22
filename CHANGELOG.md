@@ -10,6 +10,8 @@
 
 ### Added
 
+- `/paths` session command: list, add or remove the thread-scoped path approvals, or open a batch editor for allowed directories and sensitive files. A bare `/paths` uses the new generic `state_edit` HITL editor; the reusable path-approval helpers live in `klea_utils.mcp.path_approval`.
+- Path permission asks now show every distinct path covered by a directory approval (`covered_paths`), show the detected token for shell-command guesses, and split shell operators with shlex punctuation mode so `/dev/null;` is detected as `/dev/null` rather than a path with a trailing separator.
 - Terminal UI: all free-standing text (transcript, status/inspector panes, dialogs, HITL prompts and app chrome) can be selected with the mouse and copied with Ctrl+C; copying uses OSC 52, so terminals without support may need their native selection.
 - `read_file` can read from the end with a negative `offset` (tail): `-1` is the last line and `-N` the Nth from the end. Tail pages keep signed line numbers and `next_offset`, reach EOF without a full scan, and report `total_lines` when the backward scan reaches the start; converted documents use exact totals.
 - Agent cross-run continuity: `RouteDecision` recognises explicit "implement/continue" requests, and a bounded continuation evidence record plus the new `ResetState` task boundary let the Planner re-plan from prior work across graph runs; new tasks still start from a fresh goal and plan. See ADR-0054.

@@ -26,6 +26,14 @@ informed: ""
 > remains available for guesses because a third-party server may have no
 > declared/expected path.
 
+> **Update (2026-10-22):** session approvals gained a management surface:
+> `/paths` lists them, adds an existing directory outside the project root,
+> removes an exact directory or sensitive-file approval, and a bare `/paths`
+> opens the generic `state_edit` editor (ADR-0047).  The ask now lists every
+> distinct path covered by a directory approval (`covered_paths`), and shell
+> command tokens are split with shlex punctuation mode so operators such as
+> `;`, `&&` and `|` do not become part of a path.
+
 ## Context and Problem Statement
 
 MCP tools can read/write the filesystem and fetch URLs.  Klea must

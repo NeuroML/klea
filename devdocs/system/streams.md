@@ -51,9 +51,10 @@ exception.
 continued by a later `interrupt_response`/`interrupt_cancel` request.  Its
 `kind` is authored by the interrupting node: `review` (a `review` step:
 plan approval or a progress checkpoint) / `input` (a blocked step's questions)
-from the agent's `AwaitHuman` nodes, or `permission` (the shared
+from the agent's `AwaitHuman` nodes; `permission` (the shared
 `ToolsCallerNode`, pausing before a call that would touch a path outside the
-permitted roots; ADR-0007 update 2026-10-08).  A `review` ask carries a
+permitted roots; ADR-0007 update 2026-10-08); or `state_edit` (a session
+command editing generic state fields via `klea_utils.commands.state_edit`).  A `review` ask carries a
 `headline` and a list of `sections` (`{title, body}`) for the **pending** steps
 the approval unblocks (ADR-0051): a review before any work presents the whole
 plan under approval; a checkpoint shows the remaining steps.  Every pending
