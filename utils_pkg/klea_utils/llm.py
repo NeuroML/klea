@@ -512,9 +512,12 @@ def parse_output_with_thought[TSchema: BaseModel](
         try:
             result = parser.parse(answer)
         except OutputParserException:
-            logger.debug(f"Handling OutputParserException. {answer = }")
+            logger.debug(f"JSON parse failed; attempting repair. {answer = }")
             cleaned = repair_json(answer)
             logger.debug(f"{cleaned = }")
+            if not cleaned.strip():
+                logger.debug("repair_json produced no JSON; re-raising the parse error")
+                raise
             result = parser.parse(cleaned)
 
     else:
@@ -532,9 +535,12 @@ def parse_output_with_thought[TSchema: BaseModel](
         try:
             result = parser.parse(answer)
         except OutputParserException:
-            logger.debug(f"Handling OutputParserException. {answer = }")
+            logger.debug(f"JSON parse failed; attempting repair. {answer = }")
             cleaned = repair_json(answer)
             logger.debug(f"{cleaned = }")
+            if not cleaned.strip():
+                logger.debug("repair_json produced no JSON; re-raising the parse error")
+                raise
             result = parser.parse(cleaned)
 
     logger.debug(f"{thought = }")

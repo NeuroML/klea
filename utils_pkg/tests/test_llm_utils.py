@@ -24,12 +24,15 @@ from klea_utils.llm import (
     join_model_string,
     missing_required_roles,
     parse_model_name,
+    parse_output_with_thought,
     provider_api_key_env,
     requires_api_key,
     resolve_langchain_endpoint,
     split_output_by_section,
 )
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from pydantic import BaseModel
 
 
 def test_format_alert_wraps_in_warning_blockquote():
@@ -495,6 +498,40 @@ def test_provider_api_key_env_convention():
     assert provider_api_key_env("openai") == "OPENAI_API_KEY"
     assert provider_api_key_env("mistralai") == "MISTRAL_API_KEY"
     assert provider_api_key_env("ollama") is None
+
+
+class _ParseSchema(BaseModel):
+    """Minimal schema for parse_output_with_thought tests."""
+
+    answer: str = ""
+
+
+def test_parse_output_with_thought_repairs_malformed_json():
+    """repair_json recovers JSON that the parser rejects directly."""
+    result, thought = parse_output_with_thought(
+        AIMessage(content='{"answer": "ok",}'), _ParseSchema
+    )
+    assert result == {"answer": "ok"}
+    assert thought == ""
+
+
+def test_parse_output_with_thought_splits_thought_before_parsing():
+    """Only the text after </think> is parsed."""
+    result, thought = parse_output_with_thought(
+        AIMessage(content='thinking</think>{"answer": "ok"}'), _ParseSchema
+    )
+    assert thought == "thinking"
+    assert result == {"answer": "ok"}
+
+
+def test_parse_output_with_thought_reraises_original_error_when_repair_empty(
+    monkeypatch,
+):
+    """An empty repair must not replace the original parse error."""
+    monkeypatch.setattr("klea_utils.llm.repair_json", lambda _text: "")
+    with pytest.raises(OutputParserException) as excinfo:
+        parse_output_with_thought(AIMessage(content="The prose answer."), _ParseSchema)
+    assert "The prose answer." in str(excinfo.value)
 
 
 if __name__ == "__main__":
