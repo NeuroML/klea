@@ -816,8 +816,8 @@
         <span class="n">requests</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">PathRequest</span><span class="p">(</span>
             <span class="n">tool</span><span class="o">=</span><span class="n">tool</span><span class="p">,</span>
             <span class="n">argument</span><span class="o">=</span><span class="n">argument</span><span class="p">,</span>
-            <span class="n">raw</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">),</span>
-            <span class="n">path</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">),</span>
+            <span class="n">raw</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">raw</span><span class="p">)),</span>
+            <span class="n">path</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)),</span>
             <span class="n">directory</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">),</span>
             <span class="n">confidence</span><span class="o">=</span><span class="n">confidence</span><span class="p">,</span>
             <span class="n">source</span><span class="o">=</span><span class="n">source</span><span class="p">,</span>
