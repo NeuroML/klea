@@ -110,7 +110,7 @@ class TestProfileTemplateCli:
     def test_cli_template_writes_config(self, tmp_path, monkeypatch):
         runner = CliRunner()
         monkeypatch.chdir(tmp_path)
-        result = runner.invoke(rag_app, ["cli", "--profile", "template"])
+        result = runner.invoke(rag_app, ["tui", "--profile", "template"])
         assert result.exit_code == 0
         assert (Path.cwd() / "klea_rag.json").exists()
         assert "Template config written" in result.output

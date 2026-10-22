@@ -46,7 +46,7 @@ def _make_app(label="RAG", port=8005):
 class TestMakeClientApp(unittest.TestCase):
     """Routing of the Typer app: options, subcommand dispatch and help.
 
-    The real client entry points (_run_cli / _run_web) are mocked so the
+    The real client entry points (_run_tui / _run_web) are mocked so the
     tests only verify how the CLI parses and routes arguments.
     """
 
@@ -54,57 +54,29 @@ class TestMakeClientApp(unittest.TestCase):
         self.runner = CliRunner()
         self.app = _make_app()
 
-    def test_bare_invocation_prints_usage(self):
-        # No subcommand: a hint plus the group help, and a clean exit.
-        result = self.runner.invoke(self.app, [])
-        self.assertEqual(result.exit_code, 0)
-        self.assertIn("Please specify a subcommand (cli | tui | web).", result.output)
-        self.assertIn("Usage:", result.output)
-
-    def test_cli_routing(self):
-        with mock.patch("klea_utils.ui.cli._run_cli") as run_cli:
-            result = self.runner.invoke(self.app, ["cli", "--single-query", "hello"])
+    def test_bare_invocation_launches_tui(self):
+        # No subcommand: launch the Textual TUI with the factory defaults.
+        with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
+            result = self.runner.invoke(self.app, [])
             self.assertEqual(result.exit_code, 0)
-            run_cli.assert_called_once_with(
+            run_tui.assert_called_once_with(
                 server_url="http://127.0.0.1:8005",
                 title="KLEA RAG",
-                single_query="hello",
                 tui_app_name="klea-rag-tui",
                 tui_prefix="klea-rag",
                 app_module="klea_rag.api.main:app",
-                debug=False,
-                profile=None,
+                tui_entry="klea_rag.ui.tui.page:run_rag_tui",
+                identity_app_name="klea-rag",
                 config_env_var=None,
                 config_dir=None,
                 template_writer=None,
             )
 
-    def test_cli_custom_server_and_title(self):
-        with mock.patch("klea_utils.ui.cli._run_cli") as run_cli:
-            result = self.runner.invoke(
-                self.app,
-                ["cli", "--server", "http://10.0.0.1:9000", "--title", "T1", "-q", "q"],
-            )
+    def test_help_does_not_launch_tui(self):
+        with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
+            result = self.runner.invoke(self.app, ["--help"])
             self.assertEqual(result.exit_code, 0)
-            run_cli.assert_called_once_with(
-                server_url="http://10.0.0.1:9000",
-                title="T1",
-                single_query="q",
-                tui_app_name="klea-rag-tui",
-                tui_prefix="klea-rag",
-                app_module="klea_rag.api.main:app",
-                debug=False,
-                profile=None,
-                config_env_var=None,
-                config_dir=None,
-                template_writer=None,
-            )
-
-    def test_cli_debug_routing(self):
-        with mock.patch("klea_utils.ui.cli._run_cli") as run_cli:
-            result = self.runner.invoke(self.app, ["cli", "--debug", "-q", "hi"])
-            self.assertEqual(result.exit_code, 0)
-            self.assertTrue(run_cli.call_args.kwargs["debug"])
+            run_tui.assert_not_called()
 
     def test_tui_routing(self):
         with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
@@ -190,10 +162,10 @@ class TestMakeClientApp(unittest.TestCase):
 
     def test_malformed_server_url_is_rejected(self):
         # A bad --server value fails URL validation before the client runs.
-        with mock.patch("klea_utils.ui.cli._run_cli") as run_cli:
-            result = self.runner.invoke(self.app, ["cli", "--server", "not a url"])
+        with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
+            result = self.runner.invoke(self.app, ["tui", "--server", "not a url"])
             self.assertEqual(result.exit_code, 2)
-            run_cli.assert_not_called()
+            run_tui.assert_not_called()
 
     def test_top_level_flags_do_not_exist(self):
         self.assertEqual(self.runner.invoke(self.app, ["--server", "x"]).exit_code, 2)

@@ -2,6 +2,10 @@
 
 # Manual end-to-end runner for the Klea agent.
 #
+# STATUS: needs retargeting.  The harness still invokes the removed
+# ``klea cli --single-query`` client.  It is retained for its scenarios and
+# checks; port it to ``klea-serve`` plus the HTTP/SSE API before running.
+#
 # Copyright 2026 Ankur Sinha
 # Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 #

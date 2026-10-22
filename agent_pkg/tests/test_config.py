@@ -72,7 +72,7 @@ class TestProfileTemplateCli:
     def test_cli_template_writes_config(self, tmp_path, monkeypatch):
         runner = CliRunner()
         monkeypatch.chdir(tmp_path)
-        result = runner.invoke(agent_app, ["cli", "--profile", "template"])
+        result = runner.invoke(agent_app, ["tui", "--profile", "template"])
         assert result.exit_code == 0
         assert (Path.cwd() / "klea_agent.json").exists()
         assert "Template config written" in result.output

@@ -244,4 +244,6 @@ Chosen option: "C. Structured per-node inspection signals".
 * Update (2026-10-14): the full Textual TUI has landed (ADR-0050); it has a
   transcript/inspector toggle that consumes the same ``inspect``/``progress``
   events (``system/tui.md``).  ADR-0040 later replaced ``info``/``debug``
+* Update (2026-10-22): the lightweight ``cli`` REPL was removed; the Textual
+  TUI is the terminal client and bare ``klea`` / ``klea-rag`` launches it.
   with a single ``inspect`` event.

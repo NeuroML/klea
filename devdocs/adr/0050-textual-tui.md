@@ -87,8 +87,8 @@ Concrete decisions:
   (`klea_utils/ui/cli.py`), launched **in-process** (Textual is a library,
   unlike the NiceGUI `python app.py` subprocess).  It is guarded by a new
   `tui` extra (`textual`) via `require_extra`, added to the `full` extra so CI
-  installs it.  The temporary `cli` REPL is kept until the TUI reaches parity
-  and then removed.
+  installs it.  The temporary `cli` REPL was removed once the TUI reached
+  parity (2026-10-22); bare `klea` / `klea-rag` now launches the TUI.
 * **Session model**: one **active** session rendered in the main loop.  A
   summonable picker (`Ctrl+S` / `/sessions`) switches, resumes, renames and
   deletes sessions; `--continue` resumes the most recently updated session and

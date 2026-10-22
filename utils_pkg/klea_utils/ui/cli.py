@@ -8,7 +8,6 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-import asyncio
 import importlib.util
 import shlex
 import subprocess
@@ -116,49 +115,6 @@ def _maybe_spawn_server(
             app_module, host=host, port=port, profile=profile, quiet=quiet
         )
     return spawn_server(app_module, host=host, port=port, quiet=quiet)
-
-
-def _run_cli(
-    server_url: str,
-    title: str,
-    single_query: str,
-    tui_app_name: str,
-    tui_prefix: str,
-    app_module: str,
-    debug: bool = False,
-    profile: str | None = None,
-    config_env_var: str | None = None,
-    config_dir: str | Path | None = None,
-    template_writer: Callable[[Path], Path] | None = None,
-) -> None:
-    """Run the interactive terminal (cli) client."""
-    if debug:
-        # Make debug visible to the spawned server subprocess.
-        from klea_utils.plogging import enable_debug_logging
-
-        enable_debug_logging()
-    with _maybe_spawn_server(
-        server_url,
-        app_module,
-        profile=profile,
-        config_env_var=config_env_var,
-        config_dir=config_dir,
-        template_writer=template_writer,
-    ):
-        from klea_utils.ui.tui.repl import run_repl
-
-        try:
-            asyncio.run(
-                run_repl(
-                    url=server_url,
-                    title=title,
-                    single_query=single_query,
-                    app_prefix=tui_prefix,
-                    app_name=tui_app_name,
-                )
-            )
-        except KeyboardInterrupt:
-            print("\nInterrupted. Exiting.")
 
 
 def _run_tui(
@@ -349,14 +305,14 @@ def make_client_app(
     config_dir: str | Path | None = None,
     template_writer: Callable[[Path], Path] | None = None,
 ) -> typer.Typer:
-    """Create a Typer app for a Klea user client (cli + tui + web).
+    """Create a Typer app for a Klea user client (tui + web).
 
-    The app exposes ``cli`` / ``tui`` / ``web`` subcommands for the REPL,
-    Textual and NiceGUI clients respectively, each carrying its own options so
-    ``--help`` on a subcommand lists everything it accepts.  Invoked with
-    no subcommand the app prints its usage help.  All package-specific
-    values are passed as parameters, so the rag and code entry points
-    stay thin wrappers.
+    The app exposes ``tui`` / ``web`` subcommands for the Textual and NiceGUI
+    clients respectively, each carrying its own options so ``--help`` on a
+    subcommand lists everything it accepts.  Invoked with no subcommand the
+    app launches the Textual TUI with defaults.  All package-specific values
+    are passed as parameters, so the rag and code entry points stay thin
+    wrappers.
 
     Both subcommands accept ``--profile``: the value is validated and
     forwarded to a spawned local server through *config_env_var* (see
@@ -397,7 +353,6 @@ def make_client_app(
     """
     app = typer.Typer(help=f"Simple KLEA {label} user client")
 
-    cli_help = f"Klea {label} cli client"
     tui_help = f"Klea {label} tui client (Textual)"
     web_help = f"Klea {label} web client (NiceGUI)"
 
@@ -424,40 +379,20 @@ def make_client_app(
 
     @app.callback(invoke_without_command=True)
     def main(ctx: typer.Context):
-        """Print usage help when no subcommand is given."""
+        """Launch the Textual TUI when no subcommand is given."""
         if ctx.invoked_subcommand is None:
-            print("Please specify a subcommand (cli | tui | web).")
-            print(ctx.get_help())
-            ctx.exit()
-
-    @app.command()
-    def cli(
-        server_url: str = server_option,
-        title: str = title_option,
-        single_query: str = typer.Option(
-            None,
-            "--single-query",
-            "-q",
-            help="Single query mode: answer a query and exit",
-        ),
-        debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
-        profile: str = profile_option,
-    ):
-        _run_cli(
-            server_url=server_url,
-            title=title,
-            single_query=single_query or "",
-            tui_app_name=tui_app_name,
-            tui_prefix=tui_prefix,
-            app_module=app_module,
-            debug=debug,
-            profile=profile,
-            config_env_var=config_env_var,
-            config_dir=config_dir,
-            template_writer=template_writer,
-        )
-
-    cli.__doc__ = cli_help
+            _run_tui(
+                server_url=server_url_default,
+                title=f"KLEA {label}",
+                tui_app_name=tui_app_name,
+                tui_prefix=tui_prefix,
+                app_module=app_module,
+                tui_entry=tui_entry,
+                identity_app_name=identity_app_name,
+                config_env_var=config_env_var,
+                config_dir=config_dir,
+                template_writer=template_writer,
+            )
 
     @app.command()
     def tui(

@@ -2,11 +2,15 @@
 """
 Manual end-to-end scenario catalogue for the Klea agent.
 
-Each task is a single ``klea cli --single-query`` run in its own scratch
-workspace.  The suite is for observation first: a task may carry a ``setup``
-(to seed disposable files) and an optional ``check`` (deterministic side-effect
-assertions), but the primary output is the captured CLI transcript and the
-workspace left behind for inspection.
+Status: needs retargeting.  Each task was written as a single
+``klea cli --single-query`` run; the CLI has been removed and the harness must
+be ported to ``klea-serve`` plus the HTTP/SSE API (or the future eval harness).
+The scenarios and checks are retained so they can be reused.
+
+Each task runs in its own scratch workspace.  The suite is for observation
+first: a task may carry a ``setup`` (to seed disposable files) and an optional
+``check`` (deterministic side-effect assertions), but the primary output is the
+captured transcript and the workspace left behind for inspection.
 
 File: e2e/tasks.py
 

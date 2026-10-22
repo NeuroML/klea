@@ -1,12 +1,20 @@
 # Manual end-to-end agent tests
 
-Opt-in smoke suite that runs the real `klea` CLI end to end (CLI -> spawned
-API server -> graph -> model -> bundled tools) against a throwaway workspace.
-It is for **observing behaviour**, not for CI: the default pytest run and
-`scripts/run_tests.sh` never collect it (`testpaths = ["tests"]`), and each
-scenario is a single `klea cli --single-query` invocation.
+> **Status: needs retargeting.** The `cli` subcommand and its
+> `--single-query` mode were removed. This harness is retained so its
+> scenarios, checks and observations are not lost: retarget `conftest.py` to
+> start `klea-serve` and drive the HTTP/SSE API (or the forthcoming eval
+> harness) before running it. The default/CI suite never collects `e2e/`.
+
+Opt-in smoke suite that runs the agent end to end (client -> API server ->
+graph -> model -> bundled tools) against a throwaway workspace.  It is for
+**observing behaviour**, not for CI: the default pytest run and
+`scripts/run_tests.sh` never collect it (`testpaths = ["tests"]`).
 
 ## Running
+
+These commands are the retained CLI harness and will not work until it is
+retargeted (see the status note above).
 
 ```bash
 # from agent_pkg/, or use the wrapper from anywhere:

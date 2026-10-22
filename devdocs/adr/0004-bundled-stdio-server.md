@@ -24,7 +24,7 @@ intent be signalled?
 
 ## Decision Drivers
 
-* No extra setup for local single-user RAG (``klea-rag cli/web`` auto-spawns
+* No extra setup for local single-user RAG (``klea-rag tui``/``web`` auto-spawns
   the server when none is running, see ``utils_pkg/klea_utils/graph/base.py``
   ``spawn_server``).
 * Must be deployable on shared infrastructure (HuggingFace Spaces runs
@@ -133,7 +133,7 @@ Chosen option: "C. Bundled stdio subprocess with two-axis filtering
 * ``klea-mcp --help`` / ``klea-mcp --transport http --help`` starts
   without eager imports of orchestrators (Typer deferral; see
   ``AGENTS.md`` CLI conventions).
-* Live: ``klea-rag cli`` auto-spawns the bundled server when no
+* Live: ``klea-rag tui`` auto-spawns the bundled server when no
   ``klea-rag-serve`` is running and reuses an already-running one when
   it is (loopback-only check via ``split_server_url``/``is_loopback_host``);
   HuggingFace container boots ``nml-mcp &``, ``klea-rag-serve &``, then

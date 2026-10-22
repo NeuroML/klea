@@ -124,9 +124,8 @@ Chosen option: "C. Configurable per-request model via ``configurable_fields='any
   harder to reason about than a concrete ``ChatOllama`` instance; stale
   overrides in the ``contextvar`` must be cleared per request.
 * Bad, because model switching is still chat-scoped via the API/NiceGUI
-  seam; CLI single-query mode (``klea-rag cli --single-query``) still
-  uses env-file defaults unless an explicit ``--server`` override is
-  threaded.
+  seam; a one-shot/CLI mode is no longer offered after the `cli`
+  removal (2026-10-22); the TUI/web reuse the same per-chat overrides.
 
 ### Confirmation
 

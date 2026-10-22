@@ -114,7 +114,7 @@ Chosen option: "B. One `inspect` event + gated `token` + `tool` event".
 
 * `utils_pkg/tests/test_stream_events.py`, `test_nodes_tools_caller.py`,
   `test_nodes_tools_picker.py`, `test_graph_base.py`; RAG/agent node tests.
-* End-to-end: `klea cli` shows a live plan (`inspect` state sections), tool
+* End-to-end: `klea tui` shows a live plan (`inspect` state sections), tool
   blocks for edits, and no token noise.
 
 ### Update (2026-09-30)

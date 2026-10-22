@@ -136,7 +136,7 @@ plus ``klea_utils.mcp`` shared schemas/dispatch".
 * ``ty`` ``extra-paths`` for ``klea_utils.mcp.schemas`` still resolve
   cross-package; ``ruff`` clean for ``tools_picker.py``/``tools_caller.py``
   and ``mcp/dispatch.py``.
-* Live: ``klea-rag cli`` and ``klea`` (agent) both list the same
+* Live: ``klea-rag tui`` and ``klea tui`` (agent) both list the same
   ``bundled`` + ``nml-mcp`` tools per domain via the shared picker,
   and denied path calls via the shared caller surface as synthetic
   ``ToolResult(is_error=True)`` before the MCP server is invoked.

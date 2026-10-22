@@ -3,14 +3,14 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-# Keep the default/CI run to the unit tests.  The manual end-to-end suite
-# lives in ``e2e/`` and is only collected when named explicitly
-# (``pytest e2e/``), so ``pytest`` / ``scripts/run_tests.sh`` stay fast and
-# never touch the network or a real model.
+# Keep the default/CI run to the unit tests under ``tests/`` so pytest and
+# scripts/run_tests.sh stay fast and never touch the network or a real model.
+# The opt-in ``e2e/`` harness is retained for reference but still targets the
+# removed ``klea cli`` entry point; retarget it to the API/server before use.
 testpaths = ["tests"]
 markers = [
     "localonly", # test to not be run on GH actions: they require an LLM.
-    "e2e", # manual end-to-end CLI run (opt-in; see agent_pkg/e2e/)
+    "e2e", # manual end-to-end run (opt-in; currently needs retargeting)
     "e2e_chat",
     "e2e_tools",
     "e2e_reasoning",

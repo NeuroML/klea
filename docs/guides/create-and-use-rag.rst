@@ -369,19 +369,15 @@ the session and stop it when they exit; if a server is already running
 (for example from Step 4) they reuse it.  Pointing ``--server`` at a
 remote host connects without starting anything.
 
-Single-query mode is the quickest way to test:
+For an interactive terminal session:
 
 .. code-block:: bash
 
-   klea-rag cli --single-query "What does my collection of documents cover?"
+   klea-rag
 
-For an interactive session:
-
-.. code-block:: bash
-
-   klea-rag cli
-
-Type your questions at the prompt.  Use ``quit`` to exit.
+This launches the Textual TUI (also available explicitly as ``klea-rag tui``).
+Type your questions in the input box; ``Ctrl+Q`` exits.  The TUI requires the
+``[tui]`` extra (``pip install klea-rag[tui]``).
 
 For a graphical interface, launch the NiceGUI web UI:
 
@@ -389,8 +385,7 @@ For a graphical interface, launch the NiceGUI web UI:
 
    klea-rag web
 
-The web UI uses NiceGUI and requires the ``[nicegui]`` extra, while the
-CLI mode has no extra dependencies.
+The web UI uses NiceGUI and requires the ``[nicegui]`` extra.
 
 The interface has a **chat** tab and an **inspect** tab.  The inspect tab
 is the transparency view: it shows the pipeline steps taken for each

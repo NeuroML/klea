@@ -82,13 +82,14 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
   ``MCPConfig`` servers.  Tool filtering and permission gating sit in
   the client (``ADR-0004`` tag filtering + ``ADR-0007`` ``checkpaths``
   dual layer), not in the server process.
-* Clients: ``klea_utils/ui/cli.py`` CLI auto-spawns the server when the
-  ``--server`` URL is loopback and none is serving (``utils_pkg/
+* Clients: ``klea_utils/ui/cli.py`` (TUI / web entry points) auto-spawns the
+  server when the ``--server`` URL is loopback and none is serving
+  (``utils_pkg/
   klea_utils/api/utils.py:87`` ``check_api_is_ready`` + ``split_server_url``);
   external ``MCP Clients`` (``Person(extagent)`` in ``c4-system-context.md``)
-  consume ``nml-mcp``/RAG over HTTP/MCP without a Klea CLI.  NiceGUI
-  (``klea-rag web``) and the terminal clients (``klea-rag cli`` REPL /
-  ``klea-rag tui``; ADR-0050) are both SSE consumers of the same
+  consume ``nml-mcp``/RAG over HTTP/MCP without a Klea client.  NiceGUI
+  (``klea-rag web``) and the terminal client (``klea-rag tui`` / bare
+  ``klea-rag``; ADR-0050) are both SSE consumers of the same
   ``/query/stream``.
 * Deployment: local ``uv pip install -r requirements-dev.txt`` + per-app
   ``graph.base`` + session SQLite (``sessions.db``) vs shared
@@ -129,11 +130,11 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
 
 ### Confirmation
 
-* ``klea-rag cli --single-query`` / ``klea-rag web`` both reuse an
+* ``klea-rag tui`` / ``klea-rag web`` both reuse an
   already-running ``klea-rag-serve`` when ``:8005`` is loopback+serving;
   otherwise they autospawn and connect over SSE; external ``Client(
   transport="http", url=":8542/mcp")`` reaches ``nml-mcp`` without a
-  Klea CLI.
+  Klea client.
 * ``klea_utils/api/app.py`` ``make_app`` + ``klea_utils/api/sse.py``
   ``/query/stream`` still serve ``AgentState`` ``message_for_user``;
   ``ty`` ``extra-paths`` still resolve cross-package imports for the
@@ -148,7 +149,7 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
 
 * Good, because same code serves local, HuggingFace, and shared infra
 * Good, because ``nml-mcp`` is reusable over HTTP/MCP without Klea
-* Good, because the terminal clients (REPL / TUI, ADR-0050), NiceGUI, and
+* Good, because the terminal client (TUI, ADR-0050), NiceGUI, and
   external agents share one SSE stream
 * Bad, because per-invocation health-probe + SSE handshake even locally
 
@@ -168,7 +169,8 @@ Chosen option: "B. Client-server with FastAPI + MCP + SSE".
   components in ``klea_utils/ui/tui`` composed per app (``klea_agent`` /
   ``klea_rag``), launched by the ``tui`` subcommand (``klea tui`` /
   ``klea-rag tui``); see ``system/tui.md`` and ``docs/components/tui.rst``.
-  The lightweight ``cli`` REPL remains until TUI parity is confirmed.
+* Update (2026-10-22): the lightweight ``cli`` REPL was removed; the Textual
+  TUI is the terminal client and bare ``klea`` / ``klea-rag`` launches it.
 * Code: ``utils_pkg/klea_utils/graph/base.py:70`` (``BaseLangGraph``),
   ``klea_utils/api/*`` (``make_app``, ``sse.py``, ``chat.py``,
   ``sessions_db.py``), ``klea_utils/ui/cli.py`` (``spawn_server`` +

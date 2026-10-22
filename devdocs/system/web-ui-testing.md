@@ -24,8 +24,9 @@ Not covered here:
 
 * **End-to-end agent behaviour** (multi-turn, HITL, tool use, metrics) is an
   API/orchestrator concern; the planned `eval_pkg` scenario harness owns it
-  (`agent-evaluation-harness.md`).  The interactive `agent_pkg/e2e/` suite
-  stays a CLI smoke runner.
+  (`agent-evaluation-harness.md`).  The `agent_pkg/e2e/` harness is retained
+  for its scenarios and checks, but still targets the removed `klea cli`;
+  retarget it to the API/server before use.
 * **Browser-level tests** (`nicegui.testing.Screen`, Selenium) are not used;
   they are reserved for behaviour that only a real browser can exercise.
 

@@ -236,11 +236,6 @@ Last updated: 2026-10-16.
   persist it.
 - `chat_events` retention/pruning: the per-chat UI-event store grows with
   every run; add a retention/size policy (cf. the checkpoint-growth item).
-- Terminal client status: the `cli` subcommand still runs a lightweight
-  `input()`-based REPL (`klea_utils/ui/tui/repl.py`), a temporary tool for
-  quick testing with simple queries.  It is **not** the TUI; the historical
-  "Textual" wording in ADR-0013/0026 and the `-tui` process identity are stale.
-  Drop the REPL (and retire its `-tui` identity) once TUI parity is confirmed.
 - Cross-frontend sessions / shared identity follow-ups (ADR-0052): (a) a
   remote/multi-user deployment still uses the per-browser NiceGUI session
   cookie, so chats can "disappear" on a new window/browser/profile; a stable
@@ -373,13 +368,15 @@ Last updated: 2026-10-16.
   stopped externally by cancelling its `asyncio.Task` -- see ADR-0043 -- but
   that is cancellation, not the failed-node resume this hook targets.)
 - E2E review task must drive the HITL interrupt (ADR-0046/ADR-0051): the
-  `review` task in `agent_pkg/e2e/tasks.py` now pauses at a `review` step
-  (`AwaitHuman`), so the harness must answer (approve/revise) or cancel and
-  assert the resumed run -- including a mid-plan checkpoint ("review after the
-  README, before CONTRIBUTING") that exercises the review step's position.
-  Also cover the review workflow added for ADR-0051: the `Progress` digest
-  (`ReviewProgress`; skipped for a whole-plan approval) and the Evaluator's
-  review-readiness replan (`review_readiness=not_ready`).
+  `review` scenario must pause at a `review` step (`AwaitHuman`), answer
+  (approve/revise) or cancel, and assert the resumed run -- including a mid-plan
+  checkpoint ("review after the README, before CONTRIBUTING") that exercises
+  the review step's position.  Also cover the review workflow added for
+  ADR-0051: the `Progress` digest (`ReviewProgress`; skipped for a whole-plan
+  approval) and the Evaluator's review-readiness replan
+  (`review_readiness=not_ready`).  The CLI-based `agent_pkg/e2e/` harness is
+  retained for its scenarios and checks, but needs retargeting to the
+  API/SSE (or `eval_pkg`) path because the `cli` subcommand was removed.
 - Web UI (NiceGUI) tests: tier 1 (in-process user simulation + fake backend,
   `*/tests/ui/web/`; see `devdocs/system/web-ui-testing.md`) is implemented --
   page render, chat empty-state, hydration, mode/access controls, send flow,

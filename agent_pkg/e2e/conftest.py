@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
-Fixtures for the manual end-to-end CLI suite.
+Fixtures for the manual end-to-end suite.
 
-Each scenario runs the real ``klea`` CLI in a disposable scratch directory.
-Because the CLI spawns the API server as a subprocess, the server inherits
-that working directory and the bundled file tools are therefore bounded to
-the scratch directory - the agent never sees real files.
+Status: needs retargeting.  The harness was written against the removed
+``klea cli --single-query`` client.  It is retained for its scenarios and
+checks; retarget it to ``klea-serve`` plus the HTTP/SSE API (or the future
+eval harness) before running.
+
+Each scenario originally ran the real ``klea`` CLI in a disposable scratch
+directory.  Because the CLI spawned the API server as a subprocess, the server
+inherited that working directory and the bundled file tools were therefore
+bounded to the scratch directory - the agent never saw real files.
 
 The suite is opt-in (excluded from the default pytest run via ``testpaths``)
 and is skipped unless a model and API key are present (use ``e2e/run.sh``).

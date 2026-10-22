@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-Manual end-to-end CLI smoke tests.
+Manual end-to-end smoke tests.
 
-Runs each scenario in ``tasks.py`` through ``klea cli --single-query`` and
-prints the full transcript plus the resulting workspace for observation.
+Status: needs retargeting.  These tests still invoke the removed
+``klea cli --single-query`` client; they are retained for their scenarios and
+checks until the harness is ported to ``klea-serve`` plus the HTTP/SSE API (or
+the future eval harness).
+
+Runs each scenario in ``tasks.py`` and prints the full transcript plus the
+resulting workspace for observation.
 Selection uses normal pytest options, for example::
 
     pytest e2e/ --collect-only -q      # list scenarios

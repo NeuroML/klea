@@ -97,7 +97,7 @@ flowchart TD
         config["AppConfig + config loader<br/>config.py: bundled_tools, access_level,<br/>tool_access; env file + profile JSON; ADR-0015"]
         state["KleaAgentState + schemas<br/>schemas.py: goal, plan, plan_history,<br/>continuation_evidence, step_outputs, artefacts,<br/>internal history, retry budgets; ADR-0032/0054"]
         api["Agent API<br/>api/main.py make_app + api/chat.py ChatPayload<br/>POST /query, /query/stream; ADR-0031"]
-        ui["Client UI / CLI<br/>ui/cli.py (klea, klea-serve) + ui/web/*<br/>mode + access selectors; ADR-0030/0037"]
+        ui["Client UI / TUI<br/>ui/cli.py (klea, klea-serve) + ui/tui/* + ui/web/*<br/>mode + access selectors; ADR-0030/0037"]
     end
 
     %% Graph edges (from auto-generated .mmd, same labels as code)
@@ -329,7 +329,7 @@ field-level details.
 | AppConfig / config loader | ``klea_agent/config.py`` | JSON app config + env file/profile resolution | ``general.bundled_tools``, ``general.access_level``, ``general.tool_access``, ``general.commands``, ``general.memory``, ``mcp_servers``, ``providers`` (ADR-0015/0037/0047) |
 | KleaAgentState + schemas | ``klea_agent/schemas.py`` | Graph state and structured outputs | ``goal``, ``plan``, ``plan_history``, ``continuation_evidence``, ``step_outputs``, ``artefacts``, ``messages``/``messages_internal``, retry budgets, ``mode``, ``route``, ``evaluation`` (ADR-0032/0035/0054) |
 | Agent API | ``klea_agent/api/{main,chat,server}.py`` | FastAPI app via ``make_app`` + the agent ``ChatPayload`` chat router | ``POST /query``, ``/query/stream``; ``mode``/``access_level`` in the payload; generic routers from ``klea_utils.api`` (ADR-0031) |
-| Client UI / CLI | ``klea_agent/ui/cli.py`` + ``ui/web/*`` | Typer CLI (``klea``, ``klea-serve``) and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037) |
+| Client UI / TUI | ``klea_agent/ui/cli.py`` + ``ui/tui/*`` + ``ui/web/*`` | Typer entry points (``klea``, ``klea-serve``), Textual TUI and NiceGUI pages over shared components | mode selector, tool-access selector, status pane (ADR-0030/0031/0037/0050) |
 | Initializing | ``klea_agent/nodes/init_graph.py`` | ``InitGraphState``: per-turn fields and query history; task state retained | Non-LLM; no plan-scoped reset; task boundary moves to ``ResetState`` (ADR-0054) |
 | Resetting state | ``klea_agent/nodes/reset_state.py`` | ``ResetState``: applies the ``task``/``continue`` boundary before planning | Non-LLM; ``task`` full reset; ``continue`` clears goal/active plan/transients but keeps ``continuation_evidence`` (ADR-0054) |
 | Determining mode / Informing | ``klea_agent/nodes/mode_router.py`` | ``ModeDecision`` resolves requested -> resolved; ``ModeInformer`` is terminal | Non-LLM; ``mode.note`` routes to inform instead of downgrading (ADR-0030) |

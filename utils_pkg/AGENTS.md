@@ -89,9 +89,8 @@ klea_utils/
 │   ├── state.py    # framework-agnostic chat/session state store (web + TUI)
 │   ├── stream_events.py # pure stream-event reducer (web + TUI)
 │   ├── client.py   # server API client (sessions, models, credentials, commands)
-│   ├── tui/        # terminal REPL (temporary test client, not the TUI;
-│   │               #   full Textual TUI planned) -- repl.py, future shared
-│   │               #   TUI components composed per app (like nicegui/)
+│   ├── tui/        # shared Textual TUI (app, components, context; ADR-0050);
+│   │               #   apps compose their screen and slots (like nicegui/)
 │   └── web/        # Web frontends
 │       ├── nicegui/   # NiceGUI shared components + process entry (ADR-0031)
 │       │   ├── components/  # Reusable page pieces coordinated via PageContext:
