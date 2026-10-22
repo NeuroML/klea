@@ -18,7 +18,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-import shlex
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
@@ -111,9 +110,17 @@ def parse_command(text: str) -> ParsedCommand | None:
     command with no name, or with malformed quoting, is returned with
     :attr:`ParsedCommand.error` set rather than raising.
 
+    Arguments are split with the shared, platform-aware
+    :func:`klea_utils.mcp.path_detect.split_arguments`, so a Windows path such
+    as ``C:\\Users\\me\\a.txt`` is one argument with its backslashes intact.
+
     :param text: The user input.
     :returns: A :class:`ParsedCommand`, or ``None`` when *text* is not a command.
     """
+    # Imported at call time: the commands framework stays free of a
+    # module-level dependency on the tool-permission package.
+    from klea_utils.mcp.path_detect import split_arguments
+
     if not text.startswith("/") or text.startswith("//"):
         return None
     body = text[1:].strip()
@@ -123,7 +130,7 @@ def parse_command(text: str) -> ParsedCommand | None:
     name = tokens[0].lower()
     raw_args = tokens[1] if len(tokens) > 1 else ""
     try:
-        args = shlex.split(raw_args)
+        args = split_arguments(raw_args)
     except ValueError:
         logger.debug(f"Malformed command arguments: {raw_args = }")
         return ParsedCommand(

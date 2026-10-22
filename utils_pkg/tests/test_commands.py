@@ -81,6 +81,37 @@ class TestParseCommand:
         assert parsed.name == "run"
         assert parsed.error != ""
 
+    def test_windows_backslash_path_args(self, monkeypatch):
+        """A Windows path stays one argument with its backslashes intact."""
+        monkeypatch.setattr(
+            "klea_utils.mcp.path_detect.platform_is_windows", lambda: True
+        )
+        parsed = parse_command(r"/run C:\Users\me\data\file.txt")
+        assert parsed is not None
+        assert parsed.args == [r"C:\Users\me\data\file.txt"]
+        assert parsed.raw_args == r"C:\Users\me\data\file.txt"
+        assert parsed.error == ""
+
+    def test_windows_quoted_path_with_spaces(self, monkeypatch):
+        """A quoted Windows path groups into one argument, backslashes intact."""
+        monkeypatch.setattr(
+            "klea_utils.mcp.path_detect.platform_is_windows", lambda: True
+        )
+        parsed = parse_command(r'/run "C:\Program Files\a b.txt" next')
+        assert parsed is not None
+        assert parsed.args == [r"C:\Program Files\a b.txt", "next"]
+        assert parsed.error == ""
+
+    def test_posix_quoting_unchanged_with_windows_predicate_off(self, monkeypatch):
+        """The POSIX branch is unchanged: quotes group, backslash escapes."""
+        monkeypatch.setattr(
+            "klea_utils.mcp.path_detect.platform_is_windows", lambda: False
+        )
+        parsed = parse_command(r'/run "a b" c\ d')
+        assert parsed is not None
+        assert parsed.args == ["a b", "c d"]
+        assert parsed.error == ""
+
 
 class TestUnescapeCommand:
     def test_escaped_command_is_unescaped(self):

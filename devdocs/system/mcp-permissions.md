@@ -78,9 +78,10 @@ It unions, per call, three confidence tiers:
 - `declared` -- the tool's declared `checkpaths` argument values;
 - `expected` -- paths the binder/picker declared for the call;
 - `guess` -- heuristic: path-ish argument names, plus path-like values
-  (shell command strings are split with `shlex.split` first, and non-`file`
-  URLs, flags, operators and pure globs are skipped; `file:` URIs are
-  unwrapped to their path).
+  (shell command strings are first split by a platform-aware tokeniser that
+  honours POSIX quoting and Windows backslash paths, and non-`file` URLs,
+  flags, operators and pure globs are skipped; `file:` URIs are unwrapped to
+  their path).
 
 Only paths that resolve outside `project_root` plus any session-approved
 `allowed_dirs` become requests; they are de-duplicated by resolved directory,

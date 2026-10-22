@@ -246,14 +246,8 @@ def test_detect_name_heuristic(tmp_path):
     assert requests[0].source == "name:file_path"
 
 
-# https://github.com/NeuroML/klea/issues/204
-windows_shell_paths = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="Windows paths in shell commands are not detected (#204)",
-)
-
-
-@windows_shell_paths
+# Issue #204 (Windows backslash paths in shell commands) is addressed by the
+# platform-aware tokenizer, so the shell-command tests run on every platform.
 def test_detect_shell_command_tokens(tmp_path):
     root, outside = _root_and_outside(tmp_path)
     outside.mkdir()
@@ -267,7 +261,6 @@ def test_detect_shell_command_tokens(tmp_path):
     assert requests[0].source == "value:command"
 
 
-@windows_shell_paths
 def test_detect_shell_redirection_assignment_and_flags(tmp_path):
     root, outside = _root_and_outside(tmp_path)
     outside.mkdir()
@@ -276,6 +269,49 @@ def test_detect_shell_redirection_assignment_and_flags(tmp_path):
         "run_command", {"command": command}, None, project_root=root
     )
     assert {request.directory for request in requests} == {str(outside)}
+
+
+def test_detect_quoted_backslash_path_stays_one_token(tmp_path, monkeypatch):
+    """A quoted Windows-style path is one token: its space does not split it.
+
+    Runs on every platform by forcing the Windows quoting rules, so the
+    tokenisation regression (#204) is covered without a Windows host.
+    """
+    monkeypatch.setattr("klea_utils.mcp.path_detect.platform_is_windows", lambda: True)
+    root = _root_only(tmp_path)
+    token = str(tmp_path / "data\\a b.txt")
+    requests = detect_path_requests(
+        "run_command", {"command": f'cat "{token}"'}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw == token
+    assert requests[0].confidence == "guess"
+    assert requests[0].source == "value:command"
+    # A backslash is a literal character on POSIX, so the single token resolves
+    # to a name directly under *tmp_path* (the root's parent), not to a token
+    # truncated at the space.
+    assert requests[0].directory == str(tmp_path)
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="A native drive-letter path only resolves on Windows (#204)",
+)
+def test_detect_windows_backslash_path_token(tmp_path):
+    """A native Windows path is gated whole, with its backslashes intact."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    command = f'cat "{outside}\\a b.txt"'
+    requests = detect_path_requests(
+        "run_command", {"command": command}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw.endswith("\\a b.txt")
+    assert requests[0].directory == str(outside)
+    assert requests[0].confidence == "guess"
+    assert requests[0].source == "value:command"
 
 
 def test_detect_skips_urls_and_globs(tmp_path):
@@ -316,19 +352,23 @@ def test_detect_allowed_dirs_suppresses(tmp_path):
     )
 
 
-@windows_shell_paths
 def test_detect_file_uri_is_a_path(tmp_path):
     """A ``file:`` URI names a local path and must be checked, not skipped."""
     root, outside = _root_and_outside(tmp_path)
     outside.mkdir()
+    target = outside / "a.txt"
     requests = detect_path_requests(
         "run_command",
-        {"command": f"cat file://{outside}/a.txt"},
+        {"command": f"cat {target.as_uri()}"},
         None,
         project_root=root,
     )
     assert len(requests) == 1
-    assert requests[0].directory == str(outside)
+    assert requests[0].kind == "outside"
+    # ``as_uri()`` is the platform's own local URI form; the discovered token is
+    # that URI, so the resolved tail is asserted (a Windows drive letter
+    # round-tripping through ``file:///`` is a separate concern).
+    assert requests[0].path.endswith("a.txt")
 
 
 def test_detect_file_uri_without_authority(tmp_path):
