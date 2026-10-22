@@ -9,7 +9,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -145,9 +144,10 @@ def test_detect_keeps_bare_root_guess(tmp_path):
         "run_command", {"command": "ls /"}, None, project_root=root
     )
 
+    expected_root = str(Path(root.anchor).resolve())
     assert len(requests) == 1
-    assert requests[0].path == str(Path(root.anchor).resolve())
-    assert requests[0].directory == os.path.abspath(os.sep)
+    assert requests[0].path == expected_root
+    assert requests[0].directory == expected_root
     assert requests[0].confidence == "guess"
     assert requests[0].source == "value:command"
 

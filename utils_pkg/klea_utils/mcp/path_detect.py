@@ -399,6 +399,11 @@ def _resolve_against(text: str, root: Path) -> Path | None:
             return None
         if not candidate.is_absolute():
             candidate = root / candidate
+        elif not candidate.drive and Path(root.anchor).drive:
+            # Windows: a drive-less rooted token (``/``, ``/etc/x``) borrows the
+            # process working directory's drive in resolve(); anchor it to the
+            # project root's drive (the session boundary) instead.
+            candidate = Path(root.anchor) / candidate.relative_to(candidate.anchor)
         return candidate.resolve(strict=False)
     except (OSError, RuntimeError, ValueError) as exc:
         logger.debug(f"Could not resolve guessed path {text!r}: {exc}; skipping")
