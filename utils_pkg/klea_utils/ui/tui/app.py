@@ -41,6 +41,7 @@ from klea_utils.commands.common import (
     CommandResult,
     unescape_command,
 )
+from klea_utils.ui.tui.clipboard import copy_to_system_clipboard
 from klea_utils.ui.tui.components.commands import (
     EXIT_APP_SERVICE,
     NEW_CHAT_SERVICE,
@@ -747,6 +748,23 @@ class KleaTuiApp(App[None]):
             interrupt_id=interrupt_id,
             interrupt_cancel=interrupt_cancel,
         )
+
+    def copy_to_clipboard(self, text: str) -> None:
+        """Copy *text* to the app clipboard and, if possible, the OS clipboard.
+
+        Textual writes OSC 52 and keeps an internal copy.  Some terminals do
+        not support OSC 52, so also try a platform clipboard tool; the app
+        still works when no tool is available.
+
+        :param text: Text to copy.
+        """
+        if not text:
+            return
+        super().copy_to_clipboard(text)
+        copied = copy_to_system_clipboard(text)
+        if not copied:
+            logger.debug("No system clipboard backend available; OSC 52 only")
+        self.notify(f"Copied {len(text)} characters", timeout=2)
 
     def action_copy_selection(self) -> None:
         """Handle Ctrl+C when no text is selected.

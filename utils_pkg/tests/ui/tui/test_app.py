@@ -1189,8 +1189,15 @@ async def test_long_message_collapses_and_expands(fake_backend, make_app):
         assert scroll.size.height > 4  # expanded shows the full text
 
 
-async def test_message_text_can_be_selected_and_copied(fake_backend, make_app):
+async def test_message_text_can_be_selected_and_copied(
+    fake_backend, make_app, monkeypatch
+):
     """A drag selects message text and Ctrl+C copies it."""
+    copied: list[str] = []
+    monkeypatch.setattr(
+        "klea_utils.ui.tui.app.copy_to_system_clipboard",
+        lambda text: copied.append(text) or True,
+    )
     fake_backend.scripts = [
         [{"type": "complete", "message_for_user": "Alpha beta gamma"}]
     ]
@@ -1212,6 +1219,8 @@ async def test_message_text_can_be_selected_and_copied(fake_backend, make_app):
         await pilot.press("ctrl+c")
         await pilot.pause()
         assert "Alpha" in app.clipboard
+        assert copied
+        assert "Alpha" in copied[0]
 
 
 async def test_drag_selection_does_not_toggle_message_expansion(fake_backend, make_app):
