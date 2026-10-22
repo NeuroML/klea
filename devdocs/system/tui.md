@@ -246,7 +246,9 @@ that must run a query posts a shared `SubmitQuery` message
   MIME-aware render path, a pure `render_message`, and no fenced-code or
   tool-header rewrite.  The subclass adds the two pieces the generic Rich path
   lacks (`render_line` cell offsets and `get_selection` extraction); see its
-  class docstring for the full decision record.
+  class docstring for the full decision record.  In the transcript a plain
+  click still expands/collapses a long message; a drag selects text and
+  suppresses the toggle (`MessageBlock.on_click` checks the screen selection).
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.

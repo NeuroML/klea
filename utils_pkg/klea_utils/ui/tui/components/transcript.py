@@ -29,6 +29,8 @@ from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 
+from klea_utils.ui.tui.components.selectable import SelectableStatic
+
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData
 
@@ -99,8 +101,9 @@ class MessageBlock(Vertical):
     Long messages are clipped to :data:`COLLAPSED_LINES` rendered rows (so the
     clip is width-aware, like the web UI's ``max-height`` clamp); a muted hint
     appears when there is more, and clicking the block or pressing Enter (when
-    it has focus) toggles between the clipped preview and the full text.  Short
-    messages are not focusable and show no hint.
+    it has focus) toggles between the clipped preview and the full text.  A
+    drag selects text instead of toggling.  Short messages are not focusable
+    and show no hint.
     """
 
     #: Rows shown while collapsed.
@@ -154,8 +157,13 @@ class MessageBlock(Vertical):
     def compose(self) -> ComposeResult:
         """Compose the clipped body and the expand hint."""
         with VerticalScroll(classes="message-scroll"):
-            yield Static(render_message(self._message, error_style=self._error_style))
-        yield Static("", classes="message-more", markup=False)
+            # SelectableStatic adds Textual's selection protocol to the
+            # MIME-aware Rich renderable; see its class docstring for why we
+            # keep Rich rendering instead of the native Markdown widget.
+            yield SelectableStatic(
+                render_message(self._message, error_style=self._error_style)
+            )
+        yield SelectableStatic("", classes="message-more", markup=False)
 
     def on_mount(self) -> None:
         """Decide, after layout, whether the hint is needed."""
@@ -170,7 +178,7 @@ class MessageBlock(Vertical):
         more.display = overflowing
         if overflowing:
             action = "collapse" if self._expanded else "expand"
-            more.update(f"… Enter/click to {action}")
+            more.update(f"… Enter/click to {action} | drag to select")
 
     @property
     def _expanded(self) -> bool:
@@ -186,10 +194,16 @@ class MessageBlock(Vertical):
         self._refresh_more()
 
     def on_click(self, event: Any) -> None:
-        """Toggle on click.
+        """Toggle on click, unless the click finished a text selection.
+
+        Textual keeps the selection after a drag but clears it before a plain
+        click, so an active selection means the user selected text rather than
+        asking to expand or collapse the block.
 
         :param event: The click event.
         """
+        if self.screen.selections:
+            return
         self.action_toggle_expand()
 
 
@@ -205,7 +219,7 @@ class Transcript(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Compose the empty placeholder (removed on the first message)."""
-        yield Static("No messages yet.", id="transcript-empty")
+        yield SelectableStatic("No messages yet.", id="transcript-empty")
 
     def _error_style(self) -> str:
         """Return a bold style in the active theme's error colour.
@@ -236,7 +250,9 @@ class Transcript(VerticalScroll):
         """
         await self.remove_children()
         if not messages:
-            await self.mount(Static("No messages yet.", id="transcript-empty"))
+            await self.mount(
+                SelectableStatic("No messages yet.", id="transcript-empty")
+            )
             return
         error_style = self._error_style()
         for message in messages:

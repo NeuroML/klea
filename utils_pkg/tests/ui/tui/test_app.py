@@ -26,6 +26,7 @@ from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
 from klea_utils.ui.tui.components.hitl import HitlPanel, PermissionPanel
 from klea_utils.ui.tui.components.input import QueryInput
 from klea_utils.ui.tui.components.model_dialog import ModelDialog
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.components.sessions import (
     SessionDelete,
     SessionPicker,
@@ -1082,6 +1083,69 @@ async def test_long_message_collapses_and_expands(fake_backend, make_app):
         block.action_toggle_expand()
         await pilot.pause()
         assert scroll.size.height > 4  # expanded shows the full text
+
+
+async def test_message_text_can_be_selected_and_copied(fake_backend, make_app):
+    """A drag selects message text and Ctrl+C copies it."""
+    fake_backend.scripts = [
+        [{"type": "complete", "message_for_user": "Alpha beta gamma"}]
+    ]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        scroll = block.query_one(".message-scroll", VerticalScroll)
+        body = scroll.query_one(SelectableStatic)
+        await pilot.mouse_down(body, offset=(0, 0))
+        await pilot.mouse_up(body, offset=(5, 0))
+        await pilot.pause()
+
+        selected = app.screen.get_selected_text()
+        assert selected is not None
+        assert "Alpha" in selected
+
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        assert "Alpha" in app.clipboard
+
+
+async def test_drag_selection_does_not_toggle_message_expansion(fake_backend, make_app):
+    """A drag selects text without expanding the bubble; a click still expands."""
+    long_text = "\n\n".join(f"paragraph {i}" for i in range(20))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        scroll = block.query_one(".message-scroll", VerticalScroll)
+        body = scroll.query_one(SelectableStatic)
+        assert not scroll.has_class("-expanded")
+
+        await pilot.mouse_down(body, offset=(0, 0))
+        await pilot.mouse_up(body, offset=(5, 1))
+        await pilot.pause()
+        assert not scroll.has_class("-expanded")
+        assert app.screen.selections
+
+        app.screen.clear_selection()
+        await pilot.click(body)
+        await pilot.pause()
+        assert scroll.has_class("-expanded")
+
+
+async def test_long_message_hint_mentions_drag_to_select(fake_backend, make_app):
+    """The overflow hint explains both expansion and drag selection."""
+    long_text = "\n\n".join(f"paragraph {i}" for i in range(20))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        hint = block.query_one(".message-more", Static)
+        assert "drag to select" in str(hint.render())
 
 
 async def test_expanded_message_body_does_not_scroll(fake_backend, make_app):
