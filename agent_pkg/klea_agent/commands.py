@@ -22,10 +22,27 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-from klea_utils.commands.common import Command, CommandRegistry, ParsedCommand
+from klea_utils.commands.common import (
+    Command,
+    CommandRegistry,
+    ParsedCommand,
+    Subcommand,
+)
 from klea_utils.commands.graph import GraphCommandHandler, GraphCommandResult
+from klea_utils.commands.state_edit import StateField, edit_state_fields
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
+from klea_utils.mcp.path_approval import (
+    find_covering_dir,
+    find_matching_entry,
+    format_allowed_paths,
+    normalise_allowed_dirs,
+    normalise_allowed_files,
+    normalise_directory,
+    resolve_project_root,
+    resolve_user_path,
+)
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
@@ -67,6 +84,33 @@ _CWD_COMMAND = Command(
     persists="checkpoint",
     while_streaming="block",
     arg_hint="[path]",
+)
+
+#: ``/paths``: show or manage the session-scoped path approvals.  A bare
+#: invocation opens the generic state editor; the verbs are for quick/CLI use.
+_PATHS_COMMAND = Command(
+    name="paths",
+    summary="Show or manage session-permitted paths",
+    side="server",
+    klass="session-state",
+    persists="checkpoint",
+    while_streaming="block",
+    subcommands=(
+        Subcommand(
+            name="list",
+            summary="List the project root and session-permitted paths",
+        ),
+        Subcommand(
+            name="add",
+            summary="Permit an existing directory for this session",
+            arg_hint="<dir>",
+        ),
+        Subcommand(
+            name="remove",
+            summary="Revoke a directory or sensitive-file approval",
+            arg_hint="<path>",
+        ),
+    ),
 )
 
 #: ``/compact``: summarise the old conversation now.  Registered only when
@@ -271,6 +315,186 @@ def _handle_cwd(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     )
 
 
+def _paths_details(state: BaseModel, action: str) -> dict[str, Any]:
+    """Return inspect details for a ``/paths`` action."""
+    return {
+        "action": action,
+        "project_root": str(resolve_project_root(getattr(state, "project_root", ""))),
+        "allowed_dirs": list(getattr(state, "allowed_dirs", []) or []),
+        "allowed_files": list(getattr(state, "allowed_files", []) or []),
+    }
+
+
+def _handle_paths(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
+    """Show or manage the session-scoped permitted paths (ADR-0007/0047).
+
+    A bare ``/paths`` opens the generic state editor (``allowed_dirs`` and
+    ``allowed_files``); ``list`` is the non-interactive form.  ``add`` requires
+    an existing directory outside the project root; ``remove`` revokes an exact
+    directory or sensitive-file approval.  All approvals are thread-scoped.
+    """
+    root = resolve_project_root(getattr(state, "project_root", ""))
+    dirs = list(getattr(state, "allowed_dirs", []) or [])
+    files = list(getattr(state, "allowed_files", []) or [])
+    verb = parsed.verb
+    logger.debug(
+        f"command /paths: {verb = } {parsed.args = } {root = } {dirs = } {files = }"
+    )
+
+    if verb == "":
+        values = edit_state_fields(
+            title="Manage permitted paths",
+            description=(
+                "Session-scoped approvals; the project root is always permitted. "
+                f"Project root: {root}"
+            ),
+            fields=[
+                StateField(
+                    key="allowed_dirs",
+                    label="Allowed directories",
+                    kind="path_list",
+                    value=dirs,
+                    help="Directories outside the project root that tools may access this session.",
+                    addable=True,
+                    removable=True,
+                ),
+                StateField(
+                    key="allowed_files",
+                    label="Allowed sensitive files",
+                    kind="path_list",
+                    value=files,
+                    help="Credential-bearing files approved for this session. Additions go through the tool approval prompt.",
+                    addable=False,
+                    removable=True,
+                ),
+            ],
+        )
+        if values is None:
+            return GraphCommandResult(
+                message="No changes made.",
+                summary="Permitted paths unchanged",
+                details=_paths_details(state, "cancel"),
+            )
+        raw_dirs = values.get("allowed_dirs")
+        raw_files = values.get("allowed_files")
+        new_dirs, ignored = normalise_allowed_dirs(
+            root, raw_dirs if isinstance(raw_dirs, list) else []
+        )
+        new_files = normalise_allowed_files(
+            files, raw_files if isinstance(raw_files, list) else files
+        )
+        updates: dict[str, Any] = {}
+        if new_dirs != dirs:
+            updates["allowed_dirs"] = new_dirs
+        if new_files != files:
+            updates["allowed_files"] = new_files
+        if not updates:
+            message = "No changes made."
+        else:
+            message = (
+                f"Updated permitted paths: {len(new_dirs)} director"
+                f"{'y' if len(new_dirs) == 1 else 'ies'} and "
+                f"{len(new_files)} sensitive file"
+                f"{'' if len(new_files) == 1 else 's'}."
+            )
+        if ignored:
+            message += "\nIgnored: " + "; ".join(ignored)
+        return GraphCommandResult(
+            updates=updates,
+            message=message,
+            summary=message.splitlines()[0],
+            details={
+                **_paths_details(state, "edit"),
+                "ignored": ignored,
+            },
+        )
+
+    if verb == "list":
+        return GraphCommandResult(
+            message=format_allowed_paths(root, dirs, files),
+            summary="Permitted paths",
+            details=_paths_details(state, "list"),
+        )
+
+    if verb == "add":
+        raw = " ".join(parsed.args).strip()
+        if not raw:
+            return GraphCommandResult(message="Usage: /paths add <dir>")
+        resolved, error = normalise_directory(root, raw)
+        if resolved is None:
+            return GraphCommandResult(message=error)
+        covering = find_covering_dir(dirs, Path(resolved))
+        if covering is not None:
+            message = f"{resolved} is already permitted by {covering}."
+            return GraphCommandResult(
+                message=message,
+                summary=message,
+                details=_paths_details(state, "add"),
+            )
+        new_dirs = [*dirs, resolved]
+        message = f"Allowed directory for this session: {resolved}"
+        return GraphCommandResult(
+            updates={"allowed_dirs": new_dirs},
+            message=message,
+            summary=message,
+            details={**_paths_details(state, "add"), "added": resolved},
+        )
+
+    if verb == "remove":
+        raw = " ".join(parsed.args).strip()
+        if not raw:
+            return GraphCommandResult(message="Usage: /paths remove <path>")
+        try:
+            resolved = resolve_user_path(raw, root)
+        except (OSError, RuntimeError) as exc:
+            return GraphCommandResult(message=f"Cannot resolve {raw!r}: {exc}")
+        if resolved == root:
+            return GraphCommandResult(
+                message="The project root is changed with /cwd, not /paths."
+            )
+
+        entry = find_matching_entry(dirs, resolved)
+        if entry is not None:
+            new_dirs = [path for path in dirs if path != entry]
+            message = f"Revoked session directory approval: {entry}"
+            return GraphCommandResult(
+                updates={"allowed_dirs": new_dirs},
+                message=message,
+                summary=message,
+                details={**_paths_details(state, "remove"), "removed": entry},
+            )
+        entry = find_matching_entry(files, resolved)
+        if entry is not None:
+            new_files = [path for path in files if path != entry]
+            message = f"Revoked session sensitive-file approval: {entry}"
+            return GraphCommandResult(
+                updates={"allowed_files": new_files},
+                message=message,
+                summary=message,
+                details={**_paths_details(state, "remove"), "removed": entry},
+            )
+        covering = find_covering_dir(dirs, resolved)
+        if covering is not None:
+            message = (
+                f"{resolved} is covered by the directory approval {covering}; "
+                "remove that entry instead."
+            )
+            return GraphCommandResult(
+                message=message,
+                summary=message,
+                details=_paths_details(state, "remove"),
+            )
+        message = f"Not a session-permitted path: {resolved}"
+        return GraphCommandResult(
+            message=message,
+            summary=message,
+            details=_paths_details(state, "remove"),
+        )
+
+    # ``resolve_subcommand`` rejects unknown verbs before the handler runs.
+    return GraphCommandResult(message=f"Unknown /paths subcommand: {verb}")
+
+
 def _handle_compact(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     """Handle ``/compact``: summarise the old conversation now (ADR-0047).
 
@@ -339,6 +563,7 @@ def build_agent_commands(
         _MODE_COMMAND,
         _ACCESS_COMMAND,
         _CWD_COMMAND,
+        _PATHS_COMMAND,
         _INIT_COMMAND,
         *_STUB_COMMANDS,
     ]
@@ -356,6 +581,8 @@ def build_agent_commands(
         handlers["access"] = _handle_access
     if registry.get("cwd") is not None:
         handlers["cwd"] = _handle_cwd
+    if registry.get("paths") is not None:
+        handlers["paths"] = _handle_paths
     if registry.get("init") is not None:
         handlers["init"] = _handle_init
     if registry.get("compact") is not None:

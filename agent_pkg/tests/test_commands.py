@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur at gmail DOT com>
 
 import logging
 import sys
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -105,6 +106,16 @@ class TestCatalogue:
         assert cwd.klass == "session-state"
         assert cwd.implemented is True
         assert "cwd" in handlers
+
+    def test_paths_is_implemented_with_verbs(self):
+        registry, handlers = build_agent_commands(source_available=False)
+        paths = registry.get("paths")
+        assert paths is not None
+        assert paths.side == "server"
+        assert paths.klass == "session-state"
+        assert paths.implemented is True
+        assert [sub.name for sub in paths.subcommands] == ["list", "add", "remove"]
+        assert "paths" in handlers
 
 
 class TestDisabledCommands:
@@ -256,6 +267,189 @@ class TestCwdHandler:
         node = _agent_node([])
         updates = await node.execute(state)
         assert updates["project_root"] == str(sub)
+
+
+def _paths_state(
+    tmp_path: Path,
+    command: str,
+    *,
+    allowed_dirs: list[str] | None = None,
+    allowed_files: list[str] | None = None,
+) -> KleaAgentState:
+    """Return a state with a session project root and optional approvals."""
+    root = tmp_path / "root"
+    root.mkdir(exist_ok=True)
+    state = KleaAgentState(
+        query=command,
+        messages=[HumanMessage(content=command)],
+        project_root=str(root),
+        allowed_dirs=list(allowed_dirs or []),
+        allowed_files=list(allowed_files or []),
+    )
+    return state
+
+
+class TestPathsCommand:
+    async def test_list_empty(self, tmp_path):
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, "/paths list"))
+        message = updates["message_for_user"]
+        assert "Project root:" in message
+        assert "Session-allowed directories:" in message
+        assert "(none)" in message
+
+    async def test_add_directory(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, f"/paths add {outside}"))
+        assert updates["allowed_dirs"] == [str(outside)]
+        assert "Allowed directory" in updates["message_for_user"]
+
+    async def test_add_relative_directory(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, "/paths add ../outside"))
+        assert updates["allowed_dirs"] == [str(outside)]
+
+    async def test_add_rejects_file(self, tmp_path):
+        file = tmp_path / "file.txt"
+        file.write_text("x")
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, f"/paths add {file}"))
+        assert "Not a directory" in updates["message_for_user"]
+        assert "allowed_dirs" not in updates
+
+    async def test_add_rejects_inside_project_root(self, tmp_path):
+        root = tmp_path / "root"
+        inside = root / "inside"
+        inside.mkdir(parents=True, exist_ok=True)
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, f"/paths add {inside}"))
+        assert "already inside the project root" in updates["message_for_user"]
+        assert "allowed_dirs" not in updates
+
+    async def test_add_reports_already_covered(self, tmp_path):
+        outside = tmp_path / "outside"
+        child = outside / "child"
+        child.mkdir(parents=True)
+        node = _agent_node([])
+        updates = await node.execute(
+            _paths_state(tmp_path, f"/paths add {child}", allowed_dirs=[str(outside)])
+        )
+        assert "already permitted by" in updates["message_for_user"]
+        assert "allowed_dirs" not in updates
+
+    async def test_remove_directory(self, tmp_path):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        node = _agent_node([])
+        updates = await node.execute(
+            _paths_state(
+                tmp_path, f"/paths remove {outside}", allowed_dirs=[str(outside)]
+            )
+        )
+        assert updates["allowed_dirs"] == []
+        assert "Revoked" in updates["message_for_user"]
+
+    async def test_remove_sensitive_file(self, tmp_path):
+        env = tmp_path / "root" / ".env"
+        env.parent.mkdir(exist_ok=True)
+        env.write_text("K=1")
+        node = _agent_node([])
+        updates = await node.execute(
+            _paths_state(tmp_path, f"/paths remove {env}", allowed_files=[str(env)])
+        )
+        assert updates["allowed_files"] == []
+
+    async def test_remove_project_root_is_refused(self, tmp_path):
+        node = _agent_node([])
+        updates = await node.execute(_paths_state(tmp_path, "/paths remove ."))
+        assert "changed with /cwd" in updates["message_for_user"]
+
+    async def test_remove_reports_parent_coverage(self, tmp_path):
+        outside = tmp_path / "outside"
+        child = outside / "child"
+        child.mkdir(parents=True)
+        node = _agent_node([])
+        updates = await node.execute(
+            _paths_state(
+                tmp_path, f"/paths remove {child}", allowed_dirs=[str(outside)]
+            )
+        )
+        assert "covered by the directory approval" in updates["message_for_user"]
+        assert "allowed_dirs" not in updates
+
+    async def test_remove_missing(self, tmp_path):
+        node = _agent_node([])
+        updates = await node.execute(
+            _paths_state(tmp_path, f"/paths remove {tmp_path / 'missing'}")
+        )
+        assert "Not a session-permitted path" in updates["message_for_user"]
+
+    async def test_editor_saves_values(self, tmp_path, monkeypatch):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        node = _agent_node([])
+        monkeypatch.setattr(
+            "klea_agent.commands.edit_state_fields",
+            lambda **_kwargs: {"allowed_dirs": [str(outside)], "allowed_files": []},
+        )
+        updates = await node.execute(_paths_state(tmp_path, "/paths"))
+        assert updates["allowed_dirs"] == [str(outside)]
+        assert "allowed_files" not in updates
+        assert "Updated permitted paths" in updates["message_for_user"]
+
+    async def test_editor_cancel_makes_no_changes(self, tmp_path, monkeypatch):
+        node = _agent_node([])
+        monkeypatch.setattr(
+            "klea_agent.commands.edit_state_fields", lambda **_kwargs: None
+        )
+        updates = await node.execute(_paths_state(tmp_path, "/paths"))
+        assert "allowed_dirs" not in updates
+        assert "allowed_files" not in updates
+        assert "No changes made" in updates["message_for_user"]
+
+    async def test_editor_ignores_invalid_directories(self, tmp_path, monkeypatch):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        node = _agent_node([])
+        monkeypatch.setattr(
+            "klea_agent.commands.edit_state_fields",
+            lambda **_kwargs: {
+                "allowed_dirs": [str(tmp_path / "missing"), str(outside)],
+                "allowed_files": [],
+            },
+        )
+        updates = await node.execute(_paths_state(tmp_path, "/paths"))
+        assert updates["allowed_dirs"] == [str(outside)]
+        assert "Ignored:" in updates["message_for_user"]
+
+    async def test_editor_sensitive_files_are_remove_only(self, tmp_path, monkeypatch):
+        first = tmp_path / "root" / ".env"
+        second = tmp_path / "root" / ".key"
+        first.parent.mkdir(exist_ok=True)
+        first.write_text("K=1")
+        second.write_text("K=2")
+        new_file = tmp_path / "root" / ".new"
+        new_file.write_text("K=3")
+        node = _agent_node([])
+        monkeypatch.setattr(
+            "klea_agent.commands.edit_state_fields",
+            lambda **_kwargs: {
+                "allowed_dirs": [],
+                "allowed_files": [str(first), str(new_file)],
+            },
+        )
+        updates = await node.execute(
+            _paths_state(
+                tmp_path,
+                "/paths",
+                allowed_files=[str(first), str(second)],
+            )
+        )
+        assert updates["allowed_files"] == [str(first)]
 
 
 class TestNodeBehaviour:
