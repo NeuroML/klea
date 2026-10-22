@@ -10,7 +10,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
+import sys
 
 import pytest
 from klea_utils.ui.tui import clipboard
@@ -22,6 +25,9 @@ def _reset_clipboard_cache(monkeypatch):
     monkeypatch.setattr(clipboard, "_cached_backend", None)
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="wl-copy/xclip/xsel backends are Linux-only"
+)
 def test_prefers_wl_copy_on_wayland(monkeypatch):
     """A Wayland session tries wl-copy first and passes UTF-8 text."""
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
@@ -43,6 +49,9 @@ def test_prefers_wl_copy_on_wayland(monkeypatch):
     assert calls[0][1]["input"] == b"hello"
 
 
+@pytest.mark.skipif(
+    sys.platform != "linux", reason="wl-copy/xclip/xsel backends are Linux-only"
+)
 def test_falls_back_when_the_first_backend_fails(monkeypatch):
     """A failing backend does not stop the next candidate being tried."""
     monkeypatch.setenv("WAYLAND_DISPLAY", "wayland-0")
@@ -80,3 +89,38 @@ def test_empty_text_is_not_copied(monkeypatch):
 
     assert clipboard.copy_to_system_clipboard("") is False
     assert not called
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="pbcopy is macOS-only")
+@pytest.mark.skipif(shutil.which("pbcopy") is None, reason="pbcopy is not installed")
+def test_uses_pbcopy_on_macos(monkeypatch):
+    """macOS uses pbcopy and passes UTF-8 text on stdin."""
+    assert clipboard._candidate_backends() == [["pbcopy"]]
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(clipboard.subprocess, "run", fake_run)
+
+    assert clipboard.copy_to_system_clipboard("hello") is True
+    assert calls[0][0] == ["pbcopy"]
+    assert calls[0][1]["input"] == b"hello"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="clip is Windows-only")
+def test_uses_clip_on_windows(monkeypatch):
+    """Windows uses clip and passes UTF-8 text on stdin."""
+    assert clipboard._candidate_backends() == [["clip"]]
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(clipboard.subprocess, "run", fake_run)
+
+    assert clipboard.copy_to_system_clipboard("hello") is True
+    assert calls[0][0] == ["clip"]
+    assert calls[0][1]["input"] == b"hello"
