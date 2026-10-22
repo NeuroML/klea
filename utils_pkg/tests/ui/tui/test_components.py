@@ -288,6 +288,31 @@ class TestPermissionPanelHelpers:
         assert "path" in hint
         assert "/etc/hosts" in hint
 
+    def test_hint_shows_detected_token_for_command_guesses(self):
+        hint = PermissionPanel._hint(
+            {
+                "kind": "outside",
+                "tool": "run_command",
+                "argument": "command",
+                "raw": "/dev/null",
+                "argument_preview": "tee x > /dev/null",
+                "confidence": "guess",
+                "source": "value:command",
+            }
+        )
+        assert "Detected token: /dev/null" in hint
+
+    def test_coverage_lists_multiple_paths(self):
+        coverage = PermissionPanel._coverage(
+            {"covered_paths_display": ["/tmp/a", "/tmp/b"]}
+        )
+        assert "Covers:" in coverage
+        assert "/tmp/a" in coverage
+        assert "/tmp/b" in coverage
+
+    def test_coverage_is_empty_for_one_path(self):
+        assert PermissionPanel._coverage({"covered_paths_display": ["/tmp/a"]}) == ""
+
 
 class TestSessionLabel:
     """Session-picker rows show only the title and chat id."""

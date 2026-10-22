@@ -616,6 +616,42 @@ async def test_dispatch_runs_different_resources_concurrently():
     assert client.max_active == 2
 
 
+async def test_dispatch_merges_coverage_for_same_directory(tmp_path):
+    """Two calls touching one directory produce one ask listing both files."""
+    root = tmp_path / "root"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+
+    client = FakeMCPClient()
+    tools = {"list_files": ToolInfo(checkpaths=["path"])}
+    seen: list = []
+
+    def resolver(requests):
+        seen.append(requests)
+        return PermissionResolution(
+            allowed_session=[request.approval_key for request in requests]
+        )
+
+    await dispatch_tool_calls(
+        client,
+        [
+            ToolCallSchema(tool="list_files", args={"path": str(outside / "a")}),
+            ToolCallSchema(tool="list_files", args={"path": str(outside / "b")}),
+        ],
+        tools,
+        str(root),
+        permission_resolver=resolver,
+    )
+
+    assert len(seen) == 1
+    assert len(seen[0]) == 1
+    assert set(seen[0][0].covered_paths) == {
+        str(outside / "a"),
+        str(outside / "b"),
+    }
+
+
 async def test_dispatch_sensitive_requires_approval(tmp_path):
     """A sensitive file inside the root is prompted (second round)."""
     root = tmp_path / "root"

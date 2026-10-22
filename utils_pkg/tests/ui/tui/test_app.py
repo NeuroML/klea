@@ -342,6 +342,11 @@ async def test_permission_panel_shows_full_path_and_scope(fake_backend, make_app
                             "argument_preview": "read /tmp/x/file.txt",
                             "confidence": "declared",
                             "source": "checkpaths:path",
+                            "covered_paths": ["/tmp/x/file.txt", "/tmp/x/other.txt"],
+                            "covered_paths_display": [
+                                "/tmp/x/file.txt",
+                                "/tmp/x/other.txt",
+                            ],
                         }
                     ],
                     "interrupt_id": "p1",
@@ -360,6 +365,8 @@ async def test_permission_panel_shows_full_path_and_scope(fake_backend, make_app
         assert any("Session approval covers: /tmp/x" in text for text in texts)
         assert any("read /tmp/x/file.txt" in text for text in texts)
         assert any("Source: checkpaths:path" in text for text in texts)
+        assert any("Covers:" in text for text in texts)
+        assert any("/tmp/x/other.txt" in text for text in texts)
         app.screen.query_one("#perm-submit", Button).press()
         await _settle(pilot, app)
 

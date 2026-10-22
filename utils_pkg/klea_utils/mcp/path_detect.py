@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import unquote, urlparse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.sensitive import is_sensitive
@@ -49,7 +49,7 @@ Confidence = Literal["declared", "expected", "guess"]
 #: string cannot flood the ask.
 MAX_PATH_DISPLAY_CHARS = 240
 MAX_RAW_DISPLAY_CHARS = 160
-MAX_ARGUMENT_PREVIEW_CHARS = 300
+MAX_ARGUMENT_PREVIEW_CHARS = 160
 
 
 def truncate_middle(text: str, max_chars: int = MAX_PATH_DISPLAY_CHARS) -> str:
@@ -122,6 +122,11 @@ class PathRequest(BaseModel):
     argument value, used by the approval UI.  :attr:`path` and
     :attr:`directory` remain full values for decisions and auditing; use the
     display helpers when rendering them.
+
+    :attr:`covered_paths` lists every distinct resolved path that maps to this
+    request's :attr:`approval_key` (all files in an approved directory, or the
+    single sensitive file).  It lets the ask show what one session approval
+    covers.
     """
 
     tool: str
@@ -133,6 +138,7 @@ class PathRequest(BaseModel):
     source: str
     kind: Literal["outside", "sensitive"] = "outside"
     argument_preview: str = ""
+    covered_paths: list[str] = Field(default_factory=list)
 
     @property
     def approval_key(self) -> str:
@@ -475,8 +481,13 @@ def detect_path_requests(
             kind = "outside"
             directory = resolved if resolved.is_dir() else resolved.parent
             key = str(directory)
+        path_str = str(resolved)
         if key in requests:
-            # A stronger tier (encountered first) already covers this path.
+            # A stronger tier (encountered first) already covers this directory;
+            # keep every distinct path so the ask can show its coverage.
+            existing = requests[key]
+            if path_str not in existing.covered_paths:
+                existing.covered_paths.append(path_str)
             return
         requests[key] = PathRequest(
             tool=tool,
@@ -488,6 +499,7 @@ def detect_path_requests(
             source=source,
             kind=kind,
             argument_preview=_preview_context(str(argument_value), str(raw)),
+            covered_paths=[path_str],
         )
 
     declared = declared_checkpaths(tool_info)

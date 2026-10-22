@@ -23,7 +23,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from klea_utils.mcp.path_detect import PathRequest
+from klea_utils.mcp.path_detect import PathRequest, truncate_middle
 
 logger = logging.getLogger(__name__)
 
@@ -112,12 +112,15 @@ def build_permission_payload(
     payload_requests: list[dict[str, Any]] = []
     for request in requests:
         item = request.model_dump()
+        covered = request.covered_paths or [request.path]
         item.update(
             raw=request.raw_preview(),
             raw_preview=request.raw_preview(),
             raw_length=len(request.raw),
             path_display=request.path_display(),
             directory_display=request.directory_display(),
+            covered_paths=covered,
+            covered_paths_display=[truncate_middle(path) for path in covered],
         )
         payload_requests.append(item)
     return {

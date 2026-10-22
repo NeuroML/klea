@@ -313,6 +313,34 @@ async def test_permission_long_path_is_truncated(fake_backend, agent_user):
     await agent_user.should_see("Session approval covers: /home/user")
 
 
+async def test_permission_coverage_lists_all_paths(fake_backend, agent_user):
+    """A directory approval lists every path it covers."""
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "outside",
+                "tool": "run_command",
+                "argument": "command",
+                "raw": "/tmp/a",
+                "argument_preview": "tee /tmp/a /tmp/b",
+                "path": "/tmp/a",
+                "directory": "/tmp",
+                "confidence": "guess",
+                "source": "value:command",
+                "covered_paths": ["/tmp/a", "/tmp/b"],
+                "covered_paths_display": ["/tmp/a", "/tmp/b"],
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    await agent_user.should_see("Covers:")
+    await agent_user.should_see("/tmp/a")
+    await agent_user.should_see("/tmp/b")
+
+
 async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     """A guessed path value offers a "Not a path" dismissal that submits."""
     fake_backend.stream_events = [

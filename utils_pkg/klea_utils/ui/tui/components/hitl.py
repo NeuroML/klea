@@ -317,7 +317,7 @@ class PermissionPanel(HitlDecisionPanel):
         detail = (
             f"{tool}: {argument} = {value} ({confidence})" if tool or argument else ""
         )
-        if raw and raw not in value:
+        if raw and (source.startswith("value:") or raw not in value):
             detail = (
                 f"{detail}\nDetected token: {raw}"
                 if detail
@@ -329,6 +329,17 @@ class PermissionPanel(HitlDecisionPanel):
             note = "Commonly holds credentials."
             return f"{detail} - {note}" if detail else note
         return detail
+
+    @staticmethod
+    def _coverage(request: Mapping[str, Any]) -> str:
+        """Return the paths covered by this request's session approval."""
+        paths = (
+            request.get("covered_paths_display") or request.get("covered_paths") or []
+        )
+        if not isinstance(paths, list) or len(paths) < 2:
+            return ""
+        lines = "\n".join(f"- {path}" for path in paths)
+        return f"Covers:\n{lines}"
 
     @staticmethod
     def _options(request: Mapping[str, Any]) -> tuple[str, ...]:
@@ -357,6 +368,9 @@ class PermissionPanel(HitlDecisionPanel):
             hint = self._hint(request)
             if hint:
                 yield SelectableStatic(hint)
+            coverage = self._coverage(request)
+            if coverage:
+                yield SelectableStatic(coverage)
             with RadioSet(id=f"perm-{index}"):
                 for option in self._options(request):
                     yield RadioButton(

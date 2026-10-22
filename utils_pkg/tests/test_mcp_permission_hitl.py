@@ -43,6 +43,8 @@ def test_payload_shape():
     assert request["argument_preview"] == ""
     assert request["confidence"] == "declared"
     assert request["source"] == "checkpaths:path"
+    assert request["covered_paths"] == ["/etc/x"]
+    assert request["covered_paths_display"] == ["/etc/x"]
 
 
 def test_payload_bounds_long_display_values():
@@ -71,6 +73,23 @@ def test_payload_bounds_long_display_values():
     assert "chars omitted" in item["raw_preview"]
     assert item["raw"] == item["raw_preview"]
     assert item["raw_length"] == len(long_path)
+
+
+def test_payload_includes_all_covered_paths():
+    request = PathRequest(
+        tool="run_command",
+        argument="command",
+        raw="/tmp/a",
+        path="/tmp/a",
+        directory="/tmp",
+        confidence="guess",
+        source="value:command",
+        covered_paths=["/tmp/a", "/tmp/b"],
+    )
+    item = build_permission_payload([request])["requests"][0]
+
+    assert item["covered_paths"] == ["/tmp/a", "/tmp/b"]
+    assert item["covered_paths_display"] == ["/tmp/a", "/tmp/b"]
 
 
 def test_payload_custom_question():

@@ -166,10 +166,22 @@ def _as_tool_call(call: Any) -> ToolCallSchema:
 
 
 def _dedupe_requests(requests: Sequence[PathRequest]) -> list[PathRequest]:
-    """Deduplicate requests by approval key, keeping the first (strongest)."""
+    """Deduplicate requests by approval key, keeping the first (strongest).
+
+    Coverage is merged across calls: two tool calls that touch different files
+    in the same approved directory become one ask that lists both paths.
+    """
     by_key: dict[str, PathRequest] = {}
     for request in requests:
-        by_key.setdefault(request.approval_key, request)
+        existing = by_key.get(request.approval_key)
+        if existing is None:
+            by_key[request.approval_key] = request
+            continue
+        if not existing.covered_paths:
+            existing.covered_paths.append(existing.path)
+        for path in request.covered_paths or [request.path]:
+            if path not in existing.covered_paths:
+                existing.covered_paths.append(path)
     return sorted(by_key.values(), key=lambda request: request.approval_key)
 
 

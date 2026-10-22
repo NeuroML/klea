@@ -249,7 +249,7 @@ def _permission_hint(request: dict[str, Any]) -> str:
     raw = str(request.get("raw_preview") or request.get("raw", ""))
     source = str(request.get("source", ""))
     detail = f"{tool}: {argument} = {value} ({confidence})" if tool or argument else ""
-    if raw and raw not in value:
+    if raw and (source.startswith("value:") or raw not in value):
         detail = (
             f"{detail}\nDetected token: {raw}" if detail else f"Detected token: {raw}"
         )
@@ -259,6 +259,15 @@ def _permission_hint(request: dict[str, Any]) -> str:
         note = "Commonly holds credentials."
         return f"{detail} - {note}" if detail else note
     return detail
+
+
+def _permission_coverage(request: dict[str, Any]) -> str:
+    """Return the paths covered by this request's session approval, if plural."""
+    paths = request.get("covered_paths_display") or request.get("covered_paths") or []
+    if not isinstance(paths, list) or len(paths) < 2:
+        return ""
+    lines = "\n".join(f"- {path}" for path in paths)
+    return f"Covers:\n{lines}"
 
 
 def _permission_options(request: dict[str, Any]) -> dict[str, str]:
@@ -334,6 +343,11 @@ def _render_permission_form(
                     ui.label(scope).classes("text-xs text-grey-6")
                 if hint:
                     ui.label(hint).classes("text-xs text-grey-6").style(
+                        "white-space: pre-line"
+                    )
+                coverage = _permission_coverage(request)
+                if coverage:
+                    ui.label(coverage).classes("text-xs text-grey-6").style(
                         "white-space: pre-line"
                     )
 

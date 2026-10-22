@@ -358,6 +358,22 @@ def test_detect_preserves_quoted_semicolon_path(tmp_path):
     assert requests[0].raw == str(path)
 
 
+def test_detect_collects_covered_paths(tmp_path):
+    """All distinct files in one approved directory are listed as coverage."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    command = f"cat {outside}/a.txt {outside}/b.txt"
+    requests = detect_path_requests(
+        "run_command", {"command": command}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert set(requests[0].covered_paths) == {
+        str(outside / "a.txt"),
+        str(outside / "b.txt"),
+    }
+
+
 def test_detect_quoted_backslash_path_stays_one_token(tmp_path, monkeypatch):
     """A quoted Windows-style path is one token: its space does not split it.
 
