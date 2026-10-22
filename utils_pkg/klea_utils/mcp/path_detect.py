@@ -272,12 +272,53 @@ def _normalize_token(token: str) -> str:
     return token
 
 
+def platform_is_windows() -> bool:
+    """Return whether arguments should be split with Windows quoting rules.
+
+    Backslashes are literal path separators on Windows, so POSIX ``shlex``
+    escape processing (``a\\ b``) must not be applied there.  Kept as a function
+    so tests can pin either behaviour on any platform.
+
+    :returns: ``True`` when running on Windows.
+    """
+    return os.name == "nt"
+
+
+def split_arguments(text: str, *, windows: bool | None = None) -> list[str]:
+    """Split *text* into shell-like argument tokens for the current platform.
+
+    On POSIX this is :func:`shlex.split` unchanged: quotes group tokens,
+    backslash escapes are honoured, and unbalanced quotes raise
+    :class:`ValueError`.  On Windows the split is non-POSIX, so backslashes stay
+    literal (``C:\\Users\\me\\a.txt`` is a single token); one enclosing quote
+    pair is stripped from each token, and unbalanced quotes still raise
+    :class:`ValueError`.
+
+    :param text: The argument string to split.
+    :param windows: Force Windows (``True``) or POSIX (``False``) rules;
+        defaults to :func:`platform_is_windows`.
+    :returns: The argument tokens.
+    """
+    if windows is None:
+        windows = platform_is_windows()
+    if not windows:
+        return shlex.split(text)
+    tokens = shlex.split(text, posix=False)
+    stripped: list[str] = []
+    for token in tokens:
+        if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+            token = token[1:-1]
+        stripped.append(token)
+    return stripped
+
+
 def _tokens_for_value(value: str) -> list[str]:
     """Split a string value into candidate tokens.
 
     A whitespace-containing value is treated as a shell command string and
-    split with :func:`shlex.split` (falling back to ``str.split`` on a quoting
-    error); a single-token value (a plain path) is returned as-is.
+    split with :func:`split_arguments` (falling back to ``str.split`` on a
+    quoting error); a single-token value (a plain path) is returned as-is.
+    Windows quoting keeps backslash separators literal.
     """
     text = value.strip()
     if not text:
@@ -285,9 +326,9 @@ def _tokens_for_value(value: str) -> list[str]:
     if not any(ch.isspace() for ch in text):
         return [text]
     try:
-        return shlex.split(text)
+        return split_arguments(text)
     except ValueError:
-        logger.debug("Could not shlex-split value; falling back to whitespace")
+        logger.debug("Could not split value; falling back to whitespace")
         return text.split()
 
 
