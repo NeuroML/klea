@@ -86,7 +86,7 @@ The canonical definitions are in [`schemas.py`](../../agent_pkg/klea_agent/schem
 | `internal_messages` | `list` | Conversation or run | Initialization and internal-work nodes | Memory summarization and internal reasoning | Preserved or replaced according to the owning node and lifecycle. | `state.py`; `summarise_memory.py` |
 | `mode` | `Mode` | Run | Mode decision | Mode router and informing branch | Recomputed for the current request. | `mode_router.py`; `test_mode_router.py` |
 | `guard_decision` | `str` | Run | Safety guard | Guard router and declining branch | Replaced by each usable guard result or deterministic fallback. | `guard.py`; `guard_router.py` |
-| `route` | `RouteSchema` | Run | Route decision | Router, ResetState, and Planner | Replaced on each route decision (`chat`, `task`, or `continue`). | `route_decision.py`; `test_route_decision.py`; ADR-0054 |
+| `route` | `RouteSchema` | Run | Route decision | Router, ResetState, and Planner | Replaced on each route decision (`chat`, `continue`, or `task`; `continue` is the default). | `route_decision.py`; `test_route_decision.py`; ADR-0054 |
 | `plan` | `Plan` or plan collection | Run | Planner and evaluator | Planner router, binder, tools, reasoning, evaluator, review, and answer composer | Replaced by planner or evaluator according to their contracts; cleared by `ResetState` on a task/continue boundary; cancelled state is preserved for the cancellation branch. | `planner.py`; `reset_state.py`; `test_planner.py`; ADR-0054 |
 | `continuation_evidence` | `ContinuationEvidence` or `None` | Session | Answer composer | Planner (`previous_work`) | Written at a terminal answer; preserved by `continue`, cleared by `task` reset. Bounded summary only. | `schemas.py`; `answer_from_results.py`; `reset_state.py`; ADR-0054 |
 | `plan_status` | Planner status | Run | Planner and evaluator | Planner and evaluation routers | Advances among planner and evaluation states; terminal values are replaced only by a new run or explicit lifecycle reset. | `planner.py`; `operational_evaluator.py` |
@@ -122,7 +122,7 @@ The graph has the following registered application-node labels. Route labels are
 | `Running command` | Command | [`command.py`](../../utils_pkg/klea_utils/nodes/command.py), [`commands.py`](../../agent_pkg/klea_agent/commands.py) | Parses and dispatches a session command. |
 | `Checking safety` | Guard | [`guard.py`](../../utils_pkg/klea_utils/nodes/guard.py) | Produces the safe or unsafe guard decision. |
 | `Declining query` | Terminal answer | [`fixed_answer.py`](../../utils_pkg/klea_utils/nodes/fixed_answer.py) | Delivers the deterministic unsafe-query response. |
-| `Deciding route` | Decision | [`route_decision.py`](../../agent_pkg/klea_agent/nodes/route_decision.py) | Chooses chat, task, or continue intent. |
+| `Deciding route` | Decision | [`route_decision.py`](../../agent_pkg/klea_agent/nodes/route_decision.py) | Chooses chat, continue (default), or task intent. |
 | `Resetting state` | Task boundary | [`reset_state.py`](../../agent_pkg/klea_agent/nodes/reset_state.py) | Applies the full task reset or continuation reset. |
 | `Planning` | Plan producer | [`planner.py`](../../agent_pkg/klea_agent/nodes/planner.py) | Authors and validates a plan or a structured planner status. |
 | `Binding tool calls` | Binder | [`tool_call_binder.py`](../../agent_pkg/klea_agent/nodes/tool_call_binder.py), [`tools_picker.py`](../../utils_pkg/klea_utils/nodes/tools_picker.py) | Binds planned steps to disclosed tools. |
@@ -289,8 +289,9 @@ The graph has the following registered application-node labels. Route labels are
 
 ### 5.8 `Deciding route`
 
-**Purpose.** Choose whether the request is answered directly as chat, handed to
-the operational task path as a new goal/plan, or continued from prior evidence.
+**Purpose.** Choose whether the request is answered directly as chat, continues
+the ongoing work using prior evidence (the default), or starts an unrelated new
+goal/plan.
 
 #### Inputs
 
@@ -304,14 +305,14 @@ the operational task path as a new goal/plan, or continued from prior evidence.
 
 | Field | Kind | Requiredness | Write timing and effect | Validation, fallback, and lifetime | Evidence |
 |---|---|---|---|---|---|
-| `route` | `RouteSchema` | `R` | Written with the selected `chat`, `task`, or `continue` route. | Absent or invalid route output uses the fail-closed task route. | `route_decision.py`; `test_route_decision.py` |
+| `route` | `RouteSchema` | `R` | Written with the selected `chat`, `continue`, or `task` route. | Absent or invalid route output uses the fail-closed continue route. | `route_decision.py`; `test_route_decision.py` |
 
 #### Decision and failure behavior
 
 | Condition | Decision or failure result | State effect | Evidence |
 |---|---|---|---|
-| Route output is usable | Select `chat`, `task`, or `continue` | Writes `route`. | `route_decision.py` |
-| Route output is absent or invalid | Select the fail-closed `task` route | Writes a task route rather than entering chat accidentally. | `route_decision.py`; `test_route_decision.py` |
+| Route output is usable | Select `chat`, `continue`, or `task` | Writes `route`. | `route_decision.py` |
+| Route output is absent or invalid | Select the fail-closed `continue` route | Writes a continue route rather than entering chat accidentally. | `route_decision.py`; `test_route_decision.py` |
 | Forced chat has no non-empty answer | Reject the result and retry according to the route contract | Does not enter the task path accidentally. | `route_decision.py`; `test_route_decision.py` |
 
 ### 5.9 `Planning`
@@ -691,7 +692,7 @@ the operational task path as a new goal/plan, or continued from prior evidence.
 |---|---|---|---|---|---|
 | Mode decision | Requested mode and source availability | Proceed or inform | Writes resolved `Mode` and note. | A scientific request without the required source is informed rather than silently treated as verified. | `mode_router.py`; ADR-0030 |
 | Safety guard | Request text | `safe` or `unsafe` | Writes `guard_decision`. | Processing failure uses the guard's deterministic `safe` fallback. | `guard.py`; `guard_router.py` |
-| Entry route | Request and conversation | `chat`, `task`, or `continue` | Writes `RouteSchema`; chat may write the inline answer; task/continue proceed through `ResetState`. | Defaults to `task`; forced chat ignores a stale task route and requires a non-empty answer; continue preserves bounded evidence. | `route_decision.py`; `reset_state.py`; `test_route_decision.py`; ADR-0054 |
+| Entry route | Request and conversation | `chat`, `continue`, or `task` | Writes `RouteSchema`; chat may write the inline answer; continue/task proceed through `ResetState`. | Defaults to `continue`; forced chat ignores a stale route and requires a non-empty answer; continue preserves bounded evidence, task resets it. | `route_decision.py`; `reset_state.py`; `test_route_decision.py`; ADR-0054 |
 | Planner status | Authored plan | `chat`, `needs_input`, `unplannable`, or `in_progress` | Writes the complete plan and related run signals. | Invalid or exhausted planning becomes `unplannable` with a failure reason; budget exhaustion can become `needs_input`. | `planner.py`; ADR-0035 |
 | Binder selection | Group plan, tools, prior feedback | Usable call, deliberate failure, or empty glitch | Writes tool calls and, on deliberate failure, a synthetic error and replan reason. | Empty glitch retries within budget; deliberate failure escalates immediately to Planner. | `_picker_router`; ADR-0035 update |
 | Tool triage | Tool results and retry counts | `retry`, `evaluate`, or `replan` | Reads state; count updates occur in the caller callback, not the path function. | Per-step errors retry while within budget and otherwise replan. | `triage_router.py` |
@@ -706,7 +707,7 @@ the operational task path as a new goal/plan, or continued from prior evidence.
 | Failure | Detection point | Contractual response | State effect | Evidence |
 |---|---|---|---|---|
 | Safety model produces no usable result | Guard processing | Return the deterministic safe fallback. | `guard_decision` remains safe. | `guard.py` |
-| Route output is absent or invalid | Route schema and forced-chat validation | Use the fail-closed task route; on a forced-chat retry, reject and retry the model. | Invalid forced chat does not enter the task path accidentally. | `route_decision.py`; `test_route_decision.py` |
+| Route output is absent or invalid | Route schema and forced-chat validation | Use the fail-closed continue route; on a forced-chat retry, reject and retry the model. | Invalid forced chat does not enter the task path accidentally. | `route_decision.py`; `test_route_decision.py` |
 | Plan violates structure or tool-access rules | Planner validation | Retry with validation feedback; after the bounded retry budget, fail closed as unplannable. | Failure reason is written and no invalid plan is executed. | `planner.py`; `test_planner.py` |
 | Planner cannot produce a viable plan | Planner result | Emit `unplannable` and explain the cause. | `failure_reason` is written; the answer composer explains failure. | `planner.py`; control-flow note |
 | Binder cannot bind a suggested tool | Binder normalization | Record one empty-tool failure with a reason and escalate to Planner. | Synthetic error, step output, and replan reason are written; no unplanned tool is substituted. | `_record_picker_failure`; ADR-0035 update |
@@ -788,7 +789,8 @@ The empty command route is represented by the empty-string key and maps to `END`
 | Condition | Exact route label | Target | State effect | Evidence |
 |---|---|---|---|---|
 | Normal route is chat, or a forced-chat plan status selects chat | `chat` | `Preparing response` | None | `klea_agent.py`; `route_decision.py` |
-| Normal route is task | `task` | `Planning` | None | `klea_agent.py`; `route_decision.py` |
+| Normal route is continue (default) | `continue` | `Resetting state` | None | `klea_agent.py`; `route_decision.py` |
+| Normal route is task | `task` | `Resetting state` | None | `klea_agent.py`; `route_decision.py` |
 
 ### 7.3 Planner and human-interrupt routers
 

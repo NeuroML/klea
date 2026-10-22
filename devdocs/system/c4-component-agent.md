@@ -72,7 +72,7 @@ flowchart TD
         guard["Checking safety<br/>GuardNode (guard, shared)<br/>guard_decision safe/unsafe; ADR-0010"]
         guardR["Routing safety<br/>GuardRouterNode (shared router)<br/>safe vs unsafe"]
         decline["Declining query<br/>FixedAnswer (shared)<br/>I cannot respond..."]
-        route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat/task/continue (fail-closed)"]
+        route["Deciding route<br/>RouteDecision (chat)<br/>RouteSchema: chat/continue/task (fail-closed; continue default)"]
         reset["Resetting state<br/>ResetState (non-LLM)<br/>task reset or continuation evidence; ADR-0054"]
         planner["Planning<br/>Planner (plan)<br/>sole author of goal + plan; ADR-0035"]
         reviewProgress["Preparing review<br/>ReviewProgress (chat)<br/>synthesizes the since-last-review digest; ADR-0051"]
@@ -336,7 +336,7 @@ field-level details.
 | Checking safety | ``klea_utils/nodes/guard.py`` | ``GuardNode`` (``guard`` role, shared) | ``guard_decision`` ``safe``/``unsafe`` (ADR-0010) |
 | Routing safety | ``klea_utils/nodes/guard_router.py`` | ``GuardRouterNode`` (shared router) | reads ``guard_decision`` -> ``safe``/``unsafe`` edge |
 | Declining query | ``klea_utils/nodes/fixed_answer.py`` | ``FixedAnswer``: canned refusal | terminal; writes ``message_for_user`` |
-| Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow intent router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``task`` (new goal/plan) / ``continue`` (re-plan from prior evidence); no tool list (ADR-0035/0054) |
+| Deciding route | ``klea_agent/nodes/route_decision.py`` | ``RouteDecision`` (``chat``): narrow intent router, fail-closed | ``RouteSchema`` ``chat`` (inline answer) / ``continue`` (ongoing work; re-plan from prior evidence, default) / ``task`` (unrelated new goal); no tool list (ADR-0035/0054) |
 | Planning | ``klea_agent/nodes/planner.py`` | ``Planner`` (``plan``): sole author of the goal + plan | ``PlannerOutput``/``PlannerPlanSchema``; ``previous_work`` evidence on continuations; structural validation + validation-retry; ``unplannable`` fail-closed (ADR-0035/0054) |
 | Preparing review | ``klea_agent/nodes/review_progress.py`` | ``ReviewProgress`` (``chat``): synthesizes the human-facing digest of work since the last review, immediately before each review gate | ``ReviewProgressSchema``; no tools; reads ``step_outputs`` since the last approved gate; skips with no new work (ADR-0051) |
 | Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; presents the digest + all pending steps; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |

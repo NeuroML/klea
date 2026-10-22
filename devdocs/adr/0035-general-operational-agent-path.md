@@ -306,15 +306,17 @@ prompting alone cannot reliably prevent.  The final shape is a **narrow,
 fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
 `RouteDecision`/`RouteSchema` are reinstated with a smaller job.
 
-* `RouteDecision` runs after the Guard and decides `chat`, `task`, or `continue`; it is
-  tool-free, reads conversation history for follow-ups, answers `chat` inline,
-  and **defaults to `task` when unsure** (fail-closed).  It is the only place a
-  model may answer the user directly, and it must not answer world-facts.
-  `chat` is a self-contained conversational/general-knowledge reply (including
-  direct conversational edits such as shortening or rephrasing); a request that
-  derives from earlier work/turns (summarise, compile, compare, synthesise) is
-  `task`, so it is planned/checked and its deliverable persisted rather than
-  answered inline from the lossy conversation (update 2026-10-12).
+* `RouteDecision` runs after the Guard and decides `chat`, `continue`, or
+  `task`; it is tool-free, reads conversation history for follow-ups, answers
+  `chat` inline, and **defaults to `continue` when unsure** (fail-closed)
+  (2026-10-22: was `task`; see the ADR-0054 intent-routing update).  It is the
+  only place a model may answer the user directly, and it must not answer
+  world-facts.  `chat` is a self-contained conversational/general-knowledge
+  reply (including direct conversational edits such as shortening or
+  rephrasing); a request that derives from earlier work/turns (summarise,
+  compile, compare, synthesise) is `continue`, so it is planned/checked and its
+  deliverable persisted rather than answered inline from the lossy conversation
+  (update 2026-10-12; route 2026-10-22).
 * The `Planner` (task path only) emits `PlannerOutput { goal, plan }` and never
   answers the user.  `plan.status` is the post-Planner routing source:
   `in_review` -> `AwaitHuman` (review), `needs_input` -> `AwaitHuman` (input),

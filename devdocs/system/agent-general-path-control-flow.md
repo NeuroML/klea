@@ -29,7 +29,7 @@ ModeDecision --(cannot run)--> ModeInformer -> END
   |
 Guard --(unsafe)--> DecliningQuery -> END
   |
-RouteDecision (narrow, fail-closed: chat | task | continue; answers chat inline)
+RouteDecision (narrow, fail-closed: chat | continue | task; answers chat inline)
   |-- chat --> AnswerUser -> END
   '-- task/continue --> ResetState -> Planner
                  |-- status unplannable ---> AnswerFromResults (failure) -> AnswerUser -> END
@@ -73,17 +73,17 @@ Evaluator (operational judge, per-step verdict map):
 Trivial chat: Guard + RouteDecision (2 calls); the router answers inline and the
 graph goes straight to ``AnswerUser``.  ``RouteDecision`` is deliberately
 narrow and tool-free -- it decides "self-contained conversational/general-knowledge
-reply vs needs the environment **or derives from earlier session work**",
-defaulting to ``task`` (fail-closed) so a world-fact is never answered from
-assumption and a derivation is never answered inline from the conversation.
-Routing a derivation to ``task`` is cheap when no environment work is needed:
-the Planner plans a single ``reasoning`` step that synthesises the already-known
-facts, and the answer-composer writes (and persists) the result from the
-resulting observation.  There is no zero-step "already known" bypass.  If the
-Planner instead finds that the request was a conversational turn (no task at
-all), it returns ``chat`` and the run goes back to ``RouteDecision``, which is
-forced to answer as chat from conversation history; the answer-composer is
-deliberately bypassed because it has no memory.
+reply vs a turn that is part of the ongoing work (or an unrelated new
+direction)", defaulting to ``continue`` (fail-closed) so a world-fact is never
+answered from assumption and a derivation is never answered inline from the
+conversation.  Routing a derivation to ``continue`` is cheap when no environment
+work is needed: the Planner plans a single ``reasoning`` step that synthesises
+the already-known facts, and the answer-composer writes (and persists) the
+result from the resulting observation.  There is no zero-step "already known"
+bypass.  If the Planner instead finds that the request was a conversational
+turn (no task at all), it returns ``chat`` and the run goes back to
+``RouteDecision``, which is forced to answer as chat from conversation history;
+the answer-composer is deliberately bypassed because it has no memory.
 On that forced pass the router's result is validated (a ``chat`` route with a
 non-empty answer), so an ignored override triggers a bounded re-invoke; the
 graph routing itself is still forced to ``chat`` regardless of the model's
@@ -101,7 +101,7 @@ remains the source for workflow topology and failure policy.
 | ResetState | apply the task boundary selected by RouteDecision: full task reset, or continued planning with evidence | no |
 | ModeDecision / ModeInformer | resolve mode (ADR-0030) | no |
 | Guard | safety classification (ADR-0010) | yes (guard role) |
-| RouteDecision | narrow entry router: ``chat`` (answer inline), ``task`` (new goal/plan), or ``continue`` (re-plan using prior evidence); fail-closed | yes (chat role) |
+| RouteDecision | narrow entry router: ``chat`` (answer inline), ``continue`` (ongoing work; re-plan using prior evidence, the default), or ``task`` (unrelated new goal); fail-closed | yes (chat role) |
 | Planner | task-path brain: write the immutable goal, create/revise the plan (ADR-0035); never answers the user | yes (plan role) |
 | ReviewProgress | synthesise a human-facing digest of the work since the last review, immediately before a review gate; calls no tools (ADR-0051) | yes (chat role) |
 | AwaitHuman | HITL pause/resume (ADR-0046/ADR-0051): a review step (approve/revise) or a blocked step's questions; no LLM | no |
@@ -120,13 +120,14 @@ answer the user directly:
 | route | meaning | edge |
 |-------|---------|------|
 | ``chat`` | self-contained conversational/general-knowledge reply (greeting, clarification, general fact, direct conversational edit); the router wrote ``answer``.  Does not derive from session work | ``AnswerUser`` |
-| ``task`` | a new result or change of direction; may use earlier findings as context but needs a fresh goal/plan (summarise, compile, compare, synthesise, or new work) | ``ResetState`` -> ``Planner`` |
-| ``continue`` | an explicit request to implement or continue the immediately preceding work ("implement", "go ahead", "continue"); re-plans for the new goal using bounded prior evidence (ADR-0054) | ``ResetState`` -> ``Planner`` |
+| ``continue`` | the turn is part of the ongoing work -- implement the plan, a follow-up about a result, or a derivation (summarise, compile, compare, synthesise); re-plans for the sub-task's new goal using bounded prior evidence.  The normal/default route (ADR-0054) | ``ResetState`` -> ``Planner`` |
+| ``task`` | a clearly unrelated new direction (a different overall goal); full reset with no prior evidence | ``ResetState`` -> ``Planner`` |
 
-The ``task``/``continue`` difference is intent, not data reuse: both may use
-prior context, but ``continue`` tells the agent to proceed with the previous
-work.  ``continue`` is not a HITL review decision; the same-run approve/execute
-flow remains a ``review`` plan step.
+The ``continue``/``task`` difference is continuity with the ongoing work, not
+data reuse per se: ``continue`` is the normal case (the turn extends the
+session's work and reuses prior evidence), while ``task`` starts a separate,
+unrelated goal.  ``continue`` is not a HITL review decision; the same-run
+approve/execute flow remains a ``review`` plan step.
 
 The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 ``plan.status`` is the post-Planner routing source:
@@ -277,7 +278,7 @@ The same ``tools_info`` built by ``BaseLangGraph`` is disclosed per node:
 
 | Node | Tool info | Rationale |
 |------|-----------|-----------|
-| RouteDecision | no tool list | narrow chat/task/continue intent routing; tools would only tempt capability guessing |
+| RouteDecision | no tool list | narrow chat/continue/task intent routing; tools would only tempt capability guessing |
 | Planner | name + docstring, no parameter list | plans executable steps and suggests real tools |
 | ToolCallBinder | full description incl. parameter list | needs argument detail to emit ``ToolCallsSchema`` for the group's suggested tools |
 
@@ -346,9 +347,10 @@ deferred ADR-0041 open item.
 
 ## State (relevant fields)
 
-* ``route: RouteSchema`` (entry routing: ``chat`` | ``task`` | ``continue``,
-  with the inline chat answer).  ``task`` and ``continue`` both proceed through
-  ``ResetState`` to the Planner; the latter preserves bounded evidence.
+* ``route: RouteSchema`` (entry routing: ``chat`` | ``continue`` | ``task``,
+  with the inline chat answer).  ``continue`` and ``task`` both proceed through
+  ``ResetState`` to the Planner; ``continue`` (the default) preserves bounded
+  evidence.
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
 * ``plan: PlanSchema`` (steps with their ``success_criteria``/``status``/
@@ -460,9 +462,10 @@ only curated results cross into later tasks:
 
 ## Cross-run continuity (ADR-0054)
 
-`RouteDecision` distinguishes `task` (new result/direction) from `continue`
-(implement or continue the previous work).  `InitGraphState` now leaves task
-state intact; after routing, `ResetState` applies the boundary:
+`RouteDecision` distinguishes `continue` (the turn is part of the ongoing
+work -- the default) from `task` (an unrelated new direction).
+`InitGraphState` now leaves task state intact; after routing, `ResetState`
+applies the boundary:
 
 - `task`: full plan-scoped reset, including clearing
   `continuation_evidence`.

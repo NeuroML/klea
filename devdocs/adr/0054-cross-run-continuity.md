@@ -88,6 +88,18 @@ and without retaining or injecting full execution state.
 request and conversation history and decides intent only. If `continue` is
 chosen without prior work, `ResetState` falls back to the full task reset.
 
+(2026-10-22 update: the intent axis was inverted.  The agent works on one
+overall goal per session and each turn is the next sub-task of it, so
+`continue` becomes the default and `task` is narrowed to a clearly unrelated
+new direction.  `continue` now covers any turn that is part of the ongoing
+work -- implementing the plan, a follow-up about a result, or a derivation
+such as summarising, compiling, comparing or synthesising earlier work --
+not only explicit "proceed" instructions.  The prompt, the node's fail-closed
+default, `RouteSchema`'s default and the entry-routing table were updated
+together.  This moves the entry router close to a flat `chat | work` gate;
+the structured per-turn plan and the bounded per-node inputs keep the task
+path distinct from a ReAct loop.)
+
 ### Task boundaries
 
 `InitGraphState` no longer clears plan-scoped task state. It keeps only
