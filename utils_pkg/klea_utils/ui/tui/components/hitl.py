@@ -30,7 +30,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.message import Message
-from textual.widgets import Button, Input, RadioButton, RadioSet, Static
+from textual.widgets import Button, Input, RadioButton, RadioSet
+
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +143,7 @@ class HitlPanel(HitlDecisionPanel):
     def compose(self) -> ComposeResult:
         """Compose the review or input form."""
         kind = self.ask.get("kind", "input")
-        yield Static(
+        yield SelectableStatic(
             "Plan review" if kind == "review" else "User input", id="hitl-title"
         )
         if kind == "review":
@@ -156,13 +158,13 @@ class HitlPanel(HitlDecisionPanel):
                 continue
             title = str(section.get("title", ""))
             if title:
-                yield Static(
+                yield SelectableStatic(
                     title,
                     id=f"hitl-section-{index}-title",
                     classes="hitl-section-title",
                     markup=False,
                 )
-            yield Static(
+            yield SelectableStatic(
                 str(section.get("body", "")),
                 id=f"hitl-section-{index}-body",
                 classes="hitl-section-body",
@@ -178,10 +180,10 @@ class HitlPanel(HitlDecisionPanel):
         """
         headline = self.ask.get("headline")
         if headline:
-            yield Static(str(headline), id="hitl-headline", markup=False)
+            yield SelectableStatic(str(headline), id="hitl-headline", markup=False)
         question = self.ask.get("question")
         if question:
-            yield Static(str(question), id="hitl-question", markup=False)
+            yield SelectableStatic(str(question), id="hitl-question", markup=False)
         yield from self._compose_sections()
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
@@ -200,7 +202,7 @@ class HitlPanel(HitlDecisionPanel):
             questions = [{"question": fallback}]
         self._questions = [q for q in questions if isinstance(q, dict)]
         for index, question in enumerate(self._questions):
-            yield Static(str(question.get("question", "")))
+            yield SelectableStatic(str(question.get("question", "")))
             yield Input(id=f"hitl-answer-{index}")
         with Horizontal(classes="actions"):
             yield Button("Answer", id="hitl-answer", variant="primary")
@@ -343,18 +345,18 @@ class PermissionPanel(HitlDecisionPanel):
 
     def compose(self) -> ComposeResult:
         """Compose one radio group per requested path, plus Submit / Cancel."""
-        yield Static("Permission required", id="perm-title")
+        yield SelectableStatic("Permission required", id="perm-title")
         question = self.ask.get("question")
         if question:
-            yield Static(str(question), id="perm-question")
+            yield SelectableStatic(str(question), id="perm-question")
         for index, request in enumerate(self._requests()):
-            yield Static(self._title(request))
+            yield SelectableStatic(self._title(request))
             scope = _permission_scope(request)
             if scope:
-                yield Static(scope)
+                yield SelectableStatic(scope)
             hint = self._hint(request)
             if hint:
-                yield Static(hint)
+                yield SelectableStatic(hint)
             with RadioSet(id=f"perm-{index}"):
                 for option in self._options(request):
                     yield RadioButton(

@@ -25,11 +25,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Input
 
 from klea_utils.api.sse import fetch_credentials
 from klea_utils.ui.client import clear_credential, set_credential
 from klea_utils.ui.model_config import required_credential_scopes
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -106,8 +107,8 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
     def compose(self) -> ComposeResult:
         """Compose the scope list container and the close button."""
         with VerticalScroll(id="cred-body"):
-            yield Static("API keys", id="cred-title")
-            yield Static(
+            yield SelectableStatic("API keys", id="cred-title")
+            yield SelectableStatic(
                 "Stored per provider on the server, truncated in API "
                 "responses, and removed after 7 days unused. Leave blank to "
                 "use the environment.",
@@ -145,7 +146,7 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
         await container.remove_children()
         if not self._scope_list:
             await container.mount(
-                Static("No API keys are required by the current models.")
+                SelectableStatic("No API keys are required by the current models.")
             )
             return
         await container.mount_all(
@@ -160,8 +161,8 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
         stored = self._stored.get(scope)
         status = f"Stored: {stored.get('masked', '')}" if stored else "Not set"
         children: list[Any] = [
-            Static(label, markup=False),
-            Static(status, markup=False),
+            SelectableStatic(label, markup=False),
+            SelectableStatic(status, markup=False),
             Input(password=True, placeholder="New API key", id=f"cred-key-{index}"),
         ]
         buttons: list[Button] = []

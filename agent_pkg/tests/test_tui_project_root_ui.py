@@ -16,6 +16,7 @@ from klea_agent.ui.tui.project_root_ui import (
     project_root_status_extra,
 )
 from klea_utils.ui.state import chats, ensure_chat
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.context import TuiContext
 
 
@@ -44,6 +45,7 @@ def test_extra_renders_default_and_value():
     """The row shows the server-cwd placeholder, then the context value."""
     ctx = _ctx()
     widget = project_root_status_extra(ctx)
+    assert isinstance(widget, SelectableStatic)
     assert "(server working directory)" in str(widget.render())
     ensure_chat("u", "c")["context"] = {"project_root": "/work/proj"}
     widget = project_root_status_extra(ctx)

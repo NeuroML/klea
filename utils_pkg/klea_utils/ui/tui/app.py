@@ -33,7 +33,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Static, TextArea
+from textual.widgets import TextArea
 from textual.worker import Worker
 
 from klea_utils.commands.common import (
@@ -61,6 +61,7 @@ from klea_utils.ui.tui.components.hitl import (
 from klea_utils.ui.tui.components.input import QueryInput, QueryTextArea
 from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.model_dialog import ModelDialog, ModelResult
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
@@ -203,20 +204,22 @@ class KleaTuiScreen(Screen):
         """Compose the two-panel layout."""
         with Horizontal(id="root"):
             with Vertical(id="chat-panel"):
-                yield Static(_view_toggle_text("transcript"), id="view-toggle")
+                yield SelectableStatic(
+                    _view_toggle_text("transcript"), id="view-toggle"
+                )
                 yield Transcript(id="transcript")
                 yield Inspector(id="inspector")
                 yield TurnStatus(id="turn-status")
                 yield CommandSuggestions(id="command-suggestions")
                 yield QueryInput(id="query-input-frame")
-                yield Static(_KEY_HINTS_DEFAULT, id="key-hints")
+                yield SelectableStatic(_KEY_HINTS_DEFAULT, id="key-hints")
             with Vertical(id="status-panel"):
-                yield Static(
+                yield SelectableStatic(
                     f"{self.ctx.title} | {self.ctx.server_url}",
                     id="chat-title",
                     markup=False,
                 )
-                yield Static("", id="chat-name", markup=False)
+                yield SelectableStatic("", id="chat-name", markup=False)
                 yield StatusPanel(ctx=self.ctx, id="status")
 
     async def on_mount(self) -> None:
@@ -292,7 +295,7 @@ class KleaTuiScreen(Screen):
         name = str(chat.get("name") or "").strip()
         chat_id = self.ctx.chat_id
         label = f"{name} ({chat_id})" if name and name != chat_id else chat_id
-        self.query_one("#chat-name", Static).update(f"Chat: {label}")
+        self.query_one("#chat-name", SelectableStatic).update(f"Chat: {label}")
 
     @property
     def turn_status(self) -> TurnStatus:
@@ -369,7 +372,7 @@ class KleaTuiScreen(Screen):
         self._view = view
         self.transcript.display = view == "transcript"
         self.inspector.display = view == "inspector"
-        self.query_one("#view-toggle", Static).update(_view_toggle_text(view))
+        self.query_one("#view-toggle", SelectableStatic).update(_view_toggle_text(view))
         if view == "inspector" and self._inspector_dirty:
             await self.inspector.set_entries(self._inspector_entries)
             self._inspector_dirty = False
@@ -393,7 +396,7 @@ class KleaTuiScreen(Screen):
 
         :param text: The hint text to show.
         """
-        self.query_one("#key-hints", Static).update(text)
+        self.query_one("#key-hints", SelectableStatic).update(text)
 
     @property
     def status_panel(self) -> StatusPanel:

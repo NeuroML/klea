@@ -992,6 +992,23 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         assert any("3 in (2 cached) / 1 out" in text for text in statics)
 
 
+async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
+    """App chrome and dialog text use the shared selectable widget."""
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _settle(pilot, app)
+        for selector in ("#view-toggle", "#key-hints", "#chat-title", "#chat-name"):
+            assert isinstance(app.screen.query_one(selector), SelectableStatic)
+
+        app.screen.query_one("#query-input", TextArea).blur()
+        await pilot.press("ctrl+s")
+        await pilot.pause()
+        assert isinstance(app.screen.query_one("#sessions-title"), SelectableStatic)
+        assert isinstance(app.screen.query_one("#sessions-preview"), SelectableStatic)
+        await pilot.press("escape")
+        await pilot.pause()
+
+
 async def test_status_and_inspector_text_is_selectable(fake_backend, make_app):
     """Status and inspector text use the shared selectable widget."""
     fake_backend.scripts = [

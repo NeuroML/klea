@@ -21,7 +21,8 @@ import logging
 from textual.app import ComposeResult
 from textual.timer import Timer
 from textual.widget import Widget
-from textual.widgets import Static
+
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,15 @@ class TurnStatus(Widget):
 
     def compose(self) -> ComposeResult:
         """Compose the spinner cell and the label."""
-        yield Static("", id="turn-spinner", markup=False)
-        yield Static("", id="turn-label", markup=False)
+        yield SelectableStatic("", id="turn-spinner", markup=False)
+        yield SelectableStatic("", id="turn-label", markup=False)
 
     def _tick(self) -> None:
         """Advance the spinner by one frame."""
         self._frame = (self._frame + 1) % len(_SPINNER_FRAMES)
-        self.query_one("#turn-spinner", Static).update(_SPINNER_FRAMES[self._frame])
+        self.query_one("#turn-spinner", SelectableStatic).update(
+            _SPINNER_FRAMES[self._frame]
+        )
 
     def _start_spinner(self) -> None:
         """Start the spinner animation if it is not already running."""
@@ -77,14 +80,14 @@ class TurnStatus(Widget):
         if self._timer is not None:
             self._timer.stop()
             self._timer = None
-        self.query_one("#turn-spinner", Static).update("")
+        self.query_one("#turn-spinner", SelectableStatic).update("")
 
     def _label(self, text: str) -> None:
         """Set the status label text.
 
         :param text: The label text (empty for idle).
         """
-        self.query_one("#turn-label", Static).update(text)
+        self.query_one("#turn-label", SelectableStatic).update(text)
 
     def show_progress(self, heading: str) -> None:
         """Show an in-flight run: spinner plus live heading.

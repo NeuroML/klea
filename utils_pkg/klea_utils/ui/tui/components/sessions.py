@@ -24,9 +24,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, ListItem, ListView, Static
+from textual.widgets import Button, Input, Label, ListItem, ListView
 
 from klea_utils.ui.state import chat_preview_text
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -103,9 +104,9 @@ class SessionPicker(ModalScreen[SessionAction]):
     def compose(self) -> ComposeResult:
         """Compose the session list and Cancel."""
         with Vertical(id="sessions-dialog"):
-            yield Static("Sessions", id="sessions-title")
+            yield SelectableStatic("Sessions", id="sessions-title")
             if not self._sessions:
-                yield Static("No sessions yet.")
+                yield SelectableStatic("No sessions yet.")
             else:
                 yield ListView(
                     *[
@@ -126,7 +127,7 @@ class SessionPicker(ModalScreen[SessionAction]):
                 yield Button("Rename", id="sessions-rename")
                 yield Button("Delete", id="sessions-delete")
                 yield Button("Cancel", id="sessions-cancel", variant="error")
-            yield Static("", id="sessions-preview")
+            yield SelectableStatic("", id="sessions-preview")
 
     def on_mount(self) -> None:
         """Focus the list (or the Cancel button when empty)."""
@@ -156,7 +157,7 @@ class SessionPicker(ModalScreen[SessionAction]):
         )
         preview = chat_preview_text((session or {}).get("preview"), max_chars=200)
         text = f"Preview: {preview}" if preview else ""
-        self.query_one("#sessions-preview", Static).update(text)
+        self.query_one("#sessions-preview", SelectableStatic).update(text)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Switch to the selected session.
@@ -275,8 +276,8 @@ class SessionDelete(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         """Compose the warning and Cancel / Delete."""
         with Vertical(id="delete-dialog"):
-            yield Static("Delete session?", id="delete-title")
-            yield Static(
+            yield SelectableStatic("Delete session?", id="delete-title")
+            yield SelectableStatic(
                 f"This will permanently delete the session {self._title!r} "
                 "and its messages. This cannot be undone.",
                 id="delete-body",
@@ -338,7 +339,7 @@ class SessionRename(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         """Compose the title input and Save / Cancel."""
         with Vertical(id="rename-dialog"):
-            yield Static("Rename session", id="rename-title")
+            yield SelectableStatic("Rename session", id="rename-title")
             yield Input(value=self._title, id="rename-input")
             with Horizontal(classes="actions"):
                 yield Button("Save", id="rename-save", variant="primary")

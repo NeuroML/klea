@@ -19,8 +19,8 @@ from __future__ import annotations
 import logging
 
 from klea_utils.ui.state import chats
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.context import TuiContext
-from textual.widgets import Static
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +35,14 @@ def current_project_root(ctx: TuiContext) -> str:
     return str((chat.get("context") or {}).get("project_root", "") or "").strip()
 
 
-def project_root_status_extra(ctx: TuiContext) -> Static:
+def project_root_status_extra(ctx: TuiContext) -> SelectableStatic:
     """Return the read-only project-root row for the status-panel slots.
 
     :param ctx: The shared TUI context.
-    :returns: A :class:`~textual.widgets.Static` line.
+    :returns: A selectable status line.
     """
     root = current_project_root(ctx)
-    return Static(
+    return SelectableStatic(
         f"Project root: {root or '(server working directory)'}",
         markup=False,
     )

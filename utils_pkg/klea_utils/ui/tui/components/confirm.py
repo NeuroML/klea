@@ -21,9 +21,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static
+from textual.widgets import Button
 
 from klea_utils.ui.exit_confirm import EXIT_CONFIRM_MESSAGE, EXIT_CONFIRM_TITLE
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +58,8 @@ class ExitConfirm(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         """Compose the prompt and Cancel / Exit."""
         with Vertical(id="exit-dialog"):
-            yield Static(EXIT_CONFIRM_TITLE, id="exit-title")
-            yield Static(
+            yield SelectableStatic(EXIT_CONFIRM_TITLE, id="exit-title")
+            yield SelectableStatic(
                 EXIT_CONFIRM_MESSAGE,
                 id="exit-body",
                 markup=False,

@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import logging
 
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.context import TuiContext
 from textual.app import ComposeResult
 from textual.containers import Horizontal
-from textual.widgets import Static
 
 from klea_agent.ui.tui.access_ui import ACCESS_LEVELS, current_access_level
 from klea_agent.ui.tui.mode_ui import MODES, current_mode
@@ -35,9 +35,9 @@ logger = logging.getLogger(__name__)
 class ModeAccessSelector(Horizontal):
     """A compact one-line ``Mode | Access`` display.
 
-    The access label is a separate :class:`Static` so its colour comes from the
-    theme (``$error`` for full access, ``$success`` for read-only), updating on
-    a theme change without a re-render.
+    The access label is a separate ``SelectableStatic`` so its colour comes
+    from the theme (``$error`` for full access, ``$success`` for read-only),
+    updating on a theme change without a re-render.
     """
 
     DEFAULT_CSS = """
@@ -69,8 +69,8 @@ class ModeAccessSelector(Horizontal):
 
     def compose(self) -> ComposeResult:
         """Compose the mode cell and the access cell."""
-        yield Static("", id="mode-access-mode")
-        yield Static("", id="mode-access-access")
+        yield SelectableStatic("", id="mode-access-mode")
+        yield SelectableStatic("", id="mode-access-access")
 
     def on_mount(self) -> None:
         """Render the active mode + access line."""
@@ -80,8 +80,8 @@ class ModeAccessSelector(Horizontal):
         """Render the mode and access values and tag the access cell."""
         mode = MODES[current_mode(self._ctx)][0]
         level = current_access_level(self._ctx)
-        self.query_one("#mode-access-mode", Static).update(f"{mode} | ")
-        access = self.query_one("#mode-access-access", Static)
+        self.query_one("#mode-access-mode", SelectableStatic).update(f"{mode} | ")
+        access = self.query_one("#mode-access-access", SelectableStatic)
         access.update(f"{ACCESS_LEVELS[level][0]} access")
         access.set_class(level == "full", "access-full")
         access.set_class(level == "read_only", "access-read-only")

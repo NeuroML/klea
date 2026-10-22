@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 from klea_agent.ui.tui.status_ui import ModeAccessSelector
 from klea_utils.ui.state import chats, ensure_chat
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.context import TuiContext
 from textual.app import App, ComposeResult
 from textual.widgets import Static
@@ -48,6 +49,8 @@ async def test_mode_access_row_renders_one_line():
         await pilot.pause()
         mode = app.query_one("#mode-access-mode", Static)
         access = app.query_one("#mode-access-access", Static)
+        assert isinstance(mode, SelectableStatic)
+        assert isinstance(access, SelectableStatic)
         assert str(mode.render()) == "General | "
         assert str(access.render()) == "Full access"
         assert access.has_class("access-full")
@@ -66,6 +69,8 @@ async def test_mode_access_row_tracks_context():
         await pilot.pause()
         mode = app.query_one("#mode-access-mode", Static)
         access = app.query_one("#mode-access-access", Static)
+        assert isinstance(mode, SelectableStatic)
+        assert isinstance(access, SelectableStatic)
         assert str(mode.render()) == "Scientific | "
         assert str(access.render()) == "Read-only access"
         assert access.has_class("access-read-only")

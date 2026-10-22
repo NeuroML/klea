@@ -31,7 +31,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.suggester import Suggester
-from textual.widgets import Button, Collapsible, Input, Select, Static
+from textual.widgets import Button, Collapsible, Input, Select
 
 from klea_utils.api.sse import fetch_active_models, fetch_credentials
 from klea_utils.llm import (
@@ -56,6 +56,7 @@ from klea_utils.ui.tui.components.credentials_dialog import (
     CredentialsDialog,
     CredentialsResult,
 )
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
     def compose(self) -> ComposeResult:
         """Compose the per-role editors and the action row."""
         with VerticalScroll(id="model-body"):
-            yield Static("Models for this chat", id="model-title")
+            yield SelectableStatic("Models for this chat", id="model-title")
             for role in self._roles:
                 yield self._role_collapsible(role)
             with Horizontal(id="model-actions", classes="actions"):
@@ -254,12 +255,12 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         url = Input(
             value=origin.url, placeholder="custom URL", id=self._dom_id("url", role)
         )
-        cred = Static("", id=self._dom_id("cred", role), markup=False)
+        cred = SelectableStatic("", id=self._dom_id("cred", role), markup=False)
         children: list[Any] = [provider, model, backend, inference, url, cred]
         if not modifiable:
             for widget in (provider, model, backend, inference, url):
                 widget.disabled = True
-            children.append(Static("Locked by administrator", markup=False))
+            children.append(SelectableStatic("Locked by administrator", markup=False))
         else:
             buttons: list[Button] = []
             if len(self._same_kind(role)) >= 1:
