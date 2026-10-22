@@ -227,6 +227,10 @@ Last updated: 2026-10-16.
   syntax style) rather than the Textual theme, so code blocks do not follow a
   theme change; making them follow needs Textual-native rendering (or a
   re-render on theme change).
+- TUI Rich Markdown selection polish: Rich centers H1 headings, so dragging
+  from the left edge of an answer selects leading layout spaces before the
+  heading text (the text itself selects normally).  Consider left-aligning H1s
+  in transcript bodies or trimming leading layout whitespace in copied text.
 - Client-side command output (`system` bubbles) is not persisted (the server
   never sees client commands), so it is lost on reload.  Decide whether to
   persist it.

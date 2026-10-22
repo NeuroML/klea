@@ -107,9 +107,12 @@ Keys
    * - :kbd:`Ctrl+Q`
      - Quit (asks to confirm first)
 
-Copying uses the terminal's OSC 52 clipboard.  Terminals without OSC 52
-support (for example macOS Terminal) may not update the system clipboard;
-use the terminal's own selection modifier (often :kbd:`Shift`) as a fallback.
+Copying uses the terminal's OSC 52 clipboard and also tries a platform
+clipboard tool when one is available (``wl-copy``/``xclip``/``xsel`` on
+Linux, ``pbcopy`` on macOS, ``clip`` on Windows), so terminals that ignore
+OSC 52 can still paste into another application.  A brief notification
+confirms the copy.  In a remote/SSH session only OSC 52 or the terminal's
+own selection modifier (often :kbd:`Shift`) can reach your local clipboard.
 
 Sessions
 --------

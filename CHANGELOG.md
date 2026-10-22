@@ -113,6 +113,7 @@
 
 ### Fixed
 
+- TUI text selection now highlights Rich Markdown/Syntax output, supports drags ending on blank lines, and copies to the OS clipboard through `wl-copy`/`xclip`/`xsel`/`pbcopy`/`clip` when OSC 52 is unavailable; a brief notification confirms the copy.
 - `read_file` no longer implies that `limit=None` reads to the end of the file: `None` removes only the line limit, while the server character budget still caps the response. Results now report the effective `char_budget` and a `truncation_reason` (`char_budget`, `line_limit` or `scan_cap`), and a character-capped `limit=None` note explains how to continue.
 - The generic LLM-node validation retry loop now performs exactly `max_validation_retries` re-invokes (previously one extra) and leaves the final validation error in `ctx.validation_feedback` for `_update_state`, instead of clearing it, so a node can fail closed rather than accept an invalid result.
 - A path-permission decision of "not a path" now renders as `Not a path: <key>` in the transcript and is counted as dismissed in the audit summary, instead of being shown as `Denied`.

@@ -250,8 +250,13 @@ that must run a query posts a shared `SubmitQuery` message
   click still expands/collapses a long message; a drag selects text and
   suppresses the toggle (`MessageBlock.on_click` checks the screen selection).
   Ctrl+C copies the selection; Ctrl+Shift+C stops a run, with F12 as the
-  fallback (Ctrl+X is TextArea's cut).  Copying uses OSC 52, so terminals
-  without support may need their native selection instead.
+  fallback (Ctrl+X is TextArea's cut).  Rich selections are tinted by
+  `SelectableStatic` itself (Textual ignores selection styling for
+  `RichVisual`), and blank lines are padded so a drag can end there.  Copying
+  uses OSC 52 plus a best-effort system clipboard tool (`wl-copy`, `xclip`,
+  `xsel`, `pbcopy`, `clip`) and shows a brief confirmation notification.  In a
+  remote/SSH session only OSC 52 or the terminal's own selection reaches the
+  local clipboard.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
