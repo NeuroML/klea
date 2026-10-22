@@ -78,6 +78,12 @@ logger = logging.getLogger(__name__)
 #: separate full-width header/footer; the title and key hints live inside the
 #: chat panel (``devdocs/system/tui.md``).
 _CSS = """
+/* Keep selected text readable; Textual's default selection foreground is
+ * transparent, which resolves to the same colour as the selection background
+ * for plain Content visuals. */
+Screen > .screen--selection {
+    color: $text;
+}
 #root {
     height: 100%;
 }

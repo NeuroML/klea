@@ -82,3 +82,49 @@ async def test_select_all_extracts_syntax_and_group():
 
         assert "edit foo.py" in text
         assert "print('hi')" in text
+
+
+_MARKDOWN = (
+    "# Heading\n\nParagraph one has selectable text.\n\nParagraph two has more text."
+)
+
+
+async def test_rich_markdown_selection_is_highlighted():
+    """A Rich Markdown selection gets the theme selection background."""
+    app = _SelectableApp(RichMarkdown(_MARKDOWN))
+    async with app.run_test(size=(60, 15)) as pilot:
+        body = app.query_one("#body", SelectableStatic)
+        await pilot.mouse_down(body, offset=(0, 2))
+        await pilot.mouse_up(body, offset=(11, 2))
+        await pilot.pause()
+
+        selected = app.screen.get_selected_text()
+        assert selected is not None
+        assert "Paragraph" in selected
+
+        selection_style = app.screen.get_component_rich_style("screen--selection")
+        strip = body.render_line(2)
+        assert any(
+            segment.style is not None
+            and segment.style.bgcolor == selection_style.bgcolor
+            for segment in strip
+        )
+
+
+async def test_drag_to_a_blank_line_has_a_real_end_offset():
+    """Blank Rich lines carry offsets, so a drag ending there is not select-all."""
+    app = _SelectableApp(RichMarkdown(_MARKDOWN))
+    async with app.run_test(size=(60, 15)) as pilot:
+        body = app.query_one("#body", SelectableStatic)
+        await pilot.mouse_down(body, offset=(0, 2))
+        await pilot.mouse_up(body, offset=(5, 3))  # line 3 is blank
+        await pilot.pause()
+
+        selection = app.screen.selections.get(body)
+        assert selection is not None
+        assert selection.end is not None
+
+        selected = app.screen.get_selected_text()
+        assert selected is not None
+        assert selected.startswith("Paragraph")
+        assert len(selected) < len(_MARKDOWN)

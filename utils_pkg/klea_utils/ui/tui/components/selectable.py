@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import logging
 
+from rich.segment import Segment
+from rich.style import Style as RichStyle
 from textual.selection import Selection
 from textual.strip import Strip
-from textual.visual import Visual
+from textual.visual import RichVisual, Visual
 from textual.widgets import Static
 
 logger = logging.getLogger(__name__)
@@ -50,8 +52,56 @@ class SelectableStatic(Static):
     """
 
     def render_line(self, y: int) -> Strip:
-        """Render line *y* and attach its offset for text selection."""
-        return super().render_line(y).apply_offsets(0, y)
+        """Render line *y*, apply selection styling, and attach its offset.
+
+        ``RichVisual`` ignores Textual's selection options, so the selection
+        background is applied here.  Plain ``Content`` visuals already get the
+        selection style from Textual; re-apply the readable theme style so the
+        transparent default foreground does not hide the text.
+
+        Blank lines have no segments and therefore no cell offset; pad them to
+        the widget width so a drag can start or end on an empty line.
+        """
+        strip = super().render_line(y)
+        if not strip.text:
+            strip = Strip.blank(self.size.width, self.visual_style.rich_style)
+
+        selection = self.text_selection
+        if selection is not None:
+            span = selection.get_span(y)
+            if span is not None:
+                start, end = span
+                if end == -1:
+                    end = strip.cell_length
+                if start < end:
+                    style = self.screen.get_component_rich_style("screen--selection")
+                    # Keep the Rich text/syntax colours; only tint the
+                    # selected cells.  A transparent selection foreground
+                    # would otherwise make text unreadable.
+                    if (
+                        isinstance(self.visual, RichVisual)
+                        and style.bgcolor is not None
+                    ):
+                        style = RichStyle(bgcolor=style.bgcolor)
+                    selected = strip.crop(start, end)
+                    selected = Strip(
+                        [
+                            Segment(
+                                segment.text,
+                                (segment.style or RichStyle()) + style,
+                            )
+                            for segment in selected
+                        ],
+                        selected.cell_length,
+                    )
+                    strip = Strip.join(
+                        [
+                            strip.crop(0, start),
+                            selected,
+                            strip.crop(end, strip.cell_length),
+                        ]
+                    )
+        return strip.apply_offsets(0, y)
 
     def get_selection(self, selection: Selection) -> tuple[str, str] | None:
         """Return the text covered by *selection*.
