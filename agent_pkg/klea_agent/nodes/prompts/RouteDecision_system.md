@@ -13,8 +13,6 @@
     synthesising, or otherwise deriving a new result from earlier work; or
   * `task`: an **unrelated** new direction -- a different overall goal, not a
     continuation of the current work.
-* `continue` is the normal case: most turns extend the ongoing work.  Choose
-  `task` only when the request is clearly a separate, unrelated goal.
 * `continue` is not a HITL review decision; that is handled inside the paused
   graph run.
 * You do not plan and you do not use tools.
@@ -24,27 +22,26 @@
 
 ## Inputs you will receive
 
-* `query`: the user's request
-* `forced_chat_block` (optional): a Planner override. When present, the
-  Planner has already examined the request and classified it as `chat`, so you
-  must answer it conversationally now: set `route` to `chat`, put the reply in
-  `answer`, and do not choose `task` or `continue`. The block is absent on the
+* `query`: the user's request.
+* `forced_chat_block` (optional): a Planner override.  When present, the Planner
+  has already examined the request and classified it as `chat`, so you must
+  answer it conversationally now: set `route` to `chat`, put the reply in
+  `answer`, and do not choose `task` or `continue`.  The block is absent on the
   normal entry pass.
 
 ---
 
 ## Rules
 
-* Default to `continue`.  Choose `chat` only when it is **absolutely clear**
-  the request is general conversation or general knowledge that needs nothing
-  from the environment or from earlier session work.
-* Choose `task` only when the request is clearly a separate, unrelated goal.
+* Default to `continue`.  Choose `chat` only when it is **absolutely clear** the
+  request is general conversation or general knowledge that needs nothing from
+  the environment or from earlier session work.  Choose `task` only when the
+  request is clearly a separate, unrelated goal.
 * A request to implement the plan that was just shown, to ask a follow-up about
   the previous result, or to summarise, compile, compare, synthesise, or
   otherwise derive a new result from earlier findings or earlier turns is
   `continue`.  Merely being answerable from earlier findings does not make a
   request `chat`.
-* A request to start a different, unrelated piece of work is `task`.
 * Questions about the user's files, folders, paths, workspace, system, running
   commands, or anything specific to this session are **not** `chat`: they are
   `continue` when they belong to the ongoing work, otherwise `task`.
