@@ -23,35 +23,39 @@ from klea_agent.schemas import KleaAgentState, PlanSchema, RouteSchema
 
 # NOTE: ``chat`` deliberately also covers direct conversational edits (for
 # example "make that shorter" or "rephrase that"), so the router answers them
-# inline without the planning/evaluation stages.  The boundary is derivation:
-# a request that builds on, compiles, compares or synthesises earlier work or
-# turns is ``task``.  If we observe failure modes where such a derivation is
-# answered inline from the (lossy) conversation instead of routed to ``task``,
+# inline without the planning/evaluation stages.  The boundary is continuity
+# with the ongoing work: a turn that builds on, compiles, compares, synthesises
+# or follows up on earlier work or turns is ``continue`` (prior evidence is
+# reused); only an unrelated new direction is ``task``.  ``chat`` is reserved
+# for self-contained conversation/knowledge, so a derivation is never answered
+# inline from the (lossy) conversation.  If we observe failure modes where such
+# a derivation is answered inline instead of routed to ``continue``/``task``,
 # revisit this line.
 class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
-    """Narrow entry router: ``chat``, ``task`` or ``continue`` (ADR-0035/0054).
+    """Narrow entry router: ``chat``, ``continue`` or ``task`` (ADR-0035/0054).
 
-    ``chat`` is a self-contained conversational/general-knowledge reply that
-    the router answers inline (``answer``); the graph then goes straight to
-    ``AnswerUser``.  ``task`` is anything that needs the current
-    environment/workspace/session, **or** that derives a result from earlier
-    work or turns (summarising, compiling, comparing, synthesising); the Planner
-    plans and the tool loop runs (a synthesis needing no environment work is
-    planned as a ``reasoning`` step).  ``continue`` is an explicit request to
-    implement or continue the immediately preceding work; it re-plans for the
-    new goal using the retained continuation evidence (ADR-0054).
+    The agent works on one overall goal per session; each turn is the next
+    sub-task.  ``chat`` is a self-contained conversational/general-knowledge
+    reply that the router answers inline (``answer``); the graph then goes
+    straight to ``AnswerUser``.  ``continue`` is the normal case: the turn is
+    part of the ongoing work -- implementing the plan, a follow-up about a
+    result, or a derivation such as summarising, compiling, comparing or
+    synthesising earlier work.  It re-plans for the sub-task's new goal using
+    the retained continuation evidence (ADR-0054).  ``task`` is an unrelated
+    new direction: a fresh goal/plan with no prior evidence carried over.
 
-    The decision is **fail-closed**: the default is ``task``, so the router
-    answers inline only when it is clearly general conversation/knowledge.
-    This is the one place where a model could answer a world-fact from
-    assumption, so the prompt is deliberately narrow and tool-free.  It reads
-    conversation history (memory) for follow-ups and continuity.
+    The decision is **fail-closed**: the default is ``continue`` (which still
+    runs the Planner), so the router answers inline only when it is clearly
+    general conversation/knowledge.  This is the one place where a model could
+    answer a world-fact from assumption, so the prompt is deliberately narrow
+    and tool-free.  It reads conversation history (memory) for follow-ups and
+    continuity.
 
     The node is re-entered when the Planner returns ``plan.status == "chat"``:
-    the Planner recognised that the first ``task`` call was a misrouted
-    conversational turn.  In that forced pass the router must answer as chat
-    (the prompt carries an override) and the router always returns the
-    ``chat`` edge, so the run cannot bounce back to the Planner.
+    the Planner recognised that the first call was a misrouted conversational
+    turn.  In that forced pass the router must answer as chat (the prompt
+    carries an override) and the router always returns the ``chat`` edge, so
+    the run cannot bounce back to the Planner.
     """
 
     model_role = "chat"
@@ -213,5 +217,5 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
 
     @override
     def _get_default_error_result(self, ctx: Any) -> RouteSchema:
-        """Default to ``task`` when routing fails (fail-closed)."""
-        return RouteSchema(route="task")
+        """Default to ``continue`` when routing fails (fail-closed)."""
+        return RouteSchema(route="continue")

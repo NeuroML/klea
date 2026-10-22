@@ -41,10 +41,10 @@ from pydantic import BaseModel
 
 
 class TestRouteSchema:
-    """Entry routing defaults to the fail-closed ``task``."""
+    """Entry routing defaults to the fail-closed ``continue``."""
 
-    def test_defaults_to_task(self):
-        assert RouteSchema().route == "task"
+    def test_defaults_to_continue(self):
+        assert RouteSchema().route == "continue"
 
     @pytest.mark.parametrize("route", ["chat", "task", "continue"])
     def test_accepts_routes(self, route):

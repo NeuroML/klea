@@ -702,7 +702,7 @@ class Mode(BaseModel):
 class RouteSchema(BaseModel):
     # Entry routing decision made by the route-decision node.  Semantics and
     # rules live in RouteDecision_system.md.
-    route: Literal["chat", "task", "continue"] = "task"
+    route: Literal["chat", "task", "continue"] = "continue"
     answer: str = ""
 
 

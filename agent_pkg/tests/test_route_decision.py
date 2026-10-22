@@ -61,8 +61,10 @@ class TestRouteDecisionState:
         )
         assert "message_for_user" not in update
 
-    def test_default_error_result_is_task(self):
-        assert self._node()._get_default_error_result(LLMNodeContext()).route == "task"
+    def test_default_error_result_is_continue(self):
+        assert (
+            self._node()._get_default_error_result(LLMNodeContext()).route == "continue"
+        )
 
     def test_forced_chat_overrides_task_result(self):
         """A Planner chat re-entry forces the chat route and the answer."""
