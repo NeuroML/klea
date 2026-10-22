@@ -792,7 +792,7 @@ def test_read_tail_page_strips_a_bom_at_the_file_start(tmp_path):
 def test_read_tail_page_preserves_a_mid_file_bom(tmp_path):
     """A U+FEFF at a mid-file tail line is content, not a BOM."""
     f = tmp_path / "t.txt"
-    f.write_text("x\n\ufeffy\n")
+    f.write_text("x\n\ufeffy\n", encoding="utf-8", newline="\n")
 
     page = _read_tail_page(
         f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
