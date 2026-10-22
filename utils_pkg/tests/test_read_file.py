@@ -525,7 +525,7 @@ def test_locate_tail_start_last_line_with_trailing_newline(tmp_path):
 def test_locate_tail_start_last_two_lines(tmp_path):
     """The second-from-last line start is returned for n=2."""
     f = tmp_path / "t.txt"
-    f.write_text("a\nb\nc\n")
+    f.write_text("a\nb\nc\n", encoding="utf-8", newline="\n")
 
     start = _locate_tail_start(f, 2, max_bytes=10_000)
 
