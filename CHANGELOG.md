@@ -6,6 +6,7 @@
 
 ### Added
 
+- Terminal UI: all free-standing text (transcript, status/inspector panes, dialogs, HITL prompts and app chrome) can be selected with the mouse and copied with Ctrl+C; copying uses OSC 52, so terminals without support may need their native selection.
 - `read_file` can read from the end with a negative `offset` (tail): `-1` is the last line and `-N` the Nth from the end. Tail pages keep signed line numbers and `next_offset`, reach EOF without a full scan, and report `total_lines` when the backward scan reaches the start; converted documents use exact totals.
 - Agent cross-run continuity: `RouteDecision` recognises explicit "implement/continue" requests, and a bounded continuation evidence record plus the new `ResetState` task boundary let the Planner re-plan from prior work across graph runs; new tasks still start from a fresh goal and plan. See ADR-0054.
 - Agent task planning: the Planner is shown the last 9 abandoned plan versions with the reason each failed, and the guidance HITL ask displays them so the user can see what was tried. The Planner is told not to repeat an abandoned approach; there is no deterministic semantic repeat detector.
@@ -63,6 +64,7 @@
 
 ### Changed
 
+- Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.
 - Token usage totals now show cached prompt reads as a subset of input (`<n> cached`) in the web and TUI status lines; cache-creation writes are not counted as cached.
 - Path approval asks now show the full target path and the session approval directory separately, with bounded previews for pathological values, plus the tool-call context, detected token and discovery source. Full values remain the decision keys; guessed values keep session approval and the "Not a path" dismissal.
 - `grep` now returns grouped per-file hunks with two lines of context by default (`context_lines`, 0-7) instead of bare matching lines, so callers usually have the surrounding code without a follow-up `read_file`; overlapping windows are merged and context counts toward the character budget.

@@ -81,7 +81,7 @@ lines.
 | ------------------------------------------- |  token usage         |
 |  turn status: spinner | error+Retry | ...   |                      |
 |  input (> ...)                   [Send/Stop]|                      |
-|  keys: Enter send | Ctrl+C stop | Ctrl+S ...|                      |
+|  keys: Ctrl+C copy | Ctrl+Shift+C stop      |                      |
 +---------------------------------------------+----------------------+
 ```
 
@@ -249,6 +249,9 @@ that must run a query posts a shared `SubmitQuery` message
   class docstring for the full decision record.  In the transcript a plain
   click still expands/collapses a long message; a drag selects text and
   suppresses the toggle (`MessageBlock.on_click` checks the screen selection).
+  Ctrl+C copies the selection; Ctrl+Shift+C stops a run, with F12 as the
+  fallback (Ctrl+X is TextArea's cut).  Copying uses OSC 52, so terminals
+  without support may need their native selection instead.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.

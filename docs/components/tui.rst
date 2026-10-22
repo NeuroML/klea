@@ -31,7 +31,9 @@ for the agent's reply, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
-expand or collapse.
+expand or collapse.  Drag over text to select it; :kbd:`Ctrl+C` copies the
+selection.  Text in the status/inspector panes, dialogs and prompts is
+selectable too, and a drag in a message does not toggle it.
 
 A failed run that can be recovered shows a **Retry** action; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
@@ -90,7 +92,10 @@ Keys
    * - :kbd:`Shift+Enter`
      - Insert a newline too, on terminals that report the shifted key
    * - :kbd:`Ctrl+C`
-     - Stop the running query
+     - Copy selected text
+   * - :kbd:`Ctrl+Shift+C`
+     - Stop the running query (:kbd:`F12` is the fallback where the terminal
+       intercepts the shortcut)
    * - :kbd:`Ctrl+R`
      - Retry the last failed run (when recoverable)
    * - :kbd:`Ctrl+I`
@@ -101,6 +106,10 @@ Keys
      - Open the model dialog
    * - :kbd:`Ctrl+Q`
      - Quit (asks to confirm first)
+
+Copying uses the terminal's OSC 52 clipboard.  Terminals without OSC 52
+support (for example macOS Terminal) may not update the system clipboard;
+use the terminal's own selection modifier (often :kbd:`Shift`) as a fallback.
 
 Sessions
 --------
