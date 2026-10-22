@@ -45,6 +45,10 @@ runs in :mod:`klea_utils.mcp.dispatch` before a tool call reaches the server.
    :members:
    :show-inheritance:
 
+.. automodule:: klea_utils.mcp.path_approval
+   :members:
+   :show-inheritance:
+
 .. automodule:: klea_utils.mcp.sensitive
    :members:
    :show-inheritance:

@@ -425,13 +425,21 @@ current level.</p></td>
 operate in and the default permission boundary.  The path must be an
 existing directory; with no argument it reports the current root.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/compact</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/paths</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/paths</span></code> / <code class="docutils literal notranslate"><span class="pre">/paths</span> <span class="pre">list</span></code> / <code class="docutils literal notranslate"><span class="pre">/paths</span> <span class="pre">add</span> <span class="pre">&lt;dir&gt;</span></code> /
+<code class="docutils literal notranslate"><span class="pre">/paths</span> <span class="pre">remove</span> <span class="pre">&lt;path&gt;</span></code></p></td>
+<td><p>Show or manage the session’s path approvals.  A bare <code class="docutils literal notranslate"><span class="pre">/paths</span></code> opens
+the editor; <code class="docutils literal notranslate"><span class="pre">add</span></code> requires an existing directory outside the project
+root, and <code class="docutils literal notranslate"><span class="pre">remove</span></code> revokes an exact directory or sensitive-file
+approval.  The project root changes with <code class="docutils literal notranslate"><span class="pre">/cwd</span></code>, not <code class="docutils literal notranslate"><span class="pre">/paths</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/compact</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/compact</span></code></p></td>
 <td><p>Summarise and shorten the conversation memory now (Agent, when
 conversation memory is enabled).  The outcome is shown in the inspection
 pane.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">/init</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">/init</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">/init</span></code></p></td>
 <td><p>Generate project guidance (<code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code>) for the current project so
 future sessions pick up its conventions (Agent, full access).</p></td>
@@ -441,7 +449,9 @@ future sessions pick up its conventions (Agent, full access).</p></td>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">/init</span></code> writes <code class="docutils literal notranslate"><span class="pre">AGENTS.md</span></code> in the project directory, so its file-write
 needs the <code class="docutils literal notranslate"><span class="pre">full</span></code> tool access level; <code class="docutils literal notranslate"><span class="pre">/compact</span></code> is offered only when
-conversation memory is enabled (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>).</p>
+conversation memory is enabled (see <a class="reference internal" href="agent.html"><span class="doc">Klea Agent</span></a>).  <code class="docutils literal notranslate"><span class="pre">/paths</span></code> edits
+thread-scoped approvals only; use the permission prompt for a new sensitive
+file, and <code class="docutils literal notranslate"><span class="pre">/cwd</span></code> to change the project root.</p>
 </section>
 <section id="disabling-commands">
 <h2>Disabling commands<a class="headerlink" href="#disabling-commands" title="Link to this heading">¶</a></h2>

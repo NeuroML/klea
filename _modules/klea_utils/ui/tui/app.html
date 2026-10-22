@@ -370,6 +370,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.model_dialog</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelDialog</span><span class="p">,</span> <span class="n">ModelResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.sessions</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionAction</span><span class="p">,</span> <span class="n">SessionPicker</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.state_edit</span><span class="w"> </span><span class="kn">import</span> <span class="n">StateEditPanel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.status_panel</span><span class="w"> </span><span class="kn">import</span> <span class="n">StatusPanel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.transcript</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transcript</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.turn_status</span><span class="w"> </span><span class="kn">import</span> <span class="n">TurnStatus</span>
@@ -1368,7 +1369,8 @@
         <span class="k">await</span> <span class="n">create_chat_on_server</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">user_id</span><span class="p">,</span> <span class="n">chat_id</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_open_hitl</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ask</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Mount the inline HITL panel for *ask* (review / input / permission).</span>
+<span class="w">        </span><span class="sd">"""Mount the inline HITL panel for *ask* (review / input / permission /</span>
+<span class="sd">        state_edit).</span>
 
 <span class="sd">        The panel is a sibling of the transcript in the chat panel, not a modal,</span>
 <span class="sd">        so the chat stays scrollable while the ask is open (ADR-0046).</span>
@@ -1381,9 +1383,12 @@
             <span class="k">return</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
-        <span class="n">panel</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="n">PermissionPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span> <span class="k">if</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"permission"</span> <span class="k">else</span> <span class="n">HitlPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span>
-        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"permission"</span><span class="p">:</span>
+            <span class="n">panel</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span> <span class="o">=</span> <span class="n">PermissionPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"kind"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"state_edit"</span><span class="p">:</span>
+            <span class="n">panel</span> <span class="o">=</span> <span class="n">StateEditPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">panel</span> <span class="o">=</span> <span class="n">HitlPanel</span><span class="p">(</span><span class="n">ask</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span> <span class="o">=</span> <span class="n">panel</span>
         <span class="n">screen</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">panel</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="n">screen</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#query-input-frame"</span><span class="p">))</span>
         <span class="c1"># The ask replaces the composer while it is active, so the two never</span>

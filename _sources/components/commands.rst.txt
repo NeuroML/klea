@@ -99,6 +99,13 @@ These are sent to the graph and run there.
      - Show or set the session project root -- the directory the file tools
        operate in and the default permission boundary.  The path must be an
        existing directory; with no argument it reports the current root.
+   * - ``/paths``
+     - ``/paths`` / ``/paths list`` / ``/paths add <dir>`` /
+       ``/paths remove <path>``
+     - Show or manage the session's path approvals.  A bare ``/paths`` opens
+       the editor; ``add`` requires an existing directory outside the project
+       root, and ``remove`` revokes an exact directory or sensitive-file
+       approval.  The project root changes with ``/cwd``, not ``/paths``.
    * - ``/compact``
      - ``/compact``
      - Summarise and shorten the conversation memory now (Agent, when
@@ -111,7 +118,9 @@ These are sent to the graph and run there.
 
 ``/init`` writes ``AGENTS.md`` in the project directory, so its file-write
 needs the ``full`` tool access level; ``/compact`` is offered only when
-conversation memory is enabled (see :doc:`agent`).
+conversation memory is enabled (see :doc:`agent`).  ``/paths`` edits
+thread-scoped approvals only; use the permission prompt for a new sensitive
+file, and ``/cwd`` to change the project root.
 
 Disabling commands
 ------------------

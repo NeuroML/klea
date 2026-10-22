@@ -330,6 +330,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.chat_bubble</span><span class="w"> </span><span class="kn">import</span> <span class="n">ChatBubble</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.choice</span><span class="w"> </span><span class="kn">import</span> <span class="n">choice_buttons</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">PageContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.web.nicegui.components.state_edit</span><span class="w"> </span><span class="kn">import</span> <span class="n">render_state_edit</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -432,7 +433,8 @@
 <span class="sd">    A ``review`` ask gets Approve / Request changes / Cancel; an ``input``</span>
 <span class="sd">    ask gets one text field per question plus Answer / Cancel; a</span>
 <span class="sd">    ``permission`` ask (ADR-0007) gets one allow-once / allow-session / deny</span>
-<span class="sd">    choice per requested path.  Submitting calls</span>
+<span class="sd">    choice per requested path; a ``state_edit`` ask renders the generic</span>
+<span class="sd">    session-state editor.  Submitting calls</span>
 <span class="sd">    :attr:`PageContext.submit_interrupt` (registered by the input area).</span>
 <span class="sd">    """</span>
     <span class="n">ask</span> <span class="o">=</span> <span class="n">_interrupt_ask</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
@@ -440,6 +442,9 @@
     <span class="n">interrupt_id</span> <span class="o">=</span> <span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"interrupt_id"</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"permission"</span><span class="p">:</span>
         <span class="n">_render_permission_form</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ask</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"state_edit"</span><span class="p">:</span>
+        <span class="n">render_state_edit</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ask</span><span class="p">,</span> <span class="n">interrupt_id</span><span class="p">)</span>
         <span class="k">return</span>
     <span class="n">heading</span> <span class="o">=</span> <span class="s2">"Plan review"</span> <span class="k">if</span> <span class="n">kind</span> <span class="o">==</span> <span class="s2">"review"</span> <span class="k">else</span> <span class="s2">"User input"</span>
     <span class="k">with</span> <span class="n">ui</span><span class="o">.</span><span class="n">column</span><span class="p">()</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"w-full gap-2 p-3 border border-primary rounded"</span><span class="p">):</span>
@@ -558,7 +563,7 @@
     <span class="n">raw</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw_preview"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"raw"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
     <span class="n">source</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"source"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
     <span class="n">detail</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">argument</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">confidence</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">tool</span> <span class="ow">or</span> <span class="n">argument</span> <span class="k">else</span> <span class="s2">""</span>
-    <span class="k">if</span> <span class="n">raw</span> <span class="ow">and</span> <span class="n">raw</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">raw</span> <span class="ow">and</span> <span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"value:"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">raw</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value</span><span class="p">):</span>
         <span class="n">detail</span> <span class="o">=</span> <span class="p">(</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">detail</span><span class="si">}</span><span class="se">\n</span><span class="s2">Detected token: </span><span class="si">{</span><span class="n">raw</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">detail</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"Detected token: </span><span class="si">{</span><span class="n">raw</span><span class="si">}</span><span class="s2">"</span>
         <span class="p">)</span>
@@ -568,6 +573,15 @@
         <span class="n">note</span> <span class="o">=</span> <span class="s2">"Commonly holds credentials."</span>
         <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">detail</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">detail</span> <span class="k">else</span> <span class="n">note</span>
     <span class="k">return</span> <span class="n">detail</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_permission_coverage</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the paths covered by this request's session approval, if plural."""</span>
+    <span class="n">paths</span> <span class="o">=</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"covered_paths_display"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"covered_paths"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">""</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">)</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"Covers:</span><span class="se">\n</span><span class="si">{</span><span class="n">lines</span><span class="si">}</span><span class="s2">"</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_permission_options</span><span class="p">(</span><span class="n">request</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
@@ -643,6 +657,11 @@
                     <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">scope</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span>
                 <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
                     <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span><span class="o">.</span><span class="n">style</span><span class="p">(</span>
+                        <span class="s2">"white-space: pre-line"</span>
+                    <span class="p">)</span>
+                <span class="n">coverage</span> <span class="o">=</span> <span class="n">_permission_coverage</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">coverage</span><span class="p">:</span>
+                    <span class="n">ui</span><span class="o">.</span><span class="n">label</span><span class="p">(</span><span class="n">coverage</span><span class="p">)</span><span class="o">.</span><span class="n">classes</span><span class="p">(</span><span class="s2">"text-xs text-grey-6"</span><span class="p">)</span><span class="o">.</span><span class="n">style</span><span class="p">(</span>
                         <span class="s2">"white-space: pre-line"</span>
                     <span class="p">)</span>
 

@@ -478,10 +478,22 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_dedupe_requests</span><span class="p">(</span><span class="n">requests</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Deduplicate requests by approval key, keeping the first (strongest)."""</span>
+<span class="w">    </span><span class="sd">"""Deduplicate requests by approval key, keeping the first (strongest).</span>
+
+<span class="sd">    Coverage is merged across calls: two tool calls that touch different files</span>
+<span class="sd">    in the same approved directory become one ask that lists both paths.</span>
+<span class="sd">    """</span>
     <span class="n">by_key</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">PathRequest</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
     <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
-        <span class="n">by_key</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">,</span> <span class="n">request</span><span class="p">)</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="n">by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">by_key</span><span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="p">:</span>
+            <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">existing</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">covered_paths</span> <span class="ow">or</span> <span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">path</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="p">:</span>
+                <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
     <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">by_key</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span>
 
 
