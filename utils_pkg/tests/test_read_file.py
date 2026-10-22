@@ -370,6 +370,7 @@ def test_limit_none_pages_to_eof_without_a_line_cap(tmp_path):
 def test_tool_schema_hides_the_character_budget():
     """The model sees offset/limit/char_offset, not the server budget."""
     import inspect
+    from typing import get_args
 
     from klea_utils.mcp.server import bundled_tools
 
@@ -377,6 +378,8 @@ def test_tool_schema_hides_the_character_budget():
     assert "max_chars" not in params
     assert "char_offset" in params
     assert params["limit"].default == 500
+    offset_field = get_args(params["offset"].annotation)[1]
+    assert "Negative values" in offset_field.description
     assert "server character budget" in bundled_tools.read_file.__doc__
     assert "truncation_reason" in bundled_tools.read_file.__doc__
 
@@ -849,6 +852,212 @@ def test_read_tail_page_reports_a_char_stop(tmp_path):
     assert page.reached_eof is True
     assert page.segments
     assert len(page.segments[0]) > 5
+
+
+def test_tail_offset_last_line(tmp_path):
+    """A -1 offset reads the last line with a negative line number."""
+    f = _write(tmp_path, 5)
+
+    result = read_file(str(f), offset=-1, project_root=str(tmp_path))
+
+    assert result["content"] == "-1: line 5"
+    assert result["line_start"] == -1
+    assert result["line_end"] == -1
+    assert result["total_lines"] is None
+    assert result["truncated"] is False
+    assert result["truncation_reason"] == ""
+    assert result["next_offset"] is None
+
+
+def test_tail_offset_last_n_lines(tmp_path):
+    """A negative offset returns the last N lines to EOF."""
+    f = _write(tmp_path, 5)
+
+    result = read_file(str(f), offset=-3, project_root=str(tmp_path))
+
+    assert result["content"] == "-3: line 3\n-2: line 4\n-1: line 5"
+    assert result["line_start"] == -3
+    assert result["line_end"] == -1
+    assert result["truncated"] is False
+    assert result["next_offset"] is None
+
+
+def test_tail_offset_pages_forward(tmp_path):
+    """A tail page continues with a negative next_offset."""
+    f = _write(tmp_path, 10)
+
+    first = read_file(str(f), offset=-10, limit=4, project_root=str(tmp_path))
+    assert first["line_start"] == -10
+    assert first["line_end"] == -7
+    assert first["truncated"] is True
+    assert first["next_offset"] == -6
+    assert "offset=-6" in first["note"]
+
+    second = read_file(str(f), offset=-6, limit=4, project_root=str(tmp_path))
+    assert second["line_start"] == -6
+    assert second["line_end"] == -3
+    assert second["next_offset"] == -2
+
+    third = read_file(str(f), offset=-2, limit=4, project_root=str(tmp_path))
+    assert third["line_end"] == -1
+    assert third["truncated"] is False
+    assert third["next_offset"] is None
+
+
+def test_tail_offset_clamps_to_the_file_start(tmp_path):
+    """A tail request past the start clamps and reports the exact total."""
+    f = _write(tmp_path, 3)
+
+    result = read_file(str(f), offset=-10, project_root=str(tmp_path))
+
+    assert result["content"] == "-3: line 1\n-2: line 2\n-1: line 3"
+    assert result["line_start"] == -3
+    assert result["line_end"] == -1
+    assert result["total_lines"] == 3
+    assert result["truncated"] is False
+    assert "before the start" in result["note"]
+
+
+def test_tail_offset_empty_file(tmp_path):
+    """A tail read of an empty file reports zero lines and a note."""
+    f = tmp_path / "empty.txt"
+    f.write_text("")
+
+    result = read_file(str(f), offset=-1, project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert result["total_lines"] == 0
+    assert result["line_start"] == -1
+    assert result["line_end"] == -2
+    assert result["truncated"] is False
+    assert "past the start" in result["note"]
+
+
+def test_tail_offset_scan_cap(tmp_path):
+    """A tail locator that exceeds the scan cap returns a note, not a file error."""
+    f = _write(tmp_path, 10)
+
+    result = read_file(str(f), offset=-5, max_bytes=2, project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert result["truncated"] is True
+    assert result["truncation_reason"] == "scan_cap"
+    assert result["line_start"] == -5
+    assert result["line_end"] == -6
+    assert result["next_offset"] is None
+    assert "tail scan cap" in result["note"]
+
+
+def test_tail_offset_char_paging(tmp_path):
+    """A long last line is paged by characters from the tail."""
+    f = tmp_path / "long.txt"
+    f.write_text("a\n" + "x" * 30)
+
+    first = read_file(
+        str(f),
+        offset=-1,
+        max_chars=10,
+        line_numbers=False,
+        project_root=str(tmp_path),
+    )
+    assert first["content"] == "x" * 10
+    assert first["line_start"] == -1
+    assert first["line_end"] == -1
+    assert first["truncated"] is True
+    assert first["truncation_reason"] == "char_budget"
+    assert first["next_offset"] == -1
+    assert first["next_char_offset"] == 10
+
+    second = read_file(
+        str(f),
+        offset=-1,
+        char_offset=first["next_char_offset"],
+        max_chars=10,
+        line_numbers=False,
+        project_root=str(tmp_path),
+    )
+    assert second["content"] == "x" * 10
+    assert second["line_start"] == -1
+    assert second["next_char_offset"] == 20
+
+
+def test_tail_offset_preserves_bom_at_start(tmp_path):
+    """A tail that reaches byte 0 strips the BOM and reports the total."""
+    f = tmp_path / "bom.txt"
+    f.write_bytes(b"\xef\xbb\xbfhello\nworld\n")
+
+    result = read_file(str(f), offset=-10, project_root=str(tmp_path))
+
+    assert result["content"] == "-2: hello\n-1: world"
+    assert result["line_start"] == -2
+    assert result["line_end"] == -1
+    assert result["total_lines"] == 2
+    assert "BOM" in result["note"]
+    assert "before the start" in result["note"]
+
+
+def test_tail_offset_bom_only_file(tmp_path):
+    """A file containing only a BOM has no lines after stripping."""
+    f = tmp_path / "bom.txt"
+    f.write_bytes(b"\xef\xbb\xbf")
+
+    result = read_file(str(f), offset=-1, project_root=str(tmp_path))
+
+    assert result["content"] == ""
+    assert result["total_lines"] == 0
+    assert result["line_start"] == -1
+    assert result["line_end"] == -2
+    assert result["truncated"] is False
+    assert "past the start" in result["note"]
+    assert "BOM" in result["note"]
+
+
+def test_tail_offset_html(tmp_path):
+    """Converted content is sliced from the end with its exact total."""
+    f = tmp_path / "page.html"
+    f.write_text("<html><body><h1>Title</h1><p>Body</p></body></html>")
+
+    result = read_file(str(f), offset=-1, project_root=str(tmp_path))
+
+    assert result["content"] == "-1: Body"
+    assert result["line_start"] == -1
+    assert result["line_end"] == -1
+    assert result["total_lines"] == 2
+    assert result["truncated"] is False
+
+
+def test_tail_offset_crlf(tmp_path):
+    """CRLF content pages by logical line in a tail read."""
+    f = tmp_path / "crlf.txt"
+    f.write_bytes(b"a\r\nb\r\n")
+
+    result = read_file(str(f), offset=-1, project_root=str(tmp_path))
+
+    assert result["content"] == "-1: b"
+    assert result["line_end"] == -1
+    assert result["truncated"] is False
+
+
+def test_tail_offset_honours_line_numbers_false(tmp_path):
+    """A tail read returns raw text when line numbers are disabled."""
+    f = _write(tmp_path, 5)
+
+    result = read_file(
+        str(f), offset=-1, line_numbers=False, project_root=str(tmp_path)
+    )
+
+    assert result["content"] == "line 5"
+    assert result["line_start"] == -1
+
+
+def test_offset_zero_still_starts_at_the_first_line(tmp_path):
+    """Offset 0 keeps the legacy clamp to the first line."""
+    f = _write(tmp_path, 3)
+
+    result = read_file(str(f), offset=0, project_root=str(tmp_path))
+
+    assert result["line_start"] == 1
+    assert result["content"].startswith("1: line 1")
 
 
 def test_scan_cap_before_offset_gives_grep_hint(tmp_path):

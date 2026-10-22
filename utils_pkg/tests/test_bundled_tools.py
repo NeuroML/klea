@@ -948,6 +948,21 @@ def test_read_file_cache_avoids_reconversion(tmp_path, monkeypatch):
     assert calls["n"] == 2
 
 
+async def test_read_file_tool_accepts_a_negative_offset(tmp_path, monkeypatch):
+    """A negative offset passes schema validation and reads the tail."""
+    from klea_utils.mcp.server import bundled_tools
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "t.txt").write_text("a\nb\nc\n")
+
+    result = await bundled_tools.read_file(path="t.txt", offset=-1)
+
+    assert result.is_error is False
+    assert result.structured_content["content"] == "-1: c"
+    assert result.structured_content["line_start"] == -1
+    assert result.structured_content["line_end"] == -1
+
+
 class TestResolveUserAgents:
     """Tests of the UA resolution logic (offline fallback, cache, fetch)."""
 

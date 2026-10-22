@@ -134,14 +134,18 @@ def read_file(
     :param path: File path to read.  Defaults to the current directory
         (``"."``), which is not a file, so a missing path yields the
         nearby-entries fallback.
-    :param offset: 1-indexed line to start reading from.
+    :param offset: 1-indexed line to start reading from.  A negative value
+        counts from the end: ``-1`` is the last line, ``-N`` the Nth from the
+        end.  Returned line numbers are then negative relative to EOF, and a
+        tail request that reaches past the start clamps to the first line.
     :param char_offset: 0-indexed character position within *offset*'s line to
         start from (default 0).  Only needed to continue inside a single line
         longer than ``max_chars``: the returned ``next_char_offset`` gives the
         resume position.
     :param limit: Maximum number of lines to return.  ``None`` removes only
         the line limit; the server-owned ``max_chars`` budget still applies, so
-        the result can still be truncated (with ``next_offset``).
+        the result can still be truncated (with ``next_offset``).  For a
+        negative *offset*, this counts forward from the tail start.
     :param max_chars: Character budget for the response (server-owned backstop;
         not exposed to the model), applied after the line slice.  The effective
         value is reported as ``char_budget``.
@@ -161,13 +165,16 @@ def read_file(
         error).  A truncated result is a success (``error`` empty) that carries
         the line range actually returned and ``next_offset`` for continuing;
         ``nearby``/``note`` are populated on a missing/not-a-file error so the
-        caller can see what exists instead.  ``total_lines`` is exact only when
-        the streamed read reached EOF; a page that stops early reports it as
-        ``None``.  ``char_budget`` is the effective server character cap, and
-        ``truncation_reason`` is ``"char_budget"``, ``"line_limit"`` or
-        ``"scan_cap"`` when truncated (empty otherwise), so a ``limit=None``
-        read that still reports ``truncated`` shows why.  A truncated page of a
-        large file also carries a note suggesting ``grep`` to locate the region.
+        caller can see what exists instead.  ``total_lines`` is exact when the
+        read reaches the relevant end (EOF for a forward read, the file start
+        for a tail read); a page that stops early reports it as ``None``.
+        ``line_start``/``line_end`` (and ``next_offset``) are negative for a
+        tail read, with ``-1`` as the last line.  ``char_budget`` is the
+        effective server character cap, and ``truncation_reason`` is
+        ``"char_budget"``, ``"line_limit"`` or ``"scan_cap"`` when truncated
+        (empty otherwise), so a ``limit=None`` read that still reports
+        ``truncated`` shows why.  A truncated page of a large file also carries
+        a note suggesting ``grep`` to locate the region.
     """
     logger.debug(
         f"Reading file\n"
@@ -203,9 +210,10 @@ def read_file(
         logger.warning(f"Could not stat {path}: {exc}")
         size = None
 
-    if offset < 1:
+    if offset == 0:
         logger.warning(f"Invalid offset {offset}; starting from line 1")
         offset = 1
+    requested_offset = offset
     if char_offset < 0:
         logger.warning(f"Invalid char_offset {char_offset}; starting at 0")
         char_offset = 0
@@ -252,21 +260,63 @@ def read_file(
             # bytes scanned in one call rather than refusing the file).
             delimited_raw = suffix in {".csv", ".tsv"}
             streamed = True
-            (
-                segments,
-                total_lines,
-                reached_eof,
-                scan_capped,
-                had_bom,
-                stop_reason,
-            ) = _read_streamed_page(
-                the_path,
-                offset=offset,
-                limit=limit,
-                char_offset=char_offset,
-                max_chars=max_chars,
-                max_bytes=max_bytes,
-            )
+            if offset < 0:
+                page = _read_tail_page(
+                    the_path,
+                    offset=offset,
+                    limit=limit,
+                    char_offset=char_offset,
+                    max_chars=max_chars,
+                    max_bytes=max_bytes,
+                )
+                if page.locator_truncated:
+                    logger.warning(
+                        f"Could not locate tail offset {requested_offset} "
+                        f"within {max_bytes} bytes: {path}"
+                    )
+                    return {
+                        "path": str(the_path),
+                        "content": "",
+                        "line_start": requested_offset,
+                        "line_end": requested_offset - 1,
+                        "total_lines": None,
+                        "truncated": True,
+                        "truncation_reason": "scan_cap",
+                        "char_budget": max_chars,
+                        "next_offset": None,
+                        "next_char_offset": 0,
+                        "error": "",
+                        "note": (
+                            f"Could not locate line {requested_offset} within the "
+                            f"{max_bytes}-byte tail scan cap. Use grep to find the "
+                            "region, then read around it, or request a tail closer "
+                            "to the end."
+                        ),
+                    }
+                segments = page.segments
+                total_lines = page.total_lines
+                reached_eof = page.reached_eof
+                scan_capped = page.scan_capped
+                had_bom = page.had_bom
+                stop_reason = page.stop_reason
+                if page.line_number is not None:
+                    offset = page.line_number
+            else:
+                (
+                    segments,
+                    total_lines,
+                    reached_eof,
+                    scan_capped,
+                    had_bom,
+                    stop_reason,
+                ) = _read_streamed_page(
+                    the_path,
+                    offset=offset,
+                    limit=limit,
+                    char_offset=char_offset,
+                    max_chars=max_chars,
+                    max_bytes=max_bytes,
+                )
     except UnicodeDecodeError:
         logger.warning(f"Not valid UTF-8 text: {path}")
         return {
@@ -384,6 +434,9 @@ def read_file(
     budget_note = (
         f" by the server character budget ({max_chars} chars)" if char_limited else ""
     )
+    line_range = (
+        f"{line_start}-{line_end}" if line_start >= 0 else f"{line_start} to {line_end}"
+    )
     note = ""
     if truncated and next_offset is not None:
         if next_char_offset:
@@ -396,7 +449,7 @@ def read_file(
         else:
             note = (
                 f"Output truncated{budget_note}: showing lines "
-                f"{line_start}-{line_end}{total_suffix}. Continue with "
+                f"{line_range}{total_suffix}. Continue with "
                 f"offset={next_offset}."
             )
     elif truncated and not reached_eof:
@@ -407,22 +460,46 @@ def read_file(
         )
     elif not segments and total_lines:
         note = f"offset {offset} is past the end of the file ({total_lines} lines)."
-    elif had_bom:
-        note = "Stripped a UTF-8 BOM."
-    elif delimited_raw:
-        note = "Delimited file read as physical lines; quoted fields may span lines."
 
-    if limit is None and char_limited and note:
+    tail_note = ""
+    if from_end:
+        if total_lines == 0:
+            tail_note = (
+                f"offset {requested_offset} is past the start of the file (0 lines)."
+            )
+        elif total_lines is not None and requested_offset < -total_lines:
+            tail_note = (
+                f"offset {requested_offset} is before the start of the file "
+                f"({total_lines} lines)."
+            )
+    if tail_note:
+        note = f"{tail_note} {note}".strip()
+
+    if had_bom:
+        note = f"{note} Stripped a UTF-8 BOM.".strip()
+    if delimited_raw:
+        note = (
+            f"{note} Delimited file read as physical lines; quoted fields may "
+            "span lines."
+        ).strip()
+
+    if limit is None and char_limited:
         note = (
             f"{note} limit=None removes only the line limit, not the server "
             "character budget."
-        )
+        ).strip()
 
     if truncated and size is not None and size > _LARGE_FILE_HINT_BYTES:
-        note = (
-            f"{note} Large file: prefer grep to find the region you need, then "
-            "read around it with offset/limit."
-        ).strip()
+        if from_end:
+            note = (
+                f"{note} Large file: use a smaller tail or grep to locate the region."
+            ).strip()
+        else:
+            note = (
+                f"{note} Large file: prefer grep to find the region you need, then "
+                "read around it with offset/limit, or use a negative offset to "
+                "read from the end."
+            ).strip()
 
     char_budget = max_chars
     logger.debug(
@@ -935,6 +1012,18 @@ def _read_tail_page(
             max_chars=max_chars,
             max_bytes=max_bytes,
             strip_bom=byte_offset == 0,
+        )
+    if byte_offset == 0 and had_bom and not segments and start.total_lines == 1:
+        # A file containing only a BOM has no lines once it is stripped.
+        return _TailPage(
+            segments=[],
+            line_number=None,
+            total_lines=0,
+            reached_eof=True,
+            scan_capped=scan_capped,
+            had_bom=True,
+            stop_reason="eof",
+            locator_truncated=False,
         )
     return _TailPage(
         segments=segments,

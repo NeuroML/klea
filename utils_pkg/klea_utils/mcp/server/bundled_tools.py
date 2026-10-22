@@ -404,7 +404,13 @@ async def read_file(
     ] = ".",
     offset: Annotated[
         int,
-        Field(description="1-indexed line to start reading from", ge=1),
+        Field(
+            description=(
+                "1-indexed line to start reading from. Negative values count "
+                "from the end: -1 is the last line, -N is the Nth line from the "
+                "end"
+            )
+        ),
     ] = 1,
     char_offset: Annotated[
         int,
@@ -420,7 +426,7 @@ async def read_file(
         int | None,
         Field(
             description=(
-                "Maximum number of lines to return (>=1). ``None`` removes the "
+                "Maximum number of lines to return (>=1). None removes the "
                 "line limit, but the server character budget still caps the "
                 "response"
             ),
@@ -445,6 +451,8 @@ async def read_file(
     Use when:
     - You need to see the contents of a file in the project.
     - You want to page through a large file by line numbers.
+    - You need the end of a large file, such as the tail of a build log: use a
+      negative offset (``offset=-100``) instead of paging from the start.
 
     Read file chunks instead of complete files. Use the grep tool to locate the
     region you need first, then read around it with ``offset``/``limit``.
@@ -453,42 +461,51 @@ async def read_file(
     - Listing a directory (use the list files tool instead).
     - Fetching remote content (use the web fetch tool instead).
 
-    Example: read_file(path="README.md", offset=1, limit=100)
+    Examples:
+    - ``read_file(path="README.md", offset=1, limit=100)``
+    - ``read_file(path="build.log", offset=-100)``
 
     Args:
         path: File path to read. Must be relative to the current working
             directory and cannot contain '..' for security. Defaults to the
             current directory ('.'), which is not a file, so an omitted path
             yields the nearby-entries fallback instead of a validation error.
-        offset: 1-indexed line to start reading from.
+        offset: 1-indexed line to start reading from. A negative value counts
+            from the end: -1 is the last line, -N is the Nth line from the end.
         char_offset: 0-indexed character position within the start line; used
             only to continue inside a single line longer than the character
             cap (see ``next_char_offset`` in the result).
         limit: Maximum number of lines to return. ``None`` removes only the line
             limit; the server character budget still caps the response, so a
-            ``None`` read can still be truncated with ``next_offset``.
+            ``None`` read can still be truncated with ``next_offset``. For a
+            negative offset, this counts forward from the tail start.
         line_numbers: Prefix each line with its line number; set false for raw
             text to copy into an edit.
 
     The response size is always capped by a server-side character budget,
     reported as ``char_budget``; a large file is read by paging
-    (``offset``/``limit``) rather than returned in one call.
+    (``offset``/``limit``) or from the end rather than returned in one call.
 
     Returns:
         Dictionary with content, line range, total_lines, truncated,
         truncation_reason, char_budget, next_offset, next_char_offset, error
-        and note.  ``total_lines`` is ``null`` when a streamed read stops before
-        the end of the file.  ``char_budget`` is the effective server character
-        cap, and ``truncation_reason`` is ``char_budget``, ``line_limit`` or
-        ``scan_cap`` when truncated (empty otherwise), so a ``limit=None`` read
-        shows why it was cut.  A truncated read is a success (empty ``error``)
-        that normally ends on a line boundary and carries ``next_offset`` (and
-        an explanatory ``note``) so the caller can continue.  A single line
-        longer than the character cap is paged by characters: continue with the
-        same ``offset`` and the returned ``next_char_offset``.  On a
-        missing/not-a-file error, ``nearby`` (entries in the nearest existing
-        directory) and ``note`` are populated so the caller can see what exists
-        instead.
+        and note.  ``line_start``/``line_end`` and ``next_offset`` are negative
+        for a tail read, with -1 as the last line.  ``total_lines`` is ``null``
+        when a streamed read stops before the relevant end (EOF for a forward
+        read, the file start for a tail read); a tail that reaches past the
+        start clamps to the first line and reports the exact total.  A partial
+        tail that reaches EOF has ``truncated: false``, ``next_offset: null``
+        and ``line_end: -1``.  ``char_budget`` is the effective server
+        character cap, and ``truncation_reason`` is ``char_budget``,
+        ``line_limit`` or ``scan_cap`` when truncated (empty otherwise), so a
+        ``limit=None`` read shows why it was cut.  A truncated read is a
+        success (empty ``error``) that normally ends on a line boundary and
+        carries ``next_offset`` (and an explanatory ``note``) so the caller can
+        continue.  A single line longer than the character cap is paged by
+        characters: continue with the same ``offset`` and the returned
+        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``
+        (entries in the nearest existing directory) and ``note`` are populated
+        so the caller can see what exists instead.
     """
     result = read_file_impl(
         path=path,
