@@ -492,8 +492,8 @@ def detect_path_requests(
         requests[key] = PathRequest(
             tool=tool,
             argument=argument,
-            raw=str(raw),
-            path=str(resolved),
+            raw=os.path.normpath(str(raw)),
+            path=os.path.normpath(str(resolved)),
             directory=str(directory),
             confidence=confidence,
             source=source,

@@ -146,7 +146,7 @@ def test_detect_keeps_bare_root_guess(tmp_path):
     )
 
     assert len(requests) == 1
-    assert requests[0].path == os.path.abspath(os.sep)
+    assert requests[0].path == str(Path(root.anchor).resolve())
     assert requests[0].directory == os.path.abspath(os.sep)
     assert requests[0].confidence == "guess"
     assert requests[0].source == "value:command"
