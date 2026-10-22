@@ -551,7 +551,7 @@ def test_locate_tail_start_reaches_the_file_start(tmp_path):
 def test_locate_tail_start_without_a_trailing_newline(tmp_path):
     """The last line is still the last line when the file has no final LF."""
     f = tmp_path / "t.txt"
-    f.write_text("a\nb\nc")
+    f.write_text("a\nb\nc", encoding="utf-8", newline="\n")
 
     start = _locate_tail_start(f, 1, max_bytes=10_000)
 
