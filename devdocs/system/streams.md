@@ -40,7 +40,7 @@ exception.
 | `state` | node (custom) | `{type, node, data{heading, summary, display, key, preformatted}}` | status pane section | status-panel section |
 | `usage` | node (custom) | `{type, node, data{details{input_tokens, output_tokens, total_tokens, cached_tokens, reasoning_tokens, role}}}` | token totals | token totals |
 | `tool` | node (custom, `ToolsCallerNode`) | `{type, node, data{tools:[{tool, title, header, mime, data, meta, display}]}}` | chat blocks (one per entry) | transcript block (MIME-aware) |
-| `notice` | node (custom) | `{type, node, data{heading, summary, details{content, kind}}}` | compact chat progress note | muted transcript line |
+| `notice` | node (custom) | `{type, node, data{heading, summary, details{content, kind}}}` | collapsible chat progress note (full summary) | muted transcript line (collapsible) |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
 | `context` | runner (values) | `{type, data}` | status pane (mode/access) | stored on the chat; status-panel mode/access slots refresh |
 | `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, interrupt_id, hitl_response_schema}}` | ask form replacing the composer | inline ask panel replacing the composer |
